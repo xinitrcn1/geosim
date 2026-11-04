@@ -72,6 +72,21 @@ object{
 	property{ name{at_war} type{array{uint8_t}{float}} }
 	property{ name{war_cost} type{float} }
 	property{ name{trade_access0} type{float} }
+	property{ name{exchange_rate} type{float} }
+	property{ name{fx_change} type{float} }
+	property{ name{ca0} type{float} }
+	property{ name{spread} type{float} }
+	property{ name{spread0} type{float} }
+	property{ name{reserve_currency} type{float} }
+	property{ name{defaulted} type{uint8_t} }
+	property{ name{remit_in0} type{float} }
+	property{ name{remit_out0} type{float} }
+	property{ name{rate_remit_in} type{float} }
+	property{ name{rate_remit_out} type{float} }
+	property{ name{worker_income0} type{float} }
+	property{ name{liberal0} type{float} }
+	property{ name{tertiary0} type{float} }
+	property{ name{trend_growth0} type{float} }
 	property{ name{media_freedom} type{float} }
 
 	property{ name{va0} type{array{uint8_t}{float}} }
@@ -202,6 +217,7 @@ object{
 	property{ name{war_deaths} type{float} }
 	property{ name{unrest} type{float} }
 	property{ name{unrest_capacity} type{float} }
+	property{ name{temp_base} type{float} }
 	property{ name{migration_net} type{float} }
 	property{ name{hemisphere} type{float} }
 	property{ name{beds_per_1000} type{float} }
@@ -260,6 +276,8 @@ object{
 	property{ name{f_spend_firms} type{float} }
 	property{ name{f_spend_gov} type{float} }
 	property{ name{f_programmes} type{float} }
+	property{ name{f_remit_in} type{float} }
+	property{ name{f_remit_out} type{float} }
 	property{ name{employed} type{array{uint8_t}{float}} }
 	property{ name{unemployed} type{float} }
 	property{ name{inactive} type{float} }
@@ -338,6 +356,20 @@ object{
 	property{ name{severity} type{float} }
 	property{ name{initial_immunity} type{float} }
 	property{ name{cross_immunity} type{array{uint8_t}{float}} }
+}
+
+object{
+	name{climate}
+	storage_type{contiguous}
+	size{1}
+	tag{scenario}
+
+	property{ name{co2_ppm} type{float} }
+	property{ name{temperature} type{float} }
+	property{ name{damage} type{float} }
+	property{ name{emissions} type{float} }
+	property{ name{emission_intensity} type{float} }
+	property{ name{remittance_index} type{float} }
 }
 
 object{

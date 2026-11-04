@@ -65,14 +65,14 @@
     X(rate_c_elasticity, 0.005, "consumption change per 1pp policy-rate deviation (fraction)")              \
     X(rate_i_elasticity, 0.02, "investment change per 1pp policy-rate deviation (fraction)")               \
     /* ---- labour ---- */                                                                                  \
-    X(layoff_speed, 0.6, "weekly share of excess labour laid off when EPL = 0")                           \
-    X(epl_hoarding, 0.6, "share of excess labour hoarded at EPL = 1 (no scheme)")                        \
+    X(layoff_speed, 0.4, "weekly share of excess labour laid off when EPL = 0")                           \
+    X(epl_hoarding, 0.8, "share of excess labour hoarded at EPL = 1 (no scheme)")                        \
     X(match_efficiency, 0.25, "weekly matching efficiency (hires = m * sqrt(U*V))")                       \
     X(lf_exit_base, 0.15, "share of laid-off workers leaving the labour force")                           \
     X(lf_exit_informal, 0.7, "extra LF exit share per unit informality")                                   \
-    X(lf_exit_lockdown, 0.5, "extra LF exit share at maximum stay-at-home orders (search impossible)")   \
+    X(lf_exit_lockdown, 0.8, "extra LF exit share at maximum stay-at-home orders (ILO 2020: ~71% of job losses became inactivity)")   \
     X(layoff_lag_days, 7.0, "smoothing of labour demand used for layoffs, at EPL = 0 (days)")             \
-    X(layoff_lag_epl, 6.0, "extra layoff lag per unit EPL (x layoff_lag_days)")                          \
+    X(layoff_lag_epl, 12.0, "extra layoff lag per unit EPL (x layoff_lag_days)")                          \
     X(lf_return_rate, 0.03, "weekly share of crisis-inactive returning to job search")                    \
     X(wage_low, 0.6, "relative wage of low-skill workers")                                                 \
     X(wage_mid, 1.0, "relative wage of mid-skill workers")                                                 \
@@ -120,6 +120,33 @@
     X(peace_base_rate, 0.5, "annual settlement hazard of a costless war")                                 \
     X(war_casualty_rate, 0.001, "annual deaths per resident in front regions")                            \
     X(war_destruction_rate, 0.05, "annual capital destroyed in front regions")                            \
+    /* ---- finance ---- */                                                                                 \
+    X(fx_current_account, 2.0, "annual log real appreciation per unit current-account improvement / GDP")  \
+    X(fx_interest, 0.5, "annual log appreciation per 100pp interest differential vs the US (UIP)")       \
+    X(fx_risk, 1.0, "annual log depreciation per 100pp rise of the sovereign spread (capital flight)")    \
+    X(fx_export_elasticity, 0.6, "export volume elasticity to the real exchange rate")                    \
+    X(fx_import_elasticity, 0.4, "import volume elasticity to the real exchange rate")                    \
+    X(fx_passthrough, 0.2, "share of depreciation passed into core inflation")                            \
+    X(spread_debt, 3.0, "spread (pp) per unit debt/GDP above 60%")                                        \
+    X(spread_deficit, 20.0, "spread (pp) per unit deficit/GDP")                                           \
+    X(spread_capacity, 4.0, "spread (pp) at zero state capacity")                                         \
+    X(spread_legitimacy, 3.0, "spread (pp) at zero legitimacy")                                           \
+    X(spread_reserve, 3.0, "spread reduction (pp) for a full reserve currency")                           \
+    X(debt_rollover_years, 7.0, "average debt maturity: years for spreads to reach the effective rate")   \
+    X(default_spread, 12.0, "spread (pp above start) at which a sovereign defaults")                      \
+    X(default_haircut, 0.3, "share of government debt written off in a default")                         \
+    /* ---- long run ---- */                                                                               \
+    X(capital_hysteresis, 0.07, "annual potential change per unit investment shortfall/excess")            \
+    X(institutions_growth, 0.02, "trend-growth change per unit liberal-index change")                     \
+    X(human_capital_growth, 0.03, "trend-growth change per unit tertiary-share change")                   \
+    X(co2_ppm0, 410.0, "atmospheric CO2 at the start (ppm)")                                              \
+    X(temperature0, 1.1, "warming above pre-industrial at the start (C)")                                 \
+    X(emissions0, 36.4, "world CO2 emissions at the start (Gt/yr)")                                        \
+    X(airborne_fraction, 0.45, "share of emissions staying in the atmosphere")                            \
+    X(climate_sensitivity, 3.0, "equilibrium warming per CO2 doubling (C)")                               \
+    X(climate_lag_years, 27.0, "adjustment time of transient warming (years)")                            \
+    X(damage_quadratic, 0.00236, "DICE-2016R output loss per C^2")                                       \
+    X(damage_heat_tilt, 0.06, "extra damage per C of regional mean temperature above 13 C (Burke et al.)") \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

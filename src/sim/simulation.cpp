@@ -17,6 +17,8 @@ void advance_day(game_state& state) {
     update_unrest(state);
     update_politics(state);
     update_geopolitics(state);
+    update_finance(state);
+    update_longrun(state);
     update_indicators(state);
     ++state.current_tick;
 }

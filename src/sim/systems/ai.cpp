@@ -47,16 +47,6 @@ dcon::agent_id executive_of(game_state const& state, dcon::nation_id n) {
     return state.world.nation_get_agent_from_executive_seat(n);
 }
 
-dcon::nation_id sovereign_of(game_state const& state, dcon::nation_id n, float& autonomy) {
-    auto rel = state.world.nation_get_sovereignty_as_subject(n);
-    if(!rel) {
-        autonomy = 1.0f;
-        return {};
-    }
-    autonomy = state.world.sovereignty_get_autonomy(rel);
-    return state.world.sovereignty_get_sovereign(rel);
-}
-
 // Applies a player override (if any) and logs the outcome on the agent.
 float settle(game_state& state, dcon::agent_id a, uint8_t lev, blend_result const& r, float lo, float hi) {
     auto& w = state.world;
@@ -320,8 +310,8 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
     // Pragmatic: Taylor (1993) with the neutral rate implied by the starting setting,
     // or the anchor's rate under a peg.
     float pragmatic = static_cast<float>(rate0 - target_pi + pi + 0.5 * (pi - target_pi) + 0.5 * gap);
-    if(auto peg = w.nation_get_currency_peg_as_pegged(first)) {
-        pragmatic = w.nation_get_policy_rate(w.currency_peg_get_anchor(peg));
+    if(const auto anchor = peg_anchor(state, first)) {
+        pragmatic = w.nation_get_policy_rate(anchor);
     }
     pragmatic = std::max(static_cast<float>(P.effective_lower_bound), pragmatic);
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::policy_rate));
@@ -354,11 +344,12 @@ void update_ai(game_state& state) {
 
     // Sovereigns decide before their subjects so subjects can follow them.
     std::vector<dcon::nation_id> order;
+    float autonomy = 1.0f;
     for(auto n : w.in_nation) {
-        if(!w.nation_get_sovereignty_as_subject(n)) order.push_back(n.id);
+        if(!sovereign_of(state, n.id, autonomy)) order.push_back(n.id);
     }
     for(auto n : w.in_nation) {
-        if(w.nation_get_sovereignty_as_subject(n)) order.push_back(n.id);
+        if(sovereign_of(state, n.id, autonomy)) order.push_back(n.id);
     }
 
     for(auto n : order) {

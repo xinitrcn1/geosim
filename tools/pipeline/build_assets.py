@@ -172,6 +172,7 @@ def build_nations(wdi, curated):
             "tertiary_attainment_pct": g("tertiary_attainment_pct"), "urban_pct": g("urban_pct"),
             "vulnerable_emp_pct": g("vulnerable_emp_pct"),
             "birth_rate_per_1000": g("birth_rate_per_1000"), "death_rate_per_1000": g("death_rate_per_1000"),
+            "remittances_in_pct": g("remittances_in_pct"), "remittances_out_usd": g("remittances_out_usd"),
         }
         return r
 
@@ -183,6 +184,7 @@ def build_nations(wdi, curated):
     row = {"iso3": ROW, "name": "Rest of world"}
     for f in ("population", "labor_force", "gdp_usd", "gdp_ppp"):
         row[f] = w[f] - sum(rows[i][f] for i in SLICE)
+    row["remittances_out_usd"] = (w["remittances_out_usd"] or 0) - sum(rows[i]["remittances_out_usd"] or 0 for i in SLICE)
 
     def residual_ratio(field, weight):
         tot = w[field] * w[weight] if w[field] is not None else None
@@ -197,6 +199,7 @@ def build_nations(wdi, curated):
     for f in ("pop_0_14_pct", "pop_65up_pct", "urban_pct", "hospital_beds_per_1000",
               "birth_rate_per_1000", "death_rate_per_1000"):
         row[f] = residual_ratio(f, "population")
+    row["remittances_in_pct"] = residual_ratio("remittances_in_pct", "gdp_usd")
     row["unemployment_pct"] = residual_ratio("unemployment_pct", "labor_force")
     row["vulnerable_emp_pct"] = residual_ratio("vulnerable_emp_pct", "labor_force")
     row["lfp_rate_pct"] = w["lfp_rate_pct"]
@@ -498,7 +501,7 @@ def main() -> int:
             "imports_pct", "gov_revenue_pct", "gov_net_lending_pct", "gov_debt_pct", "gini",
             "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct", "vulnerable_emp_pct",
             "voice_est", "gov_effectiveness_est", "birth_rate_per_1000", "death_rate_per_1000",
-            "capital_lat", "capital_lon"]
+            "capital_lat", "capital_lon", "remittances_in_pct", "remittances_out_usd"]
     order = SLICE + [ROW]
     write_csv(scen / "nations.csv", cols, [[nations[i].get(c) for c in cols] for i in order],
               f"{GEN}. Source: World Bank WDI, latest year <= 2019; WGI voice/effectiveness (ROW: unweighted mean of the rest). Empty = missing (loader uses defaults).")

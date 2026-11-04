@@ -45,6 +45,7 @@ struct nation_input {
     double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
     double birth_rate = 0.015, death_rate = 0.008, pop014 = 0.2, tertiary = 0.2;
     double lat = 0.0, lon = 0.0;
+    double remit_in = 0.0, remit_out = 0.0; // % of GDP received; USD paid per year
     std::array<double, max_sectors> va_share{};
     std::array<double, max_sectors> emp_share{};
 };
@@ -268,6 +269,8 @@ struct builder {
             in.tertiary = t.number_or(row, "tertiary_attainment_pct", 20.0) / 100.0;
             in.lat = t.number_or(row, "capital_lat", 0.0);
             in.lon = t.number_or(row, "capital_lon", 0.0);
+            in.remit_in = t.number_or(row, "remittances_in_pct", 0.0) / 100.0;
+            in.remit_out = t.number_or(row, "remittances_out_usd", 0.0);
             in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
             order.push_back(in.iso);
             inputs[in.iso] = in;
@@ -547,6 +550,10 @@ struct builder {
         // Daily output at the start of 2020 (2019 annual level grown half a year).
         const double y = in.gdp * std::pow(1.0 + in.trend_growth, 0.5) / 365.0;
         w.nation_set_gdp0_daily(n, static_cast<float>(y));
+        w.nation_set_remit_in0(n, static_cast<float>(in.remit_in * y));
+        w.nation_set_remit_out0(n, static_cast<float>(in.remit_out / 365.0));
+        w.nation_set_exchange_rate(n, 1.0f);
+        w.nation_set_gov_rate(n, static_cast<float>(state.params.gov_effective_rate));
 
         double c = in.hh_cons, g = in.gov_cons, x = in.exports, m = in.imports;
         double i = 1.0 - c - g - x + m;
@@ -564,6 +571,8 @@ struct builder {
         w.nation_set_m0(n, static_cast<float>(M0));
         w.nation_set_import_share(n, static_cast<float>(m_share));
         w.nation_set_consumption(n, static_cast<float>(C0));
+        // The calibration probe must see baseline household demand (pop plans come later).
+        w.nation_set_c_des_total(n, C0);
         w.nation_set_investment(n, static_cast<float>(I0));
         w.nation_set_gov_spend(n, static_cast<float>(G0));
         w.nation_set_exports(n, static_cast<float>(X0));
@@ -891,6 +900,19 @@ struct builder {
         w.nation_set_tertiary_share(n, static_cast<float>(in.tertiary));
         w.nation_set_legitimacy(n, static_cast<float>(std::clamp(0.6 + 0.1 * in.voice, 0.3, 0.85)));
         w.nation_set_media_freedom(n, static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0)));
+        // Finance and long-run baselines.
+        w.nation_set_ca0(n, (w.nation_get_x0(n) - w.nation_get_m0(n)) / std::max(1.0f, w.nation_get_gdp0_daily(n)));
+        double worker_income = 0.0;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            auto reg = own.get_region();
+            const double lat = reg.get_lat() != 0.0f ? reg.get_lat() : in.lat;
+            reg.set_temp_base(static_cast<float>(28.0 - 0.45 * std::abs(lat)));
+            for(auto loc : reg.get_pop_location()) {
+                if(loc.get_pop().get_kind() < worker_kinds) worker_income += loc.get_pop().get_inc_work();
+            }
+        }
+        w.nation_set_worker_income0(n, static_cast<float>(worker_income));
+        w.nation_set_trend_growth0(n, static_cast<float>(in.trend_growth));
         w.nation_set_bal_gov(n, -debt0);
         w.nation_set_bal_fin(n, debt0);
         w.nation_set_bal_firms(n, 0.0);
@@ -1104,6 +1126,21 @@ struct builder {
                 w.nation_set_sanction_prior(a, kb, sanction);
             }
         }
+        // Reserve currencies (lower sovereign risk) and the starting spread / institutions.
+        if(fs::exists(dir + "/monetary_curated.csv")) {
+            const auto m = core::csv_table::load(dir + "/monetary_curated.csv");
+            if(m.has_column("reserve")) {
+                for(std::size_t row = 0; row < m.rows(); ++row) {
+                    if(auto n = find_nation(state, m.get(row, "iso3"))) w.nation_set_reserve_currency(n, static_cast<float>(m.number_or(row, "reserve", 0.0)));
+                }
+            }
+        }
+        for(auto n : w.in_nation) {
+            n.set_liberal0(n.get_liberal());
+            n.set_tertiary0(n.get_tertiary_share());
+            n.set_spread0(compute_spread(state, n.id));
+            n.set_spread(n.get_spread0());
+        }
         init_geopolitics(state);
         for(auto n : w.in_nation) {
             n.set_trade_access0(trade_access(state, n.id));
@@ -1114,6 +1151,13 @@ struct builder {
     void setup_oil() {
         auto& w = state.world;
         auto const& P = state.params;
+        const auto c = w.create_climate();
+        w.climate_set_co2_ppm(c, static_cast<float>(P.co2_ppm0));
+        w.climate_set_temperature(c, static_cast<float>(P.temperature0));
+        w.climate_set_damage(c, static_cast<float>(P.damage_quadratic * P.temperature0 * P.temperature0));
+        w.climate_set_emissions(c, static_cast<float>(P.emissions0));
+        w.climate_set_emission_intensity(c, static_cast<float>(P.emissions0 / P.oil_demand0));
+        w.climate_set_remittance_index(c, 1.0f);
         const auto oil = w.create_commodity();
         w.commodity_set_key(oil, core::pack_key("oil"));
         w.commodity_set_price(oil, static_cast<float>(P.oil_price0));

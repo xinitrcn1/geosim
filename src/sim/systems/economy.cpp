@@ -157,7 +157,10 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     // Exports follow partners' import demand through bilateral trade shares, cut by
     // sanctions and war (relative to the starting access).
     const float access0 = std::max(1e-6f, w.nation_get_trade_access0(n));
-    const float x_real = w.nation_get_x0(n) * gf * (apply ? trade_access(state, n) / access0 : 1.0f);
+    // Real exchange rate (1 = start): appreciation makes exports dearer, imports cheaper.
+    const float log_e = std::log(std::max(0.05f, w.nation_get_exchange_rate(n)));
+    const float x_real = w.nation_get_x0(n) * gf * (apply ? trade_access(state, n) / access0 : 1.0f)
+                         * std::exp(-static_cast<float>(P.fx_export_elasticity) * log_e);
     const float tourism = apply ? travel_index(state, n) : 1.0f;
 
     std::array<float, max_sectors> hh{};
@@ -210,7 +213,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float c_eff = hh_real / (1.0f - m_share);
     // Imports follow domestic output weighted by import intensity (goods > services).
     const float base = w.nation_get_import_base(n) * gf;
-    const float imports = w.nation_get_m0(n) * gf * (base > 0.0f ? import_demand / base : 1.0f);
+    const float imports = w.nation_get_m0(n) * gf * (base > 0.0f ? import_demand / base : 1.0f)
+                          * std::exp(static_cast<float>(P.fx_import_elasticity) * log_e);
     const float util = pot_total > 0.0f ? gdp / pot_total : 1.0f;
     const double c_nom = static_cast<double>(c_eff) * p;
     w.nation_set_cons_fill(n, c_des_total > 0.0 ? static_cast<float>(c_nom / c_des_total) : 1.0f);
@@ -226,7 +230,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         us += (util - us) * std::min(1.0f, dt / static_cast<float>(P.util_smoothing_days));
         w.nation_set_util_smoothed(n, us);
         float pe = w.nation_get_inflation_expect(n);
-        const float pi = pe + static_cast<float>(P.phillips) * gs;
+        // Depreciation passes partly into prices (import costs).
+        const float pi = pe + static_cast<float>(P.phillips) * gs - static_cast<float>(P.fx_passthrough) * w.nation_get_fx_change(n);
         w.nation_set_core_price(n, p * std::exp(std::log1p(pi) * dt / 365.0f));
         pe += (pi - pe) * std::min(1.0f, dt / static_cast<float>(P.expectations_days));
         w.nation_set_inflation_expect(n, pe);
@@ -308,13 +313,20 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const double firm_tax = w.nation_get_tax_firm(n) * std::max(0.0, profit);
     const double dividends = w.nation_get_dividend_payout(n) * std::max(0.0, ps);
     const double debt = apply ? std::max(0.0, -w.nation_get_bal_gov(n)) : w.nation_get_gov_debt0(n);
-    const double gov_interest = debt * (P.gov_effective_rate + 0.0025 * (r - r0)) / 365.0;
+    // Effective rate: starting average plus the sovereign spread as debt rolls over.
+    const double gov_interest = debt * (static_cast<double>(w.nation_get_gov_rate(n)) + 0.0025 * (r - r0)) / 365.0;
     const double pensions = static_cast<double>(w.nation_get_pensions0(n)) * p * gf;
     auto per = [](double total, float weight) { return weight > 0.0f ? static_cast<float>(total / weight) : 0.0f; };
     w.nation_set_rate_transfer(n, per(pensions, w.nation_get_transfer_weight_total(n)));
     w.nation_set_rate_fiscal(n, per(fiscal_hh / dt, w.nation_get_size_total(n)));
     w.nation_set_rate_dividend(n, per(dividends, w.nation_get_owner_weight_total(n)));
     w.nation_set_rate_interest(n, per(gov_interest, w.nation_get_owner_weight_total(n)));
+    // Remittances: received follow migrants' host incomes (world index), paid follow own workers'.
+    float remit_index = 1.0f;
+    for(auto c : w.in_climate) remit_index = c.get_remittance_index();
+    w.nation_set_rate_remit_in(n, per(static_cast<double>(w.nation_get_remit_in0(n)) * remit_index * p, w.nation_get_transfer_weight_total(n)));
+    w.nation_set_rate_remit_out(n, per(static_cast<double>(w.nation_get_remit_out0(n)) * (apply ? payer_income_index(state, n) : 1.0f) * p,
+                                       w.nation_get_size_total(n)));
 
     if(apply) {
         const double gov_purchases = static_cast<double>(g_real) * (1.0 - w.nation_get_comp_g(n, static_cast<uint8_t>(D.gov_sector.index()))) * p;
@@ -486,7 +498,9 @@ void update_economy(game_state& state, economy_mode mode) {
         const auto interest = w.pop_get_owner_weight(ids) * w.nation_get_rate_interest(nat);
         const auto gross = work + pub + stw;
         const auto tax = w.nation_get_tax_hh(nat) * (gross + dividends + interest);
-        const auto other = transfers + fiscal + dividends + interest;
+        const auto remit_in = w.pop_get_transfer_weight(ids) * w.nation_get_rate_remit_in(nat);
+        const auto remit_out = w.pop_get_size(ids) * w.nation_get_rate_remit_out(nat);
+        const auto other = transfers + fiscal + dividends + interest + remit_in - remit_out;
         const auto net = gross + benefit + other - tax;
         const auto taxable = gross + other;
         const auto net_factor = ve::select(taxable > zero, one - tax / ve::max(taxable, ve::fp_vector(1e-9f)), one);
@@ -520,6 +534,8 @@ void update_economy(game_state& state, economy_mode mode) {
         w.pop_set_f_spend_firms(ids, ve::select(mask, spend - spend_gov, zero));
         w.pop_set_f_spend_gov(ids, ve::select(mask, spend_gov, zero));
         w.pop_set_f_programmes(ids, ve::select(mask, programmes, zero));
+        w.pop_set_f_remit_in(ids, ve::select(mask, remit_in, zero));
+        w.pop_set_f_remit_out(ids, ve::select(mask, remit_out, zero));
         if(!probe) {
             w.pop_set_c_des(ids, ve::select(mask, c_new, w.pop_get_c_des(ids)));
         }
@@ -561,6 +577,8 @@ void update_economy(game_state& state, economy_mode mode) {
         transfer(state, me, gov, pp.get_f_tax() * ddt, flow::tax_households);
         transfer(state, me, firms, pp.get_f_spend_firms() * ddt, flow::consumption);
         transfer(state, me, gov, pp.get_f_spend_gov() * ddt, flow::consumption);
+        transfer(state, account::rest_of_world(n), me, pp.get_f_remit_in() * ddt, flow::remittances_in);
+        transfer(state, me, account::rest_of_world(n), pp.get_f_remit_out() * ddt, flow::remittances_out);
         pp.set_balance_trend(pp.get_balance_trend()
                              + static_cast<double>(pp.get_saving_rate0()) * pp.get_income_perm() * w.nation_get_core_price(n) * ddt);
         pp.set_excess_deposits(static_cast<float>(pp.get_balance() - pp.get_balance_trend()));

@@ -23,7 +23,9 @@ Code: `src/sim/` (systems in `src/sim/systems/`), data: `assets/`
 | Epidemics | **Yes.** Any number of simultaneous pathogens (data-defined), two-age-group SEIR each, interacting |
 | Trade | **Simplified.** Exports follow partners' import demand; no bilateral gravity matrix yet |
 | Oil market | **Yes.** World crude with inventories, OPEC+ events, price-elastic producers |
-| Exchange rates, credit, housing | No (all values in USD; see open issues) |
+| Finance | **Yes.** Real exchange rates (CA, UIP, risk), pegs/unions, sovereign spreads, default with haircut, remittances |
+| Long run, climate | **Yes.** Capital hysteresis, institutions / human capital in trend growth, DICE-lite climate with regional damages |
+| Credit, housing, technology diffusion | No |
 | AI agents | **Yes.** Executive + central bank per nation (one bank per currency union); anchors are priors (below) |
 | Overrides | **Yes (engine side).** advise / direct / force per agent and lever; AI choice still logged |
 | Sovereignty, pegs, claims | **Yes (data model + AI).** Subjects blend with their sovereign by autonomy; pegged banks follow the anchor |
@@ -151,20 +153,41 @@ status-quo sanctions, the legitimacy cost of force and the trade cost of sanctio
 Known gap: with three generic parties the centre wins both 2020 elections (median
 voter); real party systems (ParlGov / Manifesto) come with the data import.
 
+## Finance, long run, climate (`systems/finance.cpp`, `longrun.cpp`)
+
+Every 28 days. Floating real exchange rates move with the current account, interest
+differentials vs the US and sovereign risk; pegs and unions follow their anchor; rates
+feed trade volumes and import inflation. Spreads rise with debt, deficits, weak
+capacity and legitimacy (reserve currencies lower them) and reach the debt cost as it
+rolls over; an exploding spread triggers a default (haircut through the ledger).
+Remittances (WDI received / paid) follow host-economy earnings. Potential output follows
+the investment gap; trend growth follows institutions and human capital. Emissions
+(36.4 Gt in 2019, scaled by oil demand) drive CO2, transient warming and DICE-2016R
+damages tilted toward hot regions. `tests/test_finance.cpp`: 2020 emissions fall
+(model 33.5 Gt; real -5.4%), Mexico's remittances rise as a share of GDP, a debt
+blowout ends in a default that conserves money.
+
 ## Back-test (2020, in-sample)
 
 `ctest -L backtest` runs the year and compares it with real outcomes
 (`assets/backtest/2020_targets.csv`) using the bands in
-`assets/backtest/2020_tolerances.txt`. **All six metrics pass**:
+`assets/backtest/2020_tolerances.txt`. Current state: **five of six metrics pass; GDP
+misses by one nation**:
 
 | Metric | Band | Nations within band |
 |--------|------|---------------------|
-| Real GDP growth 2020 | ±3 pp | 15/20 |
-| Unemployment, 2020 mean | ±max(2 pp, 25%) | 16/20 |
+| Real GDP growth 2020 | ±3 pp | **14/20 (needs 15)** |
+| Unemployment, 2020 mean | ±max(2 pp, 25%) | 18/20 |
 | CPI inflation 2020 | ±max(1.5 pp, 35%) | 18/20 |
-| Government net lending | ±4 pp | 10/16 |
-| Reported COVID deaths per million | within 3x | 13/20 |
-| Brent 2020 mean | ±6 USD | model 42.9 vs real 42.0 |
+| Government net lending | ±4 pp | 12/16 |
+| Reported COVID deaths per million | within 3x | 14/20 |
+| Brent 2020 mean | ±6 USD | model 42.1 vs real 42.0 |
+
+The GDP pass rate dropped from 15 to 14 when a calibration bug was fixed: the
+calibration probe ran with zero household demand, understating baseline incomes, so
+consumption drifted upward through 2020 and hid part of the shock. The remaining GDP
+misses (UK, Spain, Brazil, India, Russia, Turkey) each correspond to a missing
+mechanism listed below; the bands were not loosened.
 
 **Caveat — this is in-sample.** The behavioural parameters in
 `assets/defs/parameters.txt` were tuned against these same targets, so the
@@ -172,7 +195,7 @@ back-test shows the mechanisms *can* reproduce 2020 jointly, not that they
 forecast it. A held-out check (2021, Delta wave, vaccines, reopening inflation)
 is the next validation step.
 
-**Known misses** (and the missing mechanism):
+**Known misses** (and the missing mechanism; numbers from earlier runs, same pattern):
 
 - GDP: Spain (-5.3 vs -10.9: tourism dependence is a global share, not national), India (-0.3 vs -5.8: the informal-sector income collapse under the national lockdown), Russia (-7.3 vs -2.7), Turkey (-4.4 vs +1.8: the 2020 state-bank credit boom is not modelled), Great Britain (-7.0 vs -10.0).
 - Deaths: Japan, Indonesia, India and Canada overshoot; Korea, Australia and China undershoot. One region per nation cannot represent where outbreaks happen; East Asian behaviour (masking, cluster tracing) is only partly captured by policy indicators.

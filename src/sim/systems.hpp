@@ -39,6 +39,14 @@ void update_power(game_state& state);
 // Bilateral export access (partners' import demand x trade share x sanctions/war).
 [[nodiscard]] float trade_access(game_state const& state, dcon::nation_id n);
 
+// Every 28 days: exchange rates, sovereign spreads and default, remittance index;
+// long-run potential, trend growth and climate (docs/03-economy.md).
+void update_finance(game_state& state);
+void update_longrun(game_state& state);
+[[nodiscard]] float compute_spread(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float payer_income_index(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float world_oil_demand(game_state const& state);
+
 // Daily: annual accumulators; monthly-sharded Gini.
 void update_indicators(game_state& state);
 
@@ -46,6 +54,12 @@ void update_indicators(game_state& state);
 // within each group (employed / unemployed / inactive) with dispersion `sigma`
 // (pass a negative value to use each pop's calibrated inc_sigma).
 [[nodiscard]] float compute_gini(game_state const& state, dcon::nation_id n, float sigma = -1.0f);
+
+// Polity links. DCON relationships keyed on a unique primary link have a slot for
+// every primary object, so a lookup can return a relationship with an empty
+// partner: always go through these helpers, which check the partner.
+[[nodiscard]] dcon::nation_id peg_anchor(game_state const& state, dcon::nation_id n) noexcept;
+[[nodiscard]] dcon::nation_id sovereign_of(game_state const& state, dcon::nation_id n, float& autonomy) noexcept;
 
 // Helpers shared by systems.
 [[nodiscard]] float growth_factor(game_state const& state, dcon::nation_id n) noexcept;

@@ -21,6 +21,24 @@ float npi_fraction(game_state const& state, dcon::nation_id n, uint8_t k) noexce
     return max > 0.0f ? std::clamp(state.world.nation_get_npi(n, k) / max, 0.0f, 1.0f) : 0.0f;
 }
 
+dcon::nation_id peg_anchor(game_state const& state, dcon::nation_id n) noexcept {
+    const auto rel = state.world.nation_get_currency_peg_as_pegged(n);
+    return rel ? state.world.currency_peg_get_anchor(rel) : dcon::nation_id{};
+}
+
+dcon::nation_id sovereign_of(game_state const& state, dcon::nation_id n, float& autonomy) noexcept {
+    autonomy = 1.0f;
+    const auto rel = state.world.nation_get_sovereignty_as_subject(n);
+    if(!rel) {
+        return {};
+    }
+    const dcon::nation_id sov = state.world.sovereignty_get_sovereign(rel);
+    if(sov) {
+        autonomy = state.world.sovereignty_get_autonomy(rel);
+    }
+    return sov;
+}
+
 // Most populous region: entry point for seeds and international migration.
 dcon::region_id capital_region(game_state const& state, dcon::nation_id n) noexcept {
     dcon::region_id best;

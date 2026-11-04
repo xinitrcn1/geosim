@@ -75,6 +75,7 @@ inline constexpr uint8_t journal_coup = 0xF1;
 inline constexpr uint8_t journal_war = 0xF2;
 inline constexpr uint8_t journal_peace = 0xF3;
 inline constexpr uint8_t journal_sanction = 0xF4;
+inline constexpr uint8_t journal_default = 0xF5;
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
@@ -97,6 +98,9 @@ enum class flow : uint8_t {
     interest_gov,
     interest_households,
     household_transfers, // between pops: ageing, migration
+    remittances_in,
+    remittances_out,
+    sovereign_default,
     count
 };
 

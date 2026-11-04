@@ -58,6 +58,8 @@ WDI_INDICATORS = {
     "SL.TLF.CACT.ZS": "lfp_rate_pct",
     "SP.DYN.CBRT.IN": "birth_rate_per_1000",
     "SP.DYN.CDRT.IN": "death_rate_per_1000",
+    "BX.TRF.PWKR.DT.GD.ZS": "remittances_in_pct",
+    "BM.TRF.PWKR.CD.DT": "remittances_out_usd",
 }
 
 SOURCES = [

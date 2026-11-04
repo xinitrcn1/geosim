@@ -1,10 +1,16 @@
 # Monetary regimes (hand-written). regime: own | union | peg.
 #   union: area = name of the currency union; one central-bank agent sets the rate for all members.
 #   peg:   anchor = ISO3 of the anchor currency's nation; the central bank follows its rate.
-# Sources: ECB (euro area membership 2020); SAMA (riyal pegged to USD since 1986).
-iso3,regime,area,anchor
-DEU,union,EUR,
-FRA,union,EUR,
-ITA,union,EUR,
-ESP,union,EUR,
-SAU,peg,,USA
+#   reserve: reserve-currency status 0..1 (lowers sovereign risk premia); US dollar = 1.
+# Sources: ECB (euro area membership 2020); SAMA (riyal pegged to USD since 1986); IMF COFER
+# shares of world reserves 2019 (USD ~61%, EUR ~20%, JPY ~6%, GBP ~5%, CNY ~2%), mapped to 0..1.
+iso3,regime,area,anchor,reserve
+USA,own,,,1.0
+DEU,union,EUR,,0.6
+FRA,union,EUR,,0.6
+ITA,union,EUR,,0.6
+ESP,union,EUR,,0.6
+JPN,own,,,0.4
+GBR,own,,,0.4
+CHN,own,,,0.2
+SAU,peg,,USA,0

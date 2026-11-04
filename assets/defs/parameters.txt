@@ -55,14 +55,14 @@ investment_floor{0.4}                    # minimum investment as share of baseli
 util_smoothing_days{30}                  # expected-utilisation smoothing (days)
 rate_c_elasticity{0.005}                 # consumption change per 1pp policy-rate deviation (fraction)
 rate_i_elasticity{0.02}                  # investment change per 1pp policy-rate deviation (fraction)
-layoff_speed{0.6}                        # weekly share of excess labour laid off when EPL = 0
-epl_hoarding{0.6}                        # share of excess labour hoarded at EPL = 1 (no scheme)
+layoff_speed{0.4}                        # weekly share of excess labour laid off when EPL = 0
+epl_hoarding{0.8}                        # share of excess labour hoarded at EPL = 1 (no scheme)
 match_efficiency{0.25}                   # weekly matching efficiency (hires = m * sqrt(U*V))
 lf_exit_base{0.15}                       # share of laid-off workers leaving the labour force
 lf_exit_informal{0.7}                    # extra LF exit share per unit informality
-lf_exit_lockdown{0.5}                    # extra LF exit share at maximum stay-at-home orders (search impossible)
+lf_exit_lockdown{0.8}                    # extra LF exit share at maximum stay-at-home orders (ILO 2020: ~71% of job losses became inactivity)
 layoff_lag_days{7}                       # smoothing of labour demand used for layoffs, at EPL = 0 (days)
-layoff_lag_epl{6}                        # extra layoff lag per unit EPL (x layoff_lag_days)
+layoff_lag_epl{12}                       # extra layoff lag per unit EPL (x layoff_lag_days)
 lf_return_rate{0.03}                     # weekly share of crisis-inactive returning to job search
 wage_low{0.6}                            # relative wage of low-skill workers
 wage_mid{1}                              # relative wage of mid-skill workers
@@ -77,6 +77,7 @@ migration_rate_internal{0.02}            # annual internal migration per log-uni
 migration_rate_international{0.002}      # annual international migration per log-unit of gap
 migration_cost_internal{0.1}             # log expected-income gap needed before people move internally
 migration_cost_international{1}          # log expected-income gap needed before people emigrate
+refugee_push{2}                          # extra log-gap pushing emigration from nations at war
 migration_cap{0.01}                      # largest share of a pop that can move in one 28-day step
 values_insecurity_pull{0.05}             # survival-values shift per year at full insecurity
 values_loss_left{0.1}                    # leftward economic shift per year at full grievance
@@ -88,6 +89,49 @@ unrest_grievance{1}                      # unrest target per unit grievance x (1
 unrest_psi{0.3}                          # unrest target per unit Political Stress Index
 unrest_days{60}                          # adjustment time of regional unrest (days)
 riot_capital_loss{0.002}                 # share of regional capital destroyed per 28 days per unrest level above 3
+vote_distance_weight{4}                  # utility loss per squared distance to a party
+vote_retrospective{1}                    # weight of the incumbent's performance in vote choice
+vote_health_weight{0.1}                  # performance penalty per daily death per million
+vote_temperature{0.3}                    # logit temperature of vote choice
+legitimacy_years{1}                      # adjustment time of legitimacy (years)
+force_legitimacy_cost{0.1}               # legitimacy lost per year per forced lever
+force_liberal_cost{0.05}                 # liberal-index loss per year per forced lever
+coup_rate{0.02}                          # monthly coup probability per unrest level above 2 (when conditions hold)
+selectorate_firm_tilt{0.3}               # extra fiscal share to firms as the winning coalition shrinks
+trust_years{2}                           # adjustment time of bilateral trust (years)
+sanction_trade_cut{0.8}                  # trade lost at full sanctions
+sanction_security_gain{1}                # pragmatic sanction level per unit threat above 0.2
+sanction_dependence_cost{3}              # pragmatic sanction reduction per unit export dependence
+sanction_ideology_gain{1}                # ideological sanction level per unit regime distance above 0.3
+war_base_rate{0.002}                     # annual war-onset hazard scale for a fully threatened, distrustful pair
+peace_base_rate{0.5}                     # annual settlement hazard of a costless war
+war_casualty_rate{0.001}                 # annual deaths per resident in front regions
+war_destruction_rate{0.05}               # annual capital destroyed in front regions
+fx_current_account{2}                    # annual log real appreciation per unit current-account improvement / GDP
+fx_interest{0.5}                         # annual log appreciation per 100pp interest differential vs the US (UIP)
+fx_risk{1}                               # annual log depreciation per 100pp rise of the sovereign spread (capital flight)
+fx_export_elasticity{0.6}                # export volume elasticity to the real exchange rate
+fx_import_elasticity{0.4}                # import volume elasticity to the real exchange rate
+fx_passthrough{0.2}                      # share of depreciation passed into core inflation
+spread_debt{3}                           # spread (pp) per unit debt/GDP above 60%
+spread_deficit{20}                       # spread (pp) per unit deficit/GDP
+spread_capacity{4}                       # spread (pp) at zero state capacity
+spread_legitimacy{3}                     # spread (pp) at zero legitimacy
+spread_reserve{3}                        # spread reduction (pp) for a full reserve currency
+debt_rollover_years{7}                   # average debt maturity: years for spreads to reach the effective rate
+default_spread{12}                       # spread (pp above start) at which a sovereign defaults
+default_haircut{0.3}                     # share of government debt written off in a default
+capital_hysteresis{0.07}                 # annual potential change per unit investment shortfall/excess
+institutions_growth{0.02}                # trend-growth change per unit liberal-index change
+human_capital_growth{0.03}               # trend-growth change per unit tertiary-share change
+co2_ppm0{410}                            # atmospheric CO2 at the start (ppm)
+temperature0{1.1}                        # warming above pre-industrial at the start (C)
+emissions0{36.4}                         # world CO2 emissions at the start (Gt/yr)
+airborne_fraction{0.45}                  # share of emissions staying in the atmosphere
+climate_sensitivity{3}                   # equilibrium warming per CO2 doubling (C)
+climate_lag_years{27}                    # adjustment time of transient warming (years)
+damage_quadratic{0.00236}                # DICE-2016R output loss per C^2
+damage_heat_tilt{0.06}                   # extra damage per C of regional mean temperature above 13 C (Burke et al.)
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)
