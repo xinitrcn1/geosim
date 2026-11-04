@@ -173,6 +173,28 @@ no-shock world year barely drifts (median unemployment +0.1 pp), so these are
 shock responses, not baseline drift. Under-65 fatality now follows each region's
 age mix (stable-population pyramid from the 0-14 / 15-64 ratio), a small effect.
 
+### Second round (generic mechanisms, data instead of priors)
+
+| Finding | Fix | Effect (world back-test) |
+|---------|-----|--------------------------|
+| OPEC+ anchors in data barrels vs production scaled to model units: the April 2020 "surge" was an accidental cut | anchors use each nation's production scale | Brent 59.0 -> 46.7 USD (real 42.0) |
+| Closures cut rich service economies as hard as poor ones | telework: sector teleworkable shares (Dingel & Neiman 2020) scaled by log income per head | GDP 102 -> 107; high-income bias -2.0 -> -0.9 pp |
+| The loader read EPL, benefits, death reporting and hemisphere only from curated tables, silently ignoring the generated world values | generated values apply, curated override | unemployment and deaths in non-curated nations |
+| Death reporting from income-group priors | reported / estimated excess deaths 2020 per nation (The Economist model) | reported-deaths bias by income group ~1 (high, upper-middle), 1.8 (lower-middle), 2.9 (low; were 0.45 / 1.3 / 21 / 64) |
+| True deaths not scored | new target `excess_deaths_per_million` (model true deaths vs estimated excess) | exposes epidemic size separately from reporting |
+| Rural populations transmit like cities | crowding factor from the region's urban share (Rader et al. 2020); single-region nations take the national urban share (slice deaths fell 14 -> 7 until this) | lower-middle / low-income true deaths 4.3x / 6.0x -> 2.0x / 2.9x excess |
+| Crisis-inactive workers returned to job search in ~6 months | half-life ~11 months (ILO) | unemployment 125 -> 143/187 |
+
+Open (world 2020 after this round): GDP 109/210 in band (need 158): the response to
+stringency is flatter than in the data (lax nations fall ~1 pp too much, strict ones
+~1 pp too little) and several fast-growing developing economies grew in 2020 where
+the model contracts them; inflation 115/179 (hyperinflations not produced; LMC bias
+-2 pp); deaths and excess deaths ~80-86 in band (still too many deaths in young,
+poor nations; Japan's tiny 2020 toll); low-income deficits ~4 pp too large.
+Diagnostics: `data/raw/bias.py`-style tables of median (model - data) by World Bank
+income group were the most useful view; per-nation misses are dominated by
+microstates and one-off events (Guyana's first oil, Timor-Leste).
+
 ## The 2008 slice (first run)
 
 - The first year fits well (GDP 17/20, unemployment 19/20 in band) but **2009
