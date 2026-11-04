@@ -317,7 +317,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
                                              * std::max(0.0f, w.nation_get_net_filtering(n) - w.nation_get_net_filtering0(n))
                                 : 1.0f;
     const float x_real = w.nation_get_x0(n) * gf * (apply ? trade_access(state, n) / access0 : 1.0f)
-                         * std::exp(-static_cast<float>(P.fx_export_elasticity) * log_e) * trade_cost * digital;
+                         * std::exp(-static_cast<float>(P.fx_export_elasticity) * log_e) * trade_cost * digital
+                         // Visitors' spending at a hosted mega-event (megaevents.cpp).
+                         + (apply ? w.nation_get_mega_exports(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f);
     const float tourism = apply ? travel_index(state, n) : 1.0f;
 
     std::array<float, max_sectors> hh{};
@@ -359,12 +361,17 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     // Public investment above baseline buys construction; defence above its 2019 share
     // buys manufacturing (fiscal.cpp, institutions.cpp).
     const float pub_g = apply ? w.nation_get_public_investment(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
+    // Mega-event construction relative to the start (megaevents.cpp); negative when a
+    // build-up under way in 2019 ends.
+    const float mega_g = apply ? std::max(-0.9f * pub_g - w.nation_get_gdp0_daily(n) * gf * 0.05f,
+                                          w.nation_get_mega_investment(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf)
+                               : 0.0f;
     const float def_g = apply ? (w.nation_get_defense_share(n) - w.nation_get_defense_share0(n)) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     // Education and health above baseline (policy.cpp) buy public services.
     const float svc_g = apply ? (w.nation_get_education_spending(n) + w.nation_get_health_spending(n) + w.nation_get_police(n) + w.nation_get_rd_spending(n))
                                     / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     for(auto sec : w.in_sector) {
-        if(core_key_is(sec.get_key(), "con")) dem[sec.id.index()] += pub_g * (1.0f - m_share);
+        if(core_key_is(sec.get_key(), "con")) dem[sec.id.index()] = std::max(0.0f, dem[sec.id.index()] + (pub_g + mega_g) * (1.0f - m_share));
     }
     if(D.gov_sector) dem[static_cast<uint8_t>(D.gov_sector.index())] += svc_g;
     if(D.manufacturing_sector) {
@@ -589,6 +596,10 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
             transfer(state, gov, firms, static_cast<double>(pub_g) * p * ddt, flow::public_investment);
         }
         {
+            cause_scope c(state, journal_cause(n, journal_mega_event));
+            transfer(state, gov, firms, static_cast<double>(mega_g) * p * ddt, flow::mega_capex);
+        }
+        {
             cause_scope c(state, lever_cause(state, n, lever::health));
             transfer(state, gov, firms, static_cast<double>(svc_g) * p * ddt, flow::public_services);
         }
@@ -629,7 +640,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         }
         w.nation_set_consumption(n, c_eff);
         w.nation_set_investment(n, i_real);
-        w.nation_set_gov_spend(n, g_real + war_g + pub_g + def_g + svc_g);
+        w.nation_set_gov_spend(n, g_real + war_g + pub_g + mega_g + def_g + svc_g);
         w.nation_set_exports(n, x_real);
         record_bilateral_exports(state, n, x_real);
         w.nation_set_imports(n, imports);

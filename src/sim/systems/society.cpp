@@ -699,6 +699,8 @@ void update_unrest(game_state& state) {
         const float drive = (static_cast<float>(P.unrest_grievance) * grievance * (1.0f - n.get_legitimacy())
                              + static_cast<float>(P.unrest_psi) * r.get_psi_region()) * amplifier
                             + exit_blocked + backlash + strikes
+                            // Mega-event spending amid grievance (Brazil 2013-14).
+                            + static_cast<float>(P.mega_protest) * 100.0f * n.get_mega_build_share() * grievance
                             // Fiscally starved regions resent the centre (Boadway & Shah 2009).
                             + 0.2f * std::max(0.0f, r.get_fiscal_capacity0() - r.get_fiscal_capacity());
         r.set_drive(std::clamp(drive, 0.0f, 2.0f));

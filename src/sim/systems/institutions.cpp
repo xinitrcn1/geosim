@@ -203,7 +203,9 @@ void decide_defense(game_state& state, dcon::agent_id a, dcon::nation_id n) {
                 + 0.1f * base * std::max(0.0f, w.nation_get_hostility(n, k) - 2.0f);
     }
     const float pragmatic = (base * (1.0f + static_cast<float>(P.defense_threat) * 40.0f * std::max(0.0f, threat - 0.3f)) + 3.0f * w.nation_get_war_effort(n)
-                             + static_cast<float>(P.richardson) * race)
+                             + static_cast<float>(P.richardson) * race
+                             // Alliance burden sharing under a rising threat (geo_orgs.cpp).
+                             + alliance_burden_push(state, n))
                             * (1.0f + goal_bias(state, n, goal::deter_threat));
     const float ideal = pragmatic * (1.0f + 0.5f * (w.agent_get_order_ideal(a) - 0.2f));
     const float rho = w.agent_get_rho_base(a);

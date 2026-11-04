@@ -85,21 +85,48 @@ dcon::organisation_id organisation_of(game_state const& state, org_kind k) {
     return state.derived.org[static_cast<uint8_t>(k)];
 }
 
+bool membership_active(game_state const& state, dcon::membership_id m) {
+    auto const& w = state.world;
+    return m && (w.membership_get_join_tick(m) < 0 || w.membership_get_join_tick(m) <= state.current_tick);
+}
+
 dcon::membership_id membership_in(game_state const& state, dcon::organisation_id o, dcon::nation_id n) {
     if(!o || !n) return {};
     for(auto m : state.world.nation_get_membership_as_member(n)) {
-        if(m.get_organisation() == o) return m.id;
+        if(m.get_organisation() == o && membership_active(state, m.id)) return m.id;
     }
     return {};
 }
 
 bool is_member(game_state const& state, org_kind k, dcon::nation_id n) {
-    return bool(membership_in(state, organisation_of(state, k), n));
+    for(auto m : state.world.nation_get_membership_as_member(n)) {
+        if(m.get_organisation().get_kind() == static_cast<uint8_t>(k) && membership_active(state, m.id)
+           && m.get_role() != static_cast<uint8_t>(org_role::suspended)) return true;
+    }
+    return false;
 }
 
 int org_role_of(game_state const& state, org_kind k, dcon::nation_id n) {
     const auto m = membership_in(state, organisation_of(state, k), n);
     return m ? static_cast<int>(state.world.membership_get_role(m)) : -1;
+}
+
+bool shares_org(game_state const& state, dcon::nation_id a, dcon::nation_id b, uint16_t flag) {
+    auto const& w = state.world;
+    for(auto ma : w.nation_get_membership_as_member(a)) {
+        if(!membership_active(state, ma.id) || ma.get_role() == static_cast<uint8_t>(org_role::suspended)) continue;
+        if(flag != 0 && (ma.get_organisation().get_flags() & flag) == 0) continue;
+        if(const auto mb = membership_in(state, ma.get_organisation().id, b); mb && w.membership_get_role(mb) != static_cast<uint8_t>(org_role::suspended)) return true;
+    }
+    return false;
+}
+
+dcon::organisation_id customs_union_of(game_state const& state, dcon::nation_id n) {
+    for(auto m : state.world.nation_get_membership_as_member(n)) {
+        if((m.get_organisation().get_flags() & org_customs_union) && membership_active(state, m.id)
+           && m.get_role() != static_cast<uint8_t>(org_role::suspended)) return m.get_organisation().id;
+    }
+    return {};
 }
 
 float org_vote(game_state& state, dcon::organisation_id o, dcon::nation_id sponsor, dcon::nation_id target, float shift, uint8_t code, float kind_tag) {
@@ -109,6 +136,7 @@ float org_vote(game_state& state, dcon::organisation_id o, dcon::nation_id spons
     double pop_yes = 0.0, pop_all = 0.0;
     bool veto = false;
     for(auto m : w.organisation_get_membership_as_organisation(o)) {
+        if(!membership_active(state, m.id) || m.get_role() == static_cast<uint8_t>(org_role::suspended)) continue;
         const auto v = m.get_member().id;
         const float s = support(state, v, sponsor, target) + shift;
         const bool aye = s > 0.0f;
@@ -198,7 +226,13 @@ float un_sanction_floor(game_state const& state, dcon::nation_id n, dcon::nation
     auto const& w = state.world;
     const float un = w.nation_get_un_sanctioned(target) > 0.0f && w.nation_get_alliance(n, ix(target)) <= 0.0f
                          ? static_cast<float>(state.params.un_sanction_level) : 0.0f;
-    return std::max(un, w.nation_get_wto_retaliation(n, ix(target)));
+    // Members of a sanctioning regional organisation sanction a suspended member (ECOWAS).
+    float regional = 0.0f;
+    for(auto m : w.nation_get_membership_as_member(target)) {
+        if(m.get_role() != static_cast<uint8_t>(org_role::suspended) || !(m.get_organisation().get_flags() & org_sanctions)) continue;
+        if(membership_in(state, m.get_organisation().id, n)) regional = static_cast<float>(state.params.regional_sanction);
+    }
+    return std::max({un, regional, w.nation_get_wto_retaliation(n, ix(target))});
 }
 
 float peacekeeping_factor(game_state const& state, dcon::nation_id n, dcon::nation_id m) {
@@ -215,6 +249,12 @@ void update_memberships(game_state& state) {
     auto const& P = state.params;
     std::vector<dcon::membership_id> gone;
     for(auto m : w.in_membership) {
+        // Suspensions lapse (regional democracy clauses; geo_orgs.cpp).
+        if(m.get_role() == static_cast<uint8_t>(org_role::suspended) && m.get_suspended_until() >= 0 && m.get_suspended_until() <= state.current_tick) {
+            m.set_role(static_cast<uint8_t>(org_role::member));
+            m.set_suspended_until(-1);
+            log_org(state, m.get_member().id, {}, journal_suspension, static_cast<float>(m.get_organisation().id.index()), 0.0f);
+        }
         if(m.get_exit_tick() >= 0 && m.get_exit_tick() <= state.current_tick) gone.push_back(m.id);
         else if(m.get_role() == static_cast<uint8_t>(org_role::elected) && m.get_term_end() >= 0 && m.get_term_end() < state.current_tick) gone.push_back(m.id);
     }

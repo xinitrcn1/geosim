@@ -99,7 +99,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     static constexpr char const* names[] = {"consumption", "gov_purchases", "exports", "imports", "wages_private",
         "wages_public", "job_retention_pay", "unemployment_benefits", "pensions", "fiscal_households", "fiscal_firms",
         "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households", "household_transfers", "remittances_in", "remittances_out", "sovereign_default",
-        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio", "public_services", "aid", "arms", "subsidies", "wealth_tax", "eu_fund", "debt_relief"};
+        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio", "public_services", "aid", "arms", "subsidies", "wealth_tax", "eu_fund", "debt_relief", "development_lending", "mega_capex"};
     static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(flow::count));
     auto const& w = state.world;
     const double days = std::max(1.0, w.nation_get_acc_days(n));
@@ -233,7 +233,9 @@ void write_journal_counts(game_state const& state, std::ostream& out) {
                                      {journal_alliance_call, "alliance_call"}, {journal_dispute, "dispute"}, {journal_concession, "concession"},
                                      {journal_unsc, "unsc"}, {journal_wto, "wto"}, {journal_variant, "variant"}, {journal_term_limit, "term_limit"},
                                      {journal_court_seat, "court_seat"}, {journal_agreement, "agreement"}, {journal_rebels, "rebels"},
-                                     {journal_eu_fund, "eu_fund"}, {journal_plan, "plan"}};
+                                     {journal_eu_fund, "eu_fund"}, {journal_plan, "plan"},
+                                     {journal_org_join, "org_join"}, {journal_mega_event, "mega_event"}, {journal_cartel, "cartel"},
+                                     {journal_suspension, "suspension"}, {journal_summit, "summit"}};
     std::map<uint8_t, int> counts;
     for(auto d : w.in_decision) ++counts[d.get_lever()];
     out << "journal events (" << state.current_tick << " days)\n";
@@ -245,6 +247,20 @@ void write_journal_counts(game_state const& state, std::ostream& out) {
         const auto partner = std::isnan(d.get_pragmatic()) ? dcon::nation_id{} : dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(d.get_pragmatic())};
         out << "  " << d.get_tick() << " " << core::unpack_key(w.nation_get_iso3(d.get_target())) << " "
             << (partner ? core::unpack_key(w.nation_get_iso3(partner)) : std::string("-")) << " " << d.get_before() << " -> " << d.get_after() << "\n";
+    }
+    out << "organisation log (day, nation, organisation, event, before -> after)\n";
+    for(auto d : w.in_decision) {
+        const auto code = d.get_lever();
+        char const* what = code == journal_org_join ? "join" : code == journal_mega_event ? "mega_event" : code == journal_cartel ? "cartel"
+                           : code == journal_suspension ? "suspension" : code == journal_summit ? "summit" : nullptr;
+        if(!what) continue;
+        std::string org = "-";
+        if(!std::isnan(d.get_pragmatic())) {
+            const auto o = dcon::organisation_id{static_cast<dcon::organisation_id::value_base_t>(d.get_pragmatic())};
+            if(w.organisation_is_valid(o)) org = core::unpack_key(w.organisation_get_key(o));
+        }
+        out << "  " << d.get_tick() << " " << (d.get_target() ? core::unpack_key(w.nation_get_iso3(d.get_target())) : std::string("-")) << " " << org << " "
+            << what << " " << d.get_before() << " -> " << d.get_after() << "\n";
     }
 }
 

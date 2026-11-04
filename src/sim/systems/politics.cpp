@@ -633,7 +633,8 @@ void update_politics(game_state& state) {
         for(uint8_t a = 0; a < axes; ++a) policy[a] = n.get_policy_position(a);
         const float outside = std::max(0.0f, outside_window(state, n.id, policy) - n.get_window_outside0());
         // Identity legitimacy (politics_ext.cpp): inclusion of identity groups (Gilley 2009).
-        const float target = 0.4f * procedural + 0.4f * performance + 0.2f * n.get_identity_legitimacy() - static_cast<float>(P.overton_legitimacy) * outside;
+        const float target = 0.4f * procedural + 0.4f * performance + 0.2f * n.get_identity_legitimacy() - static_cast<float>(P.overton_legitimacy) * outside
+                             + n.get_mega_glow(); // hosting a mega-event (megaevents.cpp)
         float legit = n.get_legitimacy();
         legit += (target - legit) * std::min(1.0f, years / static_cast<float>(P.legitimacy_years));
         legit -= static_cast<float>(P.force_legitimacy_cost) * static_cast<float>(forced) * years;
@@ -646,7 +647,8 @@ void update_politics(game_state& state) {
         const float loyalty = n.get_military_agent() ? n.get_military_loyalty() : 1.0f;
         if(loyalty < static_cast<float>(P.coup_loyalty) && n.get_legitimacy() < 0.4f && unrest_mean > 1.5f) {
             const float p = static_cast<float>(P.coup_rate) * (unrest_mean - 1.5f) * (1.0f - n.get_winning_coalition())
-                            * (static_cast<float>(P.coup_loyalty) - loyalty) * 10.0f;
+                            * (static_cast<float>(P.coup_loyalty) - loyalty) * 10.0f
+                            * (1.0f - coup_deterrence(state, n.id)); // democracy clauses (Powell, Lasley & Schiel 2016)
             if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::elections), static_cast<uint32_t>(state.current_tick),
                                static_cast<uint32_t>(n.id.index())) < p) {
                 n.set_electoral(n.get_electoral() * 0.5f);
@@ -657,6 +659,7 @@ void update_politics(game_state& state) {
                     exec.set_rho_base(std::min(0.8f, exec.get_rho_base() + 0.1f));
                 }
                 log_event(state, n.id, journal_coup, 0.0f, 1.0f);
+                on_coup(state, n.id);
             }
         }
     }

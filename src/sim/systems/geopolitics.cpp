@@ -447,6 +447,8 @@ void update_geopolitics(game_state& state) {
                     choice = before + 0.1f; // the legislature will not ratify more
                 }
                 // UNSC sanctions and authorised WTO retaliation set a floor (un.cpp).
+                // Clubs: G7 members align with partners, BRICS/SCO members shield each other (geo_orgs.cpp).
+                choice = club_sanction_shift(state, n.id, m.id, choice);
                 choice = std::clamp(choice, war > 0.0f ? 1.0f : un_sanction_floor(state, n.id, m.id), 1.0f);
                 n.set_sanction(k, choice);
                 if(std::abs(choice - before) >= 0.1f) log_event(state, n.id, m.id, journal_sanction, before, choice);

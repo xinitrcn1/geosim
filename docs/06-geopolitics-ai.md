@@ -371,10 +371,117 @@ Behaviour by kind:
   transparent states see (`who_detection` × media freedom, `ai.cpp`; IHR
   2005).
 
-**Planned:** regional organisations beyond the EU (AU, ASEAN) and their
-memberships in the world scenario (which has no `organisations_curated.csv`
-yet), WHO coordination beyond surveillance (vaccine pooling sits in COVAX,
-[04](04-society.md#health-and-epidemics)), budget contributions.
+**Organisation flags** (`flags{...}` in the defs; `org_flag` in `model.hpp`)
+give behaviour that cuts across kinds: `democracy_clause`, `sanctions`,
+`non_interference`, `crisis_coordination`, `sanction_alignment`,
+`counter_hegemonic`, `regime_security`, `mediation`, `customs_union`.
+Memberships carry a join date and a suspension date; a suspended member does
+not vote and gets none of the organisation's benefits until readmitted.
+
+Organisations with geopolitical weight beyond the UN system
+(`geo_orgs.cpp`, `megaevents.cpp`; parameters under "organisations with
+geopolitical relevance"):
+
+- **alliance** (NATO, CSTO). Members are allied pairwise, so allies join
+  wars through `call_allies`. **Burden sharing:** small members free-ride
+  (Olson & Zeckhauser 1966) until the alliance's threat rises; then a member
+  below the defence `guideline` closes `burden_gain` of the gap
+  (`alliance_burden_push` in `decide_defense`). This follows the 2014 Wales
+  pledge after Crimea (Plümper & Neumayer 2015). **Enlargement:** a non-member
+  applies when its threat has risen by `accession_threat` since 2019, it
+  trusts the members (above 0.6), and its main threat also threatens them:
+  the members' mean threat from it must be at least `accession_shared`. In
+  other words, it balances against a shared threat. Accession needs consensus, so a member blocks it if its trust in the applicant is below
+  `accession_trust`, or if it fears entrapment because it does not itself
+  fear the applicant's threat (Snyder 1984) (North Atlantic Treaty
+  art. 10; Walt 1987; Reiter 2001; Turkey on Sweden 2022). Outcomes are
+  journalled as `journal_org_join`.
+- **club** (G7, G20, BRICS, SCO). Summits are held once a year in
+  `summit_month`, and each one raises members' trust toward 0.7 by
+  `club_trust` (socialisation; Johnston 2001; Putnam & Bayne 1987).
+  - `crisis_coordination` (G20, G7): when members' GDP-weighted output gap is
+    deeper than `club_slump`, the summit pledges coordinated stimulus. For
+    `club_stimulus_days`, members' pragmatic fiscal response rises by
+    `club_stimulus` (G20 London 2009; Drezner 2014).
+  - `sanction_alignment` (G7): a member's sanction on a target moves
+    `sanction_alignment` of the way toward its partners' mean (Russia 2014;
+    Drezner 1999).
+  - `counter_hegemonic` (BRICS, SCO): sanctions between members are cut by
+    `counter_shield` (Stuenkel 2015).
+  - `regime_security` (SCO, CSTO): members count as friendly backers of each
+    other's governments against insurgents (Ambrosio 2008; Aris 2009). The
+    CSTO in Kazakhstan, January 2022, is an example.
+- **cartel** (OPEC+). The members meet every 28 days.
+  - Quota: below the price band (`price_low`, relative to 2019) the
+    collective quota is cut by `cartel_cut_speed` × the shortfall, and above
+    `price_high` it is raised.
+  - Compliance falls with members' fiscal stress, meaning lost output and a
+    price below the 2019 fiscal breakeven (`cartel_cheating`; Kaufmann et al.
+    2004). The largest producer acts as swing producer: it complies fully and
+    bears a larger share of the cuts (Fattouh & Mahadeva 2013).
+  - Price war: when the others' compliance falls below `price_war_trigger`
+    while quotas bind, the swing producer starts a price war and floods the
+    market for `price_war_days`. A year of discipline follows, as with the
+    March 2020 price war and the April cut (Fattouh & Economou 2020). OPEC's
+    power stays limited (Colgan 2014).
+  - Members produce to `cartel_quota` × capacity in `decide_oil` unless
+    anchored to the historical record. Outcomes are journalled as
+    `journal_cartel`.
+- **development** (World Bank, New Development Bank). Members with GDP per
+  head below `dev_income` that are in need borrow concessionally from the
+  rest of the world at up to `dev_lending_gdp` of GDP a year. Need means
+  output loss, insurgency or an IMF programme. Lending stays within the
+  lender's annual `capacity_bn` (`flow::development_lending`; Kenny 2020;
+  Humphrey 2016).
+- **regional** (AU, ECOWAS, OAS, ASEAN, Arab League, Mercosur, EAEU, GCC).
+  - `democracy_clause`: a coup suspends the member for `suspension_years`
+    (`on_coup`, `journal_suspension`; AU Lomé Declaration 2000, ECOWAS
+    Protocol 2001, Inter-American Democratic Charter 2001). Membership of such
+    an organisation cuts the coup hazard by `coup_deterrence` (Powell, Lasley
+    & Schiel 2016).
+  - `sanctions` (ECOWAS): members also apply at least `regional_sanction` to
+    the suspended member (Niger 2023).
+  - `non_interference` (ASEAN): neither suspensions nor sanctions apply
+    (Acharya 2001; Myanmar 2021).
+  - `mediation`: the organisation mediates disputes between its members with
+    score `regional_mediation` (Hansen, Mitchell & Nemeth 2008).
+  - `customs_union` (EU, Mercosur, EAEU, GCC): members share one external
+    tariff, the members' GDP-weighted mean (`firms.cpp`).
+- **event** (FIFA, IOC): mega-events (`mega_event` objects; awarded editions
+  are listed in `megaevents_curated.csv`, and later editions are awarded in
+  the simulation).
+  - **Award:** each edition (every `cycle_years` at `cycle_phase`) is awarded
+    `lead_years` ahead. Bidders are nations whose yearly build-up cost stays
+    under `bid_gdp_share` of GDP; autocracies stretch that threshold up to
+    tenfold for prestige (Grix & Lee 2013). The owner favours large economies,
+    rotation away from the last three hosts' regions, and hosts the members
+    trust, plus a lobbying draw (Feddersen, Maennig & Zimmermann 2008; Poast
+    2007).
+  - **Build-up:** capital spending (`capex_bn`) is spread evenly from the
+    award to the opening and paid by the government (`flow::mega_capex`;
+    construction demand). It counts only relative to the start state: a
+    build-up under way in 2019 is in the calibrated base, so its end shows as
+    a fall in public demand (Baade & Matheson 2016; Flyvbjerg et al. 2021 on
+    overruns).
+  - **The event:** visitors' spending (`visitor_spend_bn` × the host's share)
+    is a services export over the event's days. The host's government gains
+    `mega_legitimacy` while it runs (Kavetsos & Szymanski 2010), and other
+    nations' trust in the host rises by `mega_trust` afterwards (soft power).
+  - **Protest:** build-up spending amid grievance drives unrest
+    (`mega_protest`; Brazil 2013).
+  - **Postponement:** within 90 days of the opening, the event is postponed
+    once, by a year, if the host's epidemic threat exceeds
+    `mega_postpone_threat`. The same happens if nations holding half the
+    world's population exceed it, because their teams withdraw (Canada and
+    Australia, March 2020). With no forcing, Tokyo 2020 is postponed in late
+    April in both the slice and the world runs (days 115 and 119). The real
+    decision came on 24 March, day 83.
+
+**Planned:** WHO coordination beyond surveillance (vaccine pooling sits in COVAX,
+[04](04-society.md#health-and-epidemics)), budget contributions, membership
+applications to clubs and regional organisations (BRICS enlargement 2024),
+the swing producer chosen by spare capacity rather than size, and co-hosted
+bids.
 
 ### Coercion, aid, arms and treaties
 

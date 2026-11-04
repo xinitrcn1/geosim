@@ -2089,6 +2089,7 @@ struct builder {
         }
         init_strategy(state);
         init_organisations(state);
+        init_geo_organisations(state);
         init_reforms(state);
         init_politics_ext(state);
         init_agreements(state);

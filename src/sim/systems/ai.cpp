@@ -217,7 +217,9 @@ void decide_fiscal(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float slack = std::max(0.0f, -w.nation_get_gap_smoothed(n)) * 100.0f
                         + 0.5f * std::max(0.0f, w.nation_get_unemployment(n) - w.nation_get_unemployment0(n)) * 100.0f;
     // Package size scales with the learned response (a weak multiplier asks for more).
-    const float pragmatic = static_cast<float>(P.ai_fiscal_response) * slack * space * fiscal_belief(state, n);
+    // A summit pledge of coordinated stimulus (G20 2009) raises the response (geo_orgs.cpp).
+    const float pledge = w.nation_get_coordinated_stimulus(n) > 0.0f ? 1.0f + static_cast<float>(P.club_stimulus) : 1.0f;
+    const float pragmatic = static_cast<float>(P.ai_fiscal_response) * slack * space * fiscal_belief(state, n) * pledge;
     const float ideal = pragmatic * (1.0f - w.agent_get_fiscal_hawk(a));
     const bool anchors = P.historical_anchors != 0.0 && w.nation_get_prior_fiscal_set(n);
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::fiscal));
@@ -362,9 +364,11 @@ void decide_oil(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     // Capacity grows along the trend of world demand: the 2019 balance holds on the
     // growth path (new fields replace depletion; IEA World Energy Investment), so a
     // tightening market needs a real shock, not the passage of time.
-    const float capacity = prod0 * oil_trend_index(state);
-    const float market = capacity * std::pow(std::max(0.05f, price), w.nation_get_oil_supply_elasticity(n));
     const bool anchors = P.historical_anchors != 0.0 && w.nation_get_prior_oil_set(n);
+    // Cartel members produce to their quota share (geo_orgs.cpp) unless anchored to the record.
+    const float quota = anchors ? 1.0f : w.nation_get_cartel_quota(n);
+    const float capacity = prod0 * oil_trend_index(state) * quota;
+    const float market = capacity * std::pow(std::max(0.05f, price), w.nation_get_oil_supply_elasticity(n));
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::oil_target));
     auto r = blend(market, capacity, w.agent_get_rho(a), anchors, w.nation_get_prior_oil(n), static_cast<float>(P.anchor_prior_weight),
                    0.0f, prod0 * 2.0f);

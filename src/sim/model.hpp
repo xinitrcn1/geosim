@@ -79,9 +79,30 @@ enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3
 enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4, governor = 5, rebel = 6 };
 
 // organisation.kind, .rule and membership.role (systems/organisations.cpp)
-enum class org_kind : uint8_t { assembly = 0, security = 1, trade = 2, union_ = 3, rights = 4, health = 5, count };
+enum class org_kind : uint8_t {
+    assembly = 0, security = 1, trade = 2, union_ = 3, rights = 4, health = 5,
+    alliance = 6,    // collective defence (NATO, CSTO)
+    club = 7,        // summit clubs (G7, G20, BRICS, SCO)
+    cartel = 8,      // producer cartel (OPEC+)
+    event = 9,       // mega-event owners (FIFA, IOC)
+    development = 10,// development lenders (World Bank, NDB)
+    regional = 11,   // regional organisations (AU, ECOWAS, OAS, ASEAN, Arab League, Mercosur, EAEU, GCC)
+    count
+};
+// organisation.flags (defs/organisations.txt `flags{...}`)
+enum org_flag : uint16_t {
+    org_democracy_clause = 1,       // suspends members after a coup (AU Lome 2000, ECOWAS 2001, OAS 2001)
+    org_sanctions = 2,              // members sanction suspended members (ECOWAS)
+    org_non_interference = 4,       // no suspensions or sanctions among members (ASEAN way)
+    org_crisis_coordination = 8,    // coordinated stimulus in a shared slump (G20 2008-09)
+    org_sanction_alignment = 16,    // members align their sanctions (G7)
+    org_counter_hegemonic = 32,     // members shield each other from outside sanctions (BRICS, SCO)
+    org_regime_security = 64,       // members back each other's governments (SCO, CSTO)
+    org_mediation = 128,            // mediates disputes among members (regional organisations)
+    org_customs_union = 256,        // one external tariff (EU, Mercosur, EAEU, GCC)
+};
 enum class org_rule : uint8_t { majority = 0, veto = 1, qualified = 2, consensus = 3 };
-enum class org_role : uint8_t { member = 0, elected = 1, permanent = 2 };
+enum class org_role : uint8_t { member = 0, elected = 1, permanent = 2, suspended = 3 };
 
 // treaty.kind (systems/agreements.cpp)
 enum class treaty_kind : uint8_t { climate = 0, migration = 1, debt_relief = 2, conditional_aid = 3, power_sharing = 4, count };
@@ -185,6 +206,11 @@ inline constexpr uint8_t journal_agreement = 0xE4;     // pragmatic = partner, b
 inline constexpr uint8_t journal_rebels = 0xE3;        // after = 1 rebels formed, 0 settlement, -1 defeated
 inline constexpr uint8_t journal_eu_fund = 0xE2;       // after = fund size (share of EU GDP)
 inline constexpr uint8_t journal_plan = 0xE1;          // before = goal, after = plan step
+inline constexpr uint8_t journal_org_join = 0xE0;      // pragmatic = organisation index, after = 1 joined / 0 blocked / -1 left
+inline constexpr uint8_t journal_mega_event = 0xDF;    // pragmatic = organisation index, before = 0 awarded / 1 opened / 2 closed / 3 postponed, after = year
+inline constexpr uint8_t journal_cartel = 0xDE;        // before = quota, after = new quota (price war: -1)
+inline constexpr uint8_t journal_suspension = 0xDD;    // pragmatic = organisation index, after = 1 suspended / 0 readmitted
+inline constexpr uint8_t journal_summit = 0xDC;        // pragmatic = organisation index, after = 1 coordinated stimulus / 0 regular
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
@@ -232,6 +258,8 @@ enum class flow : uint8_t {
     wealth_tax,            // annual wealth tax on top wealth holders
     eu_fund,               // EU recovery-fund grants (via the rest of the world)
     debt_relief,           // sovereign debt restructuring (creditors to the debtor government)
+    development_lending,   // concessional lending by development banks (via the rest of the world)
+    mega_capex,            // mega-event construction (government to firms)
     count
 };
 

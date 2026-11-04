@@ -1,0 +1,7 @@
+# Mega-events already awarded at 2008-01-01 (columns as in the 2020 table). Rio 2016 (awarded
+# 2009) and Brazil 2014 onwards beyond these are left to the model's bidding.
+org,iso3,share,start,end,awarded,capex_bn
+ioc,CHN,1.0,2008-08-08,2008-08-24,2001-07-13,40
+fifa,ZAF,1.0,2010-06-11,2010-07-11,2004-05-15,4
+ioc,GBR,1.0,2012-07-27,2012-08-12,2005-07-06,15
+fifa,BRA,1.0,2014-06-12,2014-07-13,2007-10-30,15

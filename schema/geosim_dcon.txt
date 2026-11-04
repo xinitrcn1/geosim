@@ -421,6 +421,13 @@ object{
 	property{ name{cpi_raw} type{float} }
 	property{ name{tourism_share} type{float} }
 	property{ name{oil_unit_scale} type{float} }
+	property{ name{cartel_quota} type{float} }
+	property{ name{coordinated_stimulus} type{float} }
+	property{ name{mega_investment} type{float} }
+	property{ name{mega_exports} type{float} }
+	property{ name{mega_build_share} type{float} }
+	property{ name{mega_build_share0} type{float} }
+	property{ name{mega_glow} type{float} }
 	property{ name{travel_intensity} type{float} }
 	property{ name{eu_grant_pending} type{double} }
 	property{ name{eu_grant_start} type{int32_t} }
@@ -938,6 +945,38 @@ object{
 	property{ name{term_years} type{float} }
 	property{ name{last_session} type{int32_t} }
 	property{ name{fund} type{float} }
+	property{ name{flags} type{uint16_t} }
+	property{ name{guideline} type{float} }
+	property{ name{summit_month} type{uint8_t} }
+	property{ name{cycle_years} type{float} }
+	property{ name{cycle_phase} type{float} }
+	property{ name{event_month} type{uint8_t} }
+	property{ name{event_day} type{uint8_t} }
+	property{ name{duration_days} type{float} }
+	property{ name{lead_years} type{float} }
+	property{ name{event_cost_bn} type{float} }
+	property{ name{visitor_spend_bn} type{float} }
+	property{ name{price_low} type{float} }
+	property{ name{price_high} type{float} }
+	property{ name{quota} type{float} }
+	property{ name{price_war_days} type{float} }
+	property{ name{capacity_bn} type{float} }
+}
+
+object{
+	name{mega_event}
+	storage_type{erasable}
+	size{512}
+	tag{scenario}
+
+	property{ name{organisation} type{organisation_id} }
+	property{ name{host} type{nation_id} }
+	property{ name{share} type{float} }
+	property{ name{start} type{int32_t} }
+	property{ name{finish} type{int32_t} }
+	property{ name{awarded} type{int32_t} }
+	property{ name{status} type{uint8_t} }
+	property{ name{capex_bn} type{float} }
 }
 
 object{
@@ -1151,6 +1190,8 @@ relationship{
 	property{ name{role} type{uint8_t} }
 	property{ name{term_end} type{int32_t} }
 	property{ name{exit_tick} type{int32_t} }
+	property{ name{join_tick} type{int32_t} }
+	property{ name{suspended_until} type{int32_t} }
 }
 
 relationship{

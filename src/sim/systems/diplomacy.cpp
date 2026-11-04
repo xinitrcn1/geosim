@@ -88,7 +88,8 @@ float mediation_score(game_state const& state, dcon::nation_id n, dcon::nation_i
         const float leverage = max_cinc > 0.0f ? 0.5f + 0.5f * t.get_cinc() / max_cinc : 0.5f;
         best = std::max(best, trusted * leverage);
     }
-    return best;
+    // A shared regional organisation mediates among its members (Hansen, Mitchell & Nemeth 2008).
+    return std::max(best, regional_mediation_score(state, n, m));
 }
 
 void start_dispute(game_state& state, dcon::nation_id n, dcon::nation_id m) {
@@ -127,7 +128,9 @@ void insurgency_support(game_state const& state, dcon::nation_id n, float& for_g
     for(auto t : w.in_nation) {
         if(t.id == n) continue;
         const float weight = std::min(1.0f, 10.0f * t.get_cinc());
-        const float friendly = std::max(t.get_alliance(kn), std::max(0.0f, t.get_trust(kn) - 0.6f) * 2.5f);
+        float friendly = std::max(t.get_alliance(kn), std::max(0.0f, t.get_trust(kn) - 0.6f) * 2.5f);
+        // Regime-security clubs back members' governments (SCO, CSTO; Ambrosio 2008).
+        if(shares_org(state, t.id, n, org_regime_security)) friendly = std::max(friendly, 0.7f);
         const float hostile = std::max(t.get_rivalry(kn), std::max(0.0f, 0.2f - t.get_trust(kn)) * 5.0f);
         for_government = std::max(for_government, weight * friendly);
         for_rebels = std::max(for_rebels, weight * hostile);

@@ -480,3 +480,34 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Census and survey sources for identity groups are listed in `assets/scenario/2020/groups_curated.csv`.
 - Huth, P. & Allee, T. (2002). *The Democratic Peace and Territorial Conflict in the Twentieth Century.* Cambridge UP. — Claim strength.
 - Frederick, B., Hensel, P. & Macaulay, C. (2017). The Issue Correlates of War territorial claims data, 1816–2001. *Journal of Peace Research* 54(1). — Territorial claims.
+
+## Organisations with geopolitical weight ([06](06-geopolitics-ai.md#international-organisations))
+
+- Olson, M. & Zeckhauser, R. (1966). An economic theory of alliances. *Review of Economics and Statistics* 48(3). — Free-riding in alliances.
+- Plümper, T. & Neumayer, E. (2015). Free-riding in alliances: testing an old theory with a new method. *Conflict Management and Peace Science* 32(3). — Burden sharing under threat.
+- Walt, S. (1987). *The Origins of Alliances.* Cornell UP. — Balancing against threat.
+- Reiter, D. (2001). Why NATO enlargement does not spread democracy. *International Security* 25(4). — Enlargement.
+- Johnston, A. I. (2001). Treating international institutions as social environments. *International Studies Quarterly* 45(4). — Socialisation in clubs.
+- Putnam, R. & Bayne, N. (1987). *Hanging Together: Cooperation and Conflict in the Seven-Power Summits.* Harvard UP.
+- Drezner, D. (2014). *The System Worked: How the World Stopped Another Great Depression.* Oxford UP. — G20 crisis coordination.
+- Drezner, D. (1999). *The Sanctions Paradox.* Cambridge UP. — Multilateral sanction coordination.
+- Stuenkel, O. (2015). *The BRICS and the Future of Global Order.* Lexington. — Counter-hegemonic clubs.
+- Ambrosio, T. (2008). Catching the 'Shanghai spirit': how the Shanghai Cooperation Organization promotes authoritarian norms in Central Asia. *Europe-Asia Studies* 60(8). — Regime security.
+- Aris, S. (2009). The Shanghai Cooperation Organisation: 'tackling the three evils'. *Europe-Asia Studies* 61(3).
+- Kaufmann, R., Dees, S., Karadeloglou, P. & Sánchez, M. (2004). Does OPEC matter? An econometric analysis of oil prices. *The Energy Journal* 25(4). — Quotas and compliance.
+- Fattouh, B. & Mahadeva, L. (2013). OPEC: what difference has it made? *Annual Review of Resource Economics* 5. — Swing producer.
+- Fattouh, B. & Economou, A. (2020). *The Breakdown of OPEC+ and the Price War.* Oxford Institute for Energy Studies. — March–April 2020.
+- Colgan, J. (2014). The emperor has no clothes: the limits of OPEC in the global oil market. *International Organization* 68(3).
+- Kenny, C. (2020). *Development Finance in the COVID-19 Crisis.* Center for Global Development. — Crisis lending.
+- Humphrey, C. (2016). The invisible hand: financial pressures and organisational convergence in multilateral development banks. *Journal of Development Studies* 52(1). — New Development Bank.
+- Powell, J., Lasley, T. & Schiel, R. (2016). Combating coups d'état in Africa, 1950–2014. *Studies in Comparative International Development* 51(4). — Coup deterrence by democracy clauses.
+- Acharya, A. (2001). *Constructing a Security Community in Southeast Asia: ASEAN and the Problem of Regional Order.* Routledge. — Non-interference.
+- Hansen, H., Mitchell, S. M. & Nemeth, S. (2008). IO mediation of interstate conflicts: moving beyond the global versus regional dichotomy. *Journal of Conflict Resolution* 52(2).
+- Feddersen, A., Maennig, W. & Zimmermann, P. (2008). The empirics of key factors in the success of bids for Olympic Games. *Revue d'économie politique* 118(2).
+- Poast, P. (2007). Winning the bid: analyzing the International Olympic Committee's host city selections. *International Interactions* 33(1).
+- Baade, R. & Matheson, V. (2016). Going for the gold: the economics of the Olympics. *Journal of Economic Perspectives* 30(2). — Costs and visitor spending.
+- Flyvbjerg, B., Budzier, A. & Lunn, D. (2021). Regression to the tail: why the Olympics blow up. *Environment and Planning A* 53(2). — Cost overruns.
+- Zimbalist, A. (2015). *Circus Maximus: The Economic Gamble Behind Hosting the Olympics and the World Cup.* Brookings. — White elephants.
+- Kavetsos, G. & Szymanski, S. (2010). National well-being and international sports events. *Journal of Economic Psychology* 31(2). — Feel-good effect.
+- Grix, J. & Lee, D. (2013). Soft power, sports mega-events and emerging states: the lure of the politics of attraction. *Global Society* 27(4).
+- Snyder, G. (1984). The security dilemma in alliance politics. *World Politics* 36(4). — Entrapment and abandonment.

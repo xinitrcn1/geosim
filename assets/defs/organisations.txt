@@ -5,6 +5,19 @@
 # kind:  assembly (resolutions, voting alignment) | security (binding resolutions: ceasefire,
 #        sanctions, peace operations) | trade (dispute settlement) | union (common external
 #        tariff, recovery fund) | rights (naming and shaming) | health (surveillance sharing)
+#        | alliance (collective defence, burden sharing, enlargement) | club (annual summits:
+#        socialisation, crisis coordination, sanction alignment, shielding) | cartel
+#        (production quotas from a price band, cheating, price wars) | event (mega-event
+#        bidding, hosting, construction, visitors, postponement) | development (concessional
+#        crisis lending) | regional (democracy clauses, mediation, customs unions)
+# flags: democracy_clause sanctions non_interference crisis_coordination sanction_alignment
+#        counter_hegemonic regime_security mediation customs_union (docs/06)
+# Kind parameters: guideline (alliance defence target, % GDP), summit_month (club),
+#   price_low / price_high (cartel band, Brent relative to 2019), cycle_years /
+#   cycle_phase / event_month / event_day / duration_days / lead_years / event_cost_bn /
+#   visitor_spend_bn (event: an edition every cycle_years in years = phase mod cycle,
+#   awarded lead_years ahead, hosting costs and visitor spending in USD bn),
+#   capacity_bn (development: annual lending capacity, USD bn).
 # rule:  majority (share of members >= threshold) | veto (votes_needed yes votes and no
 #        permanent member against) | qualified (share of members >= threshold and share of
 #        members' population >= population_threshold) | consensus (no member against)
@@ -19,6 +32,51 @@
 org{ key{unga}  kind{assembly} rule{majority}  threshold{0.5} }
 org{ key{unsc}  kind{security} rule{veto}      votes_needed{9} seats{15} elected_seats{10} term_years{2} }
 org{ key{wto}   kind{trade}    rule{consensus} }
-org{ key{eu}    kind{union}    rule{qualified} threshold{0.55} population_threshold{0.65} }
+org{ key{eu}    kind{union}    rule{qualified} threshold{0.55} population_threshold{0.65} flags{customs_union mediation} }
 org{ key{hrc}   kind{rights}   rule{majority}  threshold{0.5} seats{47} elected_seats{47} term_years{3} }
 org{ key{who}   kind{health}   rule{majority}  threshold{0.5} }
+
+# ---- alliances. NATO: North Atlantic Treaty art. 5, consensus for accession (art. 10),
+# 2% of GDP defence guideline (Wales summit 2014). CSTO: Collective Security Treaty (1992)
+# art. 4; regime-security role (Kazakhstan 2022). Burden sharing follows Olson & Zeckhauser
+# (1966) and Plumper & Neumayer (2015); enlargement Reiter (2001), balance of threat Walt (1987).
+org{ key{nato}  kind{alliance} rule{consensus} guideline{2.0} }
+org{ key{csto}  kind{alliance} rule{consensus} guideline{1.0} flags{regime_security} }
+
+# ---- summit clubs (Putnam & Bayne 1987; Drezner 2014 on G20 crisis coordination; Stuenkel
+# 2015 on BRICS; Ambrosio 2008 and Aris 2009 on the SCO's regime-security norms).
+org{ key{g7}    kind{club} rule{consensus} summit_month{6}  flags{sanction_alignment crisis_coordination} }
+org{ key{g20}   kind{club} rule{consensus} summit_month{11} flags{crisis_coordination} }
+org{ key{brcs}  kind{club} rule{consensus} summit_month{7}  flags{counter_hegemonic} }
+org{ key{sco}   kind{club} rule{consensus} summit_month{6}  flags{counter_hegemonic regime_security} }
+
+# ---- producer cartel: OPEC+ (Declaration of Cooperation, 2016). Price band relative to the
+# 2019 Brent mean; quota cuts when prices fall below it (Fattouh & Mahadeva 2013; Colgan 2014
+# on weak compliance; Kaufmann et al. 2004 on cheating; Fattouh & Economou 2020 on the
+# March 2020 price war).
+org{ key{opec}  kind{cartel} rule{consensus} price_low{0.8} price_high{1.3} }
+
+# ---- mega-event owners. FIFA World Cup (every 4 years, 2022 + 4k; June-July, ~32 days; host
+# chosen ~8 years ahead). IOC Summer Olympics (2020 + 4k; late July, ~17 days; ~7 years ahead).
+# Costs: Baade & Matheson (2016), Zimbalist (2015), Flyvbjerg et al. (2021: Olympic cost
+# overruns); visitor spending small relative to GDP (Baade & Matheson 2004; Matheson 2006).
+org{ key{fifa}  kind{event} rule{majority} threshold{0.5} cycle_years{4} cycle_phase{2} event_month{6} event_day{11} duration_days{32} lead_years{8} event_cost_bn{15} visitor_spend_bn{3} }
+org{ key{ioc}   kind{event} rule{majority} threshold{0.5} cycle_years{4} cycle_phase{0} event_month{7} event_day{24} duration_days{17} lead_years{7} event_cost_bn{12} visitor_spend_bn{2} }
+
+# ---- development lenders (World Bank IDA/IBRD crisis lending: Kenny 2020; New Development
+# Bank of the BRICS: Humphrey 2016). capacity_bn = annual lending capacity.
+org{ key{wb}    kind{development} rule{majority} threshold{0.5} capacity_bn{60} }
+org{ key{ndb}   kind{development} rule{consensus} capacity_bn{10} }
+
+# ---- regional organisations (democracy clauses: AU Lome Declaration 2000 and Constitutive Act
+# art. 30, ECOWAS Protocol on Democracy 2001, OAS Inter-American Democratic Charter 2001;
+# Powell, Lasley & Schiel 2016 on coup deterrence; ASEAN non-interference: Acharya 2001;
+# mediation by regional organisations: Hansen, Mitchell & Nemeth 2008).
+org{ key{au}    kind{regional} rule{qualified} threshold{0.67} flags{democracy_clause mediation} }
+org{ key{ecow}  kind{regional} rule{qualified} threshold{0.67} flags{democracy_clause sanctions mediation} }
+org{ key{oas}   kind{regional} rule{qualified} threshold{0.67} flags{democracy_clause mediation} }
+org{ key{arab}  kind{regional} rule{consensus} flags{mediation} }
+org{ key{asea}  kind{regional} rule{consensus} flags{non_interference mediation} }
+org{ key{mrcs}  kind{regional} rule{consensus} flags{customs_union democracy_clause} }
+org{ key{eaeu}  kind{regional} rule{consensus} flags{customs_union} }
+org{ key{gcc}   kind{regional} rule{consensus} flags{customs_union mediation} }

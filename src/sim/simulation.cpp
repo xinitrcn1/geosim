@@ -40,6 +40,8 @@ void advance_day(game_state& state) {
     update_strategy(state);
     update_diplomacy(state);
     update_organisations(state);
+    update_geo_organisations(state);
+    update_mega_events(state);
     update_reforms(state);
     update_politics_ext(state);
     update_agreements(state);

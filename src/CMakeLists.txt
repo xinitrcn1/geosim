@@ -47,6 +47,8 @@ add_library(geosim_sim STATIC
     sim/systems/strategy.cpp
     sim/systems/diplomacy.cpp
     sim/systems/organisations.cpp
+    sim/systems/geo_orgs.cpp
+    sim/systems/megaevents.cpp
     sim/systems/reforms.cpp
     sim/systems/politics_ext.cpp
     sim/systems/agreements.cpp
@@ -68,7 +70,7 @@ if(GEOSIM_BUILD_CLIENT)
     set(geosim_shader_out ${CMAKE_CURRENT_BINARY_DIR}/client_shaders)
     file(MAKE_DIRECTORY ${geosim_shader_out})
     set(geosim_shader_headers)
-    foreach(shader quad.vert ui.frag map.frag fullscreen.vert blur.frag)
+    foreach(shader quad.vert ui.frag map.frag world_map.frag fullscreen.vert blur.frag)
         string(REPLACE "." "_" var "spv_${shader}")
         set(out ${geosim_shader_out}/${shader}.h)
         add_custom_command(
@@ -98,12 +100,20 @@ if(GEOSIM_BUILD_CLIENT)
         target_link_libraries(test_music PRIVATE geosim_audio)
         geosim_target_defaults(test_music)
         add_test(NAME test_music COMMAND test_music)
+        # Map projection (header-only, no Vulkan).
+        add_executable(test_map_view ${PROJECT_SOURCE_DIR}/tests/test_map_view.cpp)
+        target_include_directories(test_map_view PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/client)
+        geosim_target_defaults(test_map_view)
+        add_test(NAME test_map_view COMMAND test_map_view)
     endif()
 
     add_executable(geosim
         client/main.cpp
         client/app.cpp
         client/audio/music.cpp
+        client/map_data.cpp
+        client/map_layer.cpp
+        client/map_renderer.cpp
         client/sim_runner.cpp
         client/text.cpp
         client/ui_context.cpp
@@ -119,7 +129,8 @@ if(GEOSIM_BUILD_CLIENT)
         Threads::Threads
         SDL3::SDL3
         Vulkan::Vulkan
-        Freetype::Freetype)
+        Freetype::Freetype
+        ZLIB::ZLIB)
     if(GEOSIM_HAVE_HARFBUZZ)
         target_link_libraries(geosim PRIVATE harfbuzz::harfbuzz)
         target_compile_definitions(geosim PRIVATE GEOSIM_HAS_HARFBUZZ=1)
@@ -128,6 +139,8 @@ if(GEOSIM_BUILD_CLIENT)
     # Vulkan structs are initialised as `VkFooCreateInfo info{VK_STRUCTURE_TYPE_...}`
     # (the rest value-initialised), which -Wextra would flag on every struct.
     target_compile_options(geosim PRIVATE -Wno-missing-field-initializers)
+    # Decoding and colouring the world map (~45 M texels) is slow at -O0.
+    set_source_files_properties(client/map_data.cpp PROPERTIES COMPILE_OPTIONS "-O2")
 endif()
 
 # DCON's whole-container serialisation is a very large generated function set: no

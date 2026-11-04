@@ -1,0 +1,14 @@
+# Mega-events already awarded at 2020-01-01 (one row per host; share = the host's share of the
+# event: matches / venues). Later editions are bid for and awarded in the simulation
+# (src/sim/systems/megaevents.cpp). Dates: official schedules as awarded (Tokyo 2020 was
+# scheduled for 2020-07-24; its postponement is left to the model). capex_bn: reported
+# organising + venue + games-related infrastructure budgets, rounded (Qatar's figure excludes
+# most general infrastructure; Flyvbjerg et al. 2021 for Olympic budgets).
+org,iso3,share,start,end,awarded,capex_bn
+ioc,JPN,1.0,2020-07-24,2020-08-09,2013-09-07,15
+fifa,QAT,1.0,2022-11-20,2022-12-18,2010-12-02,40
+ioc,FRA,1.0,2024-07-26,2024-08-11,2017-09-13,9
+fifa,USA,0.75,2026-06-11,2026-07-19,2018-06-13,10
+fifa,CAN,0.125,2026-06-11,2026-07-19,2018-06-13,10
+fifa,MEX,0.125,2026-06-11,2026-07-19,2018-06-13,10
+ioc,USA,1.0,2028-07-14,2028-07-30,2017-09-13,7

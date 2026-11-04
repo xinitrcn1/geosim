@@ -250,10 +250,12 @@ void load_organisation_defs(game_state& state, std::string const& assets_dir, co
         w.organisation_set_key(o, core::pack_key(key));
         const std::string kind(node.req("kind", path, diag));
         const std::string rule(node.req("rule", path, diag));
-        static constexpr char const* kinds[] = {"assembly", "security", "trade", "union", "rights", "health"};
+        static constexpr char const* kinds[] = {"assembly", "security", "trade", "union", "rights", "health",
+                                                "alliance", "club", "cartel", "event", "development", "regional"};
+        static_assert(sizeof(kinds) / sizeof(kinds[0]) == static_cast<std::size_t>(org_kind::count));
         static constexpr char const* rules[] = {"majority", "veto", "qualified", "consensus"};
         int ki = -1, ri = -1;
-        for(int i = 0; i < 6; ++i) ki = kind == kinds[i] ? i : ki;
+        for(int i = 0; i < static_cast<int>(org_kind::count); ++i) ki = kind == kinds[i] ? i : ki;
         for(int i = 0; i < 4; ++i) ri = rule == rules[i] ? i : ri;
         if(ki < 0 || ri < 0) {
             diag.fail(path, node.line, "unknown kind or rule");
@@ -268,6 +270,49 @@ void load_organisation_defs(game_state& state, std::string const& assets_dir, co
         w.organisation_set_elected_seats(o, static_cast<uint16_t>(node.num_or("elected_seats", 0.0, path, diag)));
         w.organisation_set_term_years(o, static_cast<float>(node.num_or("term_years", 0.0, path, diag)));
         w.organisation_set_last_session(o, -1);
+        auto num = [&](char const* k, double d) { return static_cast<float>(node.num_or(k, d, path, diag)); };
+        w.organisation_set_guideline(o, num("guideline", 0.0));
+        w.organisation_set_summit_month(o, static_cast<uint8_t>(num("summit_month", 0.0)));
+        w.organisation_set_cycle_years(o, num("cycle_years", 0.0));
+        w.organisation_set_cycle_phase(o, num("cycle_phase", 0.0));
+        w.organisation_set_event_month(o, static_cast<uint8_t>(num("event_month", 6.0)));
+        w.organisation_set_event_day(o, static_cast<uint8_t>(num("event_day", 1.0)));
+        w.organisation_set_duration_days(o, num("duration_days", 0.0));
+        w.organisation_set_lead_years(o, num("lead_years", 0.0));
+        w.organisation_set_event_cost_bn(o, num("event_cost_bn", 0.0));
+        w.organisation_set_visitor_spend_bn(o, num("visitor_spend_bn", 0.0));
+        w.organisation_set_price_low(o, num("price_low", 0.0));
+        w.organisation_set_price_high(o, num("price_high", 0.0));
+        w.organisation_set_capacity_bn(o, num("capacity_bn", 0.0));
+        w.organisation_set_quota(o, 1.0f);
+        uint16_t flags = 0;
+        if(auto f = node.find("flags")) {
+            static constexpr std::pair<char const*, uint16_t> names[] = {
+                {"democracy_clause", org_democracy_clause}, {"sanctions", org_sanctions}, {"non_interference", org_non_interference},
+                {"crisis_coordination", org_crisis_coordination}, {"sanction_alignment", org_sanction_alignment},
+                {"counter_hegemonic", org_counter_hegemonic}, {"regime_security", org_regime_security}, {"mediation", org_mediation},
+                {"customs_union", org_customs_union}};
+            std::size_t pos = 0;
+            const std::string text(f->text);
+            while(pos < text.size()) {
+                const auto end = std::min(text.find(' ', pos), text.size());
+                const std::string word = text.substr(pos, end - pos);
+                pos = end + 1;
+                if(word.empty()) continue;
+                bool known = false;
+                for(auto const& [name, bit] : names) {
+                    if(word == name) {
+                        flags = static_cast<uint16_t>(flags | bit);
+                        known = true;
+                    }
+                }
+                if(!known) {
+                    diag.fail(path, f->line, "unknown organisation flag '" + word + "'");
+                    return;
+                }
+            }
+        }
+        w.organisation_set_flags(o, flags);
     }
 }
 
@@ -310,6 +355,9 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
                 w.membership_set_role(m, static_cast<uint8_t>(role));
                 w.membership_set_term_end(m, -1);
                 w.membership_set_exit_tick(m, -1);
+                w.membership_set_join_tick(m, -1);
+                w.membership_set_suspended_until(m, -1);
+                if(auto d = core::parse_date(t.get(row, "join"))) w.membership_set_join_tick(m, core::tick_from_date(*d, state.epoch_days));
                 if(auto d = core::parse_date(t.get(row, "term_end"))) w.membership_set_term_end(m, core::tick_from_date(*d, state.epoch_days));
                 if(auto d = core::parse_date(t.get(row, "exit"))) w.membership_set_exit_tick(m, core::tick_from_date(*d, state.epoch_days));
             };
@@ -318,6 +366,32 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
             } else if(const auto n = find_nation(state, t.get(row, "iso3"))) {
                 add(n);
             }
+        }
+    }
+    // Awarded mega-events (FIFA World Cups, Olympic Games): one row per host and edition;
+    // later editions are awarded in the simulation (megaevents.cpp).
+    if(exists(dir + "/megaevents_curated.csv")) {
+        const auto t = core::csv_table::load(dir + "/megaevents_curated.csv", diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const auto key = core::pack_key(t.get(row, "org"));
+            dcon::organisation_id org;
+            for(auto o : w.in_organisation) {
+                if(o.get_key() == key) org = o.id;
+            }
+            const auto host = find_nation(state, t.get(row, "iso3"));
+            const auto start = core::parse_date(t.get(row, "start"));
+            const auto finish = core::parse_date(t.get(row, "end"));
+            if(!org || !host || !start || !finish) continue; // host outside this scenario
+            const auto e = w.create_mega_event();
+            w.mega_event_set_organisation(e, org);
+            w.mega_event_set_host(e, host);
+            w.mega_event_set_share(e, static_cast<float>(t.number_or(row, "share", 1.0)));
+            w.mega_event_set_start(e, core::tick_from_date(*start, state.epoch_days));
+            w.mega_event_set_finish(e, core::tick_from_date(*finish, state.epoch_days));
+            const auto awarded = core::parse_date(t.get(row, "awarded"));
+            w.mega_event_set_awarded(e, awarded ? core::tick_from_date(*awarded, state.epoch_days) : w.mega_event_get_start(e) - 2555);
+            w.mega_event_set_status(e, 0);
+            w.mega_event_set_capex_bn(e, static_cast<float>(t.number_or(row, "capex_bn", w.organisation_get_event_cost_bn(org)) * t.number_or(row, "share", 1.0)));
         }
     }
     // Further per-nation inputs (society, economy, politics extensions).

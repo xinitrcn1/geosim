@@ -183,6 +183,21 @@ void compute_un_ideals(game_state& state);
 [[nodiscard]] dcon::membership_id membership_in(game_state const& state, dcon::organisation_id o, dcon::nation_id n);
 [[nodiscard]] bool is_member(game_state const& state, org_kind k, dcon::nation_id n);
 [[nodiscard]] int org_role_of(game_state const& state, org_kind k, dcon::nation_id n); // -1 if not a member
+[[nodiscard]] bool membership_active(game_state const& state, dcon::membership_id m);
+// Do a and b share an (unsuspended) organisation, optionally one with `flag`?
+[[nodiscard]] bool shares_org(game_state const& state, dcon::nation_id a, dcon::nation_id b, uint16_t flag);
+[[nodiscard]] dcon::organisation_id customs_union_of(game_state const& state, dcon::nation_id n);
+// Alliances, clubs, the cartel, development lenders and regional organisations (geo_orgs.cpp);
+// mega-events (megaevents.cpp).
+void init_geo_organisations(game_state& state);
+void update_geo_organisations(game_state& state);
+void on_coup(game_state& state, dcon::nation_id n);
+[[nodiscard]] float coup_deterrence(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float alliance_burden_push(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float club_sanction_shift(game_state const& state, dcon::nation_id n, dcon::nation_id target, float choice);
+[[nodiscard]] float regional_mediation_score(game_state const& state, dcon::nation_id n, dcon::nation_id m);
+void init_mega_events(game_state& state);
+void update_mega_events(game_state& state);
 // Votes a draft by `sponsor` against `target` (shift: extra support); journals under
 // `code` (0 = silent). Returns 1 adopted, 0 vetoed or blocked, -1 too few votes.
 float org_vote(game_state& state, dcon::organisation_id o, dcon::nation_id sponsor, dcon::nation_id target, float shift, uint8_t code, float kind_tag);

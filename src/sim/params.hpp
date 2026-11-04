@@ -558,6 +558,32 @@
     X(rebel_negotiate, 0.5, "annual hazard of a negotiated settlement with rebels at a mutually hurting stalemate (Zartman 1989)") \
     X(power_sharing, 0.5, "cut in a group's exclusion under a power-sharing deal (Hartzell & Hoddie 2003)") \
     X(ruggedness_insurgency, 1.0, "insurgency hazard gain per unit mountainous terrain (Fearon & Laitin 2003)") \
+    /* ---- organisations with geopolitical relevance (docs/06) ---- */                                    \
+    X(burden_gain, 0.6, "share of the gap to the alliance's defence guideline a member closes when the alliance's threat has risen by 0.2 or more (Wales pledge 2014; Plumper & Neumayer 2015)") \
+    X(accession_threat, 0.1, "rise in a non-member's threat since 2019 that makes it seek alliance membership (Walt 1987; Reiter 2001)") \
+    X(accession_shared, 0.3, "members' mean threat from the applicant's main threat needed for an alliance to admit it (shared threat; entrapment: Snyder 1984)") \
+    X(accession_trust, 0.45, "trust a member needs in an applicant not to block its accession (consensus rule)") \
+    X(club_trust, 0.02, "trust gained per summit between club members toward 0.7 (socialisation; Johnston 2001)") \
+    X(club_slump, 2.0, "members' mean output gap (pp) that triggers coordinated stimulus (G20 2008-09; Drezner 2014)") \
+    X(club_stimulus, 0.3, "extra pragmatic fiscal response during coordinated stimulus (share)")       \
+    X(club_stimulus_days, 180.0, "duration of a coordinated-stimulus pledge (days)")                    \
+    X(sanction_alignment, 0.5, "weight of club partners' sanctions on a target in a member's ideal (G7 coordination; Drezner 1999)") \
+    X(counter_shield, 0.5, "cut in sanctions between members of a counter-hegemonic club (BRICS, SCO)")  \
+    X(cartel_cut_speed, 0.5, "monthly quota cut per unit price shortfall below the band (OPEC+ meetings)") \
+    X(cartel_cheating, 1.0, "quota non-compliance per unit fiscal stress of a member (Kaufmann et al. 2004)") \
+    X(price_war_trigger, 0.65, "members' mean compliance below which the swing producer starts a price war (Fattouh & Economou 2020)") \
+    X(price_war_days, 90.0, "length of a price war (days; 2020-03 to 2020-04)")                        \
+    X(dev_income, 4000.0, "GDP per head (USD) below which members borrow concessionally (IDA eligibility ~1,200; blend lending)") \
+    X(dev_lending_gdp, 0.02, "concessional crisis lending per year at full need (share of borrower GDP; Kenny 2020)") \
+    X(coup_deterrence, 0.4, "cut in coup hazard for members of organisations with democracy clauses (Powell, Lasley & Schiel 2016)") \
+    X(suspension_years, 2.0, "years a member stays suspended after a coup unless elections restore it")  \
+    X(regional_sanction, 0.3, "sanction floor members of a sanctioning regional organisation apply to a suspended member") \
+    X(regional_mediation, 0.6, "mediation score of a regional organisation in disputes among its members (Hansen, Mitchell & Nemeth 2008)") \
+    X(bid_gdp_share, 0.002, "event cost (share of GDP) above which a nation does not bid alone (white-elephant risk; Zimbalist 2015)") \
+    X(mega_trust, 0.03, "trust others gain in a host after a successful mega-event (soft power; Grix & Lee 2013)") \
+    X(mega_legitimacy, 0.02, "legitimacy gain of the host government during the event (feel-good; Kavetsos & Szymanski 2010)") \
+    X(mega_protest, 0.5, "unrest drive per unit construction share of GDP x grievance (Brazil 2013-14)")  \
+    X(mega_postpone_threat, 0.3, "epidemic threat (of the host, or of nations with half the world's population) within 90 days of the opening that postpones a mega-event (Tokyo 2020)") \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \
