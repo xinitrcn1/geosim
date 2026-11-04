@@ -43,6 +43,8 @@ struct nation_input {
     double hemisphere = 1, oil_production = 0, oil_elasticity = 0, epl = 0.35, benefit_replacement = 0.3;
     double benefit_coverage = 0.15, death_reporting = 0.5, oil_take = 0.0;
     double oil_consumption = -1.0; // mb/d from data (nations.csv); < 0 = unknown (PPP share)
+    double tourism_share = -1.0;   // international tourism receipts / exports (WDI); < 0 = unknown
+    double travellers = -1.0;      // arrivals + departures per year (WDI); < 0 = unknown
     bool oil_elasticity_set = false, oil_take_set = false;
     double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
     double birth_rate = 0.015, death_rate = 0.008, pop014 = 0.2, tertiary = 0.2;
@@ -355,6 +357,11 @@ struct builder {
             // Energy data (generated: Energy Institute via OWID); curated values override.
             in.oil_production = t.number_or(row, "oil_production_mbd", 0.0);
             in.oil_consumption = t.number_or(row, "oil_consumption_mbd", -1.0);
+            if(auto v = t.number(row, "tourism_receipts_pct_exports")) in.tourism_share = std::clamp(*v / 100.0, 0.0, 0.95);
+            {
+                const auto a = t.number(row, "tourist_arrivals"), d = t.number(row, "tourist_departures");
+                if(a || d) in.travellers = (a ? *a : 0.0) + (d ? *d : 0.0);
+            }
             in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
             in.urban = t.number_or(row, "urban_pct", 50.0) / 100.0;
             order.push_back(in.iso);
@@ -863,6 +870,15 @@ struct builder {
                 a[s][static_cast<std::size_t>(j)] = std::max(1e-6, prior[static_cast<std::size_t>(j)]);
             }
         }
+        // Inbound tourism is exported contact services: where the data give its share of
+        // exports, the export prior of the contact sector carries that share (the RAS
+        // then reconciles it with value added).
+        if(in.tourism_share >= 0.0 && state.derived.contact_sector) {
+            const auto cs = static_cast<uint8_t>(state.derived.contact_sector.index());
+            double others = 0.0;
+            for(uint8_t s = 0; s < S; ++s) if(s != cs) others += a[s][3];
+            a[cs][3] = std::max(a[cs][3], others * in.tourism_share / std::max(0.05, 1.0 - in.tourism_share));
+        }
         for(int iter = 0; iter < 500; ++iter) {
             for(int j = 0; j < 4; ++j) {
                 double sum = 0.0;
@@ -884,6 +900,14 @@ struct builder {
         if(worst > 0.01) {
             warn(in.iso + ": RAS did not fully converge (max column error " + std::to_string(worst) + ")");
         }
+        // Tourism share of the contact sector's exports (the part that follows travel).
+        if(state.derived.contact_sector) {
+            const auto cs = static_cast<uint8_t>(state.derived.contact_sector.index());
+            const double xc = a[cs][3] / col[3];
+            w.nation_set_tourism_share(n, in.tourism_share >= 0.0 && xc > 0.0 ? static_cast<float>(std::min(1.0, in.tourism_share / xc))
+                                                                             : static_cast<float>(P.tourism_share));
+        }
+        w.nation_set_travel_intensity(n, static_cast<float>(in.travellers >= 0.0 ? in.travellers / std::max(1.0, in.population) : -1.0));
         for(uint8_t s = 0; s < S; ++s) {
             w.nation_set_comp_c(n, s, static_cast<float>(a[s][0] / col[0]));
             w.nation_set_comp_g(n, s, static_cast<float>(a[s][1] / col[1]));

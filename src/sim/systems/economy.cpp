@@ -340,7 +340,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         hh[s] -= avoided;
         blocked_contact += avoided;
         // Exports of contact services are partly tourism: they follow travel, not trade.
-        const float x_factor = vd > 0.0f ? 1.0f - static_cast<float>(P.tourism_share) * (1.0f - tourism) : 1.0f;
+        const float x_factor = vd > 0.0f ? 1.0f - w.nation_get_tourism_share(n) * (1.0f - tourism) : 1.0f;
         dem[s] = hh[s] + w.nation_get_comp_g(n, s) * g_real + w.nation_get_comp_i(n, s) * (1.0f - m_share) * i_real
                  + w.nation_get_comp_x(n, s) * (1.0f - m_share) * x_real * x_factor;
         out[s] = std::min(dem[s], cap[s]);

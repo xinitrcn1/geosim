@@ -64,6 +64,22 @@ void update_epidemic(game_state& state) {
         }
     }
 
+    // International connectivity: travellers per resident relative to the world mean
+    // (WDI arrivals + departures); nations without data count as average. Imported
+    // infections scale with it, so hubs are seeded early and isolated nations late
+    // (Balcan et al. 2009; Chinazzi et al. 2020).
+    double trav_num = 0.0, trav_pop = 0.0;
+    for(auto n : w.in_nation) {
+        if(n.get_travel_intensity() < 0.0f) continue;
+        trav_num += static_cast<double>(n.get_travel_intensity()) * n.get_population();
+        trav_pop += n.get_population();
+    }
+    const float travel_mean = trav_pop > 0.0 ? static_cast<float>(trav_num / trav_pop) : 0.0f;
+    auto connectivity = [&](dcon::nation_id n) {
+        const float t = w.nation_get_travel_intensity(n);
+        return t < 0.0f || travel_mean <= 0.0f ? 1.0f : std::clamp(t / travel_mean, 0.05f, 20.0f);
+    };
+
     const auto date = core::date_from_tick(state.current_tick, state.epoch_days);
     const float season_phase = std::cos(2.0f * std::numbers::pi_v<float> * static_cast<float>(core::day_of_year(date) - 15) / 365.0f);
 
@@ -166,7 +182,7 @@ void update_epidemic(game_state& state) {
                 const float internal = D.npi_movement != 0xFF ? npi_fraction(state, n, D.npi_movement) : 0.0f;
                 commute *= static_cast<float>(P.commute_rate) * pop * (1.0f - 0.8f * internal);
             }
-            r.set_imported(p, static_cast<float>(P.travel_rate) * pop * prevalence * (1.0f - static_cast<float>(P.border_effect) * border)
+            r.set_imported(p, static_cast<float>(P.travel_rate) * connectivity(n) * pop * prevalence * (1.0f - static_cast<float>(P.border_effect) * border)
                                   * (1.0f - quarantine) + commute);
             hospital_need += w.pathogen_get_hosp_share(pid) * static_cast<float>(own_i);
         }

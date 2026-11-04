@@ -61,6 +61,9 @@ WDI_INDICATORS = {
     "BX.TRF.PWKR.DT.GD.ZS": "remittances_in_pct",
     "BM.TRF.PWKR.CD.DT": "remittances_out_usd",
     "AG.LND.TOTL.K2": "land_area_km2",
+    "ST.INT.RCPT.XP.ZS": "tourism_receipts_pct_exports",
+    "ST.INT.ARVL": "tourist_arrivals",
+    "ST.INT.DPRT": "tourist_departures",
 }
 
 SOURCES = [
