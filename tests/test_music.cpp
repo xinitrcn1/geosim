@@ -1,13 +1,18 @@
 // Procedural music (docs/14-audio.md): composition is deterministic, songs
-// last 2-3 minutes (intermissions 30-80 s) with a sane score that ends on the
-// tonic, and the player's output is finite and below 0 dBFS.
+// last 2-3.5 minutes (long ones up to 10, intermissions 30-80 s) with a sane score that ends on the
+// tonic, rolls never run faster than 16ths (one beat of 32nds at the end of a
+// build at most), wartime has a low lead over a hard kick, songs vary in
+// style and lead register, and the player's output is finite and below 0 dBFS.
 
 #include "client/audio/composer.hpp"
 #include "client/audio/synth.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <set>
+#include <string>
 #include <vector>
 
 using namespace geosim::client::audio;
@@ -25,6 +30,8 @@ void check(bool ok, char const* what, uint64_t seed, mood m) {
 int main() {
     auto p = std::make_unique<player>(48000.0f);
     std::vector<float> buf(2 * 512);
+    std::set<std::string> styles;
+    int lead_lo = 127, lead_hi = 0; // range of the songs' median lead notes (outside wartime)
     for(int mi = 0; mi < mood_count; ++mi) {
         const mood m = static_cast<mood>(mi);
         for(uint64_t seed : {1ull, 3ull, 7ull, 9ull, 123456789ull, 6509162505067969530ull, 13761442689889167167ull}) {
@@ -33,10 +40,13 @@ int main() {
             bool same = a.events.size() == b.events.size();
             for(std::size_t i = 0; same && i < a.events.size(); ++i) same = a.events[i].tick == b.events[i].tick && a.events[i].notes[0] == b.events[i].notes[0];
             check(same, "same seed, same events", seed, m);
-            check(a.duration_seconds() >= 30.0 && a.duration_seconds() <= 180.0, "duration 30 s - 3 min", seed, m);
+            check(a.duration_seconds() >= 30.0 && a.duration_seconds() <= 600.0, "duration 30 s - 10 min", seed, m);
             if(a.sections.size() > 5) check(a.duration_seconds() >= 120.0, "full songs last 2-3 min", seed, m);
-            if(m == mood::wartime) check(a.bpm >= 132.0f && a.bpm <= 140.0f, "wartime BPM 132-140", seed, m);
-            else check(a.bpm >= 110.0f && a.bpm <= 128.0f, "BPM 110-128", seed, m);
+            if(m == mood::wartime) check(a.bpm >= 138.0f && a.bpm <= 148.0f, "wartime BPM 138-148", seed, m);
+            else check(a.bpm >= 80.0f && a.bpm <= 176.0f, "BPM 80-176", seed, m);
+            if(m == mood::calm) check(a.bpm <= 120.0f, "calm BPM at most 120", seed, m);
+            if(m == mood::triumph) check(a.bpm >= 112.0f, "triumph BPM at least 112", seed, m);
+            styles.insert(a.style);
             if(m == mood::wartime) check(a.duration_seconds() >= 120.0, "wartime songs are full length", seed, m);
             bool sorted = true, in_range = true;
             for(std::size_t i = 0; i < a.events.size(); ++i) {
@@ -50,14 +60,56 @@ int main() {
             const uint32_t last_bar = (a.total_bars - 1) * ticks_per_bar;
             bool tonic_chord = false, lead_end = false;
             for(note_event const& e : a.events) {
-                if(e.ch == ch_pad && e.tick == last_bar) tonic_chord = (e.notes[0] - a.key) % 12 == 0 || (e.notes[1] - a.key) % 12 == 0 || (e.notes[2] - a.key) % 12 == 0;
+                if(e.ch == ch_pad && e.tick == last_bar) {
+                    for(int i = 0; i < e.count; ++i) tonic_chord = tonic_chord || (e.notes[i] - a.final_key) % 12 == 0;
+                }
                 if(e.ch == ch_lead && e.tick >= last_bar) {
-                    const int pc = ((e.notes[0] - a.key) % 12 + 12) % 12;
+                    const int pc = ((e.notes[0] - a.final_key) % 12 + 12) % 12;
                     lead_end = (pc == 0 || pc == 3 || pc == 4) && e.tick + e.len == a.total_ticks();
                 }
             }
             check(tonic_chord, "final tonic chord", seed, m);
             check(lead_end, "lead ends on a held tonic", seed, m);
+
+            // rolls: no run of 3+ snare/clap onsets closer than a 16th,
+            // except one beat of 32nds just before a section boundary
+            std::vector<uint32_t> on;
+            for(note_event const& e : a.events) {
+                if(e.ch == ch_snare && (on.empty() || on.back() != e.tick)) on.push_back(e.tick);
+            }
+            bool rolls_ok = true;
+            for(std::size_t i = 1, run = 0, start = 0; i <= on.size(); ++i) {
+                if(i < on.size() && on[i] - on[i - 1] < ticks_per_row) {
+                    if(run++ == 0) start = on[i - 1];
+                    continue;
+                }
+                if(run >= 3) {
+                    const uint32_t end = on[i - 1];
+                    bool near = false;
+                    for(section const& sec : a.sections) {
+                        const uint32_t b = (sec.start_bar + sec.bars) * ticks_per_bar;
+                        near = near || (b >= end && b - end <= 2 * 4 * ticks_per_row);
+                    }
+                    rolls_ok = rolls_ok && near && end - start <= 4 * ticks_per_row;
+                }
+                run = 0;
+            }
+            check(rolls_ok, "rolls top out at 16ths (32nds only on a build's last beat)", seed, m);
+
+            // lead register: wartime low (bass-like), the others vary per song
+            std::vector<int> lead;
+            for(note_event const& e : a.events) {
+                if(e.ch == ch_lead && e.layer != layer_min_high) lead.push_back(e.notes[0]);
+            }
+            std::sort(lead.begin(), lead.end());
+            const int median = lead.empty() ? 0 : lead[lead.size() / 2];
+            if(m == mood::wartime) {
+                check(median < 60, "wartime lead median below C4", seed, m);
+                check(a.patches[ch_kick].kick_drive >= 3.0f && a.patches[ch_kick].kick_pitch >= 240.0f, "wartime hardtrance kick", seed, m);
+            } else if(!lead.empty()) {
+                lead_lo = std::min(lead_lo, median);
+                lead_hi = std::max(lead_hi, median);
+            }
 
             // 40 s of audio at full intensity: finite, below 0 dBFS
             p->set_song(&a);
@@ -76,6 +128,8 @@ int main() {
             check(peak < 1.0f, "peak below 0 dBFS", seed, m);
         }
     }
+    check(styles.size() >= 4, "at least 4 style families over the tested seeds", 0, mood::calm);
+    check(lead_hi - lead_lo >= 12, "song lead registers span an octave or more", 0, mood::calm);
     if(failures == 0) std::puts("test_music: ok");
     return failures == 0 ? 0 : 1;
 }

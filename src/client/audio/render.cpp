@@ -238,7 +238,7 @@ bool render_music(render_options const& opt, render_report& rep, core::diagnosti
         mean /= static_cast<double>(std::max<std::size_t>(1, o.size()));
         for(float& v : o) v -= static_cast<float>(mean);
         double best = -1e300, best_bpm = 0;
-        for(int b10 = 900; b10 <= 1500; ++b10) {
+        for(int b10 = 750; b10 <= 1800; ++b10) { // 75-180 BPM: every style family
             const double bpm = b10 / 10.0, lag = 250.0 * 60.0 / bpm;
             double acc = 0;
             for(int k : {1, 2, 4}) {

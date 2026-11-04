@@ -94,7 +94,7 @@ void player::set_song(song const* s) noexcept {
     // (the final cadence decays instead of being cut by the patch release).
     const bool natural_end = song_ != nullptr && finished_ && s == nullptr;
     if(natural_end) {
-        for(int c : {ch_bass, ch_lead, ch_pad}) release_channel(c, ~0u, false, 1.4f);
+        for(int c : {ch_bass, ch_lead, ch_pad, ch_counter}) release_channel(c, ~0u, false, 1.4f);
     }
     song_ = s;
     finished_ = false;
@@ -422,12 +422,12 @@ float player::render_drum(voice& v, patch const& p, bool control) noexcept {
     auto ex = [](float t_, float decay) { return std::exp(-4.6f * t_ / decay); };
     switch(v.drum) {
     case dr_kick: {
-        const float f = p.kick_end + (p.kick_pitch - p.kick_end) * std::exp(-t / 0.032f);
+        const float f = p.kick_end + (p.kick_pitch - p.kick_end) * std::exp(-t / p.kick_sweep);
         v.dphase += f * inv_sr_;
         if(v.dphase >= 1.0f) v.dphase -= 1.0f;
         const float body = std::sin(two_pi * v.dphase) * ex(t, p.kick_decay);
         const float click = white(v.noise) * std::exp(-t / 0.0012f) * p.kick_click;
-        y = std::tanh(1.6f * (body + 0.5f * click));
+        y = std::tanh(p.kick_drive * (body + 0.5f * click));
         done = t > p.kick_decay * 1.2f;
         break;
     }

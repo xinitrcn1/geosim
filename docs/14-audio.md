@@ -1,8 +1,9 @@
 # 14 — Audio: procedural dynamic music
 
 All music is generated in-game. No recorded songs ship. A seeded **composer**
-writes a tracker-style score of 2–3 minutes (about one song in four is a
-30–80 s intermission). A small **synthesizer** plays it
+writes a tracker-style score of 2–3.5 minutes; 10–35 % of songs, depending
+on the mood, are long songs of 5–10 minutes, and about one in four of the
+rest is a 30–80 s intermission. A small **synthesizer** plays it
 through SDL3 audio, and the **mood** of the player's nation steers both the
 next song and the arrangement of the one playing now. Code: `src/client/audio`.
 
@@ -93,15 +94,20 @@ target near −18 LUFS in game. From the hardtrance track: varied hand-overs
 instead of a riser every time (filter sweeps, downlifters, one-bar sweeps,
 kick drop-outs and returns, plain cuts), and an off-beat-bass drop. From
 the module: the drums-and-bass break and the beat-first intro. Its tracker
-echo is what the ping-pong delay already does. Changed for this game: the tempo is
-**110–128 BPM** ("upbeat but not too upbeat", "informal" techno) instead of
-146. Songs last 2–3 minutes instead of 16, and use synthesised "sample-like"
-waveforms instead of samples.
+echo is what the ping-pong delay already does. Changed for this game: songs
+last 2–3.5 minutes (long ones up to 10) instead of 16, and use synthesised "sample-like" waveforms
+instead of samples. The first rounds kept every song at 110–128 BPM of
+"informal" techno. The style target is now broader: "upbeat" applies only
+to the joyful mood (triumph), and the other moods draw on several Amiga-era
+style families (techno, synthwave, Amiga punk, chip/retro, breaks,
+eurodance, lo-fi; see [Composer](#composer)) at 82–172 BPM. Wartime is
+early-2000s amateur hardtrance at 138–148 BPM.
 
 ## Synthesis
 
-The tracker model has 8 channels: **kick, snare/clap, hats, bass, lead, arp,
-pad, fx**. Each channel has one patch and a pool of 6 voices.
+The tracker model has 9 channels: **kick, snare/clap, hats, bass, lead, arp,
+pad, fx, counter** (a second melodic voice). Each channel has one patch and
+a pool of 6 voices.
 
 - **Tonal voices:** two oscillators (PolyBLEP saw / pulse with PWM, triangle,
   sine, noise, or a 32-step "sample-like" 8-bit wavetable: organ, bass, vox,
@@ -118,7 +124,9 @@ pad, fx**. Each channel has one patch and a pool of 6 voices.
   the pad. Kit channels choke earlier hits (a closed hat cuts the open hat)
   but layer hits on the same tick.
 - **Drum models** (selected by GM-like note numbers on kit channels):
-  - kick: sine with exponential pitch drop, noise click and tanh;
+  - kick: sine with exponential pitch drop (`kick_sweep`, 32 ms by
+    default), noise click and tanh saturation (`kick_drive`, 1.6 by
+    default; the hardtrance kick uses 12–20 ms and 3–4.2);
   - snare: two-sine body and high-passed noise;
   - clap: 3 band-passed noise bursts and a tail;
   - closed/open hat and crash: six TR-808 square oscillators and noise,
@@ -172,103 +180,178 @@ about 4.5–8 dB (mean 6.4) under the rest of the mix instead of −0.1 to
 no `std::` distributions, so the same seed and mood give a byte-identical
 WAV.
 
-1. **Basics.** BPM is fixed for the song: calm 112–118, tense 116–122,
-   triumph 120–126, crisis 122–128, wartime 132–140. The tonic is A2–G#3.
-   The mode depends on the mood (calm: ionian / lydian / mixolydian /
-   dorian; tense: dorian / aeolian; crisis: aeolian / phrygian / harmonic
-   minor; triumph: ionian / mixolydian / lydian; wartime: aeolian /
-   phrygian / harmonic minor / dorian). There are three diatonic 4-chord progressions (A,
-   B, bridge), taken from a table of progressions that only use major or
-   minor triads of the mode (e.g. I–V–vi–IV, i–VI–III–VII, i–i–VII–VI,
-   i–bII–i–bVII). Harmonic rhythm is 1 or 2 bars per chord. Crisis BPM is
-   clamped to 128 (rounding could give 129). Swing is 0 or 1
-   tick (≈ 58 %) on odd 16ths and is likelier when calm (never in wartime:
-   trance is straight). Calm and triumph songs often use 7th chords.
-2. **Sounds.** A patch is picked per song, per mood, from a few designs per
-   role. Bass: triangle + sub, chip pulse, 8-bit "sample", resonant saw.
-   Lead: PWM pulse, detuned saws, chip sample, square + fifth. Arp: plucks.
-   Pad: a detuned saw pad, or a chip arpeggio chord.
-3. **Groove** (fixed for the song, so it repeats like a tracker pattern):
-   - kick: four-on-the-floor, or a broken pattern when calm, with optional
-     phrase-end pickups;
-   - backbeat: clap or snare on 2 and 4, plus a ghost-note set;
-   - hats: closed on 8ths or quarters, open on the off-beats, the remaining
-     16ths as an intensity layer;
-   - bass rhythm: off-beat (reference), rolling 16ths around the kick, a
-     generated house pattern with note roles (root / octave / fifth /
-     below), or octave 8ths;
-   - arpeggio order (8 shapes over root, 3rd, 5th, octave, 10th);
-   - stab rhythm (5 masks, one of them the reference's).
-4. **Motifs.** There are two 2-bar motifs: A for verses and B for choruses
-   (B is denser). Rhythm comes from weighted sampling of the 32 rows
-   (downbeats 5, beats 3, 8ths 2.2, 16ths 0.6 × density). Half the time bar
-   2 echoes bar 1's rhythm, and the last 4 rows stay silent so the answer
-   has room. Pitch is a contour of steps (55 %), skips, repeats and rare
-   leaps, with leap recovery, inside a 1.5-octave range. Strong beats
-   always land on chord tones.
-5. **Placement on the harmony.** A motif is placed as 2-bar **cells**. A cell
-   is transposed diatonically with the chord root (wrapped to ±3 steps), plus
-   an optional melodic **sequence** step, and may be transformed:
-   *invert* (contour mirrored around its first note), *retro-tail* (bar 2
-   backwards) or *cadence* (bar 1 of the motif, then a long resolving note on
-   beat 1 or 2 of bar 2, held to the cell's end). A transformed cell is moved
-   by an octave if it drifts more than half an octave from the plain one.
-   Strong-beat notes snap to the actual chord. Endings:
-   - **open** (antecedent): a non-root chord tone, not the note just sung,
-     held up to half a bar;
-   - **closed** (consequent): the most stable chord tone near the last note
-     — the tonic, else the key's fifth, else its third (the tonic weighs
-     more at a section's end) — held to the end of the cell.
-   A cell cut by the section's end gives its ending to its last placed note.
-   In augmented cells (breakdown) a repeated pitch moves to a neighbour or to
-   another chord tone.
-   **Register:** pads voice within 17 semitones from `key + 7` (or `key − 5`
-   for high keys, so the floor is D3–C#4). The lead's window starts a fifth
-   above the pad floor and never below D4 (`lead_lo` 62–68, 19 semitones
-   wide). Each cell takes the octave that keeps its notes in the window and
-   joins the previous note smoothly; a stray note folds in by an octave. The
-   octave doubling of the high-intensity layer is dropped above C7.
-   **Phrase plans** (4 cells = 8 bars): statement, sequence (open),
-   restatement — or, in a repeated phrase, a development (inversion or
-   retro-tail with a sequence step) — then the cadence. Verses alternate
-   lead cells and arp answers (open, closed, sequence, cadence); bridges
-   answer the arp with sequences and an inversion; the breakdown sings the
-   theme of the harmony it borrows, augmented, then its sequence a third
-   higher, resolving. The last cell of every section is a cadence. If a
-   section's last chord shares no tone with the tonic triad (II in lydian,
-   bVII, bII, ii...), that last bar becomes the tonic: a modal cadence.
-6. **Form.** The song uses one of 4 templates, each a sequence of 8- and
-   16-bar sections, for example intro 8 → verse 16 → chorus 16 → bridge 8 →
-   breakdown 8 → drop 16 → outro 8. Sections are shortened or added until
-   the song lasts 2–3 minutes at its BPM. About one song in four (its own
-   generator, so other seeds keep their form) is an **intermission** instead:
-   intro 4 → verse 8 → outro 4 (30–34 s), intro 4 → verse 8 → chorus 8 →
-   outro 4, or intro 8 → chorus 8 → breakdown 8 → drop 8 → outro 4
-   (≤ 77 s). Per section:
-   - **intro:** kick (from the middle when calm), hats, sustained pad, arp
-     layer. In ~30 % of songs it is beat-first instead: kick, hats and bass
-     from bar 1, the chords from halfway.
-   - **verse:** call and response. The lead plays motif A in bars 1–2, and
-     the arpeggiator answers in bars 3–4. A repeated verse adds open hats
-     and stabs.
-   - **chorus / drop:** an 8-bar melody (see the phrase plans), with a
-     background arp layer, stabs (punchy `stab` chords on the saw pad), a
-     crash on the downbeat and often an impact on the drop. In the drop the
-     second 8 bars go an octave up when that stays below C7. In some songs
-     the drop is **hardtrance**: the bass switches to off-beat roots (octave
-     on top at high intensity) and the quiet pad layer is trance-gated.
-   - **bridge:** the roles reverse: the arp calls and the lead answers with
-     a variation of motif A.
-   - **breakdown:** no kick, hats or bass. Pads (2 bars per chord, gated in
-     songs with a trance gate), a sub layer, and the augmented theme. How it
-     builds back depends on its hand-over (below).
-   - **outro:** drums and pad thin out. The lead states motif A once more;
-     the last two bars are the **final cadence**: a cadence chord (V, or
-     bVII in mixolydian / dorian / aeolian, bII in phrygian) with its root in
-     the bass and the lead a step from the tonic, then the tonic chord, the
-     tonic in the bass and the lead on the tonic (or the third) held for the
-     whole bar, a kick and a crash. The player lets them ring out.
-7. **Transitions** (`choose_arrangement`, own generator). Each section
+1. **Style.** Each song belongs to a style family, drawn with weights that
+   depend on the mood. The family sets the tempo range, the groove
+   templates, the bass patterns, the stab rhythm and the sounds. Only
+   triumph (the joyful mood) stays "upbeat": its tempo is at least 112 BPM.
+   Calm stays relaxed (at most 120 BPM) and keeps the mundane parts (arp
+   answers, sparse counter voice, no key change).
+
+   | Family | BPM | Grooves (verse / chorus) | Bass | Sound | Moods (weight) |
+   |---|---|---|---|---|---|
+   | techno | 116–128 | four, broken, electro | off-beat, rolling, house, octaves | as before | calm 1, tense 1.2, crisis 1, triumph 1 |
+   | synthwave | 88–108 | synthwave, half-time / synthwave, four (outrun) | 8th or 16th pedal, octaves | lush saw pad, big reverb snare, held chords | calm 1.2, tense 1.4, crisis 1, triumph 0.6 |
+   | amiga punk | 152–172 | punk, d-beat | 8th roots with fifths, walking, gallop | driven saw+pulse power chords (8th chugs in the chorus), tight snare, crash-ride | tense 0.6, crisis 1.2, triumph 0.4 |
+   | chip | 124–146 | chip, breakbeat, four | octaves, bounce, walking, 8ths | tracker-arpeggio chords (75 %), pulse / 8-bit bass and lead | calm 0.7, tense 0.8, crisis 0.5, triumph 1.2 |
+   | breaks | 136–156 | breakbeat, amen, half-time | held reese, syncopated, house | rave stabs | tense 1, crisis 1.3 |
+   | eurodance | 124–136 | four, chip / four | off-beat, octave 16ths, rolling | stabs on the off-beats | triumph 1.5 |
+   | lo-fi | 82–100 | half-time, shuffle, breakbeat | held, walking, bounce | soft kick, triangle bass, heavy swing | calm 2 |
+   | hardtrance | 138–148 | hardtrance, trance / hardtrance | off-beat, gallop, rolling | see *Wartime* | wartime only |
+
+2. **Basics.** The tonic is A2–G#3. The mode depends on the mood (calm:
+   ionian / lydian / mixolydian / dorian; tense: dorian / aeolian /
+   phrygian; crisis: aeolian / phrygian / harmonic minor; triumph: ionian /
+   mixolydian / lydian; wartime: aeolian / phrygian / harmonic minor /
+   dorian). Swing (1 tick ≈ 58 % on odd 16ths) depends on the family; the
+   shuffle groove swings by 2 ticks. 7th chords are likelier in calm,
+   triumph, lo-fi and synthwave songs; punk uses power chords (root, fifth,
+   octave).
+3. **Harmony.** There are three 4-chord progressions per song: A (verse),
+   B (chorus) and C (bridge). They come from a table of 41 entries:
+   - the diatonic ones (I–V–vi–IV, i–VI–III–VII, i–i–VII–VI...);
+   - borrowed and chromatic ones: I–bVI–bVII–I, I–iv–I–V, IV–iv–I,
+     I–III–vi–IV (chromatic mediant), I–VI–ii–V (secondary dominant),
+     vi–IV–I–bVII, i–VII–VI–V (andalusian), i–iv–V–i and i–VI–iv–V with a
+     major V, i–III–VII–IV, i–VI–VII–I (picardy), i–VI–i–bII (neapolitan);
+   - relative-key progressions for bridges and breakdowns (vi–iii–IV–I,
+     III–VII–iv–III, VI–III–iv–V...).
+
+   Outside calm, choruses weigh the coloured progressions ×2, and 60 % of
+   bridges use a relative-key one. A coloured chord is written as the
+   diatonic chord on the same degree plus a *colour*: a local scale given
+   by a tonic offset, a mode and a degree (parallel aeolian, ionian,
+   harmonic minor, dorian or phrygian; E ionian or A mixolydian for the
+   mediants III and VI over C). Each bar gets a pitch-class mask of its
+   local scale and chord. Every tonal note emitted in a coloured bar is
+   **snapped** into that scale: it stays if it belongs; otherwise it moves a
+   semitone to a chord tone, or failing that to a scale tone. So the
+   melody, arp, bass and pad logic stay diatonic while the harmony
+   borrows, and a vi in the table sounds as bVI. A held lead or counter
+   note that crosses into a bar where it would sound different is split
+   there and re-sung in the new harmony. Minor songs close on a major V
+   (harmonic minor) in 40 % of cases instead of bVII.
+   - **Suspensions:** on phrase starts and on the cadence chord (40 %, calm
+     15 %), the pad plays a sus4 for half a bar, then the triad.
+   - **Key change:** 30 % of tense, crisis and wartime songs, and 50 % of
+     triumph songs, with two or more choruses or drops modulate for the
+     last one and what follows: +2 semitones (60 %), +1 or +3. The bar
+     before plays the new key's dominant (VI major, bVI or bVII).
+     `song::final_key` is the tonic after the change, and the cadence and
+     the final tonic are in that key.
+4. **Groove templates.** Every song has one template for its intro, verse,
+   bridge and outro, and one for its choruses and drops. They are the same
+   template 35 % of the time; wartime drops are always hardtrance. A
+   template has 16-step masks for the kick, the kick on a phrase's last
+   bar, the backbeat, ghost notes, closed, open and extra hats, plus a
+   swing. The templates are four-on-the-floor, broken 3-3-2, electro
+   (1, 2a, 3+), breakbeat, amen, half-time (snare on 3), shuffle,
+   synthwave (kick 1 and 3), punk, d-beat, chip, hardtrance and trance.
+   The song adds its own extra kick on every other bar (35 %, never in
+   hardtrance or punk) and a ghost-note set. Outside calm and wartime,
+   4-bar phrases sometimes end on a three-16th snare pickup (layer ≥ 0.4).
+5. **Bass patterns** (one per section group): off-beat, rolling, gallop,
+   octaves, house (generated), walking (root, third, fifth, approach,
+   legato), syncopated (3-3-2 with fifth, octave and approach), held (whole
+   bar, then an approach), 16th pedal, bounce, 8th pulse, octave 16ths.
+   Each hit has a role (root, octave, fifth, third, below, approach).
+   Outside calm, the bass moves on the second bar of a chord (fifth or
+   octave on beat 3) and runs up four 16ths into the next chord at the end
+   of 8-bar phrases. Approach tones lead into chord changes as before.
+6. **Motifs.** There are two 2-bar motifs, A for verses and B for choruses
+   (B is denser). Each has a rhythmic approach per song, weighted by mood:
+   - **riff:** weighted sampling of the 32 rows, as before, notes at most
+     6 rows long; staccato in 10–20 % of songs;
+   - **legato:** 4–5 onsets, each held to the next (up to 14 rows);
+   - **syncopated:** 3-3-2 cells (rows 0, 3, 6, 8, 11, 14...);
+   - **anthem:** 3–5 long notes with wide, singing intervals (leaps of a
+     4th to a 6th, then recovery).
+
+   Pitch is a contour of steps, skips and rare leaps, with leap recovery.
+   Strong beats always land on chord tones.
+7. **Placement on the harmony** (unchanged). A motif is placed as 2-bar
+   **cells**. A cell is transposed diatonically with the chord root
+   (wrapped to ±3 steps), plus an optional melodic **sequence** step, and
+   may be transformed: *invert*, *retro-tail* or *cadence*. Endings are
+   **open** (a non-root chord tone, held up to half a bar) or **closed**
+   (the most stable chord tone, held to the cell's end). A cell cut by the
+   section's end gives its ending to its last placed note. Phrase plans
+   (4 cells = 8 bars): statement, sequence (open), restatement or
+   development, cadence. If a section's last chord shares no tone with the
+   tonic triad, or is coloured, that last bar becomes the tonic.
+8. **Registers.** The lead's register is chosen per song: **low** (a
+   19-semitone window from A#2–C3, 35 %), **mid** (from G3, 40 %) or
+   **high** (from D4, 25 %). Triumph and chip favour high, breaks and
+   synthwave low, punk mid. Each cell takes the octave that keeps its notes
+   in the window and joins the previous note smoothly. Only low leads go an
+   octave up in the second half of a drop, and the high-intensity octave
+   doubling stops at D6. With a low lead the pads move above it (floor
+   A#3–C4); otherwise they voice within 17 semitones from `key + 7` (or
+   `key − 5`). Arps sit an octave above the tonic (key + 12) under a high
+   lead, two octaves (key + 24) otherwise, and always stay below E6.
+9. **Arpeggios.** There are 11 chord-tone orders of 3–8 steps, at 16ths,
+   8ths or dotted 8ths (a 3-row rate that drifts across the bar). Notes are
+   plucks, or held for the full step (60 % at the slower rates). Outside
+   calm the arps are **long, evolving lines**: in 4-bar arcs the pattern
+   rotates every 2 bars and climbs a chord tone in the arc's second half,
+   with rising velocity. They run through every chorus and drop (layer
+   "always"; in calm ≥ 0.4), the second half of the intro, half the
+   breakdown, and in 50 % of songs the whole verse instead of the 2-bar
+   answers.
+10. **Counter voice** (channel 9, `ch_counter`). Calm songs have none
+    (50 %) or guide tones at intensity ≥ 0.4; other songs have guide tones
+    (45 %) or guide tones and fills (55 %). Guide tones are the chords'
+    thirds, fifths and sevenths, moving by the smallest step in their own
+    window: under a mid or high lead from D3–E3, over a low lead from D4.
+    Before a step down, the previous note is held 4 rows into the new bar
+    and then resolves (a suspension, 50 %). 40 % of songs re-sing the
+    guide tone on beat 3 with a neighbouring chord tone. They play in
+    choruses, drops, bridges and repeated verses. Fills are four 8ths
+    falling onto the next chord's third at the end of every 4-bar verse
+    phrase. The patch is strings, brass, chip pulse or (wartime) supersaw.
+11. **Form.** There are 8 templates. The earlier 4 are joined by two
+    verse–chorus song forms (one with a bridge and a last chorus), an
+    intro–chorus–verse–bridge–drop form, and a club form (drop, breakdown,
+    drop). Fitting to the target length (140–195 s, at most 210 s) halves a 16-bar intro or
+    breakdown, then drops a bridge, then halves 16-bar sections, then drops
+    a repeated verse that would not join two equal sections. Fast songs are
+    extended by doubling 8-bar verses and choruses, then by adding a chorus
+    after the last drop (or a bridge and a chorus after the last chorus).
+    Intermissions are fitted to 32–80 s at any tempo. The section rules
+    (intro, verse call and response, chorus / drop, bridge, breakdown,
+    outro and its final cadence) are as before. Synthwave and lo-fi
+    choruses hold their chords instead of stabbing, and punk choruses chug
+    power-chord 8ths.
+
+    **Long songs** (5–10 min; 10 % of calm and triumph songs, 15 % of tense
+    and crisis, 35 % of wartime) aim for 300–580 s and never pass 600 s.
+    Some grow from a template by whole cycles before the outro: breakdown →
+    drop in club and trance forms, otherwise alternating verse → chorus and
+    bridge → chorus. The others (45 %, wartime 60 %) use the **epic form**,
+    which follows the 16-minute reference module's layout (a hint from the
+    user, not a fixed rule). Each section keeps the reference's share of
+    the length, scaled to the target and rounded to 8 bars:
+
+    | Section | Share (s of 862) | What happens |
+    |---|---|---|
+    | intro | 60 | pads and one long evolving arp; no drums, no bass |
+    | build (verse) | 75 | kick and bass, then hats, then the backbeat, then the melody (from halfway) |
+    | main (chorus) | 60 | |
+    | breakdown | 30 | bass out; leaves on a riser (noise sweep and roll) |
+    | drop | 150 | the main stretch |
+    | break (breakdown) | 30 | |
+    | main (chorus) | 60 | |
+    | breakdown | 45 | pads and melody (the augmented theme) |
+    | **groove** | 75 | a percussion section: drums, bass, shaker 16ths, rim off-8ths, a tom figure; no chords or melody |
+    | break (breakdown) | 30 | |
+    | main (drop) | 60 | ends on a *stop*: the middle break of the main |
+    | main (drop) | 60 | ends on a *pause*: the last bar is almost silent, only a faint swell |
+    | final main (drop) | 90 | the key change, if any, lands here |
+    | outro | 37 | thins down to the pads |
+
+    `section_kind::groove` is the new section kind. The player treats it
+    like any other (the wrap-up jumps to the outro from it).
+
+12. **Transitions** (`choose_arrangement`, own generator). Each section
    boundary gets one hand-over, weighted by context and never the same
    twice in a row:
 
@@ -277,7 +360,7 @@ WAV.
    | cut | nothing but the crash on the next downbeat | anywhere |
    | fill | snare fill on the last 2 beats (the kick leaves beat 4) | anywhere |
    | toms | tom fill on the last beat | anywhere |
-   | roll | snare roll: 8ths, then 16ths, the last beat in 32nds, crescendo (2 bars; 4 out of a breakdown) | into chorus / drop, out of a breakdown |
+   | roll | snare roll, crescendo (2 bars; 4 out of a breakdown, 8 in wartime): quarters for the first half of a 4+-bar build, 8ths, then 16ths for the last quarter (at most 2 bars); only a 2+-bar build may end on one beat of 32nds (30 %) | into chorus / drop, out of a breakdown |
    | riser | noise riser, 2 bars (4 out of a breakdown, with a roll) | at most once per song, possible in 25 % of songs |
    | sweep | one-bar pitched sweep up | at most once per song, possible in 50 % |
    | filter-close | the bus low-pass closes over the last 2 bars | into a breakdown or outro |
@@ -297,14 +380,15 @@ WAV.
 
    | Device | What happens | Used for |
    |---|---|---|
-   | roll / clap-roll | accelerating snare or clap roll: 8ths for the first third, 16ths, then 32nds, 40 → 120 velocity | builds |
+   | roll / clap-roll | accelerating snare or clap roll in the steps of *roll* above (never faster than 16ths except one final beat of 32nds), 40 → 120 velocity | builds |
    | tom-cascade | toms in 8ths (high / mid), the last bar 16th cascades high → low each beat, crescendo | builds, verse ends |
    | layer-in | the drums are rebuilt one by one: hats, then the kick, then off-beat bass roots, then a snare roll | intro, breakdown |
    | hat-ramp | hats replaced by 8ths, then 16ths, then 16ths with open 8ths, rising | builds |
    | arp-climb | the arp in 8ths then 16ths, an octave up halfway, with passing tones, rising | builds |
    | stab-ramp | chord stabs in quarters, 8ths, then 16ths, rising | builds |
    | pad-swell | one pad chord whose attack lasts the whole build (`note_fx::swell`) | builds |
-   | kick-double | the kick in 8ths for the last 1–2 bars, its last beat in 16ths | into chorus / drop |
+   | kick-double | the kick in 8ths for the last 1–2 bars, its last beat in 16ths (wartime: the last two beats, a hardtrance kick roll) | into chorus / drop; out of a wartime breakdown |
+   | pause | everything (the lead too) stops for the last bar, with a faint swell: a near-silent tension pause | epic form, before the final main |
    | lead-climb | the melody ends (with its cadence) a build early; the lead runs an octave up a scale in 8ths, then holds the fifth and bends a fourth up onto the tonic into the downbeat (`note_fx::slide_up`) | melodic sections, breakdown |
 
    Risers are now occasional: a long riser is possible in 25 % of songs and
@@ -313,34 +397,46 @@ WAV.
    Extras: a reverse cymbal into the next downbeat, a downlifter (and a
    crash) at the start of a calmer section, an impact on the drop. The
    chosen hand-overs are listed at the end of the song's description.
-8. **Voice leading.** Each pad chord takes the inversion and octave, within
+13. **Voice leading.** Each pad chord takes the inversion and octave, within
    the pad register, closest to the previous voicing.
 
-### Wartime (trance / hardtrance)
+### Wartime (hardtrance)
 
-The fifth mood, for a player at war. **132–140 BPM**: the hardtrance
-references run 140 (the XM), 146 (the Symphonie module) and 160 BPM (the
-MP3); the game keeps every mood at or below 140, so wartime sits at the
-genre's lower end, clearly above crisis (122–128). Minor modes (aeolian,
-phrygian, harmonic minor, dorian), no swing, no broken kick, clap backbeat
-in 85 % of songs, an off-beat (65 %) or rolling bass with a resonant saw or
-8-bit bass, and the **hardtrance drop** always (off-beat roots). The pad is
-always the detuned saw, wider (detune × 1.6, both oscillators equal,
-cutoff 2 kHz) so pads and stabs sound supersaw-like, and every wartime song
-has a **trance gate** on its breakdown pads and drop pad layer. Forms are
-always full length (no intermissions) with long breakdowns and builds:
+The fifth mood, for a player at war, is early-2000s amateur hardtrance.
+It runs at **138–148 BPM**; the references run 140 (the XM), 146 (the
+Symphonie module) and 160 BPM (the MP3). The earlier 140 BPM cap is gone,
+so wartime now sits clearly above every other mood except punk. The rest
+of the recipe:
 
-- intro 16 → verse 16 → breakdown 16 → drop 32 → outro 8
-- intro 8 → verse 16 → chorus 16 → breakdown 16 → drop 16 → outro 8
-- intro 16 → chorus 16 → breakdown 32 → drop 16 → outro 8
-- intro 8 → verse 16 → breakdown 16 → drop 16 → breakdown 8 → drop 16 → outro 8
-
-(the fit to 2–3 minutes halves a 16-bar intro or a 32-bar breakdown, never
-a 16-bar breakdown). Long breakdowns keep developing their theme (plain,
-sequence, inversion, retro-tail, rising velocity) instead of repeating it.
-Builds last 8 bars out of an intro or breakdown and 4 bars elsewhere. The
-cadences, the final tonic and every other guarantee are the same as for
-the other moods.
+- **Kick as the lead element.** The hardtrance kick drops in pitch fast
+  (`kick_sweep` 12–20 ms) from 250–320 Hz onto the key's root (45–60 Hz).
+  It has a long body (0.42–0.55 s), a loud click, `kick_drive` 3–4.2 (a
+  distorted, pitched kick) and mix gain 0.8. It plays four-on-the-floor,
+  with a 16th on the last beat of each phrase's last bar (`hardtrance`
+  template). Kick rolls into the drops are 2.5× as likely (`kick-double`,
+  ending on two beats of 16th kicks), and are possible out of a breakdown.
+- **A low, almost bass-like lead** replaces the high synth. Its window
+  starts at F#2–G#2 (19 semitones, song medians 49–57), an octave over the
+  bass. Patches: a driven reese (two saws 20–30 cents apart), a hoover-ish
+  PWM pulse against a detuned saw, or an acid saw (resonance 0.65, filter
+  envelope, slides). Glide is on in 70 % of songs. The lead never goes up
+  an octave and is never doubled an octave up. It ducks with the kick
+  (0.35).
+- **Bass:** off-beat, gallop (rows 2–3 of each beat) or rolling (all three
+  16ths after the kick). The first drop keeps the song's own bass, and
+  later drops switch to off-beat roots.
+- **Gated supersaw:** the counter voice plays root–fifth–tenth chords on a
+  supersaw (detune 25–32 cents) through the song's 16th trance gate, in
+  drops and choruses (and verses at high intensity). The pads stay the
+  wide detuned saw, gated in breakdowns.
+- Hats are closed 16ths with open off-beats (or open off-beats only in
+  the `trance` verse template), with a clap backbeat in 85 % of songs.
+  Arps run in 16ths (or dotted 8ths) an octave above the tonic. Minor
+  modes, no swing.
+- **Forms:** six trance forms, always full length, with 16–32-bar
+  breakdowns and 8-bar builds out of intros and breakdowns. The new ones
+  are intro → drop → breakdown → drop, and intro 16 → verse 8 → chorus 8 →
+  breakdown 16 → drop 32. A key change for the last drop is possible.
 
 ### Intensity layers
 
@@ -353,7 +449,8 @@ never mid-note. Layered parts:
 - 16th hats, ghost snares, open-vs-closed hats in verses;
 - a second backbeat sound, and rim/shaker 16ths at high intensity;
 - the bass octave and the lead octave doubling at high intensity;
-- the background arps and the breakdown sub.
+- the background arps (calm), the breakdown arps and sub, the counter
+  voice in calm songs and verses, the gated supersaw in wartime verses.
 
 Intensity also sets the brightness of lead, arp and pad: their cutoff is
 multiplied by 2^((i − 0.55) · 1.6). Intensity is smoothed with a ~6 s time
@@ -437,12 +534,19 @@ audio device, to 16-bit stereo 48 kHz. The report gives:
   estimate** (autocorrelation of the low-band onset envelope);
 - the share of low-band onsets on the 16th grid.
 
-`--solo kick` isolates the kick for an exact grid check. `--switch` tests a
+`--solo kick` isolates the kick for an exact grid check (any channel name,
+including `counter`, works). `--switch` tests a
 mid-song mood change and the wrap-up. `tests/test_music.cpp` (built with
-`GEOSIM_BUILD_TESTS`) checks determinism, 30 s – 3 min length (full songs
-2–3 min), BPM range, the score's invariants, the final tonic chord and the
-lead's held final tonic, and 40 s of finite output below 0 dBFS at full
-intensity, for every mood and seven seeds (including two intermissions).
+`GEOSIM_BUILD_TESTS`) checks determinism, 30 s – 10 min length (full songs
+at least 2 min), BPM range (calm ≤ 120, triumph ≥ 112, wartime 138–148), the
+score's invariants, the final tonic chord and the lead's held final tonic
+(in `final_key`), the roll cap (no run of three or more snare / clap
+onsets closer than a 16th, except one beat of 32nds just before a section
+boundary), the wartime low lead (median below C4) and hardtrance kick, and
+40 s of finite output below 0 dBFS at full intensity, for every mood and
+seven seeds. Over all of them it also checks that at least 4 style
+families occur and that the songs' median lead notes span an octave or
+more.
 
 ### Verification (12 songs: 4 moods × seeds 1, 7, 42)
 
@@ -527,13 +631,70 @@ song plays (estimated from audio: 137.9). In the client the switch comes
 from the sim's `at_war` state; scenario 2020 has no war within 1 200 days
 (headless run), so it was checked through the renderer, not a live war.
 
+### Verification of the style rework (250 scores, 70 renders)
+
+These numbers answer the feedback on wartime not being hardtrance enough,
+claps rolling absurdly fast, leads too high, songs sharing one rhythm,
+short notes and mundane parts. Score statistics are over 5 moods × seeds
+1–50, from an analysis tool over `compose()` that is not part of the
+build. Each figure is the previous composer → now.
+
+- **Rolls.** The previous composer had 200 snare / clap rolls faster than
+  16ths (runs of 3+ onsets under a 16th apart) away from a build's last
+  beat, the longest lasting 123 ticks (5 beats of 32nds; 10 beats in
+  wartime). Now there are 0. The 67 remaining 32nd runs each last one beat
+  (21 ticks) and end a build.
+  - Seed 31 calm, the reported case: its old roll ran 32nds for 1⅓ bars
+    at 118 BPM. Its new song (lo-fi, 83 BPM) has 4 bars of quarters → 8ths
+    → 16ths with one beat of 32nds.
+  - Snare-solo renders (35 old, 35 new): onsets less than ¾ of a 16th
+    apart, 22.3 per song (max 71) → 3.1 (max 24; most are clap and snare
+    layered on one tick). The most onsets in any one beat: 9 → 4–5 in
+    tense, crisis and wartime, 8 (the final beat) in calm and triumph.
+- **Lead register.** Song-median lead note in the low (< C4) / mid /
+  high (≥ C5) bins: 0 / 18 / 232 → 89 / 124 / 37 (wartime 49 / 1 / 0).
+  Lead-solo renders of 7 seeds per mood, strongest partial (MIDI, mean of
+  the song medians): calm 76.9 → 66.4, tense 77.2 → 66.9, crisis 80.7 →
+  66.9, triumph 81.3 → 70.2, wartime 79.2 → 54.7. Spectral centroid:
+  wartime 2754 → 724 Hz, the others 1816–2779 → 1220–1952 Hz.
+- **Note lengths.** Mean lead note 4.9 / 4.6 / 3.4 / 4.5 / 4.2 rows → 6.4
+  / 6.4 / 6.0 / 6.5 / 5.9 (calm / tense / crisis / triumph / wartime).
+  Notes of 8+ rows: 7–15 % → 25–35 %. The longest arp run per song: about
+  20 bars → 34–42 bars outside calm (calm 21).
+- **Diversity.** Five style families per mood outside wartime (for example
+  crisis: 8 punk, 15 breaks, 6 chip, 13 synthwave, 8 techno). Distinct
+  verse + chorus skeletons (kick / backbeat / bass masks): 29 / 19 / 15 /
+  18 / 14 per 50 songs → 46 / 46 / 48 / 42 / 19. In style + groove + bass
+  terms, 42–46 of 50 songs per mood differ (wartime 16; it is always
+  hardtrance). Moving bass, distinct pitches per bar: 1.35–2.27 → 1.32–2.51.
+- **Active parts.** Counter-voice notes per song: 0 → 64–71 outside calm
+  (calm 9, sparse on purpose). Key changes: 0 → 16 / 18 / 24 / 19 of 50
+  (tense / crisis / triumph / wartime; calm none).
+- **Length.** 28 intermissions (30–80 s), 192 songs of 2–3.5 min, and 30
+  long songs of 5–10 min (max 584 s), 15 of them in the epic form.
+  - Epic wartime seed 8 (348 s, 138 BPM), RMS per bar: the quiet intro
+    −27 dBFS, the build and mains −11 to −13, breakdowns −16 to −18, the
+    groove section −14, the mid-main stop bar −17, the pause bar −30.
+- **Full-mix renders** (10 songs over all moods and 6 families, plus the
+  epic one): 0 clipped and 0 non-finite samples, peaks −0.86 to −2.45
+  dBFS, RMS −12.6 (wartime) to −20.0 dBFS (lo-fi).
+  - The audio tempo estimate now searches 75–180 BPM and matches the
+    score within 0.1 BPM. The exception is punk at 166, which reads as 83
+    (half time: its kick and snare alternate on the beats).
+  - Seed 5 wartime renders byte-identical twice.
+  - `test_music` passes.
+
 ## Limitations and next steps
 
 - The loudness range is about 4 LU against the reference's 9. Breakdowns
   could drop further, and the intro and outro could fade more.
-- Only 4 form templates (+3 intermissions) and 2 motifs per song; cells are
-  developed (sequence, inversion, retro-tail, cadence) but there are no
-  per-section key changes yet.
+- 8 form templates (+3 intermissions, the epic long form) and 2 motifs per
+  song. Key changes happen only once, for the last chorus. Chord colours
+  are realised by snapping, so a melody held over a colour change is
+  re-sung at the bar line, not voice-led.
+- Wartime songs share one skeleton family (hardtrance, 3 bass patterns).
+  The variety there comes from the bass, the forms, the lead patch, the
+  key and the progressions.
 - Pads are paraphonic (one filter per chord) and there is no per-note
   stereo spread. The reverb is a basic Schroeder design.
 - The mood comes only from HUD tones and alerts. Explicit inputs such as

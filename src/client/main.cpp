@@ -31,7 +31,7 @@ int usage() {
                "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
                "              [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]\n"
                "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
-               "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx]\n",
+               "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx|counter]\n",
                stderr);
     return 2;
 }

@@ -1,7 +1,7 @@
 #pragma once
 // Procedural music: the data a composed song is made of (docs/14-audio.md).
 //
-// A song is a tracker-style score: 8 channels, a fixed BPM, 16th-note rows
+// A song is a tracker-style score: 9 channels, a fixed BPM, 16th-note rows
 // (4 rows per beat, 64 rows per 4-bar pattern) subdivided into 6 tracker
 // ticks per row. The composer (composer.hpp) writes it once, on a worker
 // thread; the player (synth.hpp) only reads it, on the audio thread.
@@ -17,8 +17,10 @@ inline constexpr int mood_count = 5;
 [[nodiscard]] char const* mood_name(mood m) noexcept;
 [[nodiscard]] bool parse_mood(char const* text, mood& out) noexcept;
 
-inline constexpr int num_channels = 8;
-enum channel : uint8_t { ch_kick, ch_snare, ch_hats, ch_bass, ch_lead, ch_arp, ch_pad, ch_fx };
+inline constexpr int num_channels = 9;
+// ch_counter: a second melodic voice (countermelody, guide tones, gated
+// supersaw stabs in wartime), so the lead is not the only moving part.
+enum channel : uint8_t { ch_kick, ch_snare, ch_hats, ch_bass, ch_lead, ch_arp, ch_pad, ch_fx, ch_counter };
 [[nodiscard]] char const* channel_name(int ch) noexcept;
 
 inline constexpr int rows_per_beat = 4;   // 16th notes
@@ -78,6 +80,8 @@ struct patch {
     float gain = 1.0f;
     // kit parameters
     float kick_pitch = 160.0f, kick_end = 48.0f, kick_decay = 0.35f, kick_click = 0.5f;
+    float kick_sweep = 0.032f; // pitch-drop time constant, seconds (hardtrance: shorter, harder)
+    float kick_drive = 1.6f;   // tanh saturation (hardtrance: 3-4, a distorted, pitched kick)
     float snare_tone = 190.0f, snare_decay = 0.16f, hat_decay = 0.045f, hat_tone = 1.0f;
 };
 
@@ -111,7 +115,8 @@ struct note_event {
     uint16_t gate = 0;       // trance gate: bit r open on the r-th 16th of each bar from the note start (0 = no gate)
 };
 
-enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro };
+// groove: a percussion-heavy section (drums, bass, percussion; no chords or melody)
+enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro, groove };
 [[nodiscard]] char const* section_name(section_kind k) noexcept;
 
 struct section {
@@ -136,7 +141,9 @@ struct song {
     mood m = mood::calm;
     float bpm = 120.0f;
     int key = 0;             // tonic MIDI note (e.g. 57 = A3)
+    int final_key = 0;       // tonic after a key change for the last chorus (= key without one)
     int mode = 0;            // index into the composer's mode table
+    std::string style;       // "techno", "synthwave", "punk", ... (the composer's style family)
     std::string description; // "seed 7, calm, 116 BPM, D dorian, ..." for logs
     patch patches[num_channels];
     mix_settings mix;
