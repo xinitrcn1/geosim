@@ -1,6 +1,34 @@
+# build output
 build/
 generated/
 compile_commands.json
 .cache/
+*.o
+*.a
+*.so
+*.obj
+
+# downloaded raw data (regenerate with tools/pipeline/fetch.py)
 data/raw/
+
+# scenario/save binaries
+*.bin
+
+# archives
+*.tar
+*.tar.gz
+*.tar.xz
+*.tgz
+*.zip
+
+# python
 __pycache__/
+*.pyc
+.venv/
+
+# editors / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
