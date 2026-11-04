@@ -120,7 +120,7 @@ scenario does not simulate keep their world2020 owner and colour. The owners
 takes its new owner's colour and the national border moves with it. Before
 the scenario is loaded the asset's own owners are shown.
 
-4. **Clouds** (on by default, **C** toggles, `--clouds 0`): flat,
+4. **Clouds** (climate view only; **C** toggles them there, `--clouds 0`): flat,
    translucent (50 %) cover drawn over the political map. A 3D value-noise fbm
    on the unit sphere (no seam, no pole pinch) is advected by a climatological
    zonal wind — easterly trades peaking at 13°, westerlies at 47°, polar
@@ -144,6 +144,51 @@ the scenario is loaded the asset's own owners are shown.
    red circles expanding from the epicentre (radius
    `40 km · 2^(Mw − 5.5)`, at least 14 + 7·(Mw − 5) px), with a red dot,
    fading out between 3 and 7 sim days after the event.
+
+## Views
+
+The top-bar filter buttons pick the view (`map_filter`: 🗺 political, 🌦 climate,
+📈 economy, 🚢 trade, 🛢 energy, 🦠 epidemic, 🔥 unrest; `--view NAME` at start).
+Every view keeps the terrain and the borders; `map_layer` rewrites the region
+table's fill colour per view (blended as tinted relief, as the political fill).
+Views other than political read a `region_snapshot`, copied at the sim's sync
+point once a second (`sim_runner::request_regions`, `sim_hazards.cpp`): per sim
+region the water balance, storm, unrest and epidemic fields, per nation the
+macro, trade and energy values; faults once. Where the sim keeps a value per
+nation only, every region of the nation shows it.
+
+- **Political** — the controlling nation's colour (above). No clouds.
+- **Climate** — clouds and cyclone swirls appear only here (quake rings in every
+  view). Regions are tinted by hazard, saturated when it is happening and light
+  when it is potential; "now" wins over "potential", then earthquake > cyclone >
+  flood > drought:
+
+  | Hazard | Colour | Now | Potential |
+  |---|---|---|---|
+  | Earthquake | pink | an earthquake of the last 7 days within its felt radius `10^((1.5 Mw + 2 − 6)/3)` km | within `150 + 60·(Mw − 6)` km of a fault past 80 % of its mean recurrence |
+  | Cyclone | grey | under a live storm's gale radius, or hit by it (`storm_seen` = its serial, `storm_wind` ≥ 17 m/s) | on its projected path (heading, speed) over the next 2 days, or under a warning record |
+  | Flood | blue | `flood_cooldown` > 0, or a flood record of the last 30 days | flood plain with soil ≥ 80 % of capacity in the wet season, or a rain anomaly > 1.5 sd |
+  | Drought | yellow | crop loss > 0 or a drought record | SPEI < −0.8 |
+
+- **Economy** — national real GDP (run mean vs 2019) on a red / green scale.
+  Tooltip headline: GDP vs 2019; expanded: output gap, unemployment, inflation,
+  policy rate, 10-year yield, budget balance change, credit growth, real wages,
+  house and equity prices, Gini, regional population.
+- **Trade** — change in exports (% of GDP) since the start, red / green.
+  Expanded: imports, tariff, sanction links, seaborne share, freight cost,
+  logistics delay, top five export destinations (shares of bilateral exports).
+- **Energy** — oil production relative to demand: teal for net exporters,
+  orange for importers (darker = more dependent). Expanded: production, demand,
+  fossil share, carbon price, war, sanctions.
+- **Epidemic** — new infections per 100k per day, purple.
+- **Unrest** — dark red where a region has an active insurgency, light red
+  where it is potential (unrest > 1.5, protest > 0.2 or grievance in the top
+  10 % of regions). Expanded: insurgency, unrest, protest, grievance, the
+  nation's rebel movement and wars.
+
+**Picking**: the screen point goes through the inverse oblique Mercator to
+lon/lat, then to the full-resolution region-ID raster, which `map_layer` keeps
+on the CPU (64 MB). The tooltip names the region and its controller.
 
 ## Hazards
 

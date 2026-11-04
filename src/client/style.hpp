@@ -33,6 +33,15 @@ inline constexpr rgba bad = hex(0xFF8080);  // red: bad for the player
 
 inline constexpr rgba scene_clear = hex(0x102035);
 
+// Flat panels (view tabs, map tooltips): opaque white, a flat blue title strip, dark text.
+inline constexpr rgba flat_bg = hex(0xFFFFFF);
+inline constexpr rgba flat_header = hex(0x2F6DB5);
+inline constexpr rgba flat_rule = hex(0xD5DCE5);
+inline constexpr rgba flat_text = hex(0x18222E);
+inline constexpr rgba flat_dim = hex(0x5B6878);
+inline constexpr rgba flat_bad = hex(0xC23A30);
+inline constexpr rgba flat_good = hex(0x1E8A4C);
+
 // Metrics (points).
 inline constexpr float top_bar_height = 40.0f;
 inline constexpr float bar_height = 34.0f;
@@ -46,5 +55,7 @@ inline constexpr float border = 1.0f;
 inline constexpr float separator_strip = 1.0f;
 inline constexpr float alert_width = 380.0f;
 inline constexpr float alert_height = 44.0f;
+inline constexpr float tab_width = 300.0f;
+inline constexpr float tab_header = 28.0f;
 
 } // namespace geosim::client::style

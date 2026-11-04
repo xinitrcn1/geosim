@@ -1,51 +1,91 @@
 #pragma once
-// The political layer (docs/07-map-and-filters.md#political-view): which nation
-// controls each raster region, and its fill colour, as the region table the
-// map shader reads (two uint32 per raster ID: nation key, fill RGBA8).
+// The map's thematic layer (docs/07-map-and-filters.md#views): per raster
+// region, the nation key (borders) and the fill colour the shader blends over
+// the terrain, for the selected view; plus picking and the text of the hover
+// tooltips and the view tabs.
 //
 // Raster regions are the world2020 regions of the map asset. They are bound to
 // the scenario's regions once (sim_runner::request_map_world): within the same
 // nation (ISO3), the sim region nearest to the raster region's centroid. A
 // single-region nation (the 2020 / 2008 slices) therefore takes all its raster
 // regions; nations the scenario does not simulate (folded into an aggregate)
-// keep their world2020 owner and colour. Until the scenario is loaded the asset's own owners are shown.
-// Ownership is re-read from the sim (racy, like the indicators) a few times a
-// second, so a region that changes hands takes its new owner's colour and the
-// national borders move with it.
+// keep their world2020 owner and colour. Until the scenario is loaded the
+// asset's own owners are shown. Ownership is re-read every 250 ms (racy reads
+// like the indicators), so a region that changes hands takes its new owner's
+// colour and the national borders move with it.
+//
+// Views other than political read a region_snapshot (per sim region and per
+// nation, copied at the sim's sync point every second). National values apply
+// to all of a nation's regions where the sim only keeps them per nation.
 
+#include "hazard_feed.hpp"
 #include "map_data.hpp"
 #include "sim_runner.hpp"
+#include "ui_layout.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <string>
 #include <vector>
 
 namespace geosim::client {
 
 class map_layer {
 public:
-    // Takes the asset's region and nation tables (the images are not needed).
-    void init(map_data const& data);
-    // Polls the sim: binds once it is running, refreshes owners every ~250 ms.
-    // Returns true when table() changed.
-    bool update(sim_runner& sim);
+    // Takes the asset's tables and moves its full-resolution ID raster out (picking);
+    // reads the world2020 region names from `assets`.
+    void init(map_data& data, std::string const& assets);
+    // Polls the sim; returns true when table() changed.
+    bool update(sim_runner& sim, hazard_feed const& hazards, map_filter view);
     [[nodiscard]] std::vector<uint32_t> const& table() const noexcept { return table_; }
+
+    // Raster region (index into the asset's regions) at lon/lat (degrees), or -1 on water.
+    [[nodiscard]] int pick(double lon_deg, double lat_deg) const noexcept;
+    [[nodiscard]] map_tooltip_info describe(int region, map_filter view, sim_runner const& sim) const;
+    [[nodiscard]] map_tab_info tab(map_filter view, sim_runner const& sim, hazard_feed const& hazards) const;
 
     static constexpr float fill_strength = 0.72f;
 
+    // Hazard state of a raster region in the climate view.
+    enum hazard : uint8_t { none = 0, quake, storm, flood, drought };
+    struct hazard_state {
+        hazard kind = none;
+        bool now = false; // happening (else potential)
+    };
+
 private:
-    void rebuild();
+    void rebuild(map_filter view, hazard_feed const& hazards);
+    [[nodiscard]] int sim_region(int raster) const noexcept;
+    [[nodiscard]] int owner_of(int raster) const noexcept; // sim nation index, -1 when not simulated
+    [[nodiscard]] std::string iso_of(int nation) const {
+        return nation >= 0 && static_cast<std::size_t>(nation) < nation_iso3_.size() ? nation_iso3_[static_cast<std::size_t>(nation)] : std::string{};
+    }
+    [[nodiscard]] hazard_state climate_state(int raster, hazard_feed const& hazards) const;
 
     std::vector<map_nation> nations_;
     std::vector<map_region> regions_;
+    std::vector<std::string> names_; // raster region names (world2020 regions.csv)
+    std::vector<uint16_t> ids_;      // full-resolution region raster (0 water, 0xFFFF unclaimed)
+    uint32_t ids_w_ = 0, ids_h_ = 0;
+
     std::future<sim_map_world> pending_;
     bool requested_ = false, bound_ = false;
     std::vector<int32_t> sim_region_of_;   // raster region -> sim region index (-1 = not simulated)
     std::vector<uint32_t> sim_nation_rgb_; // sim nation index -> fill colour (RGB8)
     std::vector<uint16_t> owners_;         // sim region -> owner nation index
+    std::vector<std::string> nation_iso3_; // sim nation index -> ISO3
     std::vector<uint32_t> table_;
-    std::chrono::steady_clock::time_point last_read_{};
+    std::chrono::steady_clock::time_point last_read_{}, last_snapshot_{};
+
+    std::future<region_snapshot> pending_regions_;
+    region_snapshot snap_;
+    bool have_snap_ = false;
+    std::vector<fault_row> faults_;
+    std::vector<float> exports0_;         // nation exports % of GDP at the first snapshot
+    std::vector<uint8_t> fault_risk_;     // raster region near a fault late in its cycle
+    float grievance_q90_ = 1e9f;
+    map_filter last_view_ = map_filter::count;
 };
 
 } // namespace geosim::client

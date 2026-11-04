@@ -91,6 +91,8 @@ void hazard_feed::poll(sim_runner& sim, alert_feed& alerts, float seconds) {
             alerts.upsert(make_alert(n, mine));
         }
         records_ = std::move(live);
+        notes_ = std::move(snap.disasters);
+        tick_ = snap.tick;
     }
     const auto now = std::chrono::steady_clock::now();
     if(!pending_.valid() && now - last_request_ > std::chrono::milliseconds(250)) {

@@ -33,6 +33,9 @@ public:
     void poll(sim_runner& sim, alert_feed& alerts, float seconds);
     [[nodiscard]] std::vector<map_storm> const& storms() const noexcept { return storms_; }
     [[nodiscard]] std::vector<map_quake> const& quakes() const noexcept { return quakes_; }
+    // Every live disaster record of the last snapshot, and its tick.
+    [[nodiscard]] std::vector<disaster_note> const& disasters() const noexcept { return notes_; }
+    [[nodiscard]] int32_t tick() const noexcept { return tick_; }
 
     // Text of a disaster alert (exposed for tests).
     static alert make_alert(disaster_note const& n, bool mine);
@@ -42,6 +45,8 @@ private:
     std::chrono::steady_clock::time_point last_request_{};
     std::vector<map_storm> storms_;
     std::vector<map_quake> quakes_;
+    std::vector<disaster_note> notes_;
+    int32_t tick_ = 0;
     std::unordered_map<uint64_t, float> quake_seen_; // key -> first-seen real time
     struct record {
         uint8_t kind;

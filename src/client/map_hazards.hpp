@@ -14,6 +14,9 @@ struct map_storm {
     float lon = 0, lat = 0;   // degrees
     float wind = 0;           // maximum sustained wind, m/s
     float radius_km = 200;    // radius of gale-force winds
+    float heading = 0;        // degrees (0 = poleward, as in the sim)
+    float speed_kmd = 0;      // km per day
+    int32_t serial = -1;      // matches region.storm_seen
 };
 
 struct map_quake {
@@ -39,6 +42,44 @@ struct disaster_note {
     double damage_usd = 0;
     float gdp_loss_pct = 0;
     bool potential = false;   // a forecast (approaching cyclone): "could cause ..."
+    float lat = 0, lon = 0;   // epicentre / record position
+    float magnitude = 0;      // Mw for earthquakes
+    uint32_t region = 0xFFFFFFFFu; // sim region index (worst hit)
+};
+
+// Per sim region, for the map views (sim_runner::request_regions).
+struct region_row {
+    float crop_loss = 0, spei = 0, flood_cooldown = 0, soil_frac = 0, floodplain = 0, precip_anom = 0;
+    bool drought_record = false, wet_season = false;
+    int32_t storm_seen = -1;
+    float storm_wind = 0;
+    float insurgency = 0, unrest = 0, grievance = 0, protest = 0;
+    float infections_100k = 0; // new infections per 100k per day
+    float population = 0;
+};
+
+// Per sim nation (national values; regions inherit them).
+struct nation_row {
+    float growth = 0, unemployment = 0, inflation = 0, policy_rate = 0, yield10 = 0, budget = 0, gap = 0;
+    float credit_growth = 0, wage_real = 0, house_price = 0, equity_price = 0, gini = 0;
+    float exports_pct = 0, imports_pct = 0, tariff = 0, seaborne = 0, freight = 0, logistics_delay = 0;
+    float oil_production = 0, oil_demand = 0, fossil_share = 0, carbon_price = 0;
+    int sanction_links = 0;
+    bool insurgent = false, at_war = false;
+    uint16_t partner[5] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF}; // top export destinations
+    float partner_share[5] = {};
+};
+
+struct fault_row {
+    float lat = 0, lon = 0, mw = 0, ratio = 0; // ratio = elapsed / mean recurrence
+};
+
+struct region_snapshot {
+    int32_t tick = 0;
+    int month = 1; // 1..12
+    std::vector<region_row> regions;
+    std::vector<nation_row> nations;
+    std::vector<fault_row> faults;
 };
 
 struct hazard_snapshot {

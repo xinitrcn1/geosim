@@ -49,7 +49,8 @@ const icon_button action_buttons[] = {
     {"🏛", "Government policy"}, {"💰", "Budget and taxes"}, {"🤝", "Diplomacy"}, {"⚔", "Military"}, {"🗳", "Politics and elections"},
 };
 const icon_button filter_buttons[] = {
-    {"🗺", "Map: political"}, {"📈", "Map: economy"}, {"🦠", "Map: epidemic"}, {"🛢", "Map: energy and trade"}, {"🔥", "Map: unrest"},
+    {"🗺", "Map: political"}, {"🌦", "Map: climate and hazards"}, {"📈", "Map: economy"}, {"🚢", "Map: trade"},
+    {"🛢", "Map: energy"},    {"🦠", "Map: epidemic"},           {"🔥", "Map: unrest and insurgencies"},
 };
 static_assert(std::size(action_buttons) == 5 && std::size(filter_buttons) == static_cast<std::size_t>(map_filter::count));
 
@@ -254,14 +255,16 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
 // The agent bars: one continuous pane of glass under the top bar, flush at
 // x = 0 and stacked without gaps; a thin white strip marks each shared edge
 // (top bar / first bar, bar / bar). Returns the bottom of the last bar.
-float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w) {
+float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w, std::size_t max_bars) {
     const float strip = std::max(1.0f, std::round(ui.px(style::separator_strip)));
     const float h = ui.px(style::bar_height);
     const float pad = ui.px(style::pad);
     const float font = ui.px(style::font_size);
     const float small = ui.px(style::font_small);
     const float icon = ui.px(style::icon_size);
+    std::size_t shown = 0;
     for(auto const& panel : sim.read_agents()) {
+        if(shown++ >= max_bars) break;
         // Measure.
         // flag of the agent's nation, the agent's icon, "<Nation> <agent>"
         float w = pad + ui.text_width(panel.flag, icon) + ui.px(6) + ui.text_width(panel.icon, icon) + ui.px(6) +
@@ -303,7 +306,7 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
     const float font = ui.px(14);
     const float small = ui.px(style::font_small);
     const float icon = ui.px(20);
-    const float x = ui.px(style::gap);
+    const float x = ui.width() - w - gap; // the right side of the window
 
     // Header: count + dismiss all.
     const float hh = ui.px(26);
@@ -364,11 +367,111 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
 
 } // namespace
 
-void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st) {
+// The open view's tab: flat white, a blue title strip, below the top bar and
+// left of the alert column.
+void view_tab(ui_context& ui, map_tab_info const& tab, hud_state& st, float y, bool alerts_shown) {
+    const float pad = ui.px(style::pad);
+    const float gap = ui.px(style::gap);
+    const float w = ui.px(style::tab_width);
+    const float hh = ui.px(style::tab_header);
+    const float font = ui.px(14);
+    const float small = ui.px(style::font_small);
+    const float line = ui.px(19);
+    const float right = alerts_shown ? ui.width() - ui.px(style::alert_width) - gap * 2 : ui.width() - gap;
+    const float x = right - w;
+    float h = hh + pad + static_cast<float>(tab.legend.size()) * line + pad;
+    if(!tab.note.empty()) h += line;
+    if(!tab.summary.empty()) h += pad + static_cast<float>(tab.summary.size()) * line;
+    rect r{x, y, w, h};
+    ui.flat_panel(r, hh);
+    ui.text_in(layer::overlay, {x + pad, y, w, hh}, tab.title, font, style::text, align::left, font_weight::semibold);
+    const float bs = ui.px(22);
+    if(ui.button("tab.close", layer::overlay, {r.right() - bs - ui.px(3), y + (hh - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false,
+                 "Close (political view)")) {
+        st.filter = map_filter::political;
+    }
+    ui.set_text_backing(false);
+    float cy = y + hh + pad;
+    const float sw = ui.px(14);
+    for(auto const& item : tab.legend) {
+        ui.fill(layer::overlay, {x + pad, std::round(cy + (line - sw) * 0.5f), sw, sw}, item.colour);
+        ui.text_in(layer::overlay, {x + pad + sw + pad, cy, w, line}, item.label, small, style::flat_text);
+        cy += line;
+    }
+    if(!tab.note.empty()) {
+        ui.text_in(layer::overlay, {x + pad, cy, w, line}, tab.note, small, style::flat_dim);
+        cy += line;
+    }
+    if(!tab.summary.empty()) {
+        cy += pad * 0.5f;
+        ui.fill(layer::overlay, {x + pad, std::round(cy), w - pad * 2, std::max(1.0f, std::round(ui.px(1)))}, style::flat_rule);
+        cy += pad * 0.5f;
+        for(auto const& s : tab.summary) {
+            ui.text_in(layer::overlay, {x + pad, cy, w - pad * 2, line}, s, small, style::flat_text);
+            cy += line;
+        }
+    }
+    ui.set_text_backing(true);
+}
+
+void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab) {
     st.requested_speed = -1;
     const rect bar = top_bar(ui, sim, st);
-    float y = agent_bars(ui, sim, bar.bottom(), bar.w);
-    alert_list(ui, sim, alerts, st, y + ui.px(style::gap)); // alerts float: they keep their margins
+    const bool tab_open = tab && st.filter != map_filter::political;
+    agent_bars(ui, sim, bar.bottom(), bar.w, tab_open ? 1 : static_cast<std::size_t>(-1));
+    alert_list(ui, sim, alerts, st, bar.bottom() + ui.px(style::gap)); // right side, below the top bar; floating cards keep their margins
+    if(tab_open) view_tab(ui, *tab, st, bar.bottom() + ui.px(style::gap), !alerts.items().empty());
+}
+
+void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& st) {
+    if(!info.valid) {
+        st.tooltip_rect = {};
+        return;
+    }
+    const float pad = ui.px(style::pad);
+    const float font = ui.px(14);
+    const float small = ui.px(style::font_small);
+    const float line = ui.px(18);
+    const bool expanded = st.tooltip_expanded && !info.details.empty();
+    float w = ui.px(expanded ? 300 : 240);
+    w = std::max(w, ui.text_width(info.title, font, font_weight::semibold) + pad * 2);
+    const std::string headline = info.value.empty() ? info.label : info.label + ": " + info.value;
+    w = std::max(w, ui.text_width(headline, small, font_weight::semibold) + pad * 2);
+    const float hh = ui.px(style::tab_header);
+    float h = hh + line * 1.2f + pad;
+    if(expanded) h += pad + static_cast<float>(info.details.size()) * line;
+    else if(!info.details.empty()) h += line;
+    float x = std::min(st.tooltip_x + ui.px(14), ui.width() - w - ui.px(2));
+    float y = std::min(st.tooltip_y + ui.px(16), ui.height() - h - ui.px(2));
+    x = std::max(0.0f, x);
+    y = std::max(0.0f, y);
+    rect r{std::round(x), std::round(y), std::round(w), std::round(h)};
+    st.tooltip_rect = r;
+    ui.flat_panel(r, hh);
+    // Title strip: region, nation.
+    float tw = ui.text_in(layer::overlay, {r.x + pad, r.y, w, hh}, info.title, font, style::text, align::left, font_weight::semibold);
+    if(!info.subtitle.empty()) ui.text_in(layer::overlay, {r.x + pad + tw + pad, r.y, w, hh}, info.subtitle, small, style::text_dim);
+    ui.set_text_backing(false);
+    float cy = r.y + hh + pad * 0.5f;
+    const rgba vc = info.t == tone::bad ? style::flat_bad : info.t == tone::good ? style::flat_good : style::flat_text;
+    ui.text_in(layer::overlay, {r.x + pad, cy, w, line * 1.2f}, headline, small, vc, align::left, font_weight::semibold);
+    cy += line * 1.2f;
+    if(expanded) {
+        ui.fill(layer::overlay, {r.x + pad, std::round(cy + pad * 0.5f), w - pad * 2, std::max(1.0f, std::round(ui.px(1)))}, style::flat_rule);
+        cy += pad;
+        for(auto const& [label, value] : info.details) {
+            if(value.empty()) {
+                ui.text_in(layer::overlay, {r.x + pad, cy, w, line}, label, small, style::flat_header, align::left, font_weight::semibold);
+            } else {
+                ui.text_in(layer::overlay, {r.x + pad, cy, w, line}, label, small, style::flat_dim);
+                ui.text_in(layer::overlay, {r.x, cy, w - pad, line}, value, small, style::flat_text, align::right);
+            }
+            cy += line;
+        }
+    } else if(!info.details.empty()) {
+        ui.text_in(layer::overlay, {r.x + pad, cy, w, line}, "Point here for details", small, style::flat_dim);
+    }
+    ui.set_text_backing(true);
 }
 
 } // namespace geosim::client

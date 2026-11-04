@@ -56,6 +56,12 @@ public:
     // Primitives.
     void fill(layer l, rect r, rgba c, material m = material::ui);
     void panel(rect r, panel_kind kind);
+    // A flat opaque panel in the overlay layer (tabs, map tooltips): white body,
+    // optional blue title strip of `header` pixels. Text on it should be drawn
+    // with set_text_backing(false).
+    void flat_panel(rect r, float header = 0);
+    // The faint dark backing under overlay text (on by default; off on flat panels).
+    void set_text_backing(bool on) noexcept { backing_ = on; }
     float text(layer l, float x, float baseline, std::string_view s, float size_px, rgba c, font_weight w = font_weight::regular);
     // Text vertically centred in r, aligned horizontally; returns its width.
     float text_in(layer l, rect r, std::string_view s, float size_px, rgba c, align a = align::left, font_weight w = font_weight::regular);
@@ -77,6 +83,7 @@ private:
     ui_input in_;
     float scale_ = 1, width_ = 0, height_ = 0;
     bool wants_mouse_ = false;
+    bool backing_ = true;
     bool wheel_taken_ = false;
     uint64_t active_id_ = 0; // button under a press that has not been released yet
     std::string tooltip_;

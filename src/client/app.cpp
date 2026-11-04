@@ -240,6 +240,13 @@ int run_app(app_options const& opt) {
         ui_context ui(text);
         alert_feed alerts;
         hud_state hud;
+        {
+            static constexpr char const* view_names[] = {"political", "climate", "economy", "trade", "energy", "epidemic", "unrest"};
+            static_assert(std::size(view_names) == static_cast<std::size_t>(map_filter::count));
+            for(std::size_t i = 0; i < std::size(view_names); ++i) {
+                if(opt.view == view_names[i]) hud.filter = static_cast<map_filter>(i);
+            }
+        }
         alerts.push_local("⏳", "Loading scenario " + opt.scenario, "Building the world from assets/", tone::neutral);
         bool announced = false;
         int last_speed = opt.speed > 0 ? opt.speed : 1;
@@ -355,7 +362,7 @@ int run_app(app_options const& opt) {
                 map_loaded = true;
                 std::unique_ptr<map_data> data = map_load.take();
                 if(data && map.upload(*data, diag)) {
-                    political.init(*data);
+                    political.init(*data, opt.assets);
                     map.set_table(political.table());
                     cell_radians = 2.0 * map_pi / static_cast<double>(data->ids[0].width);
                     double lon = 0, lat = 0, span = 75.0;
@@ -376,7 +383,7 @@ int run_app(app_options const& opt) {
                     if(data) diag = core::diagnostics{}; // not fatal: the placeholder stays
                 }
             }
-            if(map.ready() && political.update(sim)) map.set_table(political.table());
+            if(map.ready() && political.update(sim, hazards, hud.filter)) map.set_table(political.table());
             if(music.running() && steady::now() - last_mood_check > std::chrono::seconds(2)) {
                 last_mood_check = steady::now();
                 const music_mood mm = derive_music_mood(sim, alerts);
@@ -391,12 +398,16 @@ int run_app(app_options const& opt) {
             ui.begin(input, scale, fw, fh);
             // The map fills the window behind everything (docs/07); a placeholder until it is loaded.
             if(!map.ready()) ui.scene.push(material::map_placeholder, {0, 0, fw, fh, 0, 0, 1, 1, 0xFFFFFFFFu, 0, 0, 0});
-            build_hud(ui, sim, alerts, hud);
+            map_tab_info tab_info;
+            if(map.ready() && hud.filter != map_filter::political) tab_info = political.tab(hud.filter, sim, hazards);
+            build_hud(ui, sim, alerts, hud, map.ready() ? &tab_info : nullptr);
+            const bool on_tooltip = hud.tooltip_rect.contains(input.mouse_x, input.mouse_y);
+            const bool on_ui = ui.wants_mouse() || on_tooltip;
             // Map navigation: drag pans (started outside the panels), the wheel zooms
             // at the pointer, arrows / Page Up / Page Down from the keyboard.
             if(map.ready()) {
                 view.fit_limits(fw, cell_radians);
-                if(input.pressed && !ui.wants_mouse() && input.mouse_x >= 0) {
+                if(input.pressed && !on_ui && input.mouse_x >= 0) {
                     dragging = true;
                     drag_x = input.mouse_x;
                     drag_y = input.mouse_y;
@@ -407,12 +418,31 @@ int run_app(app_options const& opt) {
                     drag_y = input.mouse_y;
                 }
                 if(!input.mouse_down) dragging = false;
-                if(!ui.wants_mouse()) {
+                if(!on_ui) {
                     const float steps = ui.take_wheel({0, 0, fw, fh});
                     if(steps != 0) view.zoom_at(std::pow(1.25, static_cast<double>(steps)), input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5);
                 }
                 if(key_pan_x != 0 || key_pan_y != 0) view.pan(key_pan_x, key_pan_y);
                 if(key_zoom != 1.0) view.zoom_at(key_zoom, 0, 0);
+                // Hover: the region under the pointer gets a tooltip; moving onto the
+                // tooltip keeps it and expands its details.
+                if(on_tooltip && hud.tooltip_region >= 0) {
+                    hud.tooltip_expanded = true;
+                } else if(!on_ui && !dragging && input.mouse_x >= 0) {
+                    double lon = 0, lat = 0;
+                    view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
+                    hud.tooltip_region = political.pick(lon / map_deg, lat / map_deg);
+                    hud.tooltip_x = input.mouse_x;
+                    hud.tooltip_y = input.mouse_y;
+                    hud.tooltip_expanded = false;
+                } else {
+                    hud.tooltip_region = -1;
+                }
+                if(hud.tooltip_region >= 0) {
+                    draw_map_tooltip(ui, political.describe(hud.tooltip_region, hud.filter, sim), hud);
+                } else {
+                    hud.tooltip_rect = {};
+                }
             }
             key_pan_x = key_pan_y = 0;
             key_zoom = 1.0;
@@ -484,12 +514,12 @@ int run_app(app_options const& opt) {
             map_anim anim;
             anim.cloud_days = static_cast<float>(std::fmod(cloud_days, 3000.0));
             anim.seconds = static_cast<float>(elapsed);
-            anim.cloud_strength = clouds_on ? 0.5f : 0.0f;
+            anim.cloud_strength = clouds_on && hud.filter == map_filter::climate ? 0.5f : 0.0f; // clouds and cyclones: climate view only
             if(sim.status() == sim_status::running) {
                 const core::civil_date today = sim.date();
                 anim.day_of_year = static_cast<float>(core::days_from_civil(today) - core::days_from_civil({today.year, 1, 1}) + 1);
             }
-            const map_pass map_draw{&map, &view, hud.filter == map_filter::political, anim};
+            const map_pass map_draw{&map, &view, true, anim}; // every view fills regions (map_layer)
             if(!renderer.record(text, ui.scene, ui.overlay, static_cast<float>(elapsed), scale, capture_next, diag, map_draw)) {
                 exit_code = fail("frame recording", diag.error());
                 vk.end_frame(diag);

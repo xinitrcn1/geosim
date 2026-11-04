@@ -31,6 +31,7 @@ void ui_context::begin(ui_input const& in, float scale, float width, float heigh
     height_ = height;
     wants_mouse_ = false;
     wheel_taken_ = false;
+    backing_ = true;
     tooltip_.clear();
     scene.clear();
     overlay.clear();
@@ -75,12 +76,19 @@ void ui_context::panel(rect r, panel_kind kind) {
     if(hovered(r)) wants_mouse_ = true;
 }
 
+void ui_context::flat_panel(rect r, float header) {
+    r = {std::round(r.x), std::round(r.y), std::round(r.w), std::round(r.h)};
+    overlay.push(material::ui, make_quad(r, style::flat_bg, quad_mode::solid));
+    if(header > 0) overlay.push(material::ui, make_quad({r.x, r.y, r.w, std::round(header)}, style::flat_header, quad_mode::solid));
+    if(hovered(r)) wants_mouse_ = true;
+}
+
 float ui_context::text(layer l, float x, float baseline, std::string_view s, float size_px, rgba c, font_weight w) {
     glyphs_.clear();
     const float adv = text_.shape(s, size_px, w, std::round(x), std::round(baseline), &glyphs_);
     auto& list = l == layer::scene ? scene : overlay;
     const uint32_t colour = pack(c);
-    if(l == layer::overlay) {
+    if(l == layer::overlay && backing_) {
         // Text on glass gets a faint dark backing (offset copy) so it stays
         // legible over bright parts of the map.
         const float o = std::max(1.0f, std::round(px(1)));

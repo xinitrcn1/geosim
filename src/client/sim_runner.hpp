@@ -119,6 +119,9 @@ public:
     // their notification text (sim::describe_disaster), at the next sync point.
     // Implemented in sim_hazards.cpp.
     std::future<hazard_snapshot> request_hazards();
+    // Per-region and per-nation state for the map views (sim_hazards.cpp);
+    // faults (static) only when asked.
+    std::future<region_snapshot> request_regions(bool with_faults);
 
     // Indicator panels for the agents the player controls (racy direct reads;
     // call from the UI thread once status() == running).
@@ -158,6 +161,9 @@ private:
 public:
     // "Louisiana, United States" / "Japan" (valid once running; ids out of range -> "").
     [[nodiscard]] std::string place_name(uint32_t nation_index, uint32_t region_index) const;
+    [[nodiscard]] std::string nation_name(uint32_t nation_index) const {
+        return nation_index < nation_names_.size() ? nation_names_[nation_index] : std::string{};
+    }
 
     std::jthread thread_; // joins on destruction
     std::mutex mutex_;

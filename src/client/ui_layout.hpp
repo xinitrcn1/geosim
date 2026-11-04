@@ -13,6 +13,7 @@
 #include <future>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace geosim::client {
@@ -51,16 +52,51 @@ private:
 };
 
 enum class hud_action : uint8_t { none, policy, budget, diplomacy, military, politics };
-enum class map_filter : uint8_t { political, economy, epidemic, energy, unrest, count };
+// Map views (top-bar filter buttons; docs/07-map-and-filters.md#views).
+enum class map_filter : uint8_t { political, climate, economy, trade, energy, epidemic, unrest, count };
+
+// Hover tooltip over a map region (flat style); `details` show when the
+// pointer moves onto the tooltip (expanded panel).
+struct map_tooltip_info {
+    bool valid = false;
+    std::string title;    // region
+    std::string subtitle; // nation
+    std::string label, value; // the view's headline indicator
+    tone t = tone::neutral;
+    std::vector<std::pair<std::string, std::string>> details; // label, value ("" value = section heading)
+};
+
+struct legend_item {
+    rgba colour;
+    std::string label;
+};
+
+// The open view's tab: legend and a short summary.
+struct map_tab_info {
+    std::string title;
+    std::vector<legend_item> legend;
+    std::string note;                 // e.g. "Values are national, scaled by region"
+    std::vector<std::string> summary; // lines
+};
 
 struct hud_state {
     map_filter filter = map_filter::political;
     hud_action open = hud_action::none; // action panel requested (panels are not implemented yet)
     float alert_scroll = 0;             // first visible alert
     int requested_speed = -1;           // set by the time controls; -1 = no change this frame
+    // Map tooltip: the region it describes, where it is anchored, its rect last
+    // frame (the pointer on it keeps it and expands it).
+    int tooltip_region = -1;
+    float tooltip_x = 0, tooltip_y = 0;
+    rect tooltip_rect{};
+    bool tooltip_expanded = false;
 };
 
-void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st);
+// `tab` (may be null): the open view's tab panel, drawn when a view other than
+// political is selected; while it is open only the first agent bar shows.
+void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab = nullptr);
+// The map tooltip (call after build_hud, with the region under the pointer).
+void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& st);
 
 // "Wed 15 Jan 2020"
 [[nodiscard]] std::string format_long_date(core::civil_date d);
