@@ -343,7 +343,8 @@ void update_vaccination(game_state& state) {
     for(auto n : w.in_nation) world_pop += n.get_population();
     for(auto pth : w.in_pathogen) {
         if(pth.get_vaccine_days() <= 0.0f || pth.get_first_seen() < 0) continue;
-        const float since = static_cast<float>(state.current_tick - pth.get_first_seen()) - pth.get_vaccine_days();
+        // Vaccine platforms (mRNA) shorten development as they diffuse (longcampaign.cpp).
+        const float since = static_cast<float>(state.current_tick - pth.get_first_seen()) - pth.get_vaccine_days() * tech_vaccine_factor(state);
         if(since < 0.0f) continue;
         const float ramp = std::min(1.0f, since / std::max(1.0f, pth.get_vaccine_ramp_days()));
         const double doses = P.vaccine_world_capacity * ramp * world_pop;

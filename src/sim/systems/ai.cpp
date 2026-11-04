@@ -459,6 +459,9 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
 } // namespace
 
 void update_ai(game_state& state) {
+    if(state.params.ai_frozen != 0.0) {
+        return; // reduced-detail forks: agents keep their current plans
+    }
     auto& w = state.world;
     const auto tick = static_cast<tick_t>(state.current_tick);
 

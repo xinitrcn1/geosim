@@ -36,6 +36,7 @@ if(GEOSIM_USE_DCON)
         sim/systems/firms.cpp
         sim/systems/geopolitics.cpp
         sim/systems/logistics.cpp
+        sim/systems/longcampaign.cpp
         sim/systems/longrun.cpp
         sim/systems/indicators.cpp
         sim/systems/internet.cpp

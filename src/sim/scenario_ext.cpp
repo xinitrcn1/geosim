@@ -188,6 +188,49 @@ void load_commodity_defs(game_state& state, std::string const& assets_dir, core:
     }
 }
 
+void load_technology_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag) {
+    const std::string path = assets_dir + "/defs/technologies.txt";
+    if(!exists(path)) {
+        return;
+    }
+    auto& w = state.world;
+    for(auto const& node : core::load_defs(path, diag)) {
+        if(node.key != "tech") {
+            diag.fail(path, node.line, "expected tech{...}");
+            return;
+        }
+        const auto key = node.req("key", path, diag);
+        if(key.empty() || key.size() > 4) {
+            diag.fail(path, node.line, "technology keys must be 1-4 characters");
+            return;
+        }
+        const auto id = w.create_technology();
+        auto num = [&](char const* k, double d) { return static_cast<float>(node.num_or(k, d, path, diag)); };
+        w.technology_set_key(id, core::pack_key(key));
+        w.technology_set_frontier_year(id, num("frontier_year", 2030.0));
+        w.technology_set_speed(id, num("speed", 0.3));
+        w.technology_set_lag_years(id, num("lag_years", 2.0));
+        w.technology_set_oil_cut(id, num("oil_cut", 0.0));
+        w.technology_set_emission_cut(id, num("emission_cut", 0.0));
+        w.technology_set_connectivity_gain(id, num("connectivity_gain", 0.0));
+        w.technology_set_sector_gain(id, num("sector_gain", 0.0));
+        w.technology_set_vaccine_speedup(id, num("vaccine_speedup", 0.0));
+        if(auto sec = node.find("sector")) {
+            bool found = false;
+            for(auto s : w.in_sector) {
+                if(s.get_key() == core::pack_key(sec->text)) {
+                    w.technology_set_sector(id, s.id);
+                    found = true;
+                }
+            }
+            if(!found) {
+                diag.fail(path, sec->line, "unknown sector '" + sec->text + "'");
+                return;
+            }
+        }
+    }
+}
+
 void load_trade_tables(game_state& state, std::string const& dir, core::diagnostics& diag) {
     auto& w = state.world;
     // Great-circle distances between capitals (the gravity fallback; logistics refines them).

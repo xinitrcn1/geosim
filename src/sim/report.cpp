@@ -98,10 +98,38 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     const double days = std::max(1.0, w.nation_get_acc_days(n));
     const double gdp = w.nation_get_acc_gdp_nominal(n) / days * 365.0 * (days / 365.0);
     out << "flows for " << core::unpack_key(w.nation_get_iso3(n)) << " (year to date, % of nominal GDP over the period)\n";
+    static constexpr char const* levers[] = {"fiscal", "stw_coverage", "stw_replacement", "tti", "policy_rate", "oil_target", "directed_credit",
+        "info_control", "asset_purchases", "net_filtering", "tariff", "hoarding", "investment", "tax_scale", "public_investment", "min_wage",
+        "defense", "wage_push"};
+    static_assert(sizeof(levers) / sizeof(levers[0]) == static_cast<std::size_t>(lever::count));
+    auto label = [&](uint32_t code) {
+        const auto kind = static_cast<cause_kind>(code >> 24);
+        const auto detail = code & 0xFFu;
+        const auto nation = (code >> 8) & 0xFFFFu;
+        std::string who = nation < w.nation_size() ? core::unpack_key(w.nation_get_iso3(dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(nation)})) : "?";
+        if(kind == cause_kind::lever) {
+            if(detail >= state.derived.lever_base && detail - state.derived.lever_base < static_cast<uint32_t>(lever::count)) {
+                return who + " " + levers[detail - state.derived.lever_base];
+            }
+            return who + " NPI";
+        }
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%s journal 0x%02X", who.c_str(), detail);
+        return std::string(buf);
+    };
     for(uint8_t k = 0; k < static_cast<uint8_t>(flow::count); ++k) {
-        char line[96];
+        char line[160];
         std::snprintf(line, sizeof(line), "  %-24s %8.2f\n", names[k], w.nation_get_flows(n, k) / gdp * 100.0);
         out << line;
+        // Cause tags ("Why?"): the top contributions and the untagged remainder.
+        if(k >= w.nation_get_tag_rest_size()) continue;
+        for(uint8_t i = 0; i < tags_per_flow; ++i) {
+            const auto slot = static_cast<uint8_t>(k * tags_per_flow + i);
+            const uint32_t code = w.nation_get_tag_code(n, slot);
+            if(code == 0) continue;
+            std::snprintf(line, sizeof(line), "      caused by %-28s %8.2f\n", label(code).c_str(), w.nation_get_tag_amount(n, slot) / gdp * 100.0);
+            out << line;
+        }
     }
 }
 

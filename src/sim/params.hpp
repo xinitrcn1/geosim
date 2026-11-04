@@ -391,6 +391,19 @@
     X(imf_spread, 6.0, "spread (pp above start) that triggers an IMF programme")                       \
     X(imf_loan, 0.05, "IMF programme size (share of GDP)")                                               \
     X(imf_catalytic, 2.0, "spread relief (pp) of a programme (catalytic effect)")                      \
+    /* ---- long-campaign detail (systems/longcampaign.cpp) ---- */                                          \
+    X(split_jobless_gap, 0.25, "jobless share of a worker pop above the natural unemployment rate that splits off a precarious stratum") \
+    X(split_min_size, 1e5, "smallest pop that can split")                                                \
+    X(merge_jobless_gap, 0.08, "jobless-share gap below which a precarious stratum merges back")         \
+    X(lod_min_nations, 50.0, "spatial LOD runs only in scenarios with at least this many nations (performance device)") \
+    X(lod_calm_days, 56.0, "quiet days before a nation drops to the monthly economy step")               \
+    X(lod_gdp_tolerance, 0.002, "GDP-index change per week that still counts as quiet")                  \
+    X(lod_force, 0.0, "1 = every nation at low detail (reduced-detail forks)")                           \
+    X(ai_frozen, 0.0, "1 = agents keep their current levers (reduced-detail forks: cached plans)")       \
+    X(formative_values, 0.3, "survival-values shift of a cohort entering at full insecurity (Inglehart 1997)") \
+    X(tech_income_lag, 4.0, "extra adoption lag (years) per unit log income gap to the frontier (recent technologies; Comin & Hobijn 2010)") \
+    X(tech_skill_lag, 5.0, "extra adoption lag (years) per unit tertiary-share gap to the frontier")    \
+    X(tech_openness_lag, 5.0, "extra adoption lag (years) at full internet filtering / sanctions")        \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

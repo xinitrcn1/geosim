@@ -197,6 +197,7 @@ void update_demography(game_state& state) {
         const std::array<float, 3> split = {std::max(0.05f, 1.0f - high - 0.45f), 0.45f, high};
         for(uint8_t k = 0; k < worker_kinds; ++k) {
             for(auto p : pops.by_kind[k]) {
+                if(w.pop_get_stratum(p) != static_cast<uint8_t>(stratum::base)) continue; // entrants join the base stratum
                 const auto g = w.pop_get_group(p);
                 const float gshare = g ? w.social_group_get_pop_share(g) : 1.0f / static_cast<float>(pops.by_kind[k].size());
                 const float sk = g && w.social_group_get_skill(g, k) > 0.0f ? w.social_group_get_skill(g, k) : split[k];
@@ -206,6 +207,14 @@ void update_demography(game_state& state) {
                 const float scar = static_cast<float>(P.scarring) * std::max(0.0f, n.get_unemployment() - n.get_unemployment0()) * added / (size + added);
                 if(scar > 0.0f) {
                     for(uint8_t s = 0; s < state.derived.sector_count; ++s) w.pop_set_wage0(p, s, w.pop_get_wage0(p, s) * (1.0f - scar));
+                }
+                // Formative years: cohorts entering in insecure times hold survival values for life
+                // (Inglehart 1997); entrants pull their pop's values by their weight.
+                const float insecurity = std::clamp(5.0f * std::max(0.0f, n.get_unemployment() - n.get_unemployment0())
+                                                        + 0.05f * reported_deaths_per_million_daily(state, n.id), 0.0f, 1.0f);
+                if(insecurity > 0.0f) {
+                    const auto se = static_cast<uint8_t>(value_axis::self_expression);
+                    w.pop_set_values(p, se, std::clamp(w.pop_get_values(p, se) - static_cast<float>(P.formative_values) * insecurity * added / (size + added), -1.0f, 1.0f));
                 }
                 add_seekers(state, p, added, n.get_unemployment0());
             }

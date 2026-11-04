@@ -48,7 +48,8 @@ void update_oil_market(game_state& state) {
         const float mw = static_cast<float>(P.oil_mobility_weight);
         // Short-run price elasticity of demand (Hamilton 2009: about -0.05 to -0.1).
         const float price_effect = std::pow(std::max(0.05f, price / price0), static_cast<float>(P.oil_demand_elasticity));
-        const float d = n.get_oil_demand0() * gf * ((1.0f - mw) * activity + mw * mobility) * price_effect;
+        // Technology (EVs) lowers oil use per unit of activity (longcampaign.cpp).
+        const float d = n.get_oil_demand0() * gf * ((1.0f - mw) * activity + mw * mobility) * price_effect * tech_oil_factor(state, n.id);
         n.set_oil_demand(d);
         demand += d;
 

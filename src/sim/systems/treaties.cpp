@@ -98,6 +98,7 @@ void update_treaties(game_state& state) {
         const float stress = n.get_spread() - n.get_spread0();
         if(n.get_imf_program() <= 0.0f && stress > static_cast<float>(P.imf_spread) && n.get_reserve_currency() < 1.0f) {
             const double gdp = n.get_gdp0() * n.get_core_price() * n.get_gf();
+            cause_scope c(state, journal_cause(n.id, journal_treaty));
             transfer(state, account::rest_of_world(n.id), account::finance(n.id), P.imf_loan * gdp, flow::imf_lending);
             n.set_imf_program(3.0f);
             if(auto exec = n.get_executive_seat().get_agent()) exec.set_fiscal_hawk(std::max(exec.get_fiscal_hawk(), 0.8f));

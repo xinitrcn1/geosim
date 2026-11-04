@@ -59,7 +59,8 @@ void update_longrun(game_state& state) {
     }
     for(auto c : w.in_climate) {
         const float oil = world_oil_demand(state);
-        const float emissions = c.get_emission_intensity() * oil;
+        // Renewables cut CO2 per unit of energy (technology diffusion; longcampaign.cpp).
+        const float emissions = c.get_emission_intensity() * oil * tech_emission_factor(state);
         c.set_emissions(emissions);
         const float ppm = c.get_co2_ppm() + emissions * static_cast<float>(P.airborne_fraction) / 7.8f * years;
         c.set_co2_ppm(ppm);

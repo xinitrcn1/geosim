@@ -361,6 +361,18 @@ fta_years{10}                            # phase-in time of an FTA's trade gain 
 imf_spread{6}                            # spread (pp above start) that triggers an IMF programme
 imf_loan{0.05}                           # IMF programme size (share of GDP)
 imf_catalytic{2}                         # spread relief (pp) of a programme (catalytic effect)
+split_jobless_gap{0.25}                  # jobless share of a worker pop above the natural unemployment rate that splits off a precarious stratum
+split_min_size{100000}                   # smallest pop that can split
+merge_jobless_gap{0.08}                  # jobless-share gap below which a precarious stratum merges back
+lod_min_nations{50}                      # spatial LOD runs only in scenarios with at least this many nations (performance device)
+lod_calm_days{56}                        # quiet days before a nation drops to the monthly economy step
+lod_gdp_tolerance{0.002}                 # GDP-index change per week that still counts as quiet
+lod_force{0}                             # 1 = every nation at low detail (reduced-detail forks)
+ai_frozen{0}                             # 1 = agents keep their current levers (reduced-detail forks: cached plans)
+formative_values{0.3}                    # survival-values shift of a cohort entering at full insecurity (Inglehart 1997)
+tech_income_lag{4}                       # extra adoption lag (years) per unit log income gap to the frontier (recent technologies; Comin & Hobijn 2010)
+tech_skill_lag{5}                        # extra adoption lag (years) per unit tertiary-share gap to the frontier
+tech_openness_lag{5}                     # extra adoption lag (years) at full internet filtering / sanctions
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

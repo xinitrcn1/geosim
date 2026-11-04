@@ -32,6 +32,7 @@ void rebuild_derived(game_state& state);
 // shares, logistics and commodity tables (after calibration).
 void load_sea_network(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
 void load_commodity_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
+void load_technology_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
 void load_trade_tables(game_state& state, std::string const& scenario_dir, core::diagnostics& diag);
 
 } // namespace geosim::sim

@@ -149,13 +149,14 @@ void update_firms(game_state& state) {
     auto const& P = state.params;
     auto const& D = state.derived;
     const auto tick = static_cast<tick_t>(state.current_tick);
-    const float dt = static_cast<float>(weekly.period_days);
     const uint8_t lh = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::hoarding));
     const uint8_t li = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::investment));
 
     std::vector<sector_state> sectors(D.sector_count);
     for(auto n : w.in_nation) {
-        if(!is_due(static_cast<uint32_t>(n.id.index()), tick, weekly)) continue;
+        // Same step as the economy (weekly, or 28 days for nations at low detail).
+        if(n.get_econ_due() < 0.5f) continue;
+        const float dt = n.get_econ_dt();
         for(uint8_t s = 0; s < D.sector_count; ++s) sectors[s] = sector_of(state, n.id, s);
         // Government support relative to the private wage bill (firm support + job retention pay).
         const double bill = std::max(1.0, n.get_wage_bill_private());

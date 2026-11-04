@@ -132,6 +132,7 @@ void update_finance(game_state& state) {
         n.set_spread(s);
         if(!n.get_defaulted() && s - n.get_spread0() > static_cast<float>(P.default_spread)) {
             const double debt = std::max(0.0, -n.get_bal_gov());
+            cause_scope c(state, journal_cause(n.id, journal_default));
             transfer(state, account::finance(n.id), account::government(n.id), debt * P.default_haircut, flow::sovereign_default);
             n.set_defaulted(1);
             n.set_legitimacy(std::max(0.0f, n.get_legitimacy() - 0.2f));

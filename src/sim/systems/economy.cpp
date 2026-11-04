@@ -82,8 +82,18 @@ float world_manufacturing_index(game_state const& state, dcon::nation_id n) {
     return den > 0.0 ? static_cast<float>(num / den) : 1.0f;
 }
 
+// Weekly shard; nations at low detail (spatial LOD, longcampaign.cpp) only every
+// fourth week, with a 28-day step.
 bool due(game_state const& state, dcon::nation_id n, bool probe) {
-    return probe || is_due(static_cast<uint32_t>(n.index()), static_cast<tick_t>(state.current_tick), weekly);
+    if(probe) return true;
+    if(!is_due(static_cast<uint32_t>(n.index()), static_cast<tick_t>(state.current_tick), weekly)) return false;
+    if(!state.world.nation_get_lod(n)) return true;
+    return (static_cast<uint32_t>(state.current_tick) / weekly.period_days) % 4u == static_cast<uint32_t>(n.index()) % 4u;
+}
+
+float step_days(game_state const& state, dcon::nation_id n, bool probe) {
+    if(probe) return 1.0f;
+    return state.world.nation_get_lod(n) ? 4.0f * static_cast<float>(weekly.period_days) : static_cast<float>(weekly.period_days);
 }
 
 // ---------------------------------------------------------------- 1. nation pre-pass
@@ -518,12 +528,27 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         const auto row = account::rest_of_world(n);
         const double ddt = dt;
         transfer(state, gov, firms, gov_purchases * ddt, flow::gov_purchases);
-        transfer(state, gov, firms, fiscal_firms, flow::fiscal_firms);
-        transfer(state, gov, firms, static_cast<double>(war_g) * p * ddt, flow::war_spending);
-        transfer(state, gov, firms, static_cast<double>(pub_g) * p * ddt, flow::public_investment);
-        transfer(state, gov, firms, static_cast<double>(def_g) * p * ddt, flow::defense);
+        {
+            cause_scope c(state, lever_cause(state, n, lever::fiscal));
+            transfer(state, gov, firms, fiscal_firms, flow::fiscal_firms);
+        }
+        {
+            cause_scope c(state, journal_cause(n, journal_war));
+            transfer(state, gov, firms, static_cast<double>(war_g) * p * ddt, flow::war_spending);
+        }
+        {
+            cause_scope c(state, lever_cause(state, n, lever::public_investment));
+            transfer(state, gov, firms, static_cast<double>(pub_g) * p * ddt, flow::public_investment);
+        }
+        {
+            cause_scope c(state, lever_cause(state, n, lever::defense));
+            transfer(state, gov, firms, static_cast<double>(def_g) * p * ddt, flow::defense);
+        }
         w.nation_set_defense_spend(n, def_g);
-        transfer(state, firms, gov, static_cast<double>(imports) * p * (w.nation_get_tariff(n) - w.nation_get_tariff0(n)) * ddt, flow::tariffs);
+        {
+            cause_scope c(state, lever_cause(state, n, lever::tariff));
+            transfer(state, firms, gov, static_cast<double>(imports) * p * (w.nation_get_tariff(n) - w.nation_get_tariff0(n)) * ddt, flow::tariffs);
+        }
         transfer(state, row, firms, static_cast<double>(x_real) * p * ddt, flow::exports);
         transfer(state, firms, row, static_cast<double>(imports) * p * ddt, flow::imports);
         transfer(state, firms, gov, indirect * ddt, flow::tax_indirect);
@@ -534,7 +559,10 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         transfer(state, firms, gov, commodity_rent * ddt, flow::tax_resource);
         transfer(state, firms, fin, loan_interest_firm * ddt, flow::interest_loans);
         // Credit impulse spent on goods: banks pay the sellers (loans create deposits).
-        transfer(state, fin, firms, (static_cast<double>(w.nation_get_credit_flow_hh(n)) + w.nation_get_credit_flow_firm(n)) * ddt, flow::credit);
+        {
+            cause_scope c(state, w.nation_get_directed_credit(n) > 0.0f ? lever_cause(state, n, lever::directed_credit) : 0u);
+            transfer(state, fin, firms, (static_cast<double>(w.nation_get_credit_flow_hh(n)) + w.nation_get_credit_flow_firm(n)) * ddt, flow::credit);
+        }
 
         for(uint8_t s = 0; s < S; ++s) {
             w.nation_set_output(n, s, out[s]);
@@ -558,13 +586,15 @@ void update_economy(game_state& state, economy_mode mode) {
     auto const& D = state.derived;
     const bool apply = mode == economy_mode::simulate;
     const bool probe = !apply;
-    const float dt = apply ? static_cast<float>(weekly.period_days) : 1.0f;
     const uint8_t S = D.sector_count;
     const auto gov_sector = static_cast<uint8_t>(D.gov_sector.index());
 
     std::vector<dcon::nation_id> due_nations;
     for(auto n : w.in_nation) {
-        if(due(state, n.id, probe)) {
+        const bool d = due(state, n.id, probe);
+        n.set_econ_due(d ? 1.0f : 0.0f);
+        n.set_econ_dt(step_days(state, n.id, probe));
+        if(d) {
             due_nations.push_back(n.id);
         }
     }
@@ -572,8 +602,7 @@ void update_economy(game_state& state, economy_mode mode) {
         return;
     }
     // Lanes of nations not due today keep their values (probe: everyone is due).
-    const ve::int_vector today(static_cast<int32_t>(static_cast<uint32_t>(state.current_tick) % weekly.shards));
-    auto lane_due = [&](auto shard) { return probe ? (shard == shard) : (shard == today); };
+    auto lane_due = [&](auto nat) { return w.nation_get_econ_due(nat) > ve::fp_vector(0.5f); };
 
     // 1. nation pre-pass
     for(auto n : due_nations) {
@@ -584,7 +613,7 @@ void update_economy(game_state& state, economy_mode mode) {
     const ve::fp_vector sick(static_cast<float>(P.sickness_absence));
     w.execute_parallel_over_region([&](auto ids) {
         const auto nat = w.region_get_owner(ids);
-        const auto mask = lane_due(w.region_get_shard(ids));
+        const auto mask = lane_due(nat);
         // Sickness absence: infectious working-age people, all pathogens.
         ve::fp_vector young_inf(0.0f);
         for(uint8_t p = 0; p < D.pathogen_count; ++p) {
@@ -603,13 +632,13 @@ void update_economy(game_state& state, economy_mode mode) {
 
     // 3. nation pass
     for(auto n : due_nations) {
-        nation_pass(state, n, dt, apply);
+        nation_pass(state, n, w.nation_get_econ_dt(n), apply);
     }
 
     // 4. region output and utilisation
     w.execute_parallel_over_region([&](auto ids) {
         const auto nat = w.region_get_owner(ids);
-        const auto mask = lane_due(w.region_get_shard(ids));
+        const auto mask = lane_due(nat);
         const auto gf = w.nation_get_gf(nat);
         for(uint8_t s = 0; s < S; ++s) {
             const auto out = w.region_get_capacity(ids, s) * w.nation_get_fill(nat, s);
@@ -621,13 +650,13 @@ void update_economy(game_state& state, economy_mode mode) {
     });
 
     // 5. pop pass
-    const ve::fp_vector vdt(dt);
+
     const ve::fp_vector one(1.0f);
     const ve::fp_vector zero(0.0f);
-    const ve::fp_vector week_frac(dt / 7.0f);
+
     const ve::fp_vector match(static_cast<float>(P.match_efficiency));
-    const ve::fp_vector ret(std::min(1.0f, static_cast<float>(P.lf_return_rate) * dt / 7.0f));
-    const ve::fp_vector smooth_inc(std::min(1.0f, dt / static_cast<float>(P.income_smoothing_days)));
+    const ve::fp_vector lf_return(static_cast<float>(P.lf_return_rate) / 7.0f);
+    const ve::fp_vector inc_days(static_cast<float>(P.income_smoothing_days));
     const ve::fp_vector wealth_rate(static_cast<float>(P.wealth_spend_rate / 365.0));
     const ve::fp_vector lag(static_cast<float>(P.layoff_lag_days));
     const ve::fp_vector lag_epl(static_cast<float>(P.layoff_lag_epl));
@@ -639,7 +668,12 @@ void update_economy(game_state& state, economy_mode mode) {
     w.execute_parallel_over_pop([&](auto ids) {
         const auto nat = w.pop_get_nation(ids);
         const auto reg = w.pop_get_home(ids);
-        const auto mask = lane_due(w.pop_get_shard(ids));
+        const auto mask = lane_due(nat);
+        // Step length per lane (weekly, or 28 days for nations at low detail).
+        const auto vdt = w.nation_get_econ_dt(nat);
+        const auto week_frac = vdt / ve::fp_vector(7.0f);
+        const auto ret = ve::min(ve::fp_vector(1.0f), lf_return * vdt);
+        const auto smooth_inc = ve::min(ve::fp_vector(1.0f), vdt / inc_days);
         const auto gf = w.nation_get_gf(nat);
         const auto p = w.nation_get_core_price(nat);
         // Informal jobs (by identity group; scenario groups) get no job retention, no
@@ -752,12 +786,12 @@ void update_economy(game_state& state, economy_mode mode) {
         double c_des = 0, wages = 0, programmes = 0, employed = 0, unemployed = 0;
     };
     std::vector<totals> tot(w.nation_size());
-    const double ddt = dt;
     for(auto pp : w.in_pop) {
         const dcon::nation_id n = pp.get_nation().id;
-        if(!due(state, n, probe)) {
+        if(w.nation_get_econ_due(n) < 0.5f) {
             continue;
         }
+        const double ddt = w.nation_get_econ_dt(n);
         auto& t = tot[static_cast<std::size_t>(n.index())];
         t.c_des += pp.get_c_des();
         t.wages += pp.get_f_wage_private();
@@ -774,10 +808,16 @@ void update_economy(game_state& state, economy_mode mode) {
         const auto gov = account::government(n);
         transfer(state, firms, me, pp.get_f_wage_private() * ddt, flow::wages_private);
         transfer(state, gov, me, pp.get_f_wage_public() * ddt, flow::wages_public);
-        transfer(state, gov, me, pp.get_f_stw() * ddt, flow::job_retention_pay);
+        {
+            cause_scope c(state, lever_cause(state, n, lever::stw_coverage));
+            transfer(state, gov, me, pp.get_f_stw() * ddt, flow::job_retention_pay);
+        }
         transfer(state, gov, me, pp.get_f_benefit() * ddt, flow::unemployment_benefits);
         transfer(state, gov, me, pp.get_f_transfer() * ddt, flow::pensions);
-        transfer(state, gov, me, pp.get_f_fiscal() * ddt, flow::fiscal_households);
+        {
+            cause_scope c(state, lever_cause(state, n, lever::fiscal));
+            transfer(state, gov, me, pp.get_f_fiscal() * ddt, flow::fiscal_households);
+        }
         transfer(state, firms, me, pp.get_f_dividend() * ddt, flow::dividends);
         transfer(state, account::finance(n), me, pp.get_f_interest() * ddt, flow::interest_households);
         transfer(state, me, gov, pp.get_f_tax() * ddt, flow::tax_households);

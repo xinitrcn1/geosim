@@ -1,0 +1,49 @@
+# Observed 2019 adoption (hand-written; rounded). Where present it fixes the nation's
+# starting position on the logistic adoption curve (the lag to the frontier is
+# inferred, not assumed from income); later lags move with income, skills and
+# openness (src/sim/systems/longcampaign.cpp). Missing = income/skills rule.
+#  ev   electric share of new car sales (IEA Global EV Outlook 2020)
+#  ren  solar + wind share of electricity generation (Ember Global Electricity Review)
+iso3,tech,adoption_2019
+USA,ev,0.021
+CHN,ev,0.049
+JPN,ev,0.009
+DEU,ev,0.030
+GBR,ev,0.032
+FRA,ev,0.028
+ITA,ev,0.009
+ESP,ev,0.014
+CAN,ev,0.030
+KOR,ev,0.023
+AUS,ev,0.006
+BRA,ev,0.001
+MEX,ev,0.001
+IND,ev,0.001
+RUS,ev,0.001
+TUR,ev,0.001
+IDN,ev,0.001
+SAU,ev,0.0005
+ZAF,ev,0.001
+ARG,ev,0.0005
+ROW,ev,0.010
+USA,ren,0.10
+CHN,ren,0.09
+JPN,ren,0.08
+DEU,ren,0.30
+GBR,ren,0.24
+FRA,ren,0.09
+ITA,ren,0.17
+ESP,ren,0.26
+CAN,ren,0.06
+KOR,ren,0.03
+AUS,ren,0.15
+BRA,ren,0.11
+MEX,ren,0.08
+IND,ren,0.09
+RUS,ren,0.002
+TUR,ren,0.11
+IDN,ren,0.002
+SAU,ren,0.001
+ZAF,ren,0.05
+ARG,ren,0.07
+ROW,ren,0.06

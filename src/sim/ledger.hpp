@@ -31,6 +31,23 @@ void transfer(game_state& state, account from, account to, double amount, flow k
 
 [[nodiscard]] double balance(game_state const& state, account a) noexcept;
 
+// Sets game_state::cause for the transfers made in its scope ("Why?" cause tags).
+struct cause_scope {
+    cause_scope(game_state& s, uint32_t code) noexcept : state(s), previous(s.cause) { s.cause = code; }
+    ~cause_scope() { state.cause = previous; }
+    cause_scope(cause_scope const&) = delete;
+    cause_scope& operator=(cause_scope const&) = delete;
+    game_state& state;
+    uint32_t previous;
+};
+// Tag of an agent lever decided for nation n.
+[[nodiscard]] inline uint32_t lever_cause(game_state const& state, dcon::nation_id n, lever l) noexcept {
+    return cause_code(cause_kind::lever, static_cast<uint32_t>(n.index()), static_cast<uint32_t>(state.derived.lever_base + static_cast<uint8_t>(l)));
+}
+[[nodiscard]] inline uint32_t journal_cause(dcon::nation_id n, uint8_t code) noexcept {
+    return cause_code(cause_kind::journal, static_cast<uint32_t>(n.index()), code);
+}
+
 // Sum of every account balance in the world (the conserved quantity).
 [[nodiscard]] double world_money(game_state const& state) noexcept;
 

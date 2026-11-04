@@ -310,6 +310,18 @@ object{
 	property{ name{gov_econ0} type{float} }
 	property{ name{profit0} type{float} }
 	property{ name{tax_multiplier} type{float} }
+	property{ name{tag_code} type{array{uint8_t}{uint32_t}} }
+	property{ name{tag_amount} type{array{uint8_t}{double}} }
+	property{ name{tag_rest} type{array{uint8_t}{double}} }
+	property{ name{lod} type{uint8_t} }
+	property{ name{econ_dt} type{float} }
+	property{ name{econ_due} type{float} }
+	property{ name{lod_calm_days} type{float} }
+	property{ name{lod_last_gdp} type{float} }
+	property{ name{lod_last_u} type{float} }
+	property{ name{tech_adoption} type{array{uint8_t}{float}} }
+	property{ name{tech_lag} type{array{uint8_t}{float}} }
+	property{ name{tech_offset} type{array{uint8_t}{float}} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }
@@ -480,6 +492,8 @@ object{
 	property{ name{network} type{float} }
 	property{ name{tax_factor} type{float} }
 	property{ name{cpi_p} type{float} }
+	property{ name{stratum} type{uint8_t} }
+	property{ name{parent} type{pop_id} }
 }
 
 object{
@@ -640,6 +654,25 @@ object{
 	property{ name{soe_share} type{float} }
 	property{ name{hoarding} type{float} }
 	property{ name{investment_drive} type{float} }
+}
+
+object{
+	name{technology}
+	storage_type{contiguous}
+	size{64}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{frontier_year} type{float} }
+	property{ name{speed} type{float} }
+	property{ name{lag_years} type{float} }
+	property{ name{tfp} type{float} }
+	property{ name{oil_cut} type{float} }
+	property{ name{emission_cut} type{float} }
+	property{ name{connectivity_gain} type{float} }
+	property{ name{sector} type{sector_id} }
+	property{ name{sector_gain} type{float} }
+	property{ name{vaccine_speedup} type{float} }
 }
 
 object{

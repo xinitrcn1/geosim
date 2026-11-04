@@ -1782,6 +1782,9 @@ struct builder {
         w.nation_resize_prior_npi(K);
         w.nation_resize_prior_npi_targeted(K);
         w.nation_resize_flows(static_cast<uint32_t>(flow::count));
+        w.nation_resize_tag_code(static_cast<uint32_t>(flow::count) * tags_per_flow);
+        w.nation_resize_tag_amount(static_cast<uint32_t>(flow::count) * tags_per_flow);
+        w.nation_resize_tag_rest(static_cast<uint32_t>(flow::count));
         const auto NP = static_cast<uint32_t>(std::max<std::size_t>(1, pathogen_by_key.size()));
         w.region_resize_ep_s(NP * age_groups);
         w.region_resize_ep_e(NP * age_groups);
@@ -1831,6 +1834,7 @@ struct builder {
         if(diag.failed()) return;
         load_sea_network(state, assets, diag);      // after nations: littoral links
         load_commodity_defs(state, assets, diag);
+        load_technology_defs(state, assets, diag);
         if(diag.failed()) return;
         setup_oil();
         rebuild_derived(state);
@@ -1854,6 +1858,22 @@ struct builder {
         if(diag.failed()) return;
         create_politics();
         init_firms(state); // after politics: boards and tariffs read the governing party
+        {
+            std::vector<observed_adoption> observed;
+            const std::string tdir = assets + "/scenario/" + scenario;
+            if(exists(tdir + "/technology_curated.csv")) {
+                const auto t = core::csv_table::load(tdir + "/technology_curated.csv", diag);
+                for(std::size_t row = 0; row < t.rows(); ++row) {
+                    const auto nation = find_nation(state, t.get(row, "iso3"));
+                    dcon::technology_id tech;
+                    for(auto tt : w.in_technology) {
+                        if(tt.get_key() == core::pack_key(t.get(row, "tech"))) tech = tt.id;
+                    }
+                    if(nation && tech) observed.push_back({nation, tech, static_cast<float>(t.number_or(row, "adoption_2019", 0.0))});
+                }
+            }
+            init_technologies(state, observed);
+        }
         for(auto n : w.in_nation) {
             if(auto inc = n.get_incumbent()) n.set_gov_econ0(w.party_get_position(inc, static_cast<uint8_t>(value_axis::economic_right)));
         }

@@ -151,6 +151,7 @@ void update_credit(game_state& state) {
         // Guarantees: the state covers part of the losses on directed loans.
         if(losses_dev > 0.0 && L > 0.0) {
             const double calls = P.guarantee_share * losses_dev * n.get_loans_directed() / L;
+            cause_scope c(state, lever_cause(state, n.id, lever::directed_credit));
             transfer(state, account::government(n.id), account::finance(n.id), calls, flow::credit_guarantee);
             K += calls;
         }

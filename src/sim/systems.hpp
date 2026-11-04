@@ -5,6 +5,8 @@
 #include "sim/game_state.hpp"
 #include "sim/model.hpp"
 
+#include <vector>
+
 namespace geosim::sim {
 
 // Daily: applies events dated today (historical anchors, seeds).
@@ -96,6 +98,21 @@ void update_treaties(game_state& state);
 void update_vaccination(game_state& state);
 // Society extensions (monthly): trust, crime, fertility, education, scarring, CPI per pop.
 void update_social_capital(game_state& state);
+
+// Long-campaign detail (docs/02): technology diffusion and strata split / merge
+// (monthly), spatial LOD (daily).
+struct observed_adoption {
+    dcon::nation_id nation;
+    dcon::technology_id tech;
+    float share = 0.0f;
+};
+void init_technologies(game_state& state, std::vector<observed_adoption> const& observed);
+void update_technology(game_state& state);
+void update_strata(game_state& state);
+void update_lod(game_state& state);
+[[nodiscard]] float tech_oil_factor(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float tech_emission_factor(game_state const& state);
+[[nodiscard]] float tech_vaccine_factor(game_state const& state);
 
 // Every 28 days (sharded): identity groups - horizontal inequality, network
 // insurance (docs/04-society.md#identity-groups). Daily: protest cascades.

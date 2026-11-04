@@ -10,6 +10,7 @@ void advance_day(game_state& state) {
     update_ai(state);
     update_epidemic(state);
     update_vaccination(state);
+    update_lod(state);
     update_logistics(state);
     update_commodity_markets(state);
     update_economy(state);
@@ -34,6 +35,8 @@ void advance_day(game_state& state) {
     update_assets(state);
     update_treaties(state);
     update_longrun(state);
+    update_technology(state);
+    update_strata(state);
     update_indicators(state);
     ++state.current_tick;
 }

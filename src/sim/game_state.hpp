@@ -40,6 +40,7 @@ struct derived_indices {
     // Levers: [0, npi_count) are NPIs, then lever_base + sim::lever::*.
     uint8_t lever_base = 0;
     uint8_t lever_count = 0;
+    uint8_t tech_count = 0;
 };
 
 struct game_state {
@@ -50,6 +51,7 @@ struct game_state {
     uint64_t rng_seed = 0;        // Philox key; see docs/02-simulation-core.md#determinism
 
     derived_indices derived;      // rebuilt, never saved
+    uint32_t cause = 0;           // cause tag of the flows being posted (sim::cause_*); transient, never saved
 };
 
 } // namespace geosim

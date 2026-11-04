@@ -30,7 +30,13 @@ std::unique_ptr<game_state> copy_state(game_state const& state, core::diagnostic
     return out;
 }
 
-fork_result run_fork(game_state const& state, int days, std::function<void(game_state&)> const& change) {
+namespace {
+
+void run_copy(game_state& copy_ref, int days, fork_result& result);
+
+} // namespace
+
+fork_result run_fork(game_state const& state, int days, std::function<void(game_state&)> const& change, fork_options options) {
     fork_result result;
     core::diagnostics diag;
     auto copy = copy_state(state, diag);
@@ -38,7 +44,47 @@ fork_result run_fork(game_state const& state, int days, std::function<void(game_
         result.error = diag.error();
         return result;
     }
+    if(options.reduced) {
+        copy->params.lod_force = 1.0;
+        copy->params.ai_frozen = 1.0;
+    }
     if(change) change(*copy);
+    run_copy(*copy, days, result);
+    return result;
+}
+
+fork_job::fork_job(game_state const& state, int days, std::function<void(game_state&)> change, fork_options options) {
+    core::diagnostics diag;
+    copy_ = copy_state(state, diag);
+    if(diag.failed()) {
+        result_.error = diag.error();
+        joined_ = true;
+        return;
+    }
+    if(options.reduced) {
+        copy_->params.lod_force = 1.0;
+        copy_->params.ai_frozen = 1.0;
+    }
+    if(change) change(*copy_);
+    thread_ = std::thread([this, days] { run_copy(*copy_, days, result_); });
+}
+
+fork_job::~fork_job() {
+    if(!joined_ && thread_.joinable()) thread_.join();
+}
+
+fork_result const& fork_job::wait() {
+    if(!joined_ && thread_.joinable()) {
+        thread_.join();
+        joined_ = true;
+    }
+    return result_;
+}
+
+namespace {
+
+void run_copy(game_state& copy_ref, int days, fork_result& result) {
+    auto* copy = &copy_ref;
     auto& w = copy->world;
     for(auto n : w.in_nation) result.nations.push_back(fork_path{core::unpack_key(n.get_iso3()), {}, {}, {}, {}});
     for(int d = 0; d < days; ++d) {
@@ -56,7 +102,8 @@ fork_result run_fork(game_state const& state, int days, std::function<void(game_
             path.unrest.push_back(pop > 0.0f ? u / pop : 0.0f);
         }
     }
-    return result;
 }
+
+} // namespace
 
 } // namespace geosim::sim

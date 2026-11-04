@@ -1,0 +1,25 @@
+# Technologies that diffuse across nations (hand-written; moddable). Read by
+# src/sim/scenario_ext.cpp; used by src/sim/systems/longcampaign.cpp.
+#
+# Adoption follows a logistic curve (Griliches 1957): a(t) = 1 / (1 + exp(-speed (t - t50))).
+# The frontier reaches half adoption in `frontier_year`; every other nation lags by
+# lag_years plus an income, skills and openness gap to the frontier (Comin & Hobijn 2010:
+# adoption lags shrink for newer technologies but stay large across income levels).
+#
+# Effects scale with adoption relative to the 2020 start (the calibrated baseline):
+#  tfp / sector_gain   productivity of one sector (value added per unit of capacity)
+#  oil_cut             share of oil demand removed at full adoption
+#  emission_cut        share of CO2 per unit of oil-equivalent energy removed at full adoption
+#  connectivity_gain   rise in social-media connectivity at full adoption
+#  vaccine_speedup     share of vaccine development time removed at full frontier adoption
+#
+# Calibration notes (rounded): EVs were 2.6% of world car sales in 2019 (IEA Global EV
+# Outlook 2020) - half of sales near 2030 at the frontier; renewables (IEA World Energy
+# Outlook 2020, IRENA); AI services (frontier mid-2030s; productivity effects modest:
+# Brynjolfsson, Rock & Syverson 2021 J-curve); mRNA platform vaccines (first licensed 2020).
+
+tech{ key{ev}   name{Electric vehicles}     frontier_year{2031} speed{0.35} lag_years{2}  oil_cut{0.45} emission_cut{0.0} }
+tech{ key{ren}  name{Renewable power}       frontier_year{2033} speed{0.25} lag_years{2}  emission_cut{0.5} sector{ene} sector_gain{0.05} }
+tech{ key{ai}   name{AI services}           frontier_year{2034} speed{0.30} lag_years{3}  sector{osv} sector_gain{0.10} }
+tech{ key{bb5g} name{Mobile broadband / 5G} frontier_year{2024} speed{0.45} lag_years{2}  connectivity_gain{0.2} sector{osv} sector_gain{0.03} }
+tech{ key{mrna} name{mRNA vaccine platform} frontier_year{2021} speed{1.50} lag_years{1}  vaccine_speedup{0.5} }

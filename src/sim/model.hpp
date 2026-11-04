@@ -29,6 +29,18 @@ enum class npi_role : uint8_t {
 // Goods that cross borders by sea and need port and ship capacity are marked
 // with sector.shipped = 1 (assets/defs/sectors.txt).
 
+// Flow cause tags (docs/02-simulation-core.md#accounting-core): the ledger
+// attributes each flow to the cause set in game_state::cause while it is posted.
+// code = (kind << 24) | (nation << 8) | detail; 0 = endogenous (no tag).
+enum class cause_kind : uint8_t { none = 0, lever = 1, journal = 2, event = 3 };
+[[nodiscard]] constexpr uint32_t cause_code(cause_kind k, uint32_t nation, uint32_t detail) noexcept {
+    return (static_cast<uint32_t>(k) << 24) | ((nation & 0xFFFFu) << 8) | (detail & 0xFFu);
+}
+inline constexpr uint8_t tags_per_flow = 4;
+
+// pop.stratum (docs/02-simulation-core.md#long-campaign-detail-extension)
+enum class stratum : uint8_t { base = 0, precarious = 1 };
+
 // pop.kind
 enum class pop_kind : uint8_t { low_skill = 0, mid_skill = 1, high_skill = 2, retired = 3 };
 inline constexpr uint8_t worker_kinds = 3;
