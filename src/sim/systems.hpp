@@ -148,6 +148,14 @@ void start_war(game_state& state, dcon::nation_id n, dcon::nation_id m);
 void update_diplomacy(game_state& state);
 [[nodiscard]] float mediation_score(game_state const& state, dcon::nation_id n, dcon::nation_id m);
 void insurgency_support(game_state const& state, dcon::nation_id n, float& for_government, float& for_rebels);
+// International organisations (un.cpp): General Assembly alignment, Security Council
+// resolutions (ceasefire, sanctions, peace operations), elections; WTO disputes.
+void init_un(game_state& state);
+void update_un(game_state& state);
+void compute_un_ideals(game_state& state);
+[[nodiscard]] float un_alignment(game_state const& state, dcon::nation_id a, dcon::nation_id b);
+[[nodiscard]] float un_sanction_floor(game_state const& state, dcon::nation_id n, dcon::nation_id target);
+[[nodiscard]] float peacekeeping_factor(game_state const& state, dcon::nation_id n, dcon::nation_id m);
 [[nodiscard]] float minister_position(game_state const& state, dcon::nation_id n, portfolio pf, value_axis axis);
 void init_frontier_gaps(game_state& state);
 [[nodiscard]] float carbon_cost_share(game_state const& state, dcon::nation_id n);

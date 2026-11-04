@@ -264,7 +264,7 @@ static void update_insurgency(game_state& state, dcon::nation_id n, float years)
             if(r.get_crisis_days() >= static_cast<float>(P.insurgency_days)) {
                 const float youth_jobless = std::max(0.0f, w.nation_get_unemployment(n) * w.nation_get_youth_unemp_rel(n) - 0.1f);
                 const float hazard = static_cast<float>(P.insurgency_rate) * years * (1.0f - w.nation_get_state_capacity(n))
-                                     * (0.3f + excluded) * (1.0f + 3.0f * youth_jobless);
+                                     * (0.3f + excluded) * (1.0f + 3.0f * youth_jobless) * peacekeeping_factor(state, n, {});
                 if(u < hazard) {
                     r.set_insurgency(1.0f);
                     log_event(state, n, n, journal_insurgency, 0.0f, 1.0f);
@@ -394,7 +394,8 @@ void update_geopolitics(game_state& state) {
                                                       - 0.3f * sanctioned - 0.5f * war - 0.2f * claims
                                                       - static_cast<float>(P.credibility_trust) * (1.0f - m.get_credibility())
                                                       + static_cast<float>(P.affinity_trust) * ties
-                                                      - 0.2f * n.get_rivalry(k) - 0.1f * std::max(0.0f, n.get_hostility(k) - 1.0f), 0.0f, 1.0f);
+                                                      - 0.2f * n.get_rivalry(k) - 0.1f * std::max(0.0f, std::min(4.0f, n.get_hostility(k)) - 1.0f)
+                                                      + static_cast<float>(P.ga_alignment_trust) * (un_alignment(state, n.id, m.id) - n.get_un_alignment0(k)), 0.0f, 1.0f);
             float trust = n.get_trust(k);
             trust += (trust_target - trust) * std::min(1.0f, years / static_cast<float>(P.trust_years));
             n.set_trust(k, trust);
@@ -423,7 +424,8 @@ void update_geopolitics(game_state& state) {
                 if(choice > before + 0.1f && n.get_competitive() && n.get_gov_seat_share() <= 0.5f) {
                     choice = before + 0.1f; // the legislature will not ratify more
                 }
-                choice = std::clamp(choice, war > 0.0f ? 1.0f : 0.0f, 1.0f);
+                // UNSC sanctions and authorised WTO retaliation set a floor (un.cpp).
+                choice = std::clamp(choice, war > 0.0f ? 1.0f : un_sanction_floor(state, n.id, m.id), 1.0f);
                 n.set_sanction(k, choice);
                 if(std::abs(choice - before) >= 0.1f) log_event(state, n.id, m.id, journal_sanction, before, choice);
             }
@@ -459,7 +461,7 @@ void update_geopolitics(game_state& state) {
                                     * (1.0f - 0.8f * democratic) * (1.0f - 0.7f * commerce) * std::max(threat, m.get_threat_to(kn));
                     if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
                                        static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index()))
-                       < p * static_cast<float>(P.mid_ratio) * (1.0f + static_cast<float>(P.rivalry_gain) * n.get_rivalry(k))) {
+                       < p * static_cast<float>(P.mid_ratio) * (1.0f + static_cast<float>(P.rivalry_gain) * n.get_rivalry(k)) * peacekeeping_factor(state, n.id, m.id)) {
                         // The bargaining failure opens a militarised dispute; war is its
                         // last rung (diplomacy.cpp).
                         start_dispute(state, n.id, m.id);
@@ -496,7 +498,8 @@ void update_geopolitics(game_state& state) {
                     const float decisive = std::max(n.get_control(k), m.get_control(kn));
                     const float settle = static_cast<float>(P.peace_base_rate) * years * (1.0f + 10.0f * (n.get_war_cost() + m.get_war_cost()))
                                          * (1.0f + static_cast<float>(P.occupation_settle) * decisive)
-                                         * (1.0f + static_cast<float>(P.mediation_gain) * mediation_score(state, n.id, m.id));
+                                         * (1.0f + static_cast<float>(P.mediation_gain) * mediation_score(state, n.id, m.id))
+                                         * (n.get_hostility(k) >= 5.5f ? 1.0f + static_cast<float>(P.ceasefire_settle) : 1.0f); // UNSC ceasefire demand
                     if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
                                        0x80000000u + static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index())) < settle) {
                         n.set_at_war(k, 0.0f);

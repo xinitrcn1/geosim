@@ -233,7 +233,9 @@ void update_diplomacy(game_state& state) {
         if(need > 0.0f && n.get_gdp_pc0() < static_cast<float>(P.aid_income)) {
             for(auto d : w.in_nation) {
                 if(d.id == n.id || d.get_gdp_pc0() < static_cast<float>(P.aid_income) || d.get_at_war(kn) > 0.0f) continue;
-                const float bond = std::max(0.0f, d.get_trust(kn) - 0.3f) * (1.0f + d.get_alliance(kn));
+                // Elected Security Council members draw more (Kuziemko & Werker 2006).
+                const float bond = std::max(0.0f, d.get_trust(kn) - 0.3f) * (1.0f + d.get_alliance(kn)) * (n.get_unsc_seat() == 1 ? 1.5f : 1.0f)
+                                   * (0.5f + un_alignment(state, d.id, n.id));
                 if(bond <= 0.0f) continue;
                 const double donor_gdp = d.get_gdp0() * d.get_core_price() * d.get_gf();
                 const double amount = P.aid_rate * donor_gdp * years * std::min(1.0f, need) * bond;

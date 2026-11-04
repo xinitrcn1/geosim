@@ -149,6 +149,8 @@ inline constexpr uint8_t journal_goal = 0xED;          // before = old goal, aft
 inline constexpr uint8_t journal_alliance_call = 0xEC; // pragmatic = ally index, after = 1 joined / 0 declined
 inline constexpr uint8_t journal_dispute = 0xEB;       // pragmatic = partner, before/after = hostility level (0 ends; 2..5)
 inline constexpr uint8_t journal_concession = 0xEA;    // target concedes to sanctions; pragmatic = sender
+inline constexpr uint8_t journal_unsc = 0xE9;          // pragmatic = target, before = kind (0 ceasefire, 1 sanctions, 2 peacekeeping), after = 1 adopted / 0 vetoed / -1 too few votes
+inline constexpr uint8_t journal_wto = 0xE8;           // pragmatic = respondent, before = 0 filed / 1 ruled, after = 1 complied / 0 retaliation / -1 appealed into the void
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.

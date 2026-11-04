@@ -284,6 +284,40 @@ down, or is settled (one outcome per month; hazards normalised):
   are matched in `decide_defense`; Richardson 1960); rivalry decays over
   decades (Diehl & Goertz 2000).
 
+### International organisations
+
+**Implemented** (`un.cpp`; membership in `un_curated.csv`):
+
+- **General Assembly.** Each nation's ideal point on the main dimension of UN
+  voting - the US-led liberal order (Bailey, Strezhnev & Voeten 2017) - follows
+  its liberal institutions, self-expression values and alliance with the
+  leading liberal power, monthly. Changes in pairwise voting alignment since
+  2019 shift trust (Signorino & Ritter 1999); alignment also weights crisis aid.
+- **Security Council.** Five permanent members, ten elected seats with two-year
+  terms (2019-20: Germany, Indonesia, South Africa in the slice); expiring seats
+  are refilled each 1 January, larger states more often (Dreher et al. 2014),
+  and elected members draw more aid (Kuziemko & Werker 2006). Wars and
+  insurgencies put drafts on the agenda: a **ceasefire demand** (raises the war
+  settlement hazard; Fortna 2004), **sanctions on an occupier** (every
+  non-allied member applies at least `un_sanction_level`; Bapat & Morgan 2009)
+  and a **peace operation** after a war or insurgency (cuts dispute and
+  insurgency recurrence; Fortna 2008; Hultman, Kathman & Shannon 2014). A draft
+  passes with nine votes and no veto (UN Charter art. 27). Members vote by
+  alignment with the drafter against their ties to the target; a permanent
+  member vetoes to shield itself or a client (Voeten 2001). Seats held outside
+  the slice vote as the rest of the world. Votes are journalled (`journal_unsc`).
+- **WTO dispute settlement.** A member whose exports face a tariff rise above
+  `wto_bound` files a complaint; the panel reports after `wto_panel_days`
+  (Busch & Reinhardt 2003); the complainant usually wins (Hudec 1993; Bown
+  2009); the loser complies (halving the excess) with a probability that grows
+  with its credibility and dependence, otherwise retaliation is authorised (a
+  sanction floor). With the Appellate Body paralysed since 2019-12-11
+  (`wto_appellate = 0`) the loser appeals into the void and nothing follows
+  (Hoekman & Mavroidis 2021).
+
+**Planned:** GA resolutions as explicit votes, Human Rights Council, WHO
+coordination in pandemics, regional organisations (EU, AU, ASEAN) as actors.
+
 ### Coercion, aid, arms and treaties
 
 - **Sanctions bargaining**: a target concedes with a hazard that grows with its

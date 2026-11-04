@@ -346,6 +346,18 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Kinsella, D. (1994). Conflict in context: arms transfers and Third World rivalries during the Cold War. *AJPS* 38(3).
 - Putnam, R. (1988). Diplomacy and domestic politics: the logic of two-level games. *International Organization* 42(3).
 - Milner, H. (1997). *Interests, Institutions, and Information.* Princeton UP.
+- Signorino, C. & Ritter, J. (1999). Tau-b or not tau-b: measuring the similarity of foreign policy positions. *ISQ* 43(1).
+- Voeten, E. (2001). Outside options and the logic of Security Council action. *APSR* 95(4).
+- Dreher, A., Gould, M., Rablen, M. & Vreeland, J. (2014). The determinants of election to the United Nations Security Council. *Public Choice* 158.
+- Kuziemko, I. & Werker, E. (2006). How much is a seat on the Security Council worth? *JPE* 114(5).
+- Bapat, N. & Morgan, T. C. (2009). Multilateral versus unilateral sanctions reconsidered. *ISQ* 53(4).
+- Fortna, V. P. (2008). *Does Peacekeeping Work?* Princeton UP.
+- Hultman, L., Kathman, J. & Shannon, M. (2014). Beyond keeping peace: UN effectiveness in the midst of fighting. *APSR* 108(4).
+- Busch, M. & Reinhardt, E. (2003). Developing countries and GATT/WTO dispute settlement. *J. World Trade* 37(4).
+- Hudec, R. (1993). *Enforcing International Trade Law.* Butterworth.
+- Bown, C. (2009). *Self-Enforcing Trade: Developing Countries and WTO Dispute Settlement.* Brookings.
+- Hoekman, B. & Mavroidis, P. (2021). WTO reform: back to the past to build for the future. *Global Policy* 12(S3). — Appellate Body paralysis.
+- United Nations (1945). *Charter of the United Nations*, arts. 23 and 27; un.org/securitycouncil (members 2019–2020).
 
 ## Internet, cyber, war economics ([06](06-geopolitics-ai.md))
 

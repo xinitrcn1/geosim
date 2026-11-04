@@ -372,6 +372,15 @@ object{
 	property{ name{aid_received} type{float} }
 	property{ name{disaster_seen} type{float} }
 	property{ name{intervention} type{float} }
+	property{ name{un_ideal} type{float} }
+	property{ name{un_alignment0} type{array{uint16_t}{float}} }
+	property{ name{unsc_seat} type{uint8_t} }
+	property{ name{unsc_term_end} type{int32_t} }
+	property{ name{un_sanctioned} type{float} }
+	property{ name{peacekeeping} type{float} }
+	property{ name{wto_member} type{uint8_t} }
+	property{ name{wto_dispute} type{array{uint16_t}{float}} }
+	property{ name{wto_retaliation} type{array{uint16_t}{float}} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }

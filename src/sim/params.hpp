@@ -489,6 +489,19 @@
     X(aid_rate, 0.002, "crisis aid per year (share of donor GDP) per unit recipient need (Alesina & Dollar 2000)") \
     X(aid_income, 25000.0, "GDP per capita (USD) above which nations give crisis aid")                   \
     X(fta_ratification, 1.0, "ratification hurdle: lobby pressure x 10 against the governing seat share (Putnam 1988)") \
+    /* ---- international organisations (docs/06) ---- */                                              \
+    X(unsc_veto_threshold, -0.1, "P5 support below which a permanent member vetoes (Voeten 2001)")         \
+    X(un_sanction_level, 0.5, "sanction floor every member applies under a UNSC sanctions resolution")      \
+    X(ceasefire_settle, 1.0, "war settlement hazard gain under a UNSC ceasefire demand (Fortna 2004)")    \
+    X(peacekeeping_years, 3.0, "duration of a UN peace operation (years)")                               \
+    X(peacekeeping_effect, 0.6, "share cut in dispute and insurgency recurrence under peacekeeping (Fortna 2008; Hultman et al. 2014)") \
+    X(unsc_election_rate, 0.04, "annual probability a non-permanent slice member is elected, before size weighting (Dreher et al. 2014)") \
+    X(ga_alignment_trust, 0.3, "trust change per unit change of UN voting alignment since 2019 (Bailey, Strezhnev & Voeten 2017)") \
+    X(wto_bound, 3.0, "tariff rise (pp above 2019) that a WTO member contests")                          \
+    X(wto_panel_days, 450.0, "days from request to panel report (Busch & Reinhardt 2003)")               \
+    X(wto_win, 0.85, "probability the complainant wins (Hudec 1993; Bown 2009)")                         \
+    X(wto_appellate, 0.0, "Appellate Body functioning (0 = paralysed since 2019-12-11: losers appeal into the void)") \
+    X(wto_retaliation, 0.2, "sanction floor of authorised retaliation (suspension of concessions)")      \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

@@ -4,6 +4,7 @@
 // defaults (the 2020 slice is a calibration device; the full-world data comes
 // later and must not need code changes).
 
+#include "core/calendar.hpp"
 #include "core/csv.hpp"
 #include "core/defs.hpp"
 #include "core/keys.hpp"
@@ -248,6 +249,18 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
             const auto r = static_cast<float>(std::clamp(t.number_or(row, "rivalry", 0.0), 0.0, 1.0));
             w.nation_set_rivalry(a, static_cast<uint16_t>(b.index()), r);
             w.nation_set_rivalry(b, static_cast<uint16_t>(a.index()), r);
+        }
+    }
+    for(auto n : w.in_nation) n.set_wto_member(1); // default; the table refines it
+    if(exists(dir + "/un_curated.csv")) {
+        const auto t = core::csv_table::load(dir + "/un_curated.csv", diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const auto n = find_nation(state, t.get(row, "iso3"));
+            if(!n) continue;
+            const auto seat = t.get(row, "unsc");
+            w.nation_set_unsc_seat(n, seat == "P" ? 2 : seat == "E" ? 1 : 0);
+            if(auto d = core::parse_date(t.get(row, "term_end"))) w.nation_set_unsc_term_end(n, core::tick_from_date(*d));
+            w.nation_set_wto_member(n, t.number_or(row, "wto", 1.0) > 0.0 ? 1 : 0);
         }
     }
     // Arms imports: the share of procurement bought abroad falls with industrial

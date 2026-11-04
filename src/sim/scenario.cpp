@@ -1614,6 +1614,9 @@ struct builder {
         w.nation_resize_control(N);
         w.nation_resize_hostility(N);
         w.nation_resize_rivalry(N);
+        w.nation_resize_un_alignment0(N);
+        w.nation_resize_wto_dispute(N);
+        w.nation_resize_wto_retaliation(N);
         w.nation_resize_portfolio_party(static_cast<uint32_t>(portfolio::count));
         w.nation_resize_trade_share(N);
         w.nation_resize_sanction(N);
@@ -1928,6 +1931,7 @@ struct builder {
             if(auto inc = n.get_incumbent()) n.set_gov_tan0(-w.party_get_position(inc, static_cast<uint8_t>(value_axis::self_expression)));
         }
         init_strategy(state);
+        init_un(state);
     }
 };
 
