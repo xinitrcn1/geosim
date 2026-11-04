@@ -32,6 +32,10 @@ Generated data sources:
   https://www.naturalearthdata.com
   Licence: Public domain
   (these three, with geoBoundaries ADM1, make assets/map/world.gsmap: tools/pipeline/build_map.py)
+- WorldClim 2.1 monthly precipitation 1970-2000, 10 arc-minutes (Fick & Hijmans 2017)
+  https://www.worldclim.org/data/worldclim21.html
+  Licence: WorldClim terms: free for academic and non-commercial use; the raw data may not be redistributed
+  (only per-region aggregates ship: assets/scenario/*/regions_geo.csv, tools/pipeline/build_region_geo.py)
 
 Hand-written (curated) files list their own sources inline:
 - assets/scenario/2020/nations_curated.csv

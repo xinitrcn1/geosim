@@ -86,17 +86,22 @@ MAP_SOURCES = [
      "https://doi.org/10.6084/m9.figshare.21789074", "CC BY 4.0"),
     ("Natural Earth 10m admin-0 countries (territories without geoBoundaries ADM1) and 50m lakes",
      "https://www.naturalearthdata.com", "Public domain"),
+    ("WorldClim 2.1 monthly precipitation 1970-2000, 10 arc-minutes (Fick & Hijmans 2017); per-region aggregates only "
+     "(regions_geo.csv, build_region_geo.py)", "https://www.worldclim.org/data/worldclim21.html",
+     "WorldClim terms: free for academic and non-commercial use; redistribution of the raw data needs permission "
+     "(only derived regional statistics ship)"),
 ]
 SOURCES += MAP_SOURCES
 
 ETOPO_URL = ("https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.esriAscii?"
              "altitude%5B(-90):5:(90)%5D%5B(-180):5:(180)%5D")
 KOPPEN_URL = "https://ndownloader.figshare.com/files/61012822"  # koppen_geiger_tif.zip (130 MB)
+WORLDCLIM_PREC_URL = "https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_10m_prec.zip"  # 12 GeoTIFFs, ~40 MB
 NE_URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
 
 
 def fetch_map(raw: pathlib.Path, force: bool) -> None:
-    """Raw inputs of the world map (build_map.py); about 250 MB in data/raw/map/."""
+    """Raw inputs of the world map (build_map.py) and regional geography (build_region_geo.py), ~230 MB in data/raw/map/."""
     print("World map: ETOPO1 relief, Koppen-Geiger climate, Natural Earth territories and lakes")
     d = raw / "map"
     d.mkdir(parents=True, exist_ok=True)
@@ -104,6 +109,7 @@ def fetch_map(raw: pathlib.Path, force: bool) -> None:
     get(KOPPEN_URL, d / "koppen_geiger_tif.zip", force)
     get(NE_URL + "ne_10m_admin_0_countries.geojson", d / "ne_10m_admin_0_countries.geojson", force)
     get(NE_URL + "ne_50m_lakes.geojson", d / "ne_50m_lakes.geojson", force)
+    get(WORLDCLIM_PREC_URL, d / "wc2.1_10m_prec.zip", force)
 
 
 def pick_adm1(meta):
