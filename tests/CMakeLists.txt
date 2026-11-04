@@ -1,0 +1,21 @@
+function(geosim_add_test name lib)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE ${lib})
+    target_compile_definitions(${name} PRIVATE GEOSIM_ASSETS_DIR="${PROJECT_SOURCE_DIR}/assets")
+    geosim_set_warnings(${name})
+    add_test(NAME ${name} COMMAND ${name})
+    set_tests_properties(${name} PROPERTIES LABELS "unit")
+endfunction()
+
+geosim_add_test(test_scheduler geosim_core)
+geosim_add_test(test_core_parsers geosim_core)
+
+if(GEOSIM_USE_DCON)
+    geosim_add_test(test_dcon_smoke geosim_sim)
+    geosim_add_test(test_scenario geosim_sim)
+
+    # Full 2020 run against real outcomes (slower; label "backtest").
+    add_test(NAME backtest_2020
+             COMMAND geosim_headless backtest --assets ${PROJECT_SOURCE_DIR}/assets --scenario 2020)
+    set_tests_properties(backtest_2020 PROPERTIES LABELS "backtest")
+endif()

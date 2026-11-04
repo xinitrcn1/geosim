@@ -1,0 +1,259 @@
+namespace{dcon}
+
+object{
+	name{nation}
+	storage_type{contiguous}
+	size{256}
+	tag{scenario}
+
+	property{ name{iso3} type{uint32_t} }
+	property{ name{population} type{float} }
+	property{ name{gdp0} type{double} }
+	property{ name{gdp0_daily} type{float} }
+	property{ name{trend_growth} type{float} }
+	property{ name{inflation_trend} type{float} }
+	property{ name{informality} type{float} }
+	property{ name{epl} type{float} }
+	property{ name{benefit_replacement} type{float} }
+	property{ name{benefit_coverage} type{float} }
+	property{ name{death_reporting} type{float} }
+	property{ name{gini0} type{float} }
+
+	property{ name{va0} type{array{uint8_t}{float}} }
+	property{ name{emp0} type{array{uint8_t}{float}} }
+	property{ name{output} type{array{uint8_t}{float}} }
+	property{ name{capacity} type{array{uint8_t}{float}} }
+	property{ name{demand} type{array{uint8_t}{float}} }
+	property{ name{hours} type{array{uint8_t}{float}} }
+	property{ name{labor_need} type{array{uint8_t}{float}} }
+	property{ name{comp_c} type{array{uint8_t}{float}} }
+	property{ name{comp_g} type{array{uint8_t}{float}} }
+	property{ name{comp_i} type{array{uint8_t}{float}} }
+	property{ name{comp_x} type{array{uint8_t}{float}} }
+	property{ name{npi} type{array{uint8_t}{float}} }
+	property{ name{npi_targeted} type{array{uint8_t}{float}} }
+	property{ name{npi_exposure} type{float} }
+	property{ name{tti_strength} type{float} }
+	property{ name{flows} type{array{uint8_t}{double}} }
+
+	property{ name{c0} type{float} }
+	property{ name{g0} type{float} }
+	property{ name{i0} type{float} }
+	property{ name{x0} type{float} }
+	property{ name{m0} type{float} }
+	property{ name{import_share} type{float} }
+	property{ name{import_base} type{float} }
+	property{ name{consumption} type{float} }
+	property{ name{investment} type{float} }
+	property{ name{gov_spend} type{float} }
+	property{ name{exports} type{float} }
+	property{ name{imports} type{float} }
+	property{ name{gdp_real} type{float} }
+	property{ name{gap_smoothed} type{float} }
+	property{ name{util_smoothed} type{float} }
+	property{ name{unemployment0} type{float} }
+	property{ name{unemployment} type{float} }
+
+	property{ name{stw_coverage} type{float} }
+	property{ name{stw_replacement} type{float} }
+	property{ name{firm_support_rate} type{float} }
+	property{ name{policy_rate} type{float} }
+	property{ name{policy_rate0} type{float} }
+	property{ name{rate_anchored} type{uint8_t} }
+
+	property{ name{tax_hh} type{float} }
+	property{ name{tax_indirect} type{float} }
+	property{ name{tax_firm} type{float} }
+	property{ name{resource_tax} type{float} }
+	property{ name{pensions0} type{float} }
+	property{ name{gov_rate} type{float} }
+	property{ name{dividend_payout} type{float} }
+	property{ name{profit_smoothed} type{float} }
+	property{ name{fiscal_pending} type{double} }
+
+	property{ name{core_price} type{float} }
+	property{ name{cpi} type{float} }
+	property{ name{inflation_expect} type{float} }
+
+	property{ name{oil_production0} type{float} }
+	property{ name{oil_production} type{float} }
+	property{ name{oil_target} type{float} }
+	property{ name{oil_target_set} type{uint8_t} }
+	property{ name{oil_supply_elasticity} type{float} }
+	property{ name{oil_demand0} type{float} }
+	property{ name{oil_demand} type{float} }
+	property{ name{oil_share_of_energy} type{float} }
+
+	property{ name{bal_firms} type{double} }
+	property{ name{bal_gov} type{double} }
+	property{ name{bal_fin} type{double} }
+	property{ name{bal_row} type{double} }
+	property{ name{gov_debt0} type{double} }
+
+	property{ name{acc_gdp_real} type{double} }
+	property{ name{acc_gdp_nominal} type{double} }
+	property{ name{acc_unemployment} type{double} }
+	property{ name{acc_cpi} type{double} }
+	property{ name{acc_days} type{double} }
+	property{ name{acc_bal_gov_start} type{double} }
+	property{ name{gini} type{float} }
+}
+
+object{
+	name{region}
+	storage_type{contiguous}
+	size{4096}
+	tag{scenario}
+
+	property{ name{population} type{float} }
+	property{ name{old_share} type{float} }
+	property{ name{hemisphere} type{float} }
+	property{ name{beds_per_1000} type{float} }
+
+	property{ name{ep_s} type{array{uint8_t}{float}} }
+	property{ name{ep_e} type{array{uint8_t}{float}} }
+	property{ name{ep_i} type{array{uint8_t}{float}} }
+	property{ name{ep_r} type{array{uint8_t}{float}} }
+	property{ name{ep_h} type{array{uint8_t}{float}} }
+	property{ name{ep_d} type{array{uint8_t}{float}} }
+
+	property{ name{beta} type{float} }
+	property{ name{imported} type{float} }
+	property{ name{ifr_mult} type{float} }
+	property{ name{new_infections} type{float} }
+	property{ name{new_deaths} type{float} }
+	property{ name{deaths_reported} type{float} }
+	property{ name{deaths7} type{float} }
+	property{ name{cum_infections} type{float} }
+}
+
+object{
+	name{pop}
+	storage_type{erasable}
+	size{4096}
+	tag{scenario}
+
+	property{ name{kind} type{uint8_t} }
+	property{ name{size} type{float} }
+	property{ name{employed} type{array{uint8_t}{float}} }
+	property{ name{unemployed} type{float} }
+	property{ name{inactive} type{float} }
+	property{ name{wage_mult} type{float} }
+	property{ name{income} type{float} }
+	property{ name{inc_work} type{float} }
+	property{ name{inc_benefit} type{float} }
+	property{ name{inc_other} type{float} }
+	property{ name{income0} type{float} }
+	property{ name{income_perm} type{float} }
+	property{ name{saving_rate0} type{float} }
+	property{ name{consumption} type{float} }
+	property{ name{balance} type{double} }
+	property{ name{balance_trend} type{double} }
+	property{ name{inc_sigma} type{float} }
+	property{ name{owner_share} type{float} }
+	property{ name{transfer_share} type{float} }
+}
+
+object{
+	name{sector}
+	storage_type{contiguous}
+	size{32}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{role} type{uint8_t} }
+	property{ name{labor_share} type{float} }
+	property{ name{oil_intensity} type{float} }
+	property{ name{import_intensity} type{float} }
+	property{ name{voluntary_distancing} type{float} }
+	property{ name{demand_hh} type{float} }
+	property{ name{demand_gov} type{float} }
+	property{ name{demand_inv} type{float} }
+	property{ name{demand_exp} type{float} }
+	property{ name{skill} type{array{uint8_t}{float}} }
+	property{ name{npi_capacity} type{array{uint8_t}{float}} }
+}
+
+object{
+	name{npi_indicator}
+	storage_type{contiguous}
+	size{32}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{role} type{uint8_t} }
+	property{ name{max_level} type{float} }
+	property{ name{transmission_effect} type{float} }
+}
+
+object{
+	name{commodity}
+	storage_type{contiguous}
+	size{8}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{price} type{float} }
+	property{ name{price0} type{float} }
+	property{ name{inventory} type{double} }
+	property{ name{supply} type{float} }
+	property{ name{world_demand} type{float} }
+	property{ name{demand0} type{float} }
+	property{ name{acc_price} type{double} }
+	property{ name{acc_days} type{double} }
+}
+
+object{
+	name{event}
+	storage_type{erasable}
+	size{16384}
+	tag{scenario}
+
+	property{ name{kind} type{uint8_t} }
+	property{ name{target} type{nation_id} }
+	property{ name{tick} type{int32_t} }
+	property{ name{param} type{uint8_t} }
+	property{ name{value} type{float} }
+	property{ name{value2} type{float} }
+	property{ name{done} type{uint8_t} }
+}
+
+relationship{
+	name{region_ownership}
+	storage_type{contiguous}
+	size{4096}
+	tag{scenario}
+
+	link{
+		object{region}
+		name{region}
+		type{unique}
+	}
+	link{
+		object{nation}
+		name{nation}
+		type{many}
+		index_storage{list}
+	}
+	primary_key{region}
+}
+
+relationship{
+	name{pop_location}
+	storage_type{erasable}
+	size{4096}
+	tag{scenario}
+
+	link{
+		object{pop}
+		name{pop}
+		type{unique}
+	}
+	link{
+		object{region}
+		name{region}
+		type{many}
+		index_storage{list}
+	}
+	primary_key{pop}
+}

@@ -1,0 +1,34 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Headless sim + tests",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GEOSIM_BUILD_CLIENT": "OFF",
+        "GEOSIM_USE_DCON": "ON"
+      }
+    },
+    {
+      "name": "full",
+      "displayName": "Headless sim + game client",
+      "binaryDir": "${sourceDir}/build/full",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "GEOSIM_BUILD_CLIENT": "ON",
+        "GEOSIM_USE_DCON": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev",  "configurePreset": "dev" },
+    { "name": "full", "configurePreset": "full" }
+  ],
+  "testPresets": [
+    { "name": "dev",  "configurePreset": "dev",  "output": { "outputOnFailure": true } },
+    { "name": "full", "configurePreset": "full", "output": { "outputOnFailure": true } }
+  ]
+}
