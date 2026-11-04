@@ -29,6 +29,7 @@ if(GEOSIM_BUILD_CLIENT)
     find_package(SDL3 CONFIG REQUIRED)
     find_package(Vulkan REQUIRED COMPONENTS glslangValidator)
     find_package(Freetype REQUIRED)
+    find_package(ZLIB REQUIRED) # the world map asset's layers are zlib streams (docs/07)
     # HarfBuzz is optional for now: the client does "shaping-lite" (cmap +
     # advances + a GSUB ligature table for emoji flags, docs/08-ui.md#text).
     # When found it is linked and GEOSIM_HAS_HARFBUZZ=1 is defined so a full

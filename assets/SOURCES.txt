@@ -22,6 +22,16 @@ Generated data sources:
 - Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)
   https://github.com/datasets/oil-prices
   Licence: Public domain (EIA) / PDDL
+- NOAA ETOPO1 Global Relief Model, ice surface (Amante & Eakins 2009), 5 arc-minute subsample via the NOAA CoastWatch ERDDAP (etopo180)
+  https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.html
+  Licence: Public domain (US Government work)
+- Koppen-Geiger climate classification 1991-2020, 0.1 degree (Beck et al. 2023, Scientific Data 10:724)
+  https://doi.org/10.6084/m9.figshare.21789074
+  Licence: CC BY 4.0
+- Natural Earth 10m admin-0 countries (territories without geoBoundaries ADM1) and 50m lakes
+  https://www.naturalearthdata.com
+  Licence: Public domain
+  (these three, with geoBoundaries ADM1, make assets/map/world.gsmap: tools/pipeline/build_map.py)
 
 Hand-written (curated) files list their own sources inline:
 - assets/scenario/2020/nations_curated.csv

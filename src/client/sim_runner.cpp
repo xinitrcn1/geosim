@@ -163,6 +163,34 @@ std::future<journal_batch> sim_runner::request_journal(int32_t since_tick) {
     return future;
 }
 
+std::future<sim_map_world> sim_runner::request_map_world() {
+    auto promise = std::make_shared<std::promise<sim_map_world>>();
+    auto future = promise->get_future();
+    post([promise](game_state& s) {
+        sim_map_world out;
+        auto const& w = s.world;
+        for(auto n : w.in_nation) out.nation_iso3.push_back(core::unpack_key(n.get_iso3()));
+        for(auto r : w.in_region) {
+            out.lat.push_back(r.get_lat());
+            out.lon.push_back(r.get_lon());
+            const auto owner = r.get_owner();
+            out.owner.push_back(owner ? static_cast<uint16_t>(owner.id.index()) : uint16_t{0xFFFF});
+        }
+        promise->set_value(std::move(out));
+    });
+    return future;
+}
+
+void sim_runner::read_region_owners(std::vector<uint16_t>& out) const noexcept {
+    if(status() != sim_status::running) return;
+    auto const& w = state_->world;
+    const auto count = std::min<std::size_t>(out.size(), w.region_size());
+    for(std::size_t i = 0; i < count; ++i) {
+        const auto owner = w.region_get_owner(dcon::region_id{static_cast<dcon::region_id::value_base_t>(i)});
+        out[i] = owner ? static_cast<uint16_t>(owner.id.index()) : uint16_t{0xFFFF};
+    }
+}
+
 void sim_runner::run() {
     auto state = std::make_unique<game_state>();
     const auto report = sim::build_scenario(*state, assets_, scenario_);

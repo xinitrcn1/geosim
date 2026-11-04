@@ -1,6 +1,131 @@
 # 07 — Map & filters
 
-## Geometry pipeline (offline)
+The first world map is built: a raster-based political "mill map" over a
+Blue-Marble-like terrain, in an oblique Mercator that follows the camera
+(sections *Projection*, *Data*, *Layers* below; code in `src/client/map_*`,
+`shaders/world_map.frag`, pipeline `tools/pipeline/build_map.py`). The
+vector pipeline described next is the longer-term plan (filters, picking,
+labels); the raster asset already gives fills and borders.
+
+## Projection
+
+A **spherical oblique Mercator (Hotine)** whose central line is the great
+circle through the camera's focus point, running east-west there
+(`src/client/map_view.hpp`):
+
+- The sphere is rotated so the focus `P` sits at (0, 0) of an oblique frame
+  whose pole is the local north `N` (`E` = local east): `x' = X·P`,
+  `y' = X·E`, `z' = X·N`; then ordinary Mercator in that frame,
+  `u = atan2(y', x')`, `v = atanh(z')`, `screen = centre + scale·(u, −v)`.
+- The scale factor is 1 on the central line and `cosh v` away from it, so the
+  distortion is smallest around the screen centre whatever the focus — the
+  poles and Antarctica look as undistorted as the equator when centred.
+  North is up at the centre. Zoomed out it degrades gracefully into a full
+  (oblique) Mercator that repeats east-west.
+- **Panning** moves the focus (the new focus is what lay at `centre − drag`),
+  so the projection is recomputed every frame around what the user looks at.
+  **Zoom** scales it about the pointer (the point under the cursor stays put;
+  a few fixed-point pan iterations, because re-centring is not a pure
+  scaling). Limits: the whole oblique-longitude circle fits the width at the
+  minimum; an ID-raster cell is ~12 px at the maximum.
+- The fragment shader runs the inverse per pixel (screen → `u, v` → unit
+  vector → lon/lat), so there is no mesh to re-project.
+
+Input: drag with the left button (started outside the panels), wheel zooms at
+the pointer (when not over a panel), arrow keys pan, Page Up / Page Down zoom.
+`--map-view LON,LAT,SPAN` sets the initial focus and the span of the window
+width in degrees; the default is the first `--nation`'s area-weighted
+centroid at ~75°.
+
+## Data
+
+`assets/map/world.gsmap` (3.5 MB, tracked) is built by
+`python3 tools/pipeline/build_map.py` (needs Pillow; ~40 s, ~3 GB RAM peak)
+from inputs that `python3 tools/pipeline/fetch.py --map-only` downloads into
+`data/raw/map/` (~190 MB, not committed):
+
+| Input | Use | Size |
+|---|---|---|
+| geoBoundaries gbOpen ADM1 (`data/raw/geoboundaries/`, already used by `build_world.py`) | region polygons, matched to `assets/scenario/world2020/regions.csv` with the same rules (jurisdictions, claims; e.g. Hong Kong out of China's file) | 132 MB |
+| Natural Earth 10m admin-0 | the 21 territories without ADM1 data (Hong Kong, Macao, Puerto Rico, Guam, Faroe, Jersey + Guernsey for CHI, ...), painted over the sovereign's duplicate | 13 MB |
+| Natural Earth 50m lakes | cut out of the regions (drawn as water) | 0.9 MB |
+| NOAA ETOPO1 ice surface, 5′ (ERDDAP `etopo180` subsample) | land relief and bathymetry; land outside every polygon | 49 MB |
+| Köppen-Geiger 1991–2020, 0.1° (Beck et al. 2023) | climate class → land colour | 131 MB zip (one 0.1° GeoTIFF read) |
+
+Layers (equirectangular, cell-centred, zlib streams; format in the script's
+docstring):
+
+- `IDS0` — uint16 region raster, 8192 × 4096 (~4.9 km at the equator):
+  0 = water, 1 + row of `regions.csv` = region, 0xFFFF = land of no region.
+  Polygons are painted with holes (masks, so enclaves survive) and wrapped at
+  the antimeridian (Fiji). Regions smaller than a cell get a dot at their
+  centroid (87). Coastal land outside the simplified polygons (ETOPO above
+  sea level) joins the neighbouring region (5 dilation passes); the rest is
+  0xFFFF (Antarctica, Svalbard, islands missing from the polygons).
+- `ELEV` — uint8 relief code, 4320 × 2160 (5′): sea 0..127 with depth
+  `11000 m·((127−c)/127)²` (shelves get most codes), land 128..255 with height
+  `8800 m·((c−128)/127)²`; row "sub" filter before zlib.
+- `CLIM` — uint8 Köppen class 1..30, resampled to 5′ and spread 10 cells
+  into the sea so coastal texels always have a climate.
+- Tables: per nation ISO3, fill colour and label point (area-weighted
+  circular mean of its regions); per region its `regions.csv` id, nation and
+  centroid. **Nation colours** are a greedy colouring of the land-adjacency
+  graph (Welsh–Powell order, least-used colour first) over 8 pastels, so
+  neighbours never share a colour and colours are stable for the geometry.
+
+At start the client decodes the asset on a worker thread (`map_loader`,
+~1 s; `map_data.cpp` is built with -O2) and **colours the terrain on the
+CPU**: Köppen class → a Blue-Marble-like palette (sand for BWh — the Sahara
+and Arabia —, khaki steppes, olive savanna and Mediterranean scrub, dark green
+rainforest and boreal forest, brown tundra, white EF ice caps — Greenland,
+Antarctica), blended towards bare rock above ~2200 m and to snow above a
+snowline falling from ~5000 m at 28° to ~1600 m at 70° (+600 m in deserts,
++300 m on tundra, so the Himalaya and Karakoram are white and the Tibetan
+plateau mostly brown). The alpha channel keeps the relief code. Mips: box
+filter for the terrain, point sampling for the IDs.
+
+## Layers
+
+Drawn by `map_renderer` as one fullscreen triangle at the start of the scene
+pass, so the frosted panels blur it (docs/08 *Rendering*); until the asset
+is loaded the procedural placeholder material is drawn instead.
+
+1. **Terrain** — water (region ID 0): ocean colour from the relief code, a
+   ramp from a light shelf blue (0–120 m) through slope blues to a deep navy
+   (> 6 km), so continental shelves and trenches are visible. Land: the
+   terrain colour. Flat colour: no lighting, no hillshade, no water effects.
+2. **Political fill** (default filter 🗺): each region takes its
+   controlling nation's colour as a *tinted relief* — the nation's hue at the
+   terrain's lightness (deserts lighter, forests darker), 72 % strength,
+   fading out on snow and ice. The other filter buttons show the terrain and
+   borders only until their scalar maps exist.
+3. **Borders**, from the ID raster in the fragment shader: at the mip level
+   where a cell is about one pixel, the region is the ID with the largest
+   bilinear weight among the four nearest cells, and the distance in pixels to
+   the contour where that weight crosses ½ (`|S − ½| / |∇S|`, the gradient
+   taken through the screen derivatives of the texture coordinate) gives
+   smooth, constant-width lines at any zoom. **Thin** (1 px × UI scale, 55 %
+   black, fainter per mip level when zoomed out) where the region changes;
+   **thick** (2 px, 90 % black) where the *nation key* changes — national
+   borders and, because water and unclaimed land have their own keys,
+   coastlines and lake shores.
+
+**Control drives the fill and the thick borders** (`map_layer`): a region
+table (per raster ID: nation key + RGBA fill) is rewritten into a per-frame
+storage buffer. At scenario load each raster region is bound to the nearest
+scenario region of the same nation (all 3243 in world2020; single-region
+nations of the 2020 / 2008 slices take all their raster regions); nations a
+scenario does not simulate keep their world2020 owner and colour. The owners
+(`region.owner`) are re-read every 250 ms; when a region changes hands it
+takes its new owner's colour and the national border moves with it. Before
+the scenario is loaded the asset's own owners are shown.
+
+Not done yet: hover / picking (the CPU keeps no ID raster), labels, the
+scalar filters and legend below, hatching for no-data, vector borders for
+very close zoom (beyond ~12 px per cell the border staircase of the
+4.9 km raster becomes visible, smoothed by the bilinear contour).
+
+## Geometry pipeline (planned vector map)
 
 1. **Source:** geoBoundaries (CC-BY, admin-1/admin-2) with GADM as a fallback
    where licensing allows. We pick the level per country to target ~3,000–5,000

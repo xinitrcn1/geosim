@@ -32,6 +32,7 @@ struct gpu_image {
     VkImageView view = VK_NULL_HANDLE;
     VkExtent2D extent{};
     VkFormat format = VK_FORMAT_UNDEFINED;
+    uint32_t mip_levels = 1;
 };
 
 struct frame_data {
@@ -71,7 +72,7 @@ public:
     bool create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, bool host_visible, gpu_buffer& out, core::diagnostics& diag);
     void destroy_buffer(gpu_buffer& b);
     bool create_image(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, gpu_image& out,
-                      core::diagnostics& diag);
+                      core::diagnostics& diag, uint32_t mip_levels = 1);
     void destroy_image(gpu_image& img);
     // Records into a temporary command buffer, submits it and waits (uploads).
     VkCommandBuffer begin_immediate();

@@ -350,7 +350,7 @@ void ui_renderer::post_pass(VkCommandBuffer cmd, gpu_image const& dst, VkDescrip
 }
 
 bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list const& overlay, float time, float scale, bool capture,
-                         core::diagnostics& diag) {
+                         core::diagnostics& diag, map_pass const& map) {
     if(!upload_atlas(text, diag)) return false;
     const uint32_t frame = vk_->frame_index();
     const std::size_t total = 1 + scene.quads().size() + overlay.quads().size();
@@ -389,6 +389,9 @@ bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list co
     vkCmdBeginRendering(cmd, &ri);
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
+    if(map.renderer && map.view && map.renderer->ready()) {
+        map.renderer->draw(cmd, *map.view, static_cast<float>(e.width), static_cast<float>(e.height), scale, map.political);
+    }
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, quad_layout_, 0, 1, &ui_scene_set_, 0, nullptr);
     draw_batches(cmd, scene, scene_base, time, scale);
     vkCmdEndRendering(cmd);

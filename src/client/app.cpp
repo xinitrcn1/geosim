@@ -1,6 +1,10 @@
 #include "app.hpp"
 
 #include "audio/music.hpp"
+#include "map_data.hpp"
+#include "map_layer.hpp"
+#include "map_renderer.hpp"
+#include "map_view.hpp"
 #include "sim_runner.hpp"
 #include "style.hpp"
 #include "text.hpp"
@@ -14,7 +18,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
+#include <memory>
 
 namespace geosim::client {
 
@@ -139,6 +145,11 @@ music_mood derive_music_mood(sim_runner& sim, alert_feed const& alerts) {
     return out;
 }
 
+// --map-view "lon,lat,span": focus in degrees, window width in degrees of arc.
+bool parse_map_view(std::string const& s, double& lon, double& lat, double& span) {
+    return std::sscanf(s.c_str(), "%lf,%lf,%lf", &lon, &lat, &span) == 3 && span > 0.0;
+}
+
 int fail(char const* stage, std::string const& message) {
     SDL_Log("geosim: %s failed: %s", stage, message.c_str());
     return 1;
@@ -166,6 +177,7 @@ int run_app(app_options const& opt) {
         vk_context vk;
         text_system text;
         ui_renderer renderer;
+        map_renderer map;
         sim_runner sim;
         window_metrics metrics = query_metrics(window);
 
@@ -176,7 +188,8 @@ int run_app(app_options const& opt) {
         }
         SDL_Log("Vulkan device: %s", vk.device_name.c_str());
         if(!text.init(opt.assets + "/fonts", diag) || !vk.create_swapchain(static_cast<uint32_t>(metrics.pixel_w), static_cast<uint32_t>(metrics.pixel_h), diag)
-           || !renderer.init(vk, diag)) {
+           || !renderer.init(vk, diag) || !map.init(vk, vk.swap_format, diag)) {
+            map.shutdown();
             renderer.shutdown();
             vk.shutdown();
             SDL_DestroyWindow(window);
@@ -184,6 +197,19 @@ int run_app(app_options const& opt) {
             return fail("renderer initialisation", diag.error());
         }
         SDL_Log("swapchain %ux%u, emoji flag ligatures: %zu", vk.swap_extent.width, vk.swap_extent.height, text.flag_ligatures());
+
+        // The world map: decoded on a worker thread, uploaded when ready (docs/07).
+        map_loader map_load;
+        map_load.start(opt.assets + "/map/world.gsmap");
+        bool map_loaded = false;
+        map_layer political;
+        map_view view;
+        view.set_focus(0.0, 20.0 * map_deg);
+        view.scale = static_cast<double>(metrics.pixel_w) / (75.0 * map_deg);
+        bool dragging = false;
+        float drag_x = 0, drag_y = 0;
+        double key_pan_x = 0, key_pan_y = 0, key_zoom = 1.0;
+        double cell_radians = 2.0 * map_pi / 8192.0;
 
         audio::music_system music;
         if(opt.music) music.start(opt.music_seed, opt.music_volume);
@@ -259,6 +285,12 @@ int run_app(app_options const& opt) {
                         sim.set_speed(std::max(0, sim.speed() - 1));
                     } else if(k == SDLK_Q && (ev.key.mod & SDL_KMOD_CTRL)) {
                         running = false;
+                    } else if(k == SDLK_LEFT || k == SDLK_RIGHT || k == SDLK_UP || k == SDLK_DOWN) {
+                        const double step = 0.15 * metrics.pixel_w;
+                        key_pan_x += k == SDLK_LEFT ? step : k == SDLK_RIGHT ? -step : 0.0;
+                        key_pan_y += k == SDLK_UP ? step : k == SDLK_DOWN ? -step : 0.0;
+                    } else if(k == SDLK_PAGEUP || k == SDLK_PAGEDOWN) {
+                        key_zoom *= k == SDLK_PAGEUP ? 1.5 : 1.0 / 1.5;
                     } else if(k == SDLK_M && music.running()) {
                         music.set_muted(!music.muted());
                         SDL_Log("music %s", music.muted() ? "muted" : "on");
@@ -297,6 +329,32 @@ int run_app(app_options const& opt) {
                 }
             }
             alerts.poll(sim);
+            if(!map_loaded && map_load.ready()) {
+                map_loaded = true;
+                std::unique_ptr<map_data> data = map_load.take();
+                if(data && map.upload(*data, diag)) {
+                    political.init(*data);
+                    map.set_table(political.table());
+                    cell_radians = 2.0 * map_pi / static_cast<double>(data->ids[0].width);
+                    double lon = 0, lat = 0, span = 75.0;
+                    if(parse_map_view(opt.map_view, lon, lat, span)) {
+                        view.set_focus(lon * map_deg, lat * map_deg);
+                    } else {
+                        const std::string first = opt.nation.substr(0, opt.nation.find(','));
+                        const int n = data->find_nation(first);
+                        if(n >= 0) view.set_focus(data->nations[static_cast<std::size_t>(n)].lon * map_deg, data->nations[static_cast<std::size_t>(n)].lat * map_deg);
+                    }
+                    view.scale = static_cast<double>(metrics.pixel_w) / (span * map_deg);
+                    view.fit_limits(metrics.pixel_w, cell_radians);
+                    SDL_Log("map: %zu regions, %zu nations, %u x %u cells", data->regions.size(), data->nations.size(), data->ids[0].width, data->ids[0].height);
+                } else {
+                    const std::string err = data ? diag.error() : map_load.error();
+                    SDL_Log("map unavailable: %s", err.c_str());
+                    alerts.push_local("🗺", "World map unavailable", err.substr(0, 60), tone::bad);
+                    if(data) diag = core::diagnostics{}; // not fatal: the placeholder stays
+                }
+            }
+            if(map.ready() && political.update(sim)) map.set_table(political.table());
             if(music.running() && steady::now() - last_mood_check > std::chrono::seconds(2)) {
                 last_mood_check = steady::now();
                 const music_mood mm = derive_music_mood(sim, alerts);
@@ -309,9 +367,33 @@ int run_app(app_options const& opt) {
             const float scale = metrics.display_scale * opt.ui_scale;
             const auto fw = static_cast<float>(vk.swap_extent.width), fh = static_cast<float>(vk.swap_extent.height);
             ui.begin(input, scale, fw, fh);
-            // The map placeholder fills the window behind everything (docs/07).
-            ui.scene.push(material::map_placeholder, {0, 0, fw, fh, 0, 0, 1, 1, 0xFFFFFFFFu, 0, 0, 0});
+            // The map fills the window behind everything (docs/07); a placeholder until it is loaded.
+            if(!map.ready()) ui.scene.push(material::map_placeholder, {0, 0, fw, fh, 0, 0, 1, 1, 0xFFFFFFFFu, 0, 0, 0});
             build_hud(ui, sim, alerts, hud);
+            // Map navigation: drag pans (started outside the panels), the wheel zooms
+            // at the pointer, arrows / Page Up / Page Down from the keyboard.
+            if(map.ready()) {
+                view.fit_limits(fw, cell_radians);
+                if(input.pressed && !ui.wants_mouse() && input.mouse_x >= 0) {
+                    dragging = true;
+                    drag_x = input.mouse_x;
+                    drag_y = input.mouse_y;
+                }
+                if(dragging && (input.mouse_x != drag_x || input.mouse_y != drag_y) && input.mouse_x >= 0) {
+                    view.pan(input.mouse_x - drag_x, input.mouse_y - drag_y);
+                    drag_x = input.mouse_x;
+                    drag_y = input.mouse_y;
+                }
+                if(!input.mouse_down) dragging = false;
+                if(!ui.wants_mouse()) {
+                    const float steps = ui.take_wheel({0, 0, fw, fh});
+                    if(steps != 0) view.zoom_at(std::pow(1.25, static_cast<double>(steps)), input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5);
+                }
+                if(key_pan_x != 0 || key_pan_y != 0) view.pan(key_pan_x, key_pan_y);
+                if(key_zoom != 1.0) view.zoom_at(key_zoom, 0, 0);
+            }
+            key_pan_x = key_pan_y = 0;
+            key_zoom = 1.0;
             ui.end();
             if(hud.requested_speed >= 0) {
                 if(sim.speed() > 0) last_speed = sim.speed();
@@ -322,7 +404,7 @@ int run_app(app_options const& opt) {
             // --- automated runs ------------------------------------------------
             const double elapsed = std::chrono::duration<double>(steady::now() - start).count();
             const bool sim_settled = sim.status() != sim_status::loading && (sim.status() == sim_status::failed || sim.tick() >= opt.until_day);
-            const bool done = opt.frames > 0 && frames >= opt.frames && (sim_settled || elapsed > 120.0);
+            const bool done = opt.frames > 0 && frames >= opt.frames && ((sim_settled && map_loaded) || elapsed > 120.0);
             if(done && !opt.screenshot.empty() && !captured && !capture_next) {
                 capture_next = true; // capture this frame, exit after it
             }
@@ -337,7 +419,8 @@ int run_app(app_options const& opt) {
                 exit_code = fail("frame acquire", diag.error());
                 break;
             }
-            if(!renderer.record(text, ui.scene, ui.overlay, static_cast<float>(elapsed), scale, capture_next, diag)) {
+            const map_pass map_draw{&map, &view, hud.filter == map_filter::political};
+            if(!renderer.record(text, ui.scene, ui.overlay, static_cast<float>(elapsed), scale, capture_next, diag, map_draw)) {
                 exit_code = fail("frame recording", diag.error());
                 vk.end_frame(diag);
                 break;
@@ -368,6 +451,7 @@ int run_app(app_options const& opt) {
         if(exit_code == 0 && vk.validation_errors > 0 && opt.frames > 0) exit_code = 3;
         music.stop();
         sim.stop();
+        map.shutdown();
         renderer.shutdown();
         text.shutdown();
         vk.shutdown();

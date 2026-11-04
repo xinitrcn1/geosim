@@ -4,7 +4,7 @@
 //   geosim [--assets DIR] [--scenario 2020] [--nation USA[,CAN...]] [--speed 0..5]
 //          [--width W --height H] [--ui-scale S] [--validation 1]
 //          [--frames N [--until-day D] [--screenshot OUT.ppm]] [--inject SCRIPT]
-//          [--music 0|1] [--music-volume 0..1] [--music-seed N]
+//          [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]
 //   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime]
 //          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 //            renders procedural music offline, no window or audio device
@@ -29,7 +29,7 @@ int usage() {
     std::fputs("usage: geosim [--assets DIR] [--scenario NAME] [--nation ISO3[,ISO3...]] [--speed 0..5] [--width W] [--height H]\n"
                "              [--ui-scale S] [--validation 1] [--frames N] [--until-day D] [--screenshot OUT.ppm]\n"
                "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
-               "              [--music 0|1] [--music-volume 0..1] [--music-seed N]\n"
+               "              [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]\n"
                "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
                "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx]\n",
                stderr);
@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
         else if(key == "nation") opt.nation = v;
         else if(key == "screenshot") opt.screenshot = v;
         else if(key == "inject") opt.inject = v;
+        else if(key == "map-view") opt.map_view = v;
         else if(key == "speed") ok = parse(v, opt.speed) && opt.speed >= 0 && opt.speed <= 5;
         else if(key == "width") ok = parse(v, opt.width) && opt.width > 0;
         else if(key == "height") ok = parse(v, opt.height) && opt.height > 0;

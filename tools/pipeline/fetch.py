@@ -5,7 +5,7 @@ Standard library only. Re-running skips files that already exist unless
 --force is given. Every source is listed in SOURCES with its licence, which
 build_assets.py copies into assets/SOURCES.txt.
 
-Usage: python3 tools/pipeline/fetch.py [--raw data/raw] [--force]
+Usage: python3 tools/pipeline/fetch.py [--raw data/raw] [--force] [--map-only]
 """
 
 import argparse
@@ -78,6 +78,33 @@ SOURCES = [
     ("Our World in Data energy dataset (Energy Institute Statistical Review of World Energy; EIA)", "https://github.com/owid/energy-data", "CC BY 4.0"),
 ]
 
+# World map (tools/pipeline/build_map.py -> assets/map/world.gsmap).
+MAP_SOURCES = [
+    ("NOAA ETOPO1 Global Relief Model, ice surface (Amante & Eakins 2009), 5 arc-minute subsample via the NOAA CoastWatch ERDDAP (etopo180)",
+     "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.html", "Public domain (US Government work)"),
+    ("Koppen-Geiger climate classification 1991-2020, 0.1 degree (Beck et al. 2023, Scientific Data 10:724)",
+     "https://doi.org/10.6084/m9.figshare.21789074", "CC BY 4.0"),
+    ("Natural Earth 10m admin-0 countries (territories without geoBoundaries ADM1) and 50m lakes",
+     "https://www.naturalearthdata.com", "Public domain"),
+]
+SOURCES += MAP_SOURCES
+
+ETOPO_URL = ("https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.esriAscii?"
+             "altitude%5B(-90):5:(90)%5D%5B(-180):5:(180)%5D")
+KOPPEN_URL = "https://ndownloader.figshare.com/files/61012822"  # koppen_geiger_tif.zip (130 MB)
+NE_URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
+
+
+def fetch_map(raw: pathlib.Path, force: bool) -> None:
+    """Raw inputs of the world map (build_map.py); about 250 MB in data/raw/map/."""
+    print("World map: ETOPO1 relief, Koppen-Geiger climate, Natural Earth territories and lakes")
+    d = raw / "map"
+    d.mkdir(parents=True, exist_ok=True)
+    get(ETOPO_URL, d / "etopo1_5min.asc", force)
+    get(KOPPEN_URL, d / "koppen_geiger_tif.zip", force)
+    get(NE_URL + "ne_10m_admin_0_countries.geojson", d / "ne_10m_admin_0_countries.geojson", force)
+    get(NE_URL + "ne_50m_lakes.geojson", d / "ne_50m_lakes.geojson", force)
+
 
 def pick_adm1(meta):
     """iso3 -> metadata entry. A few countries are listed twice (e.g. India with 1 and
@@ -115,8 +142,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", default="data/raw")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--map-only", action="store_true", help="only the world-map inputs (build_map.py)")
     args = ap.parse_args()
     raw = pathlib.Path(args.raw)
+    if args.map_only:
+        fetch_map(raw, args.force)
+        return 0
     (raw / "wdi").mkdir(parents=True, exist_ok=True)
 
     countries = ";".join(SLICE + ["WLD"])
@@ -191,6 +222,8 @@ def main() -> int:
     get(f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.{areas}"
         f"?startPeriod=2007-12-01&endPeriod=2009-12-31&format=csv",
         raw / "bis_cbpol_2008.csv", args.force)
+
+    fetch_map(raw, args.force)
 
     (raw / "sources.json").write_text(json.dumps(SOURCES, indent=1))
     print("done")

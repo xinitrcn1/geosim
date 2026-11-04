@@ -24,6 +24,9 @@ struct app_options {
     // key:NAME (SDL key name), move:X,Y, click:X,Y, wheel:X,Y,DY, resize:W,H
     // (window coordinates). Example: "10:key:3;20:click:220,24".
     std::string inject;
+    // Initial map view "lon,lat,width": focus in degrees and the span of the
+    // window width in degrees of arc (default: the first --nation, ~75 degrees).
+    std::string map_view;
     // Procedural music (docs/14-audio.md); M toggles it at run time.
     bool music = true;
     float music_volume = 0.6f;

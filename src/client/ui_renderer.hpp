@@ -4,13 +4,15 @@
 // blur of it that frosted panels sample.
 //
 // Per frame:
-//   1. scene pass   -> scene image: map placeholder + opaque panels (+ their text)
+//   1. scene pass   -> scene image: world map (map_renderer; the placeholder material
+//                      until the map asset is loaded) + opaque panels (+ their text)
 //   2. blur chain   -> scene -> 1/2 -> 1/4 (bilinear), horizontal + vertical Gaussian at 1/4
 //   3. final pass   -> swapchain: scene copy, then overlay (frosted panels sample
 //                      the blurred image under their rect, text, tooltips)
 // One set of offscreen images is shared by the frames in flight: queue
 // submission order plus the barriers below serialise their use.
 
+#include "map_renderer.hpp"
 #include "text.hpp"
 #include "ui_draw.hpp"
 #include "vk_context.hpp"
@@ -18,6 +20,13 @@
 #include <string>
 
 namespace geosim::client {
+
+// The world map, drawn first in the scene pass (beneath everything, blurred by the glass).
+struct map_pass {
+    map_renderer* renderer = nullptr;
+    map_view const* view = nullptr;
+    bool political = true;
+};
 
 class ui_renderer {
 public:
@@ -29,7 +38,7 @@ public:
     // Records the whole frame into vk.frame().cmd. `capture` additionally
     // copies the final image into a readback buffer (see save_capture).
     bool record(text_system& text, draw_list const& scene, draw_list const& overlay, float time, float scale, bool capture,
-                core::diagnostics& diag);
+                core::diagnostics& diag, map_pass const& map = {});
     // Writes the last captured frame as binary PPM (call after the frame's fence / device idle).
     bool save_capture(std::string const& path, core::diagnostics& diag);
 

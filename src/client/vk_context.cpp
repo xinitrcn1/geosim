@@ -474,12 +474,12 @@ void vk_context::destroy_buffer(gpu_buffer& b) {
 }
 
 bool vk_context::create_image(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, gpu_image& out,
-                              core::diagnostics& diag) {
+                              core::diagnostics& diag, uint32_t mip_levels) {
     VkImageCreateInfo ici{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     ici.imageType = VK_IMAGE_TYPE_2D;
     ici.format = format;
     ici.extent = {std::max(1u, width), std::max(1u, height), 1};
-    ici.mipLevels = 1;
+    ici.mipLevels = std::max(1u, mip_levels);
     ici.arrayLayers = 1;
     ici.samples = VK_SAMPLE_COUNT_1_BIT;
     ici.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -506,12 +506,13 @@ bool vk_context::create_image(uint32_t width, uint32_t height, VkFormat format, 
     vci.image = out.image;
     vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
     vci.format = format;
-    vci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, ici.mipLevels, 0, 1};
     if(!check(vkCreateImageView(device, &vci, nullptr, &out.view), "vkCreateImageView", diag)) {
         return false;
     }
     out.extent = {ici.extent.width, ici.extent.height};
     out.format = format;
+    out.mip_levels = ici.mipLevels;
     return true;
 }
 

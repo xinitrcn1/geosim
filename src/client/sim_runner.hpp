@@ -62,6 +62,13 @@ struct journal_entry {
     float before = 0, after = 0;
 };
 
+// The regions of the scenario for the map (map_layer), copied at a sync point.
+struct sim_map_world {
+    std::vector<std::string> nation_iso3; // by nation index
+    std::vector<float> lat, lon;          // by region index, degrees
+    std::vector<uint16_t> owner;          // by region index: owning nation index (0xFFFF = none)
+};
+
 struct journal_batch {
     int32_t scanned_to = 0; // the sim's current tick when the job ran
     std::vector<journal_entry> entries;
@@ -100,6 +107,12 @@ public:
 
     // Journal entries with tick >= since_tick, gathered at the next sync point.
     std::future<journal_batch> request_journal(int32_t since_tick);
+
+    // Nations and regions for the map (at the next sync point).
+    std::future<sim_map_world> request_map_world();
+    // Current owner (nation index, 0xFFFF = none) of each region; racy direct
+    // reads like the indicators. `out` keeps its size (from request_map_world).
+    void read_region_owners(std::vector<uint16_t>& out) const noexcept;
 
     // Indicator panels for the agents the player controls (racy direct reads;
     // call from the UI thread once status() == running).
