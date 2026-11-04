@@ -5,15 +5,10 @@
 #include <cctype>
 #include <cmath>
 #include <charconv>
-#include <stdexcept>
 
 namespace geosim::core {
 
 namespace {
-
-[[noreturn]] void fail(std::string_view src, std::size_t line, std::string const& msg) {
-    throw std::runtime_error(std::string(src) + ":" + std::to_string(line) + ": " + msg);
-}
 
 bool is_space(char c) {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
@@ -50,8 +45,11 @@ std::string strip_comments(std::string_view text) {
 struct parser {
     std::string_view text;
     std::string_view src;
+    diagnostics& diag;
     std::size_t pos = 0;
     std::size_t line = 1;
+
+    void fail(std::size_t at, std::string const& msg) { diag.fail(src, at, msg); }
 
     void skip_ws() {
         while(pos < text.size() && is_space(text[pos])) {
@@ -64,17 +62,17 @@ struct parser {
 
     std::vector<def_node> parse_seq(bool nested) {
         std::vector<def_node> out;
-        while(true) {
+        while(!diag.failed()) {
             skip_ws();
             if(pos >= text.size()) {
                 if(nested) {
-                    fail(src, line, "unexpected end of input (missing '}')");
+                    fail(line, "unexpected end of input (missing '}')");
                 }
                 return out;
             }
             if(text[pos] == '}') {
                 if(!nested) {
-                    fail(src, line, "unmatched '}'");
+                    fail(line, "unmatched '}'");
                 }
                 return out;
             }
@@ -107,13 +105,15 @@ struct parser {
                     }
                 }
                 if(depth != 0) {
-                    fail(src, node.line, "unterminated '{' after '" + node.key + "'");
+                    fail(node.line, "unterminated '{' after '" + node.key + "'");
+                    return out;
                 }
                 if(has_child) {
                     node.children = parse_seq(true);
                     skip_ws();
                     if(pos >= text.size() || text[pos] != '}') {
-                        fail(src, line, "expected '}'");
+                        fail(line, "expected '}'");
+                        return out;
                     }
                     ++pos;
                 } else {
@@ -124,6 +124,7 @@ struct parser {
             }
             out.push_back(std::move(node));
         }
+        return out;
     }
 };
 
@@ -138,43 +139,49 @@ def_node const* def_node::find(std::string_view child_key) const noexcept {
     return nullptr;
 }
 
-std::string_view def_node::req(std::string_view child_key, std::string_view source) const {
+std::string_view def_node::req(std::string_view child_key, std::string_view source, diagnostics& diag) const {
     auto c = find(child_key);
     if(!c) {
-        fail(source, line, "'" + key + "' is missing '" + std::string(child_key) + "{...}'");
+        diag.fail(source, line, "'" + key + "' is missing '" + std::string(child_key) + "{...}'");
+        return {};
     }
     return c->text;
 }
 
-double parse_number(std::string_view s, std::string_view source, std::size_t line) {
+std::optional<double> parse_number(std::string_view s, std::string_view source, std::size_t line, diagnostics& diag) {
     double v = 0.0;
     auto r = std::from_chars(s.data(), s.data() + s.size(), v);
     if(s.empty() || r.ec != std::errc{} || r.ptr != s.data() + s.size() || !std::isfinite(v)) {
-        fail(source, line, "not a number: '" + std::string(s) + "'");
+        diag.fail(source, line, "not a number: '" + std::string(s) + "'");
+        return std::nullopt;
     }
     return v;
 }
 
-std::optional<double> def_node::num(std::string_view child_key, std::string_view source) const {
+std::optional<double> def_node::num(std::string_view child_key, std::string_view source, diagnostics& diag) const {
     auto c = find(child_key);
     if(!c) {
         return std::nullopt;
     }
-    return parse_number(c->text, source, c->line);
+    return parse_number(c->text, source, c->line, diag);
 }
 
-double def_node::num_or(std::string_view child_key, double fallback, std::string_view source) const {
-    return num(child_key, source).value_or(fallback);
+double def_node::num_or(std::string_view child_key, double fallback, std::string_view source, diagnostics& diag) const {
+    return num(child_key, source, diag).value_or(fallback);
 }
 
-std::vector<def_node> parse_defs(std::string_view text, std::string_view source_name) {
+std::vector<def_node> parse_defs(std::string_view text, std::string_view source_name, diagnostics& diag) {
     const std::string clean = strip_comments(text);
-    parser p{clean, source_name};
+    parser p{clean, source_name, diag};
     return p.parse_seq(false);
 }
 
-std::vector<def_node> load_defs(std::string const& path) {
-    return parse_defs(read_text_file(path), path);
+std::vector<def_node> load_defs(std::string const& path, diagnostics& diag) {
+    auto text = read_text_file(path, diag);
+    if(!text) {
+        return {};
+    }
+    return parse_defs(*text, path, diag);
 }
 
 } // namespace geosim::core

@@ -30,9 +30,15 @@ static int failures = 0;
 using namespace geosim;
 
 static std::string make_assets() {
-    const fs::path root = fs::temp_directory_path() / "geosim_multiregion_assets";
-    fs::remove_all(root);
-    fs::copy(GEOSIM_ASSETS_DIR, root, fs::copy_options::recursive);
+    // error_code overloads: tests build with -fno-exceptions like the engine.
+    std::error_code ec;
+    const fs::path root = fs::temp_directory_path(ec) / "geosim_multiregion_assets";
+    fs::remove_all(root, ec);
+    fs::copy(GEOSIM_ASSETS_DIR, root, fs::copy_options::recursive, ec);
+    if(ec) {
+        std::fprintf(stderr, "cannot copy assets: %s\n", ec.message().c_str());
+        std::exit(EXIT_FAILURE);
+    }
     const fs::path scen = root / "scenario" / "2020";
     std::ofstream r(scen / "regions.csv");
     r << "region,iso3,name,lat,lon,area_km2,pop_share,gdp_share,urban_share\n"
@@ -124,7 +130,8 @@ int main() {
         CHECK(ha == hb);
     }
 
-    fs::remove_all(assets);
+    std::error_code ec;
+    fs::remove_all(assets, ec);
     if(failures == 0) {
         std::puts("test_multiregion: OK");
         return EXIT_SUCCESS;

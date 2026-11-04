@@ -24,7 +24,7 @@
 #include <cmath>
 #include <filesystem>
 #include <map>
-#include <stdexcept>
+#include <system_error>
 
 namespace geosim::sim {
 
@@ -65,6 +65,7 @@ struct builder {
     std::string assets;
     std::string scenario;
     scenario_report report;
+    core::diagnostics diag; // first error stops the build (no exceptions)
     std::map<std::string, uint8_t> sector_by_key;
     std::map<std::string, uint8_t> npi_by_key;
     std::map<std::string, nation_input> inputs;
@@ -73,6 +74,11 @@ struct builder {
     std::vector<std::string> order;
 
     void warn(std::string msg) { report.warnings.push_back(std::move(msg)); }
+    // std::filesystem without exceptions: an unreadable path counts as missing.
+    static bool exists(std::string const& path) {
+        std::error_code ec;
+        return fs::exists(path, ec) && !ec;
+    }
 
     sector_role parse_sector_role(std::string_view s, std::string const& src) {
         if(s == "generic") return sector_role::generic;
@@ -80,7 +86,8 @@ struct builder {
         if(s == "energy") return sector_role::energy;
         if(s == "contact") return sector_role::contact;
         if(s == "manufacturing") return sector_role::manufacturing;
-        throw std::runtime_error(src + ": unknown sector role '" + std::string(s) + "'");
+        diag.fail(src + ": unknown sector role '" + std::string(s) + "'");
+        return sector_role::generic;
     }
 
     npi_role parse_npi_role(std::string_view s, std::string const& src) {
@@ -91,19 +98,20 @@ struct builder {
         if(s == "income_support") return npi_role::income_support;
         if(s == "stay_home") return npi_role::stay_home;
         if(s == "movement") return npi_role::movement;
-        throw std::runtime_error(src + ": unknown npi role '" + std::string(s) + "'");
+        diag.fail(src + ": unknown npi role '" + std::string(s) + "'");
+        return npi_role::generic;
     }
 
     // ------------------------------------------------------------ defs
     void load_params() {
         const std::string path = assets + "/defs/parameters.txt";
-        if(!fs::exists(path)) {
+        if(!exists(path)) {
             return;
         }
-        for(auto const& node : core::load_defs(path)) {
-            const double v = core::parse_number(node.text, path, node.line);
+        for(auto const& node : core::load_defs(path, diag)) {
+            const double v = core::parse_number(node.text, path, node.line, diag).value_or(0.0);
             if(!set_param(state.params, node.key, v)) {
-                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": unknown parameter '" + node.key + "'");
+                { diag.fail(path + ":" + std::to_string(node.line) + ": unknown parameter '" + node.key + "'"); return; }
             }
         }
     }
@@ -111,16 +119,16 @@ struct builder {
     void load_npis() {
         const std::string path = assets + "/defs/npi.txt";
         auto& w = state.world;
-        for(auto const& node : core::load_defs(path)) {
+        for(auto const& node : core::load_defs(path, diag)) {
             if(node.key != "npi") {
-                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": expected npi{...}");
+                { diag.fail(path + ":" + std::to_string(node.line) + ": expected npi{...}"); return; }
             }
             const auto id = w.create_npi_indicator();
-            const std::string key(node.req("key", path));
+            const std::string key(node.req("key", path, diag));
             w.npi_indicator_set_key(id, core::pack_key(key));
-            w.npi_indicator_set_role(id, static_cast<uint8_t>(parse_npi_role(node.req("role", path), path)));
-            w.npi_indicator_set_max_level(id, static_cast<float>(node.num_or("max_level", 1.0, path)));
-            w.npi_indicator_set_transmission_effect(id, static_cast<float>(node.num_or("transmission_effect", 0.0, path)));
+            w.npi_indicator_set_role(id, static_cast<uint8_t>(parse_npi_role(node.req("role", path, diag), path)));
+            w.npi_indicator_set_max_level(id, static_cast<float>(node.num_or("max_level", 1.0, path, diag)));
+            w.npi_indicator_set_transmission_effect(id, static_cast<float>(node.num_or("transmission_effect", 0.0, path, diag)));
             npi_by_key[key] = static_cast<uint8_t>(id.index());
         }
     }
@@ -130,21 +138,21 @@ struct builder {
     void load_pathogens() {
         const std::string path = assets + "/defs/pathogens.txt";
         auto& w = state.world;
-        if(!fs::exists(path)) {
+        if(!exists(path)) {
             return;
         }
-        auto nodes = core::load_defs(path);
+        auto nodes = core::load_defs(path, diag);
         std::vector<std::pair<dcon::pathogen_id, core::def_node const*>> made;
         for(auto const& node : nodes) {
             if(node.key != "pathogen") {
-                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": expected pathogen{...}");
+                { diag.fail(path + ":" + std::to_string(node.line) + ": expected pathogen{...}"); return; }
             }
-            const std::string key(node.req("key", path));
+            const std::string key(node.req("key", path, diag));
             if(key.size() > 4 || pathogen_by_key.count(key)) {
-                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": pathogen key must be unique and at most 4 characters");
+                { diag.fail(path + ":" + std::to_string(node.line) + ": pathogen key must be unique and at most 4 characters"); return; }
             }
             const auto id = w.create_pathogen();
-            auto num = [&](char const* k, double d) { return static_cast<float>(node.num_or(k, d, path)); };
+            auto num = [&](char const* k, double d) { return static_cast<float>(node.num_or(k, d, path, diag)); };
             w.pathogen_set_key(id, core::pack_key(key));
             w.pathogen_set_r0(id, num("r0", 2.0));
             w.pathogen_set_incubation_days(id, num("incubation_days", 4.0));
@@ -168,9 +176,9 @@ struct builder {
                 for(auto const& q : c->children) {
                     auto it = pathogen_by_key.find(q.key);
                     if(it == pathogen_by_key.end()) {
-                        throw std::runtime_error(path + ":" + std::to_string(q.line) + ": unknown pathogen '" + q.key + "'");
+                        { diag.fail(path + ":" + std::to_string(q.line) + ": unknown pathogen '" + q.key + "'"); return; }
                     }
-                    w.pathogen_set_cross_immunity(id, it->second, static_cast<float>(core::parse_number(q.text, path, q.line)));
+                    w.pathogen_set_cross_immunity(id, it->second, static_cast<float>(core::parse_number(q.text, path, q.line, diag).value_or(0.0)));
                 }
             }
         }
@@ -179,24 +187,24 @@ struct builder {
     void load_sectors() {
         const std::string path = assets + "/defs/sectors.txt";
         auto& w = state.world;
-        auto nodes = core::load_defs(path);
+        auto nodes = core::load_defs(path, diag);
         w.sector_resize_skill(worker_kinds);
         w.sector_resize_npi_capacity(static_cast<uint32_t>(npi_by_key.size()));
         for(auto const& node : nodes) {
             if(node.key != "sector") {
-                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": expected sector{...}");
+                { diag.fail(path + ":" + std::to_string(node.line) + ": expected sector{...}"); return; }
             }
             const auto id = w.create_sector();
             if(id.index() >= max_sectors) {
-                throw std::runtime_error(path + ": too many sectors");
+                { diag.fail(path + ": too many sectors"); return; }
             }
-            const std::string key(node.req("key", path));
+            const std::string key(node.req("key", path, diag));
             w.sector_set_key(id, core::pack_key(key));
-            w.sector_set_role(id, static_cast<uint8_t>(parse_sector_role(node.req("role", path), path)));
-            w.sector_set_labor_share(id, static_cast<float>(node.num_or("labor_share", 0.5, path)));
-            w.sector_set_oil_intensity(id, static_cast<float>(node.num_or("oil_intensity", 1.0, path)));
-            w.sector_set_import_intensity(id, static_cast<float>(node.num_or("import_intensity", 1.0, path)));
-            w.sector_set_voluntary_distancing(id, static_cast<float>(node.num_or("voluntary_distancing", 0.0, path)));
+            w.sector_set_role(id, static_cast<uint8_t>(parse_sector_role(node.req("role", path, diag), path)));
+            w.sector_set_labor_share(id, static_cast<float>(node.num_or("labor_share", 0.5, path, diag)));
+            w.sector_set_oil_intensity(id, static_cast<float>(node.num_or("oil_intensity", 1.0, path, diag)));
+            w.sector_set_import_intensity(id, static_cast<float>(node.num_or("import_intensity", 1.0, path, diag)));
+            w.sector_set_voluntary_distancing(id, static_cast<float>(node.num_or("voluntary_distancing", 0.0, path, diag)));
             if(auto d = node.find("demand")) {
                 w.sector_set_demand_hh(id, static_cast<float>(d->num_or("hh", 0.0, path)));
                 w.sector_set_demand_gov(id, static_cast<float>(d->num_or("gov", 0.0, path)));
@@ -216,9 +224,9 @@ struct builder {
                 for(auto const& c : nc->children) {
                     auto it = npi_by_key.find(c.key);
                     if(it == npi_by_key.end()) {
-                        throw std::runtime_error(path + ":" + std::to_string(c.line) + ": unknown NPI '" + c.key + "'");
+                        { diag.fail(path + ":" + std::to_string(c.line) + ": unknown NPI '" + c.key + "'"); return; }
                     }
-                    w.sector_set_npi_capacity(id, it->second, static_cast<float>(core::parse_number(c.text, path, c.line)));
+                    w.sector_set_npi_capacity(id, it->second, static_cast<float>(core::parse_number(c.text, path, c.line, diag).value_or(0.0)));
                 }
             }
             sector_by_key[key] = static_cast<uint8_t>(id.index());
@@ -228,7 +236,7 @@ struct builder {
     // ------------------------------------------------------------ nation data
     void load_nations() {
         const std::string dir = assets + "/scenario/" + scenario;
-        const auto t = core::csv_table::load(dir + "/nations.csv");
+        const auto t = core::csv_table::load(dir + "/nations.csv", diag);
         auto pct = [&](std::size_t row, std::string_view col, double fallback, nation_input const& in) {
             auto v = t.number(row, col);
             if(!v) {
@@ -245,7 +253,7 @@ struct builder {
             in.gdp = t.number_or(row, "gdp_usd", 0.0);
             in.gdp_ppp = t.number_or(row, "gdp_ppp", in.gdp);
             if(in.population <= 0 || in.labor_force <= 0 || in.gdp <= 0) {
-                throw std::runtime_error(dir + "/nations.csv: " + in.iso + " needs population, labor_force and gdp_usd");
+                { diag.fail(dir + "/nations.csv: " + in.iso + " needs population, labor_force and gdp_usd"); return; }
             }
             in.pop65 = pct(row, "pop_65up_pct", 0.10, in);
             in.unemployment = pct(row, "unemployment_pct", 0.05, in);
@@ -276,12 +284,12 @@ struct builder {
             inputs[in.iso] = in;
         }
 
-        const auto c = core::csv_table::load(dir + "/nations_curated.csv");
+        const auto c = core::csv_table::load(dir + "/nations_curated.csv", diag);
         for(std::size_t row = 0; row < c.rows(); ++row) {
             const std::string iso(c.get(row, "iso3"));
             auto it = inputs.find(iso);
             if(it == inputs.end()) {
-                throw std::runtime_error(dir + "/nations_curated.csv: unknown nation " + iso);
+                { diag.fail(dir + "/nations_curated.csv: unknown nation " + iso); return; }
             }
             auto& in = it->second;
             in.hemisphere = c.number_or(row, "hemisphere", 1.0);
@@ -294,14 +302,14 @@ struct builder {
             in.oil_take = c.number_or(row, "oil_gov_take", 0.0);
         }
 
-        const auto s = core::csv_table::load(dir + "/sectors.csv");
+        const auto s = core::csv_table::load(dir + "/sectors.csv", diag);
         for(std::size_t row = 0; row < s.rows(); ++row) {
             const std::string iso(s.get(row, "iso3"));
             const std::string key(s.get(row, "sector"));
             auto it = inputs.find(iso);
             auto sk = sector_by_key.find(key);
             if(it == inputs.end() || sk == sector_by_key.end()) {
-                throw std::runtime_error(dir + "/sectors.csv: unknown nation or sector " + iso + "/" + key);
+                { diag.fail(dir + "/sectors.csv: unknown nation or sector " + iso + "/" + key); return; }
             }
             it->second.va_share[sk->second] = s.number_or(row, "va_share", 0.0);
             it->second.emp_share[sk->second] = s.number_or(row, "emp_share", 0.0);
@@ -312,17 +320,17 @@ struct builder {
     // Without them every nation is a single region.
     void load_regions() {
         const std::string dir = assets + "/scenario/" + scenario;
-        if(!fs::exists(dir + "/regions.csv")) {
+        if(!exists(dir + "/regions.csv")) {
             return;
         }
-        const auto t = core::csv_table::load(dir + "/regions.csv");
+        const auto t = core::csv_table::load(dir + "/regions.csv", diag);
         std::map<std::string, std::pair<std::string, std::size_t>> index;
         for(std::size_t row = 0; row < t.rows(); ++row) {
             region_input r;
             r.id = std::string(t.get(row, "region"));
             r.iso = std::string(t.get(row, "iso3"));
             if(!inputs.count(r.iso)) {
-                throw std::runtime_error(dir + "/regions.csv: region " + r.id + " of unknown nation " + r.iso);
+                { diag.fail(dir + "/regions.csv: region " + r.id + " of unknown nation " + r.iso); return; }
             }
             r.lat = t.number_or(row, "lat", 0.0);
             r.lon = t.number_or(row, "lon", 0.0);
@@ -338,13 +346,13 @@ struct builder {
             for(auto const& r : list) sum += r.pop_share;
             for(auto& r : list) r.pop_share = sum > 0.0 ? r.pop_share / sum : 1.0 / static_cast<double>(list.size());
         }
-        if(fs::exists(dir + "/region_sectors.csv")) {
-            const auto rs = core::csv_table::load(dir + "/region_sectors.csv");
+        if(exists(dir + "/region_sectors.csv")) {
+            const auto rs = core::csv_table::load(dir + "/region_sectors.csv", diag);
             for(std::size_t row = 0; row < rs.rows(); ++row) {
                 auto it = index.find(std::string(rs.get(row, "region")));
                 auto sk = sector_by_key.find(std::string(rs.get(row, "sector")));
                 if(it == index.end() || sk == sector_by_key.end()) {
-                    throw std::runtime_error(dir + "/region_sectors.csv: unknown region or sector at row " + std::to_string(row + 1));
+                    { diag.fail(dir + "/region_sectors.csv: unknown region or sector at row " + std::to_string(row + 1)); return; }
                 }
                 auto& r = regions_of[it->second.first][it->second.second];
                 r.va_share[sk->second] = rs.number_or(row, "va_share", 0.0);
@@ -356,16 +364,16 @@ struct builder {
 
     void load_adjacency() {
         const std::string path = assets + "/scenario/" + scenario + "/adjacency.csv";
-        if(!fs::exists(path)) {
+        if(!exists(path)) {
             return;
         }
         auto& w = state.world;
-        const auto t = core::csv_table::load(path);
+        const auto t = core::csv_table::load(path, diag);
         for(std::size_t row = 0; row < t.rows(); ++row) {
             auto a = region_by_id.find(std::string(t.get(row, "region_a")));
             auto b = region_by_id.find(std::string(t.get(row, "region_b")));
             if(a == region_by_id.end() || b == region_by_id.end()) {
-                throw std::runtime_error(path + ": unknown region at row " + std::to_string(row + 1));
+                { diag.fail(path + ": unknown region at row " + std::to_string(row + 1)); return; }
             }
             const auto rel = w.force_create_region_adjacency(a->second, b->second);
             w.region_adjacency_set_weight(rel, static_cast<float>(t.number_or(row, "weight", 1.0)));
@@ -375,26 +383,31 @@ struct builder {
     // ------------------------------------------------------------ events
     void load_events() {
         const std::string dir = assets + "/events/" + scenario;
-        if(!fs::exists(dir)) {
+        if(!exists(dir)) {
             warn("no events directory " + dir);
             return;
         }
         std::vector<std::string> files;
-        for(auto const& e : fs::directory_iterator(dir)) {
-            if(e.path().extension() == ".txt") {
-                files.push_back(e.path().string());
+        std::error_code ec;
+        for(fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+            if(it->path().extension() == ".txt") {
+                files.push_back(it->path().string());
             }
+        }
+        if(ec) {
+            diag.fail("cannot list " + dir + ": " + ec.message());
+            return;
         }
         std::sort(files.begin(), files.end()); // deterministic event order
         auto& w = state.world;
         for(auto const& path : files) {
-            for(auto const& node : core::load_defs(path)) {
+            for(auto const& node : core::load_defs(path, diag)) {
                 const std::string where = path + ":" + std::to_string(node.line);
-                auto date = core::parse_date(node.req("date", path));
+                auto date = core::parse_date(node.req("date", path, diag));
                 if(!date) {
-                    throw std::runtime_error(where + ": bad date");
+                    { diag.fail(where + ": bad date"); return; }
                 }
-                const std::string nation_key(node.req("nation", path));
+                const std::string nation_key(node.req("nation", path, diag));
                 // nation{ALL} expands to one event per nation (useful for global seeds).
                 std::vector<dcon::nation_id> targets;
                 if(nation_key == "ALL") {
@@ -402,7 +415,7 @@ struct builder {
                 } else {
                     const auto nation = find_nation(state, nation_key);
                     if(!nation) {
-                        throw std::runtime_error(where + ": unknown nation '" + nation_key + "'");
+                        { diag.fail(where + ": unknown nation '" + nation_key + "'"); return; }
                     }
                     targets.push_back(nation);
                 }
@@ -411,22 +424,23 @@ struct builder {
                 w.event_set_tick(e, core::tick_from_date(*date));
                 w.event_set_target(e, nation);
                 auto num = [&](std::string_view key) {
-                    auto v = node.num(key, path);
+                    auto v = node.num(key, path, diag);
                     if(!v) {
-                        throw std::runtime_error(where + ": " + node.key + " needs " + std::string(key) + "{...}");
+                        diag.fail(where + ": " + node.key + " needs " + std::string(key) + "{...}");
+                        return 0.0f;
                     }
                     return static_cast<float>(*v);
                 };
                 if(node.key == "npi") {
-                    const std::string ind(node.req("indicator", path));
+                    const std::string ind(node.req("indicator", path, diag));
                     auto it = npi_by_key.find(ind);
                     if(it == npi_by_key.end()) {
-                        throw std::runtime_error(where + ": unknown indicator '" + ind + "'");
+                        { diag.fail(where + ": unknown indicator '" + ind + "'"); return; }
                     }
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::npi_level));
                     w.event_set_param(e, it->second);
                     w.event_set_value(e, num("level"));
-                    w.event_set_value2(e, static_cast<float>(node.num_or("targeted", 0.0, path)));
+                    w.event_set_value2(e, static_cast<float>(node.num_or("targeted", 0.0, path, diag)));
                 } else if(node.key == "policy_rate") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::policy_rate));
                     w.event_set_value(e, num("rate_pct"));
@@ -435,13 +449,13 @@ struct builder {
                     w.event_set_value(e, num("pct_gdp"));
                 } else if(node.key == "epidemic_seed") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::epidemic_seed));
-                    const std::string pk(node.req("pathogen", path));
+                    const std::string pk(node.req("pathogen", path, diag));
                     auto pit = pathogen_by_key.find(pk);
                     if(pit == pathogen_by_key.end()) {
-                        throw std::runtime_error(where + ": unknown pathogen '" + pk + "'");
+                        { diag.fail(where + ": unknown pathogen '" + pk + "'"); return; }
                     }
                     w.event_set_param(e, pit->second);
-                    if(auto pm = node.num("infections_per_million", path)) {
+                    if(auto pm = node.num("infections_per_million", path, diag)) {
                         w.event_set_value(e, static_cast<float>(*pm * inputs[core::unpack_key(w.nation_get_iso3(nation))].population / 1e6));
                     } else {
                         w.event_set_value(e, num("infections"));
@@ -460,7 +474,7 @@ struct builder {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::oil_production_delta));
                     w.event_set_value(e, num("mbd"));
                 } else {
-                    throw std::runtime_error(where + ": unknown event kind '" + node.key + "'");
+                    { diag.fail(where + ": unknown event kind '" + node.key + "'"); return; }
                 }
                 ++report.events;
                 }
@@ -953,8 +967,8 @@ struct builder {
         const std::string dir = assets + "/scenario/" + scenario;
         std::map<std::string, std::string> union_of;
         std::map<std::string, std::string> peg_of;
-        if(fs::exists(dir + "/monetary_curated.csv")) {
-            const auto m = core::csv_table::load(dir + "/monetary_curated.csv");
+        if(exists(dir + "/monetary_curated.csv")) {
+            const auto m = core::csv_table::load(dir + "/monetary_curated.csv", diag);
             for(std::size_t row = 0; row < m.rows(); ++row) {
                 const std::string iso(m.get(row, "iso3"));
                 const std::string regime(m.get(row, "regime"));
@@ -966,7 +980,7 @@ struct builder {
                 } else if(regime == "peg") {
                     peg_of[iso] = std::string(m.get(row, "anchor"));
                 } else if(regime != "own") {
-                    throw std::runtime_error(dir + "/monetary_curated.csv: unknown regime '" + regime + "'");
+                    { diag.fail(dir + "/monetary_curated.csv: unknown regime '" + regime + "'"); return; }
                 }
             }
         }
@@ -1004,14 +1018,14 @@ struct builder {
         for(auto const& [iso, anchor] : peg_of) {
             const auto a = find_nation(state, anchor);
             if(!a) {
-                throw std::runtime_error(dir + "/monetary_curated.csv: unknown anchor '" + anchor + "'");
+                { diag.fail(dir + "/monetary_curated.csv: unknown anchor '" + anchor + "'"); return; }
             }
             w.force_create_currency_peg(find_nation(state, iso), a);
         }
 
         // Sovereignty (dependent jurisdictions) and territorial claims (optional tables).
-        if(fs::exists(dir + "/jurisdictions_curated.csv")) {
-            const auto j = core::csv_table::load(dir + "/jurisdictions_curated.csv");
+        if(exists(dir + "/jurisdictions_curated.csv")) {
+            const auto j = core::csv_table::load(dir + "/jurisdictions_curated.csv", diag);
             for(std::size_t row = 0; row < j.rows(); ++row) {
                 const auto sub = find_nation(state, j.get(row, "iso3"));
                 const auto sov = find_nation(state, j.get(row, "sovereign"));
@@ -1022,8 +1036,8 @@ struct builder {
                 w.sovereignty_set_autonomy(rel, static_cast<float>(j.number_or(row, "autonomy", 0.5)));
             }
         }
-        if(fs::exists(dir + "/claims.csv")) {
-            const auto c = core::csv_table::load(dir + "/claims.csv");
+        if(exists(dir + "/claims.csv")) {
+            const auto c = core::csv_table::load(dir + "/claims.csv", diag);
             for(std::size_t row = 0; row < c.rows(); ++row) {
                 const auto claimant = find_nation(state, c.get(row, "claimant"));
                 const auto holder = find_nation(state, c.get(row, "holder"));
@@ -1064,8 +1078,8 @@ struct builder {
             std::string incumbent = "C";
         };
         std::map<std::string, sys> systems;
-        if(fs::exists(dir + "/politics_curated.csv")) {
-            const auto t = core::csv_table::load(dir + "/politics_curated.csv");
+        if(exists(dir + "/politics_curated.csv")) {
+            const auto t = core::csv_table::load(dir + "/politics_curated.csv", diag);
             for(std::size_t row = 0; row < t.rows(); ++row) {
                 sys s;
                 s.system = std::string(t.get(row, "system"));
@@ -1110,8 +1124,8 @@ struct builder {
                 }
             }
         }
-        if(fs::exists(dir + "/relations_curated.csv")) {
-            const auto t = core::csv_table::load(dir + "/relations_curated.csv");
+        if(exists(dir + "/relations_curated.csv")) {
+            const auto t = core::csv_table::load(dir + "/relations_curated.csv", diag);
             for(std::size_t row = 0; row < t.rows(); ++row) {
                 const auto a = find_nation(state, t.get(row, "from"));
                 const auto b = find_nation(state, t.get(row, "to"));
@@ -1127,8 +1141,8 @@ struct builder {
             }
         }
         // Reserve currencies (lower sovereign risk) and the starting spread / institutions.
-        if(fs::exists(dir + "/monetary_curated.csv")) {
-            const auto m = core::csv_table::load(dir + "/monetary_curated.csv");
+        if(exists(dir + "/monetary_curated.csv")) {
+            const auto m = core::csv_table::load(dir + "/monetary_curated.csv", diag);
             if(m.has_column("reserve")) {
                 for(std::size_t row = 0; row < m.rows(); ++row) {
                     if(auto n = find_nation(state, m.get(row, "iso3"))) w.nation_set_reserve_currency(n, static_cast<float>(m.number_or(row, "reserve", 0.0)));
@@ -1197,9 +1211,13 @@ struct builder {
     void run() {
         auto& w = state.world;
         load_params();
+        if(diag.failed()) return;
         load_npis();
+        if(diag.failed()) return;
         load_pathogens();
+        if(diag.failed()) return;
         load_sectors();
+        if(diag.failed()) return;
         // Array sizes are fixed for the scenario.
         const auto S = static_cast<uint32_t>(sector_by_key.size());
         const auto K = static_cast<uint32_t>(npi_by_key.size());
@@ -1248,17 +1266,21 @@ struct builder {
         w.nation_resize_fill(S);
 
         load_nations();
+        if(diag.failed()) return;
         load_regions();
+        if(diag.failed()) return;
         for(auto const& iso : order) {
             create_nation(inputs[iso]);
         }
         load_adjacency();
+        if(diag.failed()) return;
         setup_oil();
         rebuild_derived(state);
         if(!state.derived.gov_sector) {
-            throw std::runtime_error(assets + "/defs/sectors.txt: a sector with role{government} is required");
+            { diag.fail(assets + "/defs/sectors.txt: a sector with role{government} is required"); return; }
         }
         load_events();
+        if(diag.failed()) return;
         distribute_oil();
         for(auto const& iso : order) {
             calibrate(find_nation(state, iso), inputs[iso]);
@@ -1268,6 +1290,7 @@ struct builder {
             finish(find_nation(state, iso), inputs[iso]);
         }
         create_agents();
+        if(diag.failed()) return;
         create_politics();
     }
 };
@@ -1330,6 +1353,7 @@ scenario_report build_scenario(game_state& state, std::string const& assets_dir,
     builder b{state, assets_dir, scenario};
     b.run();
     state.current_tick = 0;
+    b.report.error = b.diag.error();
     return std::move(b.report);
 }
 

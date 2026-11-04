@@ -4,14 +4,14 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
-#include <stdexcept>
 
 namespace geosim::core {
 
-std::string read_text_file(std::string const& path) {
+std::optional<std::string> read_text_file(std::string const& path, diagnostics& diag) {
     std::ifstream f(path, std::ios::binary);
     if(!f) {
-        throw std::runtime_error("cannot open " + path);
+        diag.fail("cannot open " + path);
+        return std::nullopt;
     }
     std::ostringstream ss;
     ss << f.rdbuf();
@@ -20,7 +20,7 @@ std::string read_text_file(std::string const& path) {
 
 namespace {
 
-std::vector<std::string> split_line(std::string_view line, std::string_view src, std::size_t lineno) {
+std::vector<std::string> split_line(std::string_view line, std::string_view src, std::size_t lineno, diagnostics& diag) {
     std::vector<std::string> out;
     std::string field;
     bool quoted = false;
@@ -47,7 +47,7 @@ std::vector<std::string> split_line(std::string_view line, std::string_view src,
         }
     }
     if(quoted) {
-        throw std::runtime_error(std::string(src) + ":" + std::to_string(lineno) + ": unterminated quote");
+        diag.fail(src, lineno, "unterminated quote");
     }
     out.push_back(std::move(field));
     return out;
@@ -55,9 +55,10 @@ std::vector<std::string> split_line(std::string_view line, std::string_view src,
 
 } // namespace
 
-csv_table csv_table::parse(std::string_view text, std::string_view source_name) {
+csv_table csv_table::parse(std::string_view text, std::string_view source_name, diagnostics& diag) {
     csv_table t;
     t.source_ = std::string(source_name);
+    t.sink_ = &diag;
     std::size_t pos = 0;
     std::size_t lineno = 0;
     bool have_header = false;
@@ -78,7 +79,7 @@ csv_table csv_table::parse(std::string_view text, std::string_view source_name) 
             }
             continue;
         }
-        auto fields = split_line(line, t.source_, lineno);
+        auto fields = split_line(line, t.source_, lineno, diag);
         if(!have_header) {
             t.header_ = std::move(fields);
             have_header = true;
@@ -91,13 +92,30 @@ csv_table csv_table::parse(std::string_view text, std::string_view source_name) 
         }
     }
     if(!have_header) {
-        throw std::runtime_error(t.source_ + ": no header row");
+        t.record(t.source_ + ": no header row");
     }
     return t;
 }
 
-csv_table csv_table::load(std::string const& path) {
-    return parse(read_text_file(path), path);
+csv_table csv_table::load(std::string const& path, diagnostics& diag) {
+    auto text = read_text_file(path, diag);
+    if(!text) {
+        csv_table t;
+        t.source_ = path;
+        t.sink_ = &diag;
+        t.error_ = "cannot open " + path;
+        return t;
+    }
+    return parse(*text, path, diag);
+}
+
+void csv_table::record(std::string message) const {
+    if(sink_) {
+        sink_->fail(message);
+    }
+    if(error_.empty()) {
+        error_ = std::move(message);
+    }
 }
 
 std::optional<std::size_t> csv_table::column(std::string_view name) const noexcept {
@@ -119,7 +137,8 @@ std::string_view csv_table::get(std::size_t row, std::size_t col) const noexcept
 std::string_view csv_table::get(std::size_t row, std::string_view col) const {
     auto c = column(col);
     if(!c) {
-        throw std::runtime_error(source_ + ": missing column '" + std::string(col) + "'");
+        record(source_ + ": missing column '" + std::string(col) + "'");
+        return {};
     }
     return get(row, *c);
 }
@@ -136,8 +155,9 @@ std::optional<double> csv_table::number(std::size_t row, std::string_view col) c
     double v = 0.0;
     auto r = std::from_chars(s.data(), s.data() + s.size(), v);
     if(r.ec != std::errc{} || r.ptr != s.data() + s.size() || !std::isfinite(v)) {
-        throw std::runtime_error(source_ + ":" + std::to_string(line_of_row_[row]) + ": column '" + std::string(col)
-                                 + "' is not a number: '" + std::string(s) + "'");
+        record(source_ + ":" + std::to_string(line_of_row_[row]) + ": column '" + std::string(col) + "' is not a number: '"
+               + std::string(s) + "'");
+        return std::nullopt;
     }
     return v;
 }

@@ -5,6 +5,11 @@
 //                            [--daily OUT.csv] [--save FILE.bin] [--flows ISO3] [--set name=value,...]
 //   geosim_headless backtest --assets DIR --scenario 2020 [--daily OUT.csv]
 //   geosim_headless params                     (prints every parameter as assets/defs/parameters.txt)
+//
+// Extra run reports: --flows ISO3 (the "Why?" ledger), --groups ISO3 (identity
+// groups: income, unemployment, grievance), --logistics 1 (chokepoints, freight).
+//
+// Built with -fno-exceptions: every failure is reported through core::diagnostics.
 
 #include "sim/backtest.hpp"
 #include "sim/params.hpp"
@@ -13,6 +18,7 @@
 #include "sim/scenario.hpp"
 #include "sim/simulation.hpp"
 
+#include <charconv>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -27,10 +33,22 @@ int usage() {
     std::fputs("usage:\n"
                "  geosim_headless build    --assets DIR --scenario NAME --out FILE.bin\n"
                "  geosim_headless run      (--assets DIR --scenario NAME | --load FILE.bin) [--days N] [--daily OUT.csv] [--save FILE.bin]\n"
+               "                           [--flows ISO3] [--groups ISO3] [--logistics 1] [--set name=value,...]\n"
                "  geosim_headless backtest --assets DIR --scenario NAME [--daily OUT.csv]\n"
                "  geosim_headless params\n",
                stderr);
     return 2;
+}
+
+template<typename T>
+bool parse_value(std::string const& text, T& out) {
+    auto r = std::from_chars(text.data(), text.data() + text.size(), out);
+    return r.ec == std::errc{} && r.ptr == text.data() + text.size();
+}
+
+int fail(std::string const& message) {
+    std::fprintf(stderr, "error: %s\n", message.c_str());
+    return 1;
 }
 
 void print_summary(geosim::sim::world_summary const& s) {
@@ -41,7 +59,13 @@ void print_summary(geosim::sim::world_summary const& s) {
                     n.unemployment_pct, n.inflation_pct, n.gov_net_lending_pct, n.deaths_per_million, n.gini_start, n.gini_end,
                     n.population_change_pct, n.net_migration_per_1000, n.unrest_mean, n.psi);
     }
-    std::printf("Brent mean: %.1f USD/bbl\n", s.oil_price_mean);
+    std::printf("Brent mean: %.1f USD/bbl; container freight index mean %.2f, end %.2f; idle fleet peak %.1f%%\n",
+                s.oil_price_mean, s.freight_index_mean, s.freight_index_end, s.fleet_idle_peak * 100.0);
+    std::printf("%-5s %9s %9s %9s %9s %8s %8s\n", "iso3", "y10_0%", "y10_end%", "credit%", "impulse%", "npl%", "fx");
+    for(auto const& n : s.nations) {
+        std::printf("%-5s %9.2f %9.2f %9.2f %9.2f %8.2f %8.3f\n", n.iso3.c_str(), n.yield10_start_pct, n.yield10_end_pct,
+                    n.credit_growth_pct, n.credit_impulse_pct, n.npl_pct, n.exchange_rate);
+    }
 }
 
 } // namespace
@@ -74,75 +98,92 @@ int main(int argc, char** argv) {
     const std::string assets = opt.count("assets") ? opt["assets"] : "assets";
     const std::string scenario = opt.count("scenario") ? opt["scenario"] : "2020";
 
-    try {
-        auto state = std::make_unique<geosim::game_state>();
-        if(cmd == "run" && opt.count("load")) {
-            geosim::sim::load_game(*state, opt["load"]);
-        } else if(cmd == "build" || cmd == "run" || cmd == "backtest") {
-            auto report = geosim::sim::build_scenario(*state, assets, scenario);
-            // --set name=value[,name=value...] overrides parameters after the scenario is built.
-            if(opt.count("set")) {
-                std::string list = opt["set"];
-                std::size_t pos = 0;
-                while(pos <= list.size()) {
-                    const auto end = std::min(list.find(',', pos), list.size());
-                    const auto item = list.substr(pos, end - pos);
-                    const auto eq = item.find('=');
-                    if(eq == std::string::npos || !geosim::sim::set_param(state->params, item.substr(0, eq), std::stod(item.substr(eq + 1)))) {
-                        std::fprintf(stderr, "bad --set item '%s'\n", item.c_str());
-                        return 2;
-                    }
-                    pos = end + 1;
+    geosim::core::diagnostics diag;
+    auto state = std::make_unique<geosim::game_state>();
+    if(cmd == "run" && opt.count("load")) {
+        if(!geosim::sim::load_game(*state, opt["load"], diag)) {
+            return fail(diag.error());
+        }
+    } else if(cmd == "build" || cmd == "run" || cmd == "backtest") {
+        auto report = geosim::sim::build_scenario(*state, assets, scenario);
+        if(!report.error.empty()) {
+            return fail(report.error);
+        }
+        // --set name=value[,name=value...] overrides parameters after the scenario is built.
+        if(opt.count("set")) {
+            std::string list = opt["set"];
+            std::size_t pos = 0;
+            while(pos <= list.size()) {
+                const auto end = std::min(list.find(',', pos), list.size());
+                const auto item = list.substr(pos, end - pos);
+                const auto eq = item.find('=');
+                double value = 0.0;
+                if(eq == std::string::npos || !parse_value(item.substr(eq + 1), value)
+                   || !geosim::sim::set_param(state->params, item.substr(0, eq), value)) {
+                    std::fprintf(stderr, "bad --set item '%s'\n", item.c_str());
+                    return 2;
                 }
+                pos = end + 1;
             }
-            std::fprintf(stderr, "scenario %s: %zu events, %zu warnings\n", scenario.c_str(), report.events, report.warnings.size());
-            for(auto const& w : report.warnings) {
-                std::fprintf(stderr, "  warning: %s\n", w.c_str());
-            }
-        } else {
+        }
+        std::fprintf(stderr, "scenario %s: %zu events, %zu warnings\n", scenario.c_str(), report.events, report.warnings.size());
+        for(auto const& w : report.warnings) {
+            std::fprintf(stderr, "  warning: %s\n", w.c_str());
+        }
+    } else {
+        return usage();
+    }
+
+    if(cmd == "build") {
+        if(!opt.count("out")) {
             return usage();
         }
-
-        if(cmd == "build") {
-            if(!opt.count("out")) {
-                return usage();
-            }
-            geosim::sim::save_game(*state, opt["out"]);
-            std::fprintf(stderr, "wrote %s\n", opt["out"].c_str());
-            return 0;
+        if(!geosim::sim::save_game(*state, opt["out"], diag)) {
+            return fail(diag.error());
         }
-
-        const int days = opt.count("days") ? std::stoi(opt["days"]) : 366;
-        std::ofstream daily;
-        if(opt.count("daily")) {
-            daily.open(opt["daily"]);
-            geosim::sim::write_daily_header(daily);
-        }
-        geosim::sim::begin_measurement(*state);
-        for(int d = 0; d < days; ++d) {
-            geosim::sim::advance_day(*state);
-            if(daily) {
-                geosim::sim::write_daily_rows(*state, daily);
-            }
-        }
-        const auto summary = geosim::sim::summarize(*state);
-        if(opt.count("flows")) {
-            const auto n = geosim::sim::find_nation(*state, opt["flows"]);
-            if(n) {
-                geosim::sim::write_flows(*state, n, std::cout);
-            }
-        }
-        if(cmd == "backtest") {
-            const auto result = geosim::sim::run_backtest(summary, assets, scenario, std::cout);
-            return result.ok() ? 0 : 1;
-        }
-        print_summary(summary);
-        if(opt.count("save")) {
-            geosim::sim::save_game(*state, opt["save"]);
-        }
+        std::fprintf(stderr, "wrote %s\n", opt["out"].c_str());
         return 0;
-    } catch(std::exception const& e) {
-        std::fprintf(stderr, "error: %s\n", e.what());
-        return 1;
     }
+
+    int days = 366;
+    if(opt.count("days") && !parse_value(opt["days"], days)) {
+        return usage();
+    }
+    std::ofstream daily;
+    if(opt.count("daily")) {
+        daily.open(opt["daily"]);
+        geosim::sim::write_daily_header(daily);
+    }
+    geosim::sim::begin_measurement(*state);
+    for(int d = 0; d < days; ++d) {
+        geosim::sim::advance_day(*state);
+        if(daily) {
+            geosim::sim::write_daily_rows(*state, daily);
+        }
+    }
+    const auto summary = geosim::sim::summarize(*state);
+    if(opt.count("flows")) {
+        const auto n = geosim::sim::find_nation(*state, opt["flows"]);
+        if(n) {
+            geosim::sim::write_flows(*state, n, std::cout);
+        }
+    }
+    if(opt.count("groups")) {
+        const auto n = geosim::sim::find_nation(*state, opt["groups"]);
+        if(n) {
+            geosim::sim::write_groups(*state, n, std::cout);
+        }
+    }
+    if(opt.count("logistics")) {
+        geosim::sim::write_logistics(*state, std::cout);
+    }
+    if(cmd == "backtest") {
+        const auto result = geosim::sim::run_backtest(summary, assets, scenario, std::cout);
+        return result.ok() ? 0 : 1;
+    }
+    print_summary(summary);
+    if(opt.count("save") && !geosim::sim::save_game(*state, opt["save"], diag)) {
+        return fail(diag.error());
+    }
+    return 0;
 }

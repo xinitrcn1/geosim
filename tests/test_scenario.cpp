@@ -31,7 +31,11 @@ namespace {
 
 std::unique_ptr<geosim::game_state> make(bool anchors) {
     auto s = std::make_unique<geosim::game_state>();
-    (void)geosim::sim::build_scenario(*s, GEOSIM_ASSETS_DIR, "2020");
+    const auto report = geosim::sim::build_scenario(*s, GEOSIM_ASSETS_DIR, "2020");
+    if(!report.ok()) {
+        std::fprintf(stderr, "scenario build failed: %s\n", report.error.c_str());
+        std::exit(EXIT_FAILURE);
+    }
     if(!anchors) {
         // Baseline: no events at all (no virus, no policy, no oil shock).
         for(auto e : s->world.in_event) {
@@ -92,11 +96,14 @@ int main() {
     CHECK(std::abs(geosim::sim::world_money(*a) - money0) <= 1e-9 * std::abs(money0) + 1.0);
 
     // 5. Save/load round trip mid-run.
-    const auto path = (std::filesystem::temp_directory_path() / "geosim_test_roundtrip.bin").string();
-    geosim::sim::save_game(*a, path);
+    std::error_code ec;
+    const auto path = (std::filesystem::temp_directory_path(ec) / "geosim_test_roundtrip.bin").string();
+    geosim::core::diagnostics diag;
+    CHECK(geosim::sim::save_game(*a, path, diag));
     auto c = std::make_unique<geosim::game_state>();
-    geosim::sim::load_game(*c, path);
-    std::filesystem::remove(path);
+    CHECK(geosim::sim::load_game(*c, path, diag));
+    CHECK(!diag.failed());
+    std::filesystem::remove(path, ec);
     CHECK(c->current_tick == a->current_tick);
     for(int d = 0; d < 60; ++d) {
         geosim::sim::advance_day(*a);

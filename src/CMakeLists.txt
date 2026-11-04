@@ -6,7 +6,7 @@ add_library(geosim_core STATIC
     core/scheduler.cpp)
 target_include_directories(geosim_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(geosim_core PUBLIC cxx_std_20)
-geosim_set_warnings(geosim_core)
+geosim_target_defaults(geosim_core)
 
 # --- sim: simulation on the DCON container (headless, no rendering deps) -----
 if(GEOSIM_USE_DCON)
@@ -31,11 +31,11 @@ if(GEOSIM_USE_DCON)
         sim/systems/society.cpp)
     target_link_libraries(geosim_sim PUBLIC geosim_core)
     geosim_dcon_generate(geosim_sim ${PROJECT_SOURCE_DIR}/schema/geosim_dcon.txt)
-    geosim_set_warnings(geosim_sim)
+    geosim_target_defaults(geosim_sim)
 
     add_executable(geosim_headless headless/main.cpp)
     target_link_libraries(geosim_headless PRIVATE geosim_sim)
-    geosim_set_warnings(geosim_headless)
+    geosim_target_defaults(geosim_headless)
 endif()
 
 # --- client: SDL3 + Vulkan + FreeType + HarfBuzz ----------------------------
@@ -47,5 +47,5 @@ if(GEOSIM_BUILD_CLIENT)
         Vulkan::Vulkan
         Freetype::Freetype
         harfbuzz::harfbuzz)
-    geosim_set_warnings(geosim)
+    geosim_target_defaults(geosim)
 endif()

@@ -13,9 +13,17 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(FATAL_ERROR "geosim supports GCC and Clang only (got ${CMAKE_CXX_COMPILER_ID})")
 endif()
 
-# Shared warning flags, applied per target via geosim_set_warnings().
-function(geosim_set_warnings target)
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
+# Shared per-target settings, applied to every geosim target via
+# geosim_target_defaults():
+#  - warnings;
+#  - -fno-exceptions -fno-rtti: the engine reports errors through
+#    core::diagnostics and never uses dynamic_cast/typeid
+#    (docs/09-engine-architecture.md#error-handling). DCON aborts on a full
+#    container unless DCON_USE_EXCEPTIONS is defined (we never define it), and
+#    oneTBB's headers disable their exception paths when __cpp_exceptions is off.
+set(GEOSIM_NO_EXCEPTIONS_RTTI -fno-exceptions -fno-rtti)
+function(geosim_target_defaults target)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion ${GEOSIM_NO_EXCEPTIONS_RTTI})
 endfunction()
 
 if(GEOSIM_BUILD_CLIENT)

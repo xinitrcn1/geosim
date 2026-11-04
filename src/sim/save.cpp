@@ -5,7 +5,7 @@
 
 #include <cstring>
 #include <fstream>
-#include <stdexcept>
+#include <optional>
 #include <vector>
 
 namespace geosim::sim {
@@ -13,7 +13,7 @@ namespace geosim::sim {
 namespace {
 
 constexpr char magic[8] = {'G', 'E', 'O', 'S', 'I', 'M', 'S', 'V'};
-constexpr uint32_t version = 1;
+constexpr uint32_t version = 2; // 2: logistics, commodities, credit, bonds, identity groups
 
 template<typename T>
 void put(std::vector<std::byte>& out, T const& v) {
@@ -22,9 +22,9 @@ void put(std::vector<std::byte>& out, T const& v) {
 }
 
 template<typename T>
-T get(std::byte const*& in, std::byte const* end) {
+std::optional<T> get(std::byte const*& in, std::byte const* end) {
     if(static_cast<std::size_t>(end - in) < sizeof(T)) {
-        throw std::runtime_error("save file truncated");
+        return std::nullopt;
     }
     T v;
     std::memcpy(&v, in, sizeof(T));
@@ -34,7 +34,7 @@ T get(std::byte const*& in, std::byte const* end) {
 
 } // namespace
 
-void save_game(game_state const& state, std::string const& path) {
+bool save_game(game_state const& state, std::string const& path, core::diagnostics& diag) {
     std::vector<std::byte> out;
     out.insert(out.end(), reinterpret_cast<std::byte const*>(magic), reinterpret_cast<std::byte const*>(magic) + 8);
     put(out, version);
@@ -61,43 +61,62 @@ void save_game(game_state const& state, std::string const& path) {
 
     std::ofstream f(path, std::ios::binary);
     if(!f) {
-        throw std::runtime_error("cannot write " + path);
+        diag.fail("cannot write " + path);
+        return false;
     }
     f.write(reinterpret_cast<char const*>(out.data()), static_cast<std::streamsize>(out.size()));
+    if(!f) {
+        diag.fail("write failed: " + path);
+        return false;
+    }
+    return true;
 }
 
-void load_game(game_state& state, std::string const& path) {
-    const std::string bytes = core::read_text_file(path);
+bool load_game(game_state& state, std::string const& path, core::diagnostics& diag) {
+    const auto text = core::read_text_file(path, diag);
+    if(!text) {
+        return false;
+    }
+    std::string const& bytes = *text;
     auto const* in = reinterpret_cast<std::byte const*>(bytes.data());
     auto const* end = in + bytes.size();
+    auto truncated = [&] {
+        diag.fail(path + ": save file truncated");
+        return false;
+    };
     if(bytes.size() < 8 || std::memcmp(bytes.data(), magic, 8) != 0) {
-        throw std::runtime_error(path + ": not a geosim save");
+        diag.fail(path + ": not a geosim save");
+        return false;
     }
     in += 8;
-    if(get<uint32_t>(in, end) != version) {
-        throw std::runtime_error(path + ": unsupported save version");
+    const auto ver = get<uint32_t>(in, end);
+    if(!ver) return truncated();
+    if(*ver != version) {
+        diag.fail(path + ": unsupported save version " + std::to_string(*ver) + " (expected " + std::to_string(version) + ")");
+        return false;
     }
-    state.current_tick = get<int32_t>(in, end);
-    state.rng_seed = get<uint64_t>(in, end);
+    const auto tick = get<int32_t>(in, end);
+    const auto seed = get<uint64_t>(in, end);
     const auto count = get<uint32_t>(in, end);
-    for(uint32_t i = 0; i < count; ++i) {
+    if(!tick || !seed || !count) return truncated();
+    state.current_tick = *tick;
+    state.rng_seed = *seed;
+    for(uint32_t i = 0; i < *count; ++i) {
         const auto len = get<uint32_t>(in, end);
-        if(static_cast<std::size_t>(end - in) < len) {
-            throw std::runtime_error(path + ": save file truncated");
-        }
-        std::string name(reinterpret_cast<char const*>(in), len);
-        in += len;
-        const double value = get<double>(in, end);
-        set_param(state.params, name, value); // unknown (removed) parameters are ignored
+        if(!len || static_cast<std::size_t>(end - in) < *len) return truncated();
+        std::string name(reinterpret_cast<char const*>(in), *len);
+        in += *len;
+        const auto value = get<double>(in, end);
+        if(!value) return truncated();
+        set_param(state.params, name, *value); // unknown (removed) parameters are ignored
     }
     const auto size = get<uint64_t>(in, end);
-    if(static_cast<uint64_t>(end - in) < size) {
-        throw std::runtime_error(path + ": save file truncated");
-    }
+    if(!size || static_cast<uint64_t>(end - in) < *size) return truncated();
     dcon::load_record loaded;
     std::byte const* cursor = in;
-    state.world.deserialize(cursor, in + size, loaded);
+    state.world.deserialize(cursor, in + *size, loaded);
     rebuild_derived(state);
+    return true;
 }
 
 } // namespace geosim::sim

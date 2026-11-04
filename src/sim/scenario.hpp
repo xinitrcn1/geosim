@@ -13,10 +13,12 @@ namespace geosim::sim {
 struct scenario_report {
     std::vector<std::string> warnings; // missing data replaced by defaults, clamps, ...
     std::size_t events = 0;
+    std::string error;                 // first error ("file:line: message"); empty = built
+    [[nodiscard]] bool ok() const noexcept { return error.empty(); }
 };
 
-// Throws std::runtime_error (with file:line) on malformed assets.
-// `state` must be freshly constructed.
+// Malformed assets stop the build: `error` holds the first problem (file:line)
+// and `state` is left partly built (discard it). `state` must be freshly constructed.
 scenario_report build_scenario(game_state& state, std::string const& assets_dir, std::string const& scenario);
 
 // Recomputes game_state::derived from world (call after build or load).

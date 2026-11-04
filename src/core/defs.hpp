@@ -7,6 +7,9 @@
 //   # comment until end of line
 //
 // A value is parsed as children if it contains '{', otherwise it is text.
+// Errors go to a `diagnostics` sink (no exceptions; see core/diagnostics.hpp).
+
+#include "core/diagnostics.hpp"
 
 #include <optional>
 #include <string>
@@ -22,16 +25,18 @@ struct def_node {
     std::size_t line = 0;            // 1-based line of the key, for error messages
 
     [[nodiscard]] def_node const* find(std::string_view child_key) const noexcept;
-    // Required child text; throws with source:line if missing.
-    [[nodiscard]] std::string_view req(std::string_view child_key, std::string_view source) const;
-    [[nodiscard]] std::optional<double> num(std::string_view child_key, std::string_view source) const;
-    [[nodiscard]] double num_or(std::string_view child_key, double fallback, std::string_view source) const;
+    // Required child text; records "source:line: ..." and returns "" if missing.
+    [[nodiscard]] std::string_view req(std::string_view child_key, std::string_view source, diagnostics& diag) const;
+    // nullopt if missing; records an error (and returns nullopt) if not a number.
+    [[nodiscard]] std::optional<double> num(std::string_view child_key, std::string_view source, diagnostics& diag) const;
+    [[nodiscard]] double num_or(std::string_view child_key, double fallback, std::string_view source, diagnostics& diag) const;
 };
 
-// Throws std::runtime_error("source:line: message") on syntax errors.
-[[nodiscard]] std::vector<def_node> parse_defs(std::string_view text, std::string_view source_name = "<memory>");
-[[nodiscard]] std::vector<def_node> load_defs(std::string const& path);
+// Records "source:line: message" on syntax errors and returns what was parsed before it.
+[[nodiscard]] std::vector<def_node> parse_defs(std::string_view text, std::string_view source_name, diagnostics& diag);
+[[nodiscard]] std::vector<def_node> load_defs(std::string const& path, diagnostics& diag);
 
-[[nodiscard]] double parse_number(std::string_view s, std::string_view source, std::size_t line);
+// Records an error and returns nullopt if `s` is not a finite number.
+[[nodiscard]] std::optional<double> parse_number(std::string_view s, std::string_view source, std::size_t line, diagnostics& diag);
 
 } // namespace geosim::core

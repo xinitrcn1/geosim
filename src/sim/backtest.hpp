@@ -22,7 +22,9 @@ struct metric_result {
 
 struct backtest_result {
     std::vector<metric_result> metrics;
+    std::string error; // unreadable tolerance or target files
     [[nodiscard]] bool ok() const noexcept {
+        if(!error.empty()) return false;
         for(auto const& m : metrics) {
             if(!m.ok()) return false;
         }
@@ -30,7 +32,9 @@ struct backtest_result {
     }
 };
 
-// Writes a per-nation comparison table to `out`.
+// Writes a per-nation comparison table to `out`. Targets come from
+// <year>_targets.csv (generated) and, when present, <year>_targets_curated.csv
+// (hand-written columns, merged by iso3).
 backtest_result run_backtest(world_summary const& summary, std::string const& assets_dir, std::string const& year, std::ostream& out);
 
 } // namespace geosim::sim

@@ -66,6 +66,8 @@ target_link_libraries(dcon_common PUBLIC TBB::tbb)
 # flag set (docs/02-simulation-core.md#determinism).
 target_compile_options(dcon_common PUBLIC
     "SHELL:-include cmath" -mavx2 -mfma -ffp-contract=on)
+# Same exception / RTTI model as the engine (common_types.cpp is linked into it).
+target_compile_options(dcon_common PRIVATE ${GEOSIM_NO_EXCEPTIONS_RTTI})
 
 function(geosim_dcon_generate target schema)
     get_filename_component(schema_abs "${schema}" ABSOLUTE)

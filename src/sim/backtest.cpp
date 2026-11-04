@@ -31,6 +31,8 @@ double model_value(nation_summary const& s, std::string const& metric, std::stri
     if(metric == "inflation_pct") return s.inflation_pct;
     if(metric == "gov_net_lending_pct") return s.gov_net_lending_pct;
     if(metric == "deaths_per_million") return s.deaths_per_million;
+    if(metric == "yield10_end_pct") return s.yield10_end_pct;
+    if(metric == "credit_growth_pct") return s.credit_growth_pct;
     return NAN;
 }
 
@@ -49,27 +51,53 @@ backtest_result run_backtest(world_summary const& summary, std::string const& as
     const std::string tol_path = assets_dir + "/backtest/" + year + "_tolerances.txt";
     std::map<std::string, tolerance> tols;
     std::vector<std::string> metric_order;
-    tolerance oil_tol;
-    double oil_real = 0.0;
-    for(auto const& node : core::load_defs(tol_path)) {
+    // World-level metrics (one value each): name -> (tolerance, real value).
+    struct world_metric {
+        std::string name;
+        tolerance tol;
+        double real = 0.0;
+    };
+    std::vector<world_metric> world_metrics;
+    backtest_result result;
+    core::diagnostics diag;
+    for(auto const& node : core::load_defs(tol_path, diag)) {
         tolerance t;
-        t.abs = node.num_or("abs", 0.0, tol_path);
-        t.rel = node.num_or("rel", 0.0, tol_path);
-        t.log_factor = node.num_or("factor", 0.0, tol_path);
-        t.min_pass = node.num_or("min_pass", 0.75, tol_path);
+        t.abs = node.num_or("abs", 0.0, tol_path, diag);
+        t.rel = node.num_or("rel", 0.0, tol_path, diag);
+        t.log_factor = node.num_or("factor", 0.0, tol_path, diag);
+        t.min_pass = node.num_or("min_pass", 0.75, tol_path, diag);
         if(auto pk = node.find("pathogen")) t.pathogen = pk->text;
-        const std::string metric(node.req("metric", tol_path));
-        if(metric == "oil_price_mean") {
-            oil_tol = t;
-            oil_real = node.num_or("real", 0.0, tol_path);
+        const std::string metric(node.req("metric", tol_path, diag));
+        if(auto real = node.num("real", tol_path, diag)) {
+            world_metrics.push_back({metric, t, *real});
         } else {
             tols[metric] = t;
             metric_order.push_back(metric);
         }
     }
 
-    const auto targets = core::csv_table::load(assets_dir + "/backtest/" + year + "_targets.csv");
-    backtest_result result;
+    const auto targets = core::csv_table::load(assets_dir + "/backtest/" + year + "_targets.csv", diag);
+    // Optional hand-written target columns, merged by iso3.
+    const std::string curated_path = assets_dir + "/backtest/" + year + "_targets_curated.csv";
+    std::map<std::string, std::map<std::string, double>> curated;
+    {
+        core::diagnostics optional;
+        const auto c = core::csv_table::load(curated_path, optional);
+        if(!optional.failed()) {
+            for(std::size_t row = 0; row < c.rows(); ++row) {
+                for(auto const& col : c.header()) {
+                    if(col == "iso3") continue;
+                    if(auto v = c.number(row, col)) curated[std::string(c.get(row, "iso3"))][col] = *v;
+                }
+            }
+            if(c.failed()) diag.fail(c.error());
+        }
+    }
+    if(diag.failed()) {
+        result.error = diag.error();
+        out << "back-test: " << result.error << "\n";
+        return result;
+    }
     std::map<std::string, metric_result> by_metric;
     for(auto const& m : metric_order) {
         by_metric[m] = metric_result{m, 0, 0, tols[m].min_pass};
@@ -95,6 +123,10 @@ backtest_result run_backtest(world_summary const& summary, std::string const& as
         out << line;
         for(auto const& m : metric_order) {
             auto real = targets.number(row, m);
+            if(!real) {
+                auto it = curated.find(iso);
+                if(it != curated.end() && it->second.count(m)) real = it->second.at(m);
+            }
             const double model = model_value(*s, m, tols[m].pathogen);
             if(!real) {
                 std::snprintf(line, sizeof(line), " | %8.1f vs %8s   ", model, "n/a");
@@ -111,11 +143,17 @@ backtest_result run_backtest(world_summary const& summary, std::string const& as
     for(auto const& m : metric_order) {
         result.metrics.push_back(by_metric[m]);
     }
-    if(oil_real > 0.0) {
-        metric_result oil{"oil_price_mean", within(summary.oil_price_mean, oil_real, oil_tol) ? 1 : 0, 1, 1.0};
-        std::snprintf(line, sizeof(line), "\nBrent mean: model %.1f vs real %.1f USD/bbl\n", summary.oil_price_mean, oil_real);
+    out << "\n";
+    for(auto const& wm : world_metrics) {
+        double model = NAN;
+        if(wm.name == "oil_price_mean") model = summary.oil_price_mean;
+        if(wm.name == "freight_index_mean") model = summary.freight_index_mean;
+        if(wm.name == "freight_index_end") model = summary.freight_index_end;
+        if(wm.name == "fleet_idle_peak") model = summary.fleet_idle_peak;
+        const bool pass = std::isfinite(model) && within(model, wm.real, wm.tol);
+        result.metrics.push_back(metric_result{wm.name, pass ? 1 : 0, 1, 1.0});
+        std::snprintf(line, sizeof(line), "%-22s model %8.2f vs real %8.2f %c\n", wm.name.c_str(), model, wm.real, pass ? ' ' : '*');
         out << line;
-        result.metrics.push_back(oil);
     }
     out << "\n";
     for(auto const& m : result.metrics) {
