@@ -552,10 +552,10 @@ private:
         war_ = s_.m == mood::wartime;
         // weights per style (techno, synthwave, punk, chip, breaks, eurodance, lo-fi, hardtrance)
         static constexpr float w[mood_count][st_count] = {
-            {1.0f, 1.2f, 0.0f, 0.7f, 0.0f, 0.0f, 2.0f, 0.0f}, // calm: mundane, relaxed
-            {1.2f, 1.4f, 0.6f, 0.8f, 1.0f, 0.0f, 0.0f, 0.0f}, // tense
-            {1.0f, 1.0f, 1.2f, 0.5f, 1.3f, 0.0f, 0.0f, 0.0f}, // crisis
-            {1.0f, 0.6f, 0.4f, 1.2f, 0.0f, 1.5f, 0.0f, 0.0f}, // triumph: the upbeat one
+            {1.0f, 1.2f, 0.0f, 0.15f, 0.0f, 0.0f, 2.0f, 0.0f}, // calm: mundane, relaxed (chip rare)
+            {1.2f, 1.4f, 0.6f, 0.15f, 1.0f, 0.0f, 0.0f, 0.0f}, // tense
+            {1.0f, 1.0f, 1.2f, 0.1f, 1.3f, 0.0f, 0.0f, 0.0f},  // crisis
+            {1.0f, 0.6f, 0.4f, 0.3f, 0.0f, 1.5f, 0.0f, 0.0f},  // triumph: the upbeat one
             {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // wartime
         };
         style_ = static_cast<style_id>(pick_w(r_, w[static_cast<int>(s_.m)], st_count));
@@ -599,7 +599,7 @@ private:
         // 19-semitone window from A#2 (low), G3 (mid) or D4 (high)
         static constexpr int class_lo[3] = {46, 55, 62};
         lead_lo_ = (war_ ? 42 : class_lo[lead_class_]) + r_.range(0, 2);
-        lead_hi_ = lead_lo_ + 19;
+        lead_hi_ = lead_lo_ + (war_ ? 16 : 19); // wartime: a narrower, bass-like window
         lead_base_ = key_ + 12;
         while(lead_base_ < lead_lo_ - 1) lead_base_ += 12;
         while(lead_base_ > lead_lo_ + 10) lead_base_ -= 12;
@@ -702,20 +702,25 @@ private:
         case st_hardtrance: bass_kind = r_.range(2, 3); break;
         default: if(m == mood::calm) bass_kind = r_.range(0, 2); break;
         }
+        // Sounds aim at late-90s / early-2000s analogue-modelling synths
+        // (JP-8000 supersaws, Virus / Nord Lead style leads and basses, warm
+        // filtered pads, rounded plucks): band-limited oscillators, unison,
+        // 24 dB low-passes with envelopes, soft saturation, chorus. No
+        // bit-crushing and no 8-bit wavetables (docs/14-audio.md#synthesis).
         b.glide = 0.0f;
+        b.poles4 = true;
         switch(bass_kind) {
         case 0: // warm triangle + sine sub
             b.w1 = wave::triangle, b.w2 = wave::saw, b.mix2 = 0.25f, b.sub = 0.6f;
-            b.cutoff = 900, b.resonance = 0.1f, b.fenv = 1.5f, b.fdecay = 0.12f;
+            b.cutoff = 800, b.resonance = 0.1f, b.fenv = 1.5f, b.fdecay = 0.12f;
             break;
-        case 1: // chip pulse bass
-            b.w1 = wave::pulse, b.duty = 0.25f, b.w2 = wave::pulse, b.mix2 = 0.0f, b.sub = 0.5f;
-            b.cutoff = 1200, b.resonance = 0.15f, b.fenv = 1.0f, b.fdecay = 0.1f;
-            if(style_ == st_punk) b.drive = 0.5f;
+        case 1: // analogue square bass
+            b.w1 = wave::pulse, b.duty = 0.5f, b.w2 = wave::pulse, b.mix2 = 0.0f, b.sub = 0.5f;
+            b.cutoff = 700, b.resonance = 0.2f, b.fenv = 1.8f, b.fdecay = 0.12f, b.drive = style_ == st_punk ? 0.45f : 0.2f;
             break;
-        case 2: // "sampled" 8-bit bass
-            b.w1 = wave::table, b.table1 = 1, b.w2 = wave::sine, b.mix2 = 0.5f, b.sub = 0.3f;
-            b.cutoff = 1500, b.resonance = 0.1f, b.fenv = 1.2f, b.fdecay = 0.15f, b.crush_rate = 16726.0f;
+        case 2: // Virus-style saw bass: two saws, sub, envelope on a 24 dB filter
+            b.w1 = wave::saw, b.w2 = wave::saw, b.mix2 = 0.8f, b.detune = 5, b.sub = 0.5f;
+            b.cutoff = 600, b.resonance = 0.25f, b.fenv = 2.2f, b.fdecay = 0.18f, b.drive = 0.2f;
             break;
         case 3: // resonant saw (acid-lite)
             b.w1 = wave::saw, b.w2 = wave::saw, b.mix2 = 0.5f, b.detune = 7, b.sub = 0.4f;
@@ -726,102 +731,104 @@ private:
             b.cutoff = 380, b.resonance = 0.2f, b.fenv = 1.2f, b.fdecay = 0.3f, b.drive = 0.3f;
             break;
         }
-        b.attack = 0.003f, b.decay = 0.25f, b.sustain = bass_kind == 4 ? 0.85f : 0.6f, b.release = bass_kind == 4 ? 0.12f : 0.05f, b.key_track = 0.3f;
+        b.attack = 0.003f, b.decay = 0.25f, b.sustain = bass_kind == 4 ? 0.85f : 0.6f, b.release = bass_kind == 4 ? 0.12f : 0.06f, b.key_track = 0.3f;
 
         // lead
         patch& l = P[ch_lead];
+        l.poles4 = true;
         if(war_) {
             // wartime: a low, almost bass-like lead instead of a high synth
             switch(r_.range(0, 2)) {
-            case 0: // reese: two saws a quarter-tone apart, driven
-                l.w1 = wave::saw, l.w2 = wave::saw, l.mix2 = 1.0f, l.detune = r_.range(20.0f, 30.0f), l.sub = 0.25f;
-                l.cutoff = 900, l.fenv = 2.2f, l.fdecay = 0.3f, l.resonance = 0.3f, l.drive = 0.5f, l.key_track = 0.4f;
-                l.gain = 2.0f;
+            case 0: // reese: saws a quarter-tone apart, driven
+                l.w1 = wave::saw, l.unison = 2, l.spread = 22, l.w2 = wave::saw, l.mix2 = 0.8f, l.detune = r_.range(20.0f, 30.0f), l.sub = 0.25f;
+                l.cutoff = 900, l.fenv = 2.2f, l.fdecay = 0.3f, l.resonance = 0.3f, l.drive = 0.25f, l.key_track = 0.4f;
+                l.gain = 2.1f;
                 break;
             case 1: // hoover-ish: PWM pulse against a detuned saw, gliding
                 l.w1 = wave::pulse, l.duty = 0.3f, l.pwm_depth = 0.2f, l.pwm_rate = 0.9f, l.w2 = wave::saw, l.mix2 = 0.8f, l.detune = 15;
-                l.cutoff = 1500, l.fenv = 1.4f, l.fdecay = 0.25f, l.resonance = 0.2f, l.drive = 0.3f, l.key_track = 0.4f;
-                l.gain = 1.5f;
+                l.cutoff = 1400, l.fenv = 1.4f, l.fdecay = 0.25f, l.resonance = 0.2f, l.drive = 0.3f, l.key_track = 0.4f;
+                l.gain = 1.6f;
                 break;
             default: // acid: one resonant saw, filter envelope, slides
                 l.w1 = wave::saw, l.w2 = wave::saw, l.mix2 = 0.3f, l.detune = 6;
-                l.cutoff = 520, l.fenv = 3.2f, l.fdecay = 0.18f, l.resonance = 0.65f, l.drive = 0.6f, l.key_track = 0.3f;
-                l.gain = 1.9f;
+                l.cutoff = 520, l.fenv = 3.2f, l.fdecay = 0.18f, l.resonance = 0.65f, l.drive = 0.5f, l.key_track = 0.3f;
+                l.gain = 2.0f;
                 break;
             }
-            l.attack = 0.004f, l.decay = 0.3f, l.sustain = 0.8f, l.release = 0.1f;
-            l.vib_depth = r_.range(0.0f, 0.08f), l.vib_rate = 5.0f, l.vib_delay = 0.3f;
+            l.attack = 0.005f, l.decay = 0.3f, l.sustain = 0.8f, l.release = 0.12f;
+            l.vib_depth = r_.range(0.0f, 0.06f), l.vib_rate = 5.0f, l.vib_delay = 0.3f;
             l.glide = r_.chance(0.7f) ? 0.05f : 0.0f;
         } else {
-            static constexpr int prefs[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 3}, {3, 0, 1, 3}, {2, 0, 2, 3}, {1, 0, 3, 1}, {3, 0, 2, 1}, {0, 2, 3, 0}, {1, 1, 1, 1}};
+            static constexpr int prefs[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 2}, {2, 0, 1, 3}, {0, 2, 3, 1}, {1, 0, 2, 1}, {1, 0, 2, 3}, {0, 2, 3, 0}, {1, 1, 1, 1}};
             const int lead_kind = prefs[style_][r_.range(0, 3)];
             switch(lead_kind) {
-            case 0: // PWM pulse with vibrato
+            case 0: // PWM pulse pair, warm
                 l.w1 = wave::pulse, l.w2 = wave::pulse, l.mix2 = 0.4f, l.detune = 9, l.duty = 0.35f, l.pwm_depth = 0.12f, l.pwm_rate = 0.7f;
-                l.cutoff = 3200, l.fenv = 1.0f;
-                l.gain = 1.0f;
+                l.cutoff = 2200, l.fenv = 1.0f, l.resonance = 0.15f;
+                l.gain = 1.15f;
                 break;
-            case 1: // detuned saws
-                l.w1 = wave::saw, l.w2 = wave::saw, l.mix2 = 0.7f, l.detune = 12;
-                l.cutoff = 2600, l.fenv = 1.4f, l.resonance = 0.25f;
-                l.gain = 1.95f; // the detuned pair partly cancels: measured ~6 dB under the PWM lead
+            case 1: // supersaw lead (JP-8000 style)
+                l.w1 = wave::saw, l.unison = 2, l.spread = 18, l.w2 = wave::saw, l.mix2 = 0.5f, l.detune = 7;
+                l.cutoff = 2300, l.fenv = 1.2f, l.resonance = 0.2f;
+                l.gain = 2.0f;
                 break;
-            case 2: // chip "sample" lead
-                l.w1 = wave::table, l.table1 = r_.chance(0.5f) ? 0 : 2, l.w2 = wave::pulse, l.duty = 0.5f, l.mix2 = 0.3f, l.semi2 = 12;
-                l.cutoff = 4500, l.fenv = 0.5f, l.crush_rate = 20000.0f;
-                l.gain = 1.5f;
+            case 2: // Nord-style lead: saw with a quiet square an octave up, resonant sweep, glide
+                l.w1 = wave::saw, l.w2 = wave::pulse, l.duty = 0.5f, l.mix2 = 0.25f, l.semi2 = 12;
+                l.cutoff = 1800, l.fenv = 1.6f, l.fdecay = 0.35f, l.resonance = 0.35f, l.drive = 0.15f;
+                l.gain = 1.6f;
                 break;
-            default: // square + fifth organ-ish
+            default: // square + fifth, organ-like, filtered
                 l.w1 = wave::pulse, l.duty = 0.5f, l.w2 = wave::triangle, l.mix2 = 0.5f, l.semi2 = 7;
-                l.cutoff = 3000, l.fenv = 0.8f;
-                l.gain = 1.0f;
+                l.cutoff = 1800, l.fenv = 0.8f;
+                l.gain = 1.15f;
                 break;
             }
-            if(lead_class_ == 0) l.cutoff *= 1.5f, l.key_track = 0.3f, l.drive = 0.15f; // a low lead keeps its edge
-            l.attack = 0.01f, l.decay = 0.3f, l.sustain = 0.65f, l.release = 0.12f;
-            l.vib_depth = r_.range(0.08f, 0.2f), l.vib_rate = r_.range(4.5f, 6.0f), l.vib_delay = 0.18f;
-            l.glide = r_.chance(0.5f) ? 0.04f : 0.0f;
+            if(lead_class_ == 0) l.cutoff *= 1.4f, l.key_track = 0.3f, l.drive = l.unison ? l.drive : std::max(l.drive, 0.15f); // a low lead keeps its edge (unison saws need no drive)
+            l.attack = 0.015f, l.decay = 0.3f, l.sustain = 0.65f, l.release = 0.15f;
+            l.vib_depth = r_.range(0.05f, 0.12f), l.vib_rate = r_.range(4.5f, 5.5f), l.vib_delay = 0.25f;
+            l.glide = r_.chance(lead_kind == 2 ? 0.8f : 0.5f) ? 0.045f : 0.0f;
         }
         l.fdecay = std::max(l.fdecay, 0.25f);
         staccato_ = r_.chance(war_ ? 0.2f : m == mood::crisis ? 0.2f : 0.1f);
 
-        // arp: plucks, or (slower rates) short sustained notes
+        // arp: rounded plucks (a filter envelope on a 24 dB low-pass), or
+        // (slower rates) short sustained notes
         patch& a = P[ch_arp];
-        const int arp_kind = style_ == st_chip ? 2 : r_.range(0, 2);
-        a.w1 = arp_kind == 0 ? wave::pulse : arp_kind == 1 ? wave::saw : wave::table;
-        a.duty = r_.chance(0.5f) ? 0.125f : 0.25f;
-        a.table1 = 3;
+        const int arp_kind = r_.range(0, 2);
+        a.w1 = arp_kind == 0 ? wave::pulse : wave::saw;
+        a.duty = r_.chance(0.5f) ? 0.5f : 0.35f;
+        if(arp_kind == 2) a.unison = 2, a.spread = 14; // trance pluck
         a.w2 = wave::pulse, a.mix2 = 0.0f;
-        a.attack = 0.002f, a.decay = r_.range(0.09f, 0.16f), a.sustain = 0.0f, a.release = 0.06f;
-        a.cutoff = 1800, a.fenv = 2.0f, a.fdecay = 0.08f, a.resonance = 0.3f;
-        if(arp_kind == 2) a.crush_rate = 16726.0f;
+        a.attack = 0.003f, a.decay = r_.range(0.12f, 0.2f), a.sustain = 0.0f, a.release = 0.08f;
+        a.cutoff = 900, a.fenv = 2.6f, a.fdecay = 0.12f, a.resonance = 0.25f, a.poles4 = true;
+        a.gain = arp_kind == 2 ? 1.5f : 1.1f;
 
         // pad / chords
         patch& p = P[ch_pad];
-        float chip_p = m == mood::calm ? 0.25f : 0.4f;
-        if(style_ == st_chip) chip_p = 0.75f;
-        if(style_ == st_synthwave || style_ == st_punk || war_) chip_p = 0.0f;
-        if(style_ == st_breaks) chip_p = 0.15f;
-        chip_chords_ = r_.chance(chip_p);
-        if(chip_chords_) { // tracker arpeggio chord on a pulse
-            p.w1 = wave::pulse, p.duty = 0.25f, p.w2 = wave::pulse, p.mix2 = 0.0f;
-            p.cutoff = 2400, p.resonance = 0.1f;
-            p.attack = 0.005f, p.decay = 0.3f, p.sustain = 0.5f, p.release = 0.25f;
-        } else if(power_) { // distorted chip "guitar": power chords, chugs in the chorus
-            p.w1 = wave::saw, p.w2 = wave::pulse, p.duty = 0.3f, p.mix2 = 0.6f, p.detune = 6;
-            p.cutoff = 2400, p.resonance = 0.15f, p.fenv = 0.8f, p.fdecay = 0.2f, p.drive = 0.75f, p.crush_rate = r_.chance(0.5f) ? 16726.0f : 0.0f;
-            p.attack = 0.003f, p.decay = 0.3f, p.sustain = 0.75f, p.release = 0.1f;
-        } else {
-            p.w1 = wave::saw, p.w2 = wave::saw, p.mix2 = 0.9f, p.detune = r_.range(8.0f, 14.0f);
-            p.cutoff = m == mood::crisis ? 900.0f : 1400.0f, p.resonance = 0.15f, p.fenv = 0.6f, p.fdecay = 0.6f;
+        p.poles4 = true;
+        // tracker-arpeggio chords only in the (rare) chip family
+        chip_chords_ = style_ == st_chip && r_.chance(0.5f);
+        if(chip_chords_) { // arpeggiated chord on a soft square
+            p.w1 = wave::pulse, p.duty = 0.5f, p.w2 = wave::pulse, p.mix2 = 0.0f;
+            p.cutoff = 1600, p.resonance = 0.1f;
+            p.attack = 0.008f, p.decay = 0.3f, p.sustain = 0.5f, p.release = 0.25f;
+        } else if(power_) { // a sampled-synth "guitar": driven saw + pulse power chords, chugs in the chorus
+            p.w1 = wave::saw, p.unison = 1, p.spread = 10, p.w2 = wave::pulse, p.duty = 0.4f, p.mix2 = 0.6f, p.detune = 6;
+            p.cutoff = 1800, p.resonance = 0.15f, p.fenv = 0.8f, p.fdecay = 0.2f, p.drive = 0.45f;
+            p.attack = 0.004f, p.decay = 0.3f, p.sustain = 0.75f, p.release = 0.12f;
+        } else { // supersaw pad: unison saws, warm filter, chorus in the mixer
+            p.w1 = wave::saw, p.unison = 2, p.spread = 16, p.w2 = wave::saw, p.mix2 = 0.7f, p.detune = r_.range(8.0f, 14.0f);
+            p.cutoff = m == mood::crisis ? 900.0f : 1300.0f, p.resonance = 0.15f, p.fenv = 0.6f, p.fdecay = 0.6f;
             p.attack = 0.08f, p.decay = 0.6f, p.sustain = 0.8f, p.release = 0.6f;
-            if(war_) { // wider, brighter detuned saws: supersaw-like pads and stabs
-                p.detune *= 1.6f;
-                p.mix2 = 1.0f;
-                p.cutoff = 2000.0f;
+            p.gain = 1.3f;
+            if(war_) { // the JP-8000 supersaw: wide and bright, for pads and stabs
+                p.unison = 4, p.spread = 28;
+                p.mix2 = 0.6f;
+                p.cutoff = 2100.0f;
                 p.fenv = 1.0f;
+                p.gain = 1.5f;
             }
-            if(style_ == st_synthwave) p.detune = r_.range(10.0f, 16.0f), p.cutoff = 1700.0f, p.attack = 0.25f, p.release = 0.9f, p.sustain = 0.85f; // lush
+            if(style_ == st_synthwave) p.unison = 3, p.spread = 18, p.detune = r_.range(10.0f, 16.0f), p.cutoff = 1600.0f, p.attack = 0.25f, p.release = 0.9f, p.sustain = 0.85f; // lush
             p.pwm_depth = 0.0f;
         }
         p.mono = true;
@@ -829,30 +836,31 @@ private:
 
         // counter voice
         patch& c = P[ch_counter];
-        int ctr_kind = 0; // 0 strings, 1 brass, 2 chip pulse, 3 supersaw
+        c.poles4 = true;
+        int ctr_kind = 0; // 0 strings, 1 brass, 2 soft square, 3 supersaw
         if(war_) ctr_kind = 3;
         else if(style_ == st_chip || style_ == st_eurodance) ctr_kind = 2;
         else if(style_ == st_punk || style_ == st_breaks || (style_ == st_techno && m != mood::calm)) ctr_kind = r_.chance(0.6f) ? 1 : 0;
         switch(ctr_kind) {
-        case 0:
-            c.w1 = wave::saw, c.w2 = wave::saw, c.mix2 = 0.8f, c.detune = 7;
-            c.attack = 0.18f, c.decay = 0.5f, c.sustain = 0.85f, c.release = 0.45f, c.cutoff = 1500, c.fenv = 0.3f, c.fdecay = 0.5f;
-            c.vib_depth = 0.05f, c.vib_rate = 5.0f, c.vib_delay = 0.3f, c.gain = 1.6f;
+        case 0: // string machine
+            c.w1 = wave::saw, c.unison = 1, c.spread = 12, c.w2 = wave::saw, c.mix2 = 0.8f, c.detune = 7;
+            c.attack = 0.2f, c.decay = 0.5f, c.sustain = 0.85f, c.release = 0.5f, c.cutoff = 1400, c.fenv = 0.3f, c.fdecay = 0.5f;
+            c.vib_depth = 0.04f, c.vib_rate = 5.0f, c.vib_delay = 0.3f, c.gain = 1.7f;
             break;
-        case 1:
+        case 1: // synth brass
             c.w1 = wave::saw, c.w2 = wave::pulse, c.duty = 0.4f, c.mix2 = 0.6f, c.detune = 5;
-            c.attack = 0.03f, c.decay = 0.3f, c.sustain = 0.7f, c.release = 0.15f, c.cutoff = 1000, c.fenv = 1.6f, c.fdecay = 0.25f, c.drive = 0.2f;
-            c.gain = 1.3f;
+            c.attack = 0.04f, c.decay = 0.3f, c.sustain = 0.7f, c.release = 0.18f, c.cutoff = 900, c.fenv = 1.6f, c.fdecay = 0.25f, c.drive = 0.15f;
+            c.gain = 1.4f;
             break;
-        case 2:
-            c.w1 = wave::pulse, c.duty = 0.25f, c.w2 = wave::pulse, c.semi2 = 12, c.mix2 = 0.2f;
-            c.attack = 0.005f, c.decay = 0.25f, c.sustain = 0.6f, c.release = 0.12f, c.cutoff = 3000, c.fenv = 0.5f, c.crush_rate = 16726.0f;
-            c.vib_depth = 0.1f, c.vib_rate = 5.5f, c.vib_delay = 0.25f;
+        case 2: // soft square with a triangle an octave up
+            c.w1 = wave::pulse, c.duty = 0.5f, c.w2 = wave::triangle, c.semi2 = 12, c.mix2 = 0.3f;
+            c.attack = 0.012f, c.decay = 0.25f, c.sustain = 0.6f, c.release = 0.15f, c.cutoff = 1600, c.fenv = 0.5f;
+            c.vib_depth = 0.06f, c.vib_rate = 5.0f, c.vib_delay = 0.3f, c.gain = 1.1f;
             break;
-        default:
-            c.w1 = wave::saw, c.w2 = wave::saw, c.mix2 = 1.0f, c.detune = r_.range(25.0f, 32.0f);
-            c.attack = 0.003f, c.decay = 0.2f, c.sustain = 0.85f, c.release = 0.06f, c.cutoff = 2600, c.resonance = 0.1f, c.fenv = 0.5f, c.fdecay = 0.2f;
-            c.gain = 1.6f;
+        default: // supersaw for the gated wartime chords
+            c.w1 = wave::saw, c.unison = 3, c.spread = r_.range(22.0f, 30.0f), c.w2 = wave::saw, c.mix2 = 0.5f, c.detune = 9;
+            c.attack = 0.004f, c.decay = 0.2f, c.sustain = 0.85f, c.release = 0.07f, c.cutoff = 2400, c.resonance = 0.1f, c.fenv = 0.5f, c.fdecay = 0.2f;
+            c.gain = 1.8f;
             break;
         }
         c.key_track = 0.3f;
@@ -863,7 +871,7 @@ private:
         counter_pulse_ = m != mood::calm && r_.chance(0.4f);
 
         // mix (levels tuned by ear on offline renders, see docs/14-audio.md)
-        const float g[num_channels] = {war_ ? 0.8f : 0.72f, 0.8f, 0.5f, 0.62f, lead_class_ == 0 ? 0.42f : 0.36f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f, war_ ? 0.3f : 0.28f};
+        const float g[num_channels] = {war_ ? 0.8f : 0.72f, 0.8f, 0.45f, 0.62f, lead_class_ == 0 ? 0.42f : 0.36f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f, war_ ? 0.3f : 0.28f};
         const float pan[num_channels] = {0.0f, 0.05f, 0.3f, 0.0f, 0.15f, -0.4f, -0.05f, 0.0f, -0.25f};
         const float dly[num_channels] = {0.0f, 0.04f, 0.06f, 0.0f, 0.28f, 0.32f, 0.12f, 0.1f, 0.18f};
         const float rev[num_channels] = {0.02f, 0.18f, 0.06f, 0.0f, 0.2f, 0.15f, 0.35f, 0.35f, 0.3f};
@@ -878,6 +886,10 @@ private:
         if(X.pan[ch_arp] > 0) X.pan[ch_lead] = -X.pan[ch_lead];
         X.pan[ch_counter] = -0.8f * X.pan[ch_lead];
         if(style_ == st_synthwave) X.reverb[ch_snare] = 0.45f, X.reverb[ch_pad] = 0.45f;
+        // ensemble chorus on the chords and the counter voice, a touch on the arp
+        X.chorus[ch_pad] = chip_chords_ ? 0.2f : style_ == st_synthwave ? 0.7f : 0.5f;
+        X.chorus[ch_counter] = ctr_kind == 0 ? 0.6f : 0.35f;
+        X.chorus[ch_arp] = 0.2f;
         X.bright[ch_lead] = X.bright[ch_arp] = X.bright[ch_pad] = X.bright[ch_counter] = true;
         X.delay_rows = r_.chance(0.7f) ? 3.0f : 2.0f;
         X.delay_feedback = r_.range(0.3f, 0.45f);

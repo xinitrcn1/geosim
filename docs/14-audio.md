@@ -109,16 +109,27 @@ The tracker model has 9 channels: **kick, snare/clap, hats, bass, lead, arp,
 pad, fx, counter** (a second melodic voice). Each channel has one patch and
 a pool of 6 voices.
 
-- **Tonal voices:** two oscillators (PolyBLEP saw / pulse with PWM, triangle,
-  sine, noise, or a 32-step "sample-like" 8-bit wavetable: organ, bass, vox,
-  6-bit pluck), plus a sine sub-octave, optional saturation, and optional
-  **Paula-style sample-and-hold + 8-bit quantisation** (16.7 / 20 kHz).
-  After that comes a TPT state-variable low-pass with resonance, its own
-  envelope, key tracking and velocity, then a linear-attack / exponential
-  ADSR. Lead voices add delayed vibrato and optional glide.
+- **Tonal voices** aim at late-90s / early-2000s analogue-modelling synths
+  (JP-8000 supersaw, Virus / Nord Lead style), not chiptune:
+  - Oscillators: two band-limited (PolyBLEP) saw / pulse oscillators with
+    PWM, or triangle, sine or noise, plus a sine sub-octave.
+  - **Unison** (`patch::unison`, 0–4): extra PolyBLEP saws per note spread
+    over ±`spread` cents, i.e. a supersaw.
+  - Gentle tanh saturation.
+  - The filter: a TPT state-variable low-pass with resonance, its own
+    envelope, key tracking and velocity. It is 12 dB, or **24 dB**
+    (`poles4`: a plain first stage, then the resonant one), which every
+    melodic patch now uses.
+  - Then a linear-attack / exponential ADSR. Leads add delayed vibrato and
+    optional glide.
+
+  The synth can still do a 32-step 8-bit wavetable and Paula-style
+  sample-and-hold, but no patch uses them since the sound rework: they were
+  the main source of the "8-bit" sharpness and of aliasing.
 - **Chords** are paraphonic: one voice, up to 4 note oscillators into one
   filter. With `note_fx::arp` they play as a **tracker arpeggio**, cycling
-  the chord notes every tick (~48 Hz at 120 BPM), the classic chip chord.
+  the chord notes every tick (~48 Hz at 120 BPM), the classic chip chord;
+  only half the songs of the (now rare) chip family use it.
 - **Mono channels** behave like tracker channels: a new note cuts the
   previous one with a 6 ms fade (no clicks), or with the patch release on
   the pad. Kit channels choke earlier hits (a closed hat cuts the open hat)
@@ -130,7 +141,7 @@ a pool of 6 voices.
   - snare: two-sine body and high-passed noise;
   - clap: 3 band-passed noise bursts and a tail;
   - closed/open hat and crash: six TR-808 square oscillators and noise,
-    high-passed;
+    high-passed, then low-passed at 11 kHz (less fizz);
   - rim, shaker and 3 toms;
   - riser: noise band-pass swept up 5 octaves, plus a rising tone;
   - downlifter: noise band-pass falling 4 octaves with a falling tone;
@@ -158,6 +169,10 @@ Each channel is a mono sum scaled by its gain, then:
   "pumping" groove.
 - **Constant-power pan:** arp and lead are panned to opposite sides, in an
   Amiga spirit but softened.
+- **Ensemble chorus** (`mix_settings::chorus`, per channel): a 2048-sample
+  delay line read by two taps at 7–13 ms, swept in quadrature at 0.6 Hz,
+  one per side. Pads get 0.5 (synthwave 0.7, arpeggiated chip chords 0.2),
+  the counter voice 0.35 (strings 0.6), the arp 0.2.
 - **Sends:** a tempo-synced **ping-pong delay** (dotted 8th or 8th, feedback
   0.3–0.45, damped) and a Freeverb-style **reverb** (4 combs + 2 allpasses
   per side).
@@ -187,12 +202,26 @@ WAV.
    Calm stays relaxed (at most 120 BPM) and keeps the mundane parts (arp
    answers, sparse counter voice, no key change).
 
+   **Sounds** (per song, from a few designs per role, all on 24 dB
+   filters):
+   - bass: warm triangle + sub, analogue square + sub, Virus-style two-saw
+     bass, resonant acid saw, reese;
+   - lead: warm PWM pair, supersaw (2 unison saws ± 18 cents), Nord-style
+     saw with a quiet square an octave up and glide, filtered square +
+     fifth; vibrato 0.05–0.12 semitones;
+   - arp: rounded plucks (pulse, saw or a 2-saw trance pluck; 900 Hz
+     cutoff with a 2.6-octave filter envelope);
+   - pad: a supersaw pad (2 unison saws + a detuned saw; wartime: 4 unison
+     saws ± 28 cents, JP-8000 style) with chorus;
+   - counter: string machine, synth brass, soft square, or a supersaw for
+     the gated wartime chords.
+
    | Family | BPM | Grooves (verse / chorus) | Bass | Sound | Moods (weight) |
    |---|---|---|---|---|---|
    | techno | 116–128 | four, broken, electro | off-beat, rolling, house, octaves | as before | calm 1, tense 1.2, crisis 1, triumph 1 |
    | synthwave | 88–108 | synthwave, half-time / synthwave, four (outrun) | 8th or 16th pedal, octaves | lush saw pad, big reverb snare, held chords | calm 1.2, tense 1.4, crisis 1, triumph 0.6 |
-   | amiga punk | 152–172 | punk, d-beat | 8th roots with fifths, walking, gallop | driven saw+pulse power chords (8th chugs in the chorus), tight snare, crash-ride | tense 0.6, crisis 1.2, triumph 0.4 |
-   | chip | 124–146 | chip, breakbeat, four | octaves, bounce, walking, 8ths | tracker-arpeggio chords (75 %), pulse / 8-bit bass and lead | calm 0.7, tense 0.8, crisis 0.5, triumph 1.2 |
+   | amiga punk | 152–172 | punk, d-beat | 8th roots with fifths, walking, gallop | a sampled-synth "guitar" (saw + unison + pulse, soft drive, 24 dB) for power chords (8th chugs in the chorus), tight snare, crash-ride | tense 0.6, crisis 1.2, triumph 0.4 |
+   | chip | 124–146 | chip, breakbeat, four | octaves, bounce, walking, 8ths | arpeggiated soft-square chords (50 %), square bass; rare since the sound rework | calm 0.15, tense 0.15, crisis 0.1, triumph 0.3 |
    | breaks | 136–156 | breakbeat, amen, half-time | held reese, syncopated, house | rave stabs | tense 1, crisis 1.3 |
    | eurodance | 124–136 | four, chip / four | off-beat, octave 16ths, rolling | stabs on the off-beats | triumph 1.5 |
    | lo-fi | 82–100 | half-time, shuffle, breakbeat | held, walking, bounce | soft kick, triangle bass, heavy swing | calm 2 |
@@ -506,8 +535,10 @@ blocks of 512 frames into a member buffer and hands them to
 SDL's own stream queue may allocate inside `SDL_PutAudioStreamData`; that is
 SDL's design. The client does not feed a second stream to avoid it.
 
-Offline, a full song renders in about 2.4 s, roughly 65× real time on this
-machine, so live playback costs about 1.5 % of one core.
+Offline, songs render 20–40× faster than real time on this machine (65×
+before the unison saws and chorus; wartime, with 4-saw supersaw chords,
+is the slowest at about 20×), so live playback costs up to about 5 % of
+one core.
 
 **No device:** if `SDL_InitSubSystem(SDL_INIT_AUDIO)` or opening the device
 fails, the client logs `music: ... continuing without music` and runs
@@ -683,6 +714,48 @@ build. Each figure is the previous composer → now.
     (half time: its kick and snare alternate on the beats).
   - Seed 5 wartime renders byte-identical twice.
   - `test_music` passes.
+
+### Verification of the sound rework (late-90s / early-2000s synth)
+
+This answers the feedback that songs were "too 8-bit" and some instruments
+too sharp. Each figure is the previous build (7aa4c09) → now.
+
+- **Aliasing**, from a probe that holds one note through each song's
+  patch: vibrato off, dry, measured 0.5 s in. The figure is the energy
+  folded below the fundamental (minus the sub-octave) relative to the
+  total, at C7 over seeds 1–8 of calm, tense and triumph. Worst / mean:
+  - lead −21.7 / −54.4 → −42.8 / −62.9 dB;
+  - arp −22.3 / −70.0 → −84.1 / −87.6 dB;
+  - pad −36.1 / −83.1 → −81.0 / −81.3 dB;
+  - bass about −61 dB, unchanged.
+
+  The old worst cases were the bit-crushed 8-bit wavetable lead and arp.
+  At C5 the wartime lead measures −51.2 → −45.9 dB mean. That residue is
+  intermodulation from saturating the detuned reese saws, its intended
+  growl: with drive off the same patches measure about −85 dB.
+- **Energy above 6 kHz** on held C7 notes: lead 4.56 → 0.58 %, arp 3.70 →
+  0.01 %, pad 0.35 → 0.00 %.
+- **Per-voice solo renders** (5 moods × seeds 1–3; the songs differ in
+  detail, because the draw order changed). Mean spectral centroid:
+  - lead 1467 → 883 Hz;
+  - arp 2251 → 1515 Hz;
+  - pad 1038 → 735 Hz;
+  - counter 764 → 545 Hz;
+  - bass 316 → 279 Hz;
+  - hats 13.9 → 9.6 kHz.
+
+  Energy above 6 kHz: lead 0.07 → 0.00 %, arp 0.48 → 0.10 %, hats
+  95.4 → 88.8 %. The snare is unchanged (8.3–8.6 kHz).
+- **Levels.** On a held A4 the patches stay within 1 dB: lead −10.4 →
+  −10.4, pad −14.8 → −15.0, bass −15.3 → −14.8, counter −11.4 → −11.4,
+  arp −13.6 → −12.6 dB.
+- **Full mixes** (8 songs, two of them long wartime songs): peaks −0.87 to
+  −1.77 dBFS, 0 clipped and 0 non-finite samples, RMS −12.7 (wartime) to
+  −20.3 dBFS (lo-fi). Seed 5 wartime renders byte-identical twice.
+- **Tests.** `test_music` also checks that no voice is bit-crushed or uses
+  the 8-bit wavetable, that every melodic voice has a 24 dB filter, that
+  wartime is always hardtrance, and that the chip family stays rare (at
+  most 1 song in 10 over 200 seeds).
 
 ## Limitations and next steps
 

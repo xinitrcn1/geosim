@@ -54,6 +54,7 @@ private:
         uint32_t start_tick = 0;
         float freq[4] = {};
         float phase1[4] = {}, phase2[4] = {}, phase_sub[4] = {};
+        float phase_u[4][4] = {};  // unison saws
         float glide_from = 1.0f;   // frequency ratio at the start of a glide, decays to 1
         float vel = 1.0f;
         float env = 0.0f, fenv = 1.0f;
@@ -119,6 +120,11 @@ private:
     float sweep_ic1_[num_channels]{}, sweep_ic2_[num_channels]{};
 
     // effects
+    // stereo chorus per channel: a short delay line read by two LFO-swept taps
+    static constexpr int chorus_len = 2048;
+    std::vector<float> chorus_buf_; // num_channels * chorus_len
+    int chorus_pos_ = 0;
+    float chorus_phase_ = 0.0f;
     std::vector<float> delay_l_, delay_r_;
     std::size_t delay_pos_ = 0, delay_len_ = 1;
     float delay_lp_l_ = 0, delay_lp_r_ = 0;

@@ -62,6 +62,7 @@ constexpr float metal_hz[6] = {205.3f, 304.4f, 369.6f, 522.7f, 540.0f, 800.0f};
 
 player::player(float sample_rate) : sr_(sample_rate), inv_sr_(1.0f / sample_rate) {
     delay_l_.assign(static_cast<std::size_t>(sample_rate * 2.0f) + 1, 0.0f);
+    chorus_buf_.assign(static_cast<std::size_t>(num_channels * chorus_len), 0.0f);
     delay_r_.assign(delay_l_.size(), 0.0f);
     // Freeverb tunings at 44.1 kHz, scaled; right channel slightly longer.
     static constexpr int comb_t[comb_count] = {1116, 1188, 1277, 1356};
@@ -268,6 +269,7 @@ void player::trigger(note_event const& e) noexcept {
         v.freq[i] = midi_hz(e.notes[i]);
         v.phase1[i] = 0.0f;
         v.phase2[i] = 0.25f * static_cast<float>(i);
+        for(int u = 0; u < 4; ++u) v.phase_u[i][u] = 0.13f + 0.21f * static_cast<float>(u) + 0.07f * static_cast<float>(i); // fixed, so renders stay deterministic
     }
     v.glide_from = from_ratio;
     v.vel = vel;
@@ -362,6 +364,16 @@ float player::render_tonal(voice& v, patch const& p) noexcept {
             return y;
         };
         float s = osc(p.w1, v.phase1[i], dt1, p.table1);
+        if(p.unison > 0 && p.w1 == wave::saw) {
+            // supersaw: extra band-limited saws spread symmetrically over +-spread cents
+            const int n = std::min(p.unison, 4);
+            for(int u = 0; u < n; ++u) {
+                const float pos = n == 1 ? 0.5f : -1.0f + 2.0f * static_cast<float>(u) / static_cast<float>(n - 1);
+                const float du = dt1 * std::exp2(pos * p.spread * (1.0f / 1200.0f));
+                s += 0.8f * osc(wave::saw, v.phase_u[i][u], du, 0);
+            }
+            s *= 1.0f / (1.0f + 0.8f * static_cast<float>(n) * 0.55f);
+        }
         if(p.mix2 > 0.0f) s += p.mix2 * osc(p.w2, v.phase2[i], dt2, p.table2);
         if(p.sub > 0.0f) {
             s += p.sub * std::sin(two_pi * v.phase_sub[i]);
@@ -381,7 +393,8 @@ float player::render_tonal(voice& v, patch const& p) noexcept {
         }
         sum = v.crush_hold;
     }
-    const float y = svf(sum, v.g, v.k, v.ic1, v.ic2).lp;
+    // 24 dB: a first stage without resonance, the resonant one after it
+    const float y = p.poles4 ? svf(svf(sum, v.g, 1.41f, v.ic1b, v.ic2b).lp, v.g, v.k, v.ic1, v.ic2).lp : svf(sum, v.g, v.k, v.ic1, v.ic2).lp;
 
     // envelopes
     switch(v.stage) {
@@ -458,7 +471,7 @@ float player::render_drum(voice& v, patch const& p, bool control) noexcept {
             metal += v.metal[m] < 0.5f ? 1.0f : -1.0f;
         }
         const float src = metal * 0.12f + white(v.noise) * 0.5f;
-        const float hp = svf(src, v.g, 1.0f, v.ic1, v.ic2).hp;
+        const float hp = svf(svf(src, v.g, 1.0f, v.ic1, v.ic2).hp, svf_g(11000.0f, sr_), 1.2f, v.ic1b, v.ic2b).lp; // the top tamed above ~11 kHz
         const float decay = v.drum == dr_hat_closed ? p.hat_decay : v.drum == dr_hat_open ? 0.32f : 1.7f;
         const float attack = v.drum == dr_crash ? std::min(1.0f, t / 0.004f) : 1.0f;
         y = hp * ex(t, decay) * attack * (v.drum == dr_crash ? 0.8f : 1.0f);
@@ -598,14 +611,36 @@ void player::render(float* out, int frames) noexcept {
                 v.age += inv_sr_;
             }
             if(sweep_dir_ != 0 && c != ch_kick && c != ch_fx) s = svf(s, sweep_g_, sweep_k_, sweep_ic1_[c], sweep_ic2_[c]).lp;
-            if(s == 0.0f) continue;
+            if(s == 0.0f && mix_.chorus[c] <= 0.0f) continue; // a chorus keeps reading its tail
             s *= mix_.gain[c] * (1.0f - mix_.duck[c] * duck_env);
-            l += s * pan_l_[c];
-            r += s * pan_r_[c];
+            if(mix_.chorus[c] > 0.0f) {
+                // ensemble: two taps 7-13 ms back, swept in quadrature at 0.6 Hz, one per side
+                float* buf = chorus_buf_.data() + static_cast<std::ptrdiff_t>(c) * chorus_len;
+                buf[chorus_pos_] = s;
+                auto tap = [&](float ms) {
+                    const float d = ms * 0.001f * sr_;
+                    float rp = static_cast<float>(chorus_pos_) - d;
+                    if(rp < 0) rp += chorus_len;
+                    const int i0 = static_cast<int>(rp);
+                    const float fr = rp - static_cast<float>(i0);
+                    return buf[i0 % chorus_len] * (1.0f - fr) + buf[(i0 + 1) % chorus_len] * fr;
+                };
+                const float wet = mix_.chorus[c];
+                const float tl = tap(10.0f + 3.0f * std::sin(two_pi * chorus_phase_));
+                const float tr = tap(10.0f + 3.0f * std::cos(two_pi * chorus_phase_));
+                l += (s * (1.0f - 0.5f * wet) + wet * tl) * pan_l_[c];
+                r += (s * (1.0f - 0.5f * wet) + wet * tr) * pan_r_[c];
+            } else {
+                l += s * pan_l_[c];
+                r += s * pan_r_[c];
+            }
             dsend += s * mix_.delay[c];
             rsend += s * mix_.reverb[c];
         }
 
+        chorus_pos_ = (chorus_pos_ + 1) % chorus_len;
+        chorus_phase_ += 0.6f * inv_sr_;
+        if(chorus_phase_ >= 1.0f) chorus_phase_ -= 1.0f;
         // ping-pong delay with a damped feedback path
         {
             const std::size_t n = delay_l_.size();

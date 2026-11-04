@@ -2,7 +2,8 @@
 // last 2-3.5 minutes (long ones up to 10, intermissions 30-80 s) with a sane score that ends on the
 // tonic, rolls never run faster than 16ths (one beat of 32nds at the end of a
 // build at most), wartime has a low lead over a hard kick, songs vary in
-// style and lead register, and the player's output is finite and below 0 dBFS.
+// style and lead register, no voice is bit-crushed or 8-bit, and the player's
+// output is finite and below 0 dBFS.
 
 #include "client/audio/composer.hpp"
 #include "client/audio/synth.hpp"
@@ -47,6 +48,17 @@ int main() {
             if(m == mood::calm) check(a.bpm <= 120.0f, "calm BPM at most 120", seed, m);
             if(m == mood::triumph) check(a.bpm >= 112.0f, "triumph BPM at least 112", seed, m);
             styles.insert(a.style);
+            // late-90s / early-2000s synth, not chiptune: no bit-crushed or
+            // 8-bit wavetable voices, 24 dB filters on the melodic voices
+            bool no_chip = true;
+            for(int c = 0; c < num_channels; ++c) {
+                patch const& pt = a.patches[c];
+                if(pt.kit) continue;
+                no_chip = no_chip && pt.crush_rate == 0.0f && pt.w1 != wave::table && pt.w2 != wave::table;
+                if(c == ch_lead || c == ch_pad || c == ch_arp || c == ch_counter || c == ch_bass) no_chip = no_chip && pt.poles4;
+            }
+            check(no_chip, "no 8-bit / bit-crushed voices, 24 dB filters", seed, m);
+            if(m == mood::wartime) check(a.style == "hardtrance", "wartime is hardtrance", seed, m);
             if(m == mood::wartime) check(a.duration_seconds() >= 120.0, "wartime songs are full length", seed, m);
             bool sorted = true, in_range = true;
             for(std::size_t i = 0; i < a.events.size(); ++i) {
@@ -129,6 +141,10 @@ int main() {
         }
     }
     check(styles.size() >= 4, "at least 4 style families over the tested seeds", 0, mood::calm);
+    // the chip family is rare: at most 1 song in 10 over 200 seeds
+    int chip = 0;
+    for(uint64_t seed = 1; seed <= 200; ++seed) chip += compose(seed, static_cast<mood>(seed % 4)).style == "chip";
+    check(chip <= 20, "chip family rare", 0, mood::calm);
     check(lead_hi - lead_lo >= 12, "song lead registers span an octave or more", 0, mood::calm);
     if(failures == 0) std::puts("test_music: ok");
     return failures == 0 ? 0 : 1;

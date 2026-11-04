@@ -67,6 +67,9 @@ struct patch {
     float semi2 = 0.0f;      // osc 2 transpose, semitones
     float duty = 0.5f, pwm_depth = 0.0f, pwm_rate = 0.0f; // pulse width and its LFO (Hz)
     float sub = 0.0f;        // sine one octave below
+    int unison = 0;          // extra detuned saws per note (0-4): supersaw (osc 1 must be a saw)
+    float spread = 12.0f;    // unison detune, cents (outermost pair)
+    bool poles4 = false;     // 24 dB/oct low-pass (two SVF stages) instead of 12 dB
     float attack = 0.005f, decay = 0.2f, sustain = 0.7f, release = 0.15f; // seconds / level
     float cutoff = 4000.0f;  // Hz
     float resonance = 0.2f;  // 0..1
@@ -131,6 +134,7 @@ struct mix_settings {
     float reverb[num_channels]{};
     float duck[num_channels]{};   // sidechain depth from the kick
     bool bright[num_channels]{};  // cutoff follows the live intensity
+    float chorus[num_channels]{}; // stereo chorus / ensemble depth (0 = dry)
     float delay_rows = 3.0f;      // dotted eighth
     float delay_feedback = 0.4f;
     float reverb_size = 0.8f;
