@@ -111,6 +111,7 @@ void player::set_song(song const* s) noexcept {
         release_channel(c, ~0u, false);
     }
     mix_ = s->mix;
+    for(int c = 0; c < num_channels; ++c) hp_g_[c] = mix_.highpass[c] > 0.0f ? svf_g(mix_.highpass[c], sr_) : 0.0f;
     for(int c = 0; c < num_channels; ++c) {
         const float a = (std::clamp(mix_.pan[c], -1.0f, 1.0f) + 1.0f) * pi * 0.25f;
         pan_l_[c] = std::cos(a);
@@ -611,6 +612,7 @@ void player::render(float* out, int frames) noexcept {
                 v.age += inv_sr_;
             }
             if(sweep_dir_ != 0 && c != ch_kick && c != ch_fx) s = svf(s, sweep_g_, sweep_k_, sweep_ic1_[c], sweep_ic2_[c]).lp;
+            if(hp_g_[c] > 0.0f) s = svf(s, hp_g_[c], 1.41f, hp_ic1_[c], hp_ic2_[c]).hp;
             if(s == 0.0f && mix_.chorus[c] <= 0.0f) continue; // a chorus keeps reading its tail
             s *= mix_.gain[c] * (1.0f - mix_.duck[c] * duck_env);
             if(mix_.chorus[c] > 0.0f) {

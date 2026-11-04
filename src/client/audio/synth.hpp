@@ -118,6 +118,7 @@ private:
     float sweep_t_ = 0, sweep_len_ = 1;
     float sweep_g_ = 1, sweep_k_ = 1.3f;
     float sweep_ic1_[num_channels]{}, sweep_ic2_[num_channels]{};
+    float hp_g_[num_channels]{}, hp_ic1_[num_channels]{}, hp_ic2_[num_channels]{}; // channel high-pass
 
     // effects
     // stereo chorus per channel: a short delay line read by two LFO-swept taps

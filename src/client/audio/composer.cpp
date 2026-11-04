@@ -364,6 +364,7 @@ private:
     bool counter_pulse_ = false;
     int last_ctr_ = -1;
     // key change
+    bool no_jitter_ = false;  // add() without velocity jitter (events that must not draw random numbers)
     bool epic_ = false;       // the long form after the reference module
     int mod_shift_ = 0;
     uint32_t mod_bar_ = 0;
@@ -504,7 +505,7 @@ private:
         e.tick = bar * ticks_per_bar + static_cast<uint32_t>(tick_in_bar);
         e.len = static_cast<uint16_t>(std::max(1, len_rows * ticks_per_row + len_ticks_extra - ((row & 1) ? swing_ : 0)));
         e.ch = ch;
-        e.vel = u8(std::clamp(vel + r_.range(-5, 5), 1, 127));
+        e.vel = u8(std::clamp(vel + (no_jitter_ ? 0 : r_.range(-5, 5)), 1, 127));
         e.layer = lay;
         e.fx = fx;
         e.count = 0;
@@ -599,7 +600,7 @@ private:
         // 19-semitone window from A#2 (low), G3 (mid) or D4 (high)
         static constexpr int class_lo[3] = {46, 55, 62};
         lead_lo_ = (war_ ? 42 : class_lo[lead_class_]) + r_.range(0, 2);
-        lead_hi_ = lead_lo_ + (war_ ? 16 : 19); // wartime: a narrower, bass-like window
+        lead_hi_ = lead_lo_ + 19;
         lead_base_ = key_ + 12;
         while(lead_base_ < lead_lo_ - 1) lead_base_ += 12;
         while(lead_base_ > lead_lo_ + 10) lead_base_ -= 12;
@@ -760,7 +761,11 @@ private:
             l.glide = r_.chance(0.7f) ? 0.05f : 0.0f;
         } else {
             static constexpr int prefs[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 2}, {2, 0, 1, 3}, {0, 2, 3, 1}, {1, 0, 2, 1}, {1, 0, 2, 3}, {0, 2, 3, 0}, {1, 1, 1, 1}};
-            const int lead_kind = prefs[style_][r_.range(0, 3)];
+            // 7aa4c09's table: its "chip sample" lead (kind 2) drew one more number
+            static constexpr int prefs_7aa[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 3}, {3, 0, 1, 3}, {2, 0, 2, 3}, {1, 0, 3, 1}, {3, 0, 2, 1}, {0, 2, 3, 0}, {1, 1, 1, 1}};
+            const int pick = r_.range(0, 3);
+            const int lead_kind = prefs[style_][pick];
+            const bool old_draw = prefs_7aa[style_][pick] == 2;
             switch(lead_kind) {
             case 0: // PWM pulse pair, warm
                 l.w1 = wave::pulse, l.w2 = wave::pulse, l.mix2 = 0.4f, l.detune = 9, l.duty = 0.35f, l.pwm_depth = 0.12f, l.pwm_rate = 0.7f;
@@ -783,6 +788,7 @@ private:
                 l.gain = 1.15f;
                 break;
             }
+            if(old_draw) (void)r_.chance(0.5f); // was the wavetable choice: kept so later draws stay the same
             if(lead_class_ == 0) l.cutoff *= 1.4f, l.key_track = 0.3f, l.drive = l.unison ? l.drive : std::max(l.drive, 0.15f); // a low lead keeps its edge (unison saws need no drive)
             l.attack = 0.015f, l.decay = 0.3f, l.sustain = 0.65f, l.release = 0.15f;
             l.vib_depth = r_.range(0.05f, 0.12f), l.vib_rate = r_.range(4.5f, 5.5f), l.vib_delay = 0.25f;
@@ -794,7 +800,7 @@ private:
         // arp: rounded plucks (a filter envelope on a 24 dB low-pass), or
         // (slower rates) short sustained notes
         patch& a = P[ch_arp];
-        const int arp_kind = r_.range(0, 2);
+        const int arp_kind = style_ == st_chip ? 2 : r_.range(0, 2); // (the draws keep 7aa4c09's order: same seed, same song)
         a.w1 = arp_kind == 0 ? wave::pulse : wave::saw;
         a.duty = r_.chance(0.5f) ? 0.5f : 0.35f;
         if(arp_kind == 2) a.unison = 2, a.spread = 14; // trance pluck
@@ -807,7 +813,14 @@ private:
         patch& p = P[ch_pad];
         p.poles4 = true;
         // tracker-arpeggio chords only in the (rare) chip family
-        chip_chords_ = style_ == st_chip && r_.chance(0.5f);
+        // 7aa4c09 drew chip chords for many families; the same draw now only
+        // keeps them in the chip family (and keeps every later draw in place)
+        float chip_p = m == mood::calm ? 0.25f : 0.4f;
+        if(style_ == st_chip) chip_p = 0.75f;
+        if(style_ == st_synthwave || style_ == st_punk || war_) chip_p = 0.0f;
+        if(style_ == st_breaks) chip_p = 0.15f;
+        const bool old_chip = r_.chance(chip_p);
+        chip_chords_ = old_chip && style_ == st_chip;
         if(chip_chords_) { // arpeggiated chord on a soft square
             p.w1 = wave::pulse, p.duty = 0.5f, p.w2 = wave::pulse, p.mix2 = 0.0f;
             p.cutoff = 1600, p.resonance = 0.1f;
@@ -815,9 +828,10 @@ private:
         } else if(power_) { // a sampled-synth "guitar": driven saw + pulse power chords, chugs in the chorus
             p.w1 = wave::saw, p.unison = 1, p.spread = 10, p.w2 = wave::pulse, p.duty = 0.4f, p.mix2 = 0.6f, p.detune = 6;
             p.cutoff = 1800, p.resonance = 0.15f, p.fenv = 0.8f, p.fdecay = 0.2f, p.drive = 0.45f;
+            if(!old_chip) (void)r_.chance(0.5f); // was the bit-crush choice: kept so later draws stay the same
             p.attack = 0.004f, p.decay = 0.3f, p.sustain = 0.75f, p.release = 0.12f;
         } else { // supersaw pad: unison saws, warm filter, chorus in the mixer
-            p.w1 = wave::saw, p.unison = 2, p.spread = 16, p.w2 = wave::saw, p.mix2 = 0.7f, p.detune = r_.range(8.0f, 14.0f);
+            p.w1 = wave::saw, p.unison = 2, p.spread = 16, p.w2 = wave::saw, p.mix2 = 0.7f, p.detune = old_chip ? 11.0f : r_.range(8.0f, 14.0f);
             p.cutoff = m == mood::crisis ? 900.0f : 1300.0f, p.resonance = 0.15f, p.fenv = 0.6f, p.fdecay = 0.6f;
             p.attack = 0.08f, p.decay = 0.6f, p.sustain = 0.8f, p.release = 0.6f;
             p.gain = 1.3f;
@@ -858,7 +872,7 @@ private:
             c.vib_depth = 0.06f, c.vib_rate = 5.0f, c.vib_delay = 0.3f, c.gain = 1.1f;
             break;
         default: // supersaw for the gated wartime chords
-            c.w1 = wave::saw, c.unison = 3, c.spread = r_.range(22.0f, 30.0f), c.w2 = wave::saw, c.mix2 = 0.5f, c.detune = 9;
+            c.w1 = wave::saw, c.unison = 3, c.spread = 0.6f * r_.range(22.0f, 30.0f), c.w2 = wave::saw, c.mix2 = 0.5f, c.detune = 7; // 13-18 cents: wide but in tune
             c.attack = 0.004f, c.decay = 0.2f, c.sustain = 0.85f, c.release = 0.07f, c.cutoff = 2400, c.resonance = 0.1f, c.fenv = 0.5f, c.fdecay = 0.2f;
             c.gain = 1.8f;
             break;
@@ -890,6 +904,12 @@ private:
         X.chorus[ch_pad] = chip_chords_ ? 0.2f : style_ == st_synthwave ? 0.7f : 0.5f;
         X.chorus[ch_counter] = ctr_kind == 0 ? 0.6f : 0.35f;
         X.chorus[ch_arp] = 0.2f;
+        // the low end belongs to the kick and bass: high-pass the chords,
+        // arp and counter, and the lead below its lowest notes
+        X.highpass[ch_pad] = 150.0f;
+        X.highpass[ch_arp] = 180.0f;
+        X.highpass[ch_counter] = 140.0f;
+        X.highpass[ch_lead] = war_ ? 70.0f : 110.0f;
         X.bright[ch_lead] = X.bright[ch_arp] = X.bright[ch_pad] = X.bright[ch_counter] = true;
         X.delay_rows = r_.chance(0.7f) ? 3.0f : 2.0f;
         X.delay_feedback = r_.range(0.3f, 0.45f);
@@ -1631,11 +1651,37 @@ private:
                 }
             }
             break;
-        case tr_pad_swell:
+        case tr_pad_swell: {
+            // A crescendo that follows the harmony: the first chord swells
+            // from silence over its own length, each later chord of the build
+            // enters a step louder (it used to hold the first chord across
+            // the build's chord changes). The extra chords draw no random
+            // numbers and leave the voice leading as it was, so the rest of
+            // the song is unchanged.
             mute(1u << ch_pad);
-            emit_chord(b0 + static_cast<uint32_t>(from), 0, chord_at(p, from), nb * 16, 110, layer_always);
-            s_.events.back().fx = note_fx::swell;
+            int saved[4] = {0, 0, 0, 0};
+            int saved_n = 0;
+            for(int bi = from; bi < bars;) {
+                const int cid = chord_id(p, bi);
+                int end = bi + 1;
+                while(end < bars && chord_id(p, end) == cid) ++end;
+                const int vel = 60 + 50 * (end - from) / nb;
+                if(bi == from) {
+                    emit_chord(b0 + static_cast<uint32_t>(bi), 0, chord_at(p, bi), end >= bars ? nb * 16 : (end - bi) * 16, end >= bars ? 110 : vel, layer_always);
+                    s_.events.back().fx = note_fx::swell;
+                    std::copy(last_voicing_, last_voicing_ + 4, saved);
+                    saved_n = voicing_n_;
+                    no_jitter_ = true;
+                } else {
+                    emit_chord(b0 + static_cast<uint32_t>(bi), 0, chord_at(p, bi), (end - bi) * 16, vel, layer_always);
+                }
+                bi = end;
+            }
+            no_jitter_ = false;
+            std::copy(saved, saved + 4, last_voicing_);
+            voicing_n_ = saved_n;
             break;
+        }
         case tr_kick_double: {
             // quarters to 8ths, then the kick roll: the last beat in 16ths
             // (wartime: the last two beats, the hardtrance kick roll)
@@ -1716,6 +1762,13 @@ private:
             if(T == tr_drum_break) mutes_.push_back({end_tick - 4 * ticks_per_bar, end_tick, (1u << ch_lead) | (1u << ch_arp) | (1u << ch_pad) | (1u << ch_counter)});
             if(T == tr_kick_out) mutes_.push_back({end_tick - ticks_per_bar, end_tick, (1u << ch_kick) | (bars >= 16 ? (1u << ch_bass) : 0u)});
             if(T == tr_pause) mutes_.push_back({end_tick - ticks_per_bar, end_tick, all_but_lead_fx | (1u << ch_lead)});
+        }
+        if(p.build_up) {
+            // The build is drums, bass and arps layering in; the melody waits
+            // for the first main section. (A low lead entering over the bare
+            // gallop bass muddied it. Muting keeps every random draw, so the
+            // rest of the song is unchanged.)
+            mutes_.push_back({b0 * ticks_per_bar, end_tick, 1u << ch_lead});
         }
         const int kick_return_from = T == tr_kick_return ? bars - std::min(4, bars / 2) : bars;
 
@@ -1874,7 +1927,11 @@ private:
             int chord_rows = 0;
             for(int b = bi; b < bars && (b == bi || (b % p.bars_per_chord != 0 && chord_id(p, b) == cid)); ++b) chord_rows += 16;
             // suspensions: a sus4 resolving to the triad on phrase starts and cadences
-            const bool sus = new_chord && chord_rows >= 16 && !power_ && color_at(p, bi) == c_home && (bi % 8 == 0 || root == cad_deg_) && r_.chance(calm ? 0.15f : 0.4f);
+            // (never on the song's very first chord: an opening suspension sounds like a wrong chord;
+            // tested after the draw so the random sequence stays the same)
+            const bool sus_drawn = new_chord && chord_rows >= 16 && !power_ && color_at(p, bi) == c_home && (bi % 8 == 0 || root == cad_deg_) && r_.chance(calm ? 0.15f : 0.4f);
+            const bool sus = sus_drawn && !(index == 0 && bi == 0);
+            if(sus_drawn && !sus && !final_bar && new_chord && pad_sustain) (void)r_.range(-5, 5); // the dropped sus chord's velocity draw
             if(final_bar) {
                 emit_chord(bar, 0, 0, 16, 92, layer_always);
             } else if(new_chord && pad_sustain) {
@@ -2217,7 +2274,7 @@ private:
                 default: cl = cadence; break;
                 }
                 if(last) cl = cadence;
-                if(p.build_up && ph < bars / 2) continue; // the melody joins the build halfway
+                if(p.build_up && ph < bars / 2) continue; // (kept for the random sequence: the build's lead is muted below)
                 place_motif(motif_a_, root_a, p, ph, 96, cl);
                 if(!arp_cont_) place_arp(p, ph + 2, 2, 0, 66, layer_always);
                 if(c % 2 == 1 || last) flush_phrase();

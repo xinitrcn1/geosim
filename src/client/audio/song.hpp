@@ -135,6 +135,7 @@ struct mix_settings {
     float duck[num_channels]{};   // sidechain depth from the kick
     bool bright[num_channels]{};  // cutoff follows the live intensity
     float chorus[num_channels]{}; // stereo chorus / ensemble depth (0 = dry)
+    float highpass[num_channels]{}; // Hz, 12 dB high-pass on the channel (0 = off): keeps the low end to kick and bass
     float delay_rows = 3.0f;      // dotted eighth
     float delay_feedback = 0.4f;
     float reverb_size = 0.8f;

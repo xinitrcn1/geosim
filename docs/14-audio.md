@@ -173,6 +173,8 @@ Each channel is a mono sum scaled by its gain, then:
   delay line read by two taps at 7–13 ms, swept in quadrature at 0.6 Hz,
   one per side. Pads get 0.5 (synthwave 0.7, arpeggiated chip chords 0.2),
   the counter voice 0.35 (strings 0.6), the arp 0.2.
+- **High-pass** (`mix_settings::highpass`, per channel, 12 dB): pads
+  150 Hz, arp 180 Hz, counter 140 Hz, lead 110 Hz (wartime 70 Hz).
 - **Sends:** a tempo-synced **ping-pong delay** (dotted 8th or 8th, feedback
   0.3–0.45, damped) and a Freeverb-style **reverb** (4 combs + 2 allpasses
   per side).
@@ -756,6 +758,53 @@ too sharp. Each figure is the previous build (7aa4c09) → now.
   the 8-bit wavetable, that every melodic voice has a 24 dB filter, that
   wartime is always hardtrance, and that the chip family stays rare (at
   most 1 song in 10 over 200 seeds).
+
+### Seeds the user liked: same songs, fixed details
+
+Two wartime songs of 7aa4c09 were reported: seed 2327 ("an absolute gem,
+but the start is a bit off"; later "the high synth notes sound false") and
+seed 2847 ("absolutely wonderful, but at around 00:44 the lead / new
+instrument manages to ruin it").
+
+- **Same seed, same song.** The sound rework (a65de3a) had changed the
+  order of random draws, so those seeds composed different songs. The
+  composer again makes 7aa4c09's draws, including the ones whose results
+  no longer matter: the old bit-crush and wavetable choices and the old
+  chip-chord draw. Over seeds 1–300:
+  - all 300 wartime songs have 7aa4c09's composition plan, and their
+    events differ only by the fixes below (pad and lead events);
+  - so do 258 / 228 / 250 / 205 songs of calm / tense / crisis / triumph.
+    The rest changed style family because the chip family was demoted.
+- **The start of 2327.** The song opened on a sus4 that resolved half a
+  bar later, which sounds like a wrong first chord. The song's first chord
+  is never a suspension now; the dropped event's random draw is still
+  made, so nothing later moves. The 8-bar *pad-swell* build also held its
+  first chord while the arp and bass moved through VI, iv and V. It now
+  follows the harmony: the first chord swells from silence, and each later
+  chord enters a step louder (velocity 71 → 85 → 97 → 110 in 2327). The
+  extra chords draw no random numbers and leave the voice leading as it
+  was. In 2327 these are the only 8 changed events.
+- **The high notes of 2327.** At 7aa4c09 its arp was the 8-bit wavetable
+  through 16.7 kHz sample-and-hold, up to D#6. Aliasing below the
+  fundamental on its own patch: −40.6 / −32.9 / −25.2 dB at D#5 / A#5 /
+  D#6, heard as off-pitch partials. Now −82.9 / −84.3 / −86.6 dB. Its
+  gated counter chords were two saws 31 cents apart (sour). They are now
+  a 3-saw supersaw spread over 13–18 cents plus a saw 7 cents off.
+- **2847 at 0:44.** The low lead entered in the epic form's build section
+  (bar 24, a held B2 at 0:44) over the bare gallop bass, with no
+  sustained chords (wartime's high intensity turns the verse pads off).
+  The build is now drums, bass and arps only. Its lead is muted, again
+  without changing any random draw, and the melody first sounds in the
+  main section, as in the reference layout. In 2847 only those 13 lead
+  events change.
+- **Low end.** Pads, arps and the counter voice are high-passed at
+  140–180 Hz, the lead at 110 Hz (wartime 70 Hz), so the bottom octave
+  belongs to the kick and bass. On these two songs it changes little: the
+  wartime pads were already above 150 Hz, and the lead's share below
+  150 Hz went 10.7 → 9.4 %. The old crushed arp of 2847 had 47 % of its
+  energy below 150 Hz (sample-and-hold junk); the new one has 0 %. Peaks
+  and RMS are unchanged: 2327 −0.86 dBFS and −12.9 dBFS, 2847 −0.83 dBFS
+  and −13.1 dBFS.
 
 ## Limitations and next steps
 
