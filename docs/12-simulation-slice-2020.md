@@ -284,6 +284,8 @@ not that they forecast it. A held-out year (2021) is the next validation step.
 
 ## Open issues
 
+See [13](13-calibration-notes.md) for the calibration findings so far (causes and fixes) and the diagnosis of the remaining baseline drift.
+
 - **Multi-year baseline drift.** A no-shock run is steady for the 120 days the test
   checks, but over several years it drifts: unemployment rises steadily from the
   first year. Being worked on; until fixed, multi-year results (and the 2009 scores

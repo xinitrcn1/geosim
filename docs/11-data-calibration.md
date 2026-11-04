@@ -145,6 +145,8 @@ raw downloads (pinned versions, checksums)
   group → global); every imputed value carries a flag that the UI shows as
   "estimated".
 
+Troubleshooting notes from the slice calibrations and the world import: [13](13-calibration-notes.md).
+
 ## Calibration
 
 1. **Direct from data:** shares, coefficients, stocks (IO coefficients,

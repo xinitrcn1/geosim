@@ -29,6 +29,7 @@ published literature in [references.md](references.md).
 | 10 | [Data model (DCON)](10-data-model-dcon.md) | Objects, relationships, property conventions |
 | 11 | [Data & calibration](11-data-calibration.md) | Source datasets, 2020 initial state, back-testing |
 | 12 | [2020 simulation slice](12-simulation-slice-2020.md) | **What is implemented now**, mechanisms, back-test results |
+| 13 | [Calibration notes](13-calibration-notes.md) | Calibration findings and mistakes, troubleshooting for new data and slices |
 | — | [References](references.md) | Bibliography |
 
 ## Conventions used in these docs
