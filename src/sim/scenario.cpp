@@ -541,6 +541,37 @@ struct builder {
         }
     }
 
+    // Per-region geography and climate (tools/pipeline/build_region_geo.py): elevation, low
+    // coastal zone, flood plains, precipitation climatology; slices hold one row per nation
+    // (region = iso3). The rest of the world takes no part in the hazard model.
+    void load_region_geo() {
+        auto& w = state.world;
+        const std::string path = assets + "/scenario/" + scenario + "/regions_geo.csv";
+        if(exists(path)) {
+            const auto t = core::csv_table::load(path, diag);
+            for(std::size_t row = 0; row < t.rows(); ++row) {
+                auto it = region_by_id.find(std::string(t.get(row, "region")));
+                if(it == region_by_id.end()) continue;
+                const auto r = it->second;
+                w.region_set_elevation_m(r, static_cast<float>(t.number_or(row, "elevation_m", 0.0)));
+                w.region_set_lecz_share(r, static_cast<float>(t.number_or(row, "lecz_share", 0.0)));
+                w.region_set_coastal(r, static_cast<float>(t.number_or(row, "coastal", 0.0)));
+                w.region_set_floodplain_share(r, static_cast<float>(t.number_or(row, "floodplain_share", 0.0)));
+                w.region_set_precip_mm(r, static_cast<float>(t.number_or(row, "precip_mm", 0.0)));
+                w.region_set_precip_peak_month(r, static_cast<uint8_t>(std::clamp(t.number_or(row, "precip_peak_month", 7.0), 1.0, 12.0)));
+                w.region_set_precip_seasonality(r, static_cast<float>(t.number_or(row, "precip_seasonality", 0.5)));
+                if(w.region_get_area_km2(r) <= 0.0f) w.region_set_area_km2(r, static_cast<float>(t.number_or(row, "area_km2", 0.0)));
+                if(w.region_get_lat(r) == 0.0f && w.region_get_lon(r) == 0.0f) {
+                    w.region_set_lat(r, static_cast<float>(t.number_or(row, "lat", 0.0)));
+                    w.region_set_lon(r, static_cast<float>(t.number_or(row, "lon", 0.0)));
+                }
+            }
+        }
+        for(auto r : w.in_region) {
+            if(r.get_owner() && core::unpack_key(r.get_owner().get_iso3()) == "ROW") r.set_precip_mm(-1.0f);
+        }
+    }
+
     void load_adjacency() {
         const std::string path = assets + "/scenario/" + scenario + "/adjacency.csv";
         if(!exists(path)) {
@@ -2030,6 +2061,9 @@ struct builder {
         }
         load_adjacency();
         if(diag.failed()) return;
+        load_region_geo();
+        load_hazard_defs(state, assets, diag); // after regions: coordinates and ENSO teleconnections
+        if(diag.failed()) return;
         load_sea_network(state, assets, diag);      // after nations: littoral links
         load_commodity_defs(state, assets, diag);
         load_technology_defs(state, assets, diag);
@@ -2093,6 +2127,7 @@ struct builder {
         init_reforms(state);
         init_politics_ext(state);
         init_agreements(state);
+        init_disasters(state); // after temperatures (calibrate) and geography
     }
 };
 
@@ -2130,6 +2165,7 @@ void rebuild_derived(game_state& state) {
         case sector_role::manufacturing: d.manufacturing_sector = s.id; break;
         default: break;
         }
+        if(s.get_key() == core::pack_key("agr")) d.agriculture_sector = s.id;
     }
     for(auto o : w.in_organisation) {
         const auto k = o.get_kind();

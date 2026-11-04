@@ -103,14 +103,15 @@ int main() {
         CHECK(priced.conserved && base.conserved);
     }
 
-    // 3. Disasters and warming (climate-policy system alone, 30 years each).
+    // 3. Disasters and warming (the hazard system alone, 30 years each): warming dries soils
+    //    (droughts) and raises potential intensity (stronger cyclones).
     {
         auto count = [](float warming) {
             auto s = make();
             for(auto c : s->world.in_climate) c.set_temperature(static_cast<float>(s->params.temperature0) + warming);
             int n = 0;
             for(int d = 0; d < 365 * 30; ++d) {
-                sim::update_climate_policy(*s);
+                sim::update_disasters(*s);
                 ++s->current_tick;
             }
             for(auto dec : s->world.in_decision) n += dec.get_lever() == sim::journal_disaster ? 1 : 0;

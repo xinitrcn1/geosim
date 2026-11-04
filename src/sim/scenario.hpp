@@ -38,5 +38,7 @@ void load_trade_tables(game_state& state, std::string const& scenario_dir, core:
 void load_conflict_tables(game_state& state, std::string const& scenario_dir, core::diagnostics& diag);
 // International organisations (defs/organisations.txt; memberships per scenario).
 void load_organisation_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
+// Faults, cyclone basins and ENSO teleconnections (assets/defs; systems/disasters.cpp).
+void load_hazard_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
 
 } // namespace geosim::sim

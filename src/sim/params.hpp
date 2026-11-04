@@ -419,9 +419,37 @@
     X(carbon_fossil_margin, 80.0, "carbon price (USD/t) at which fossil energy capacity loses its margin") \
     X(carbon_stranding, 0.2, "annual early retirement of fossil capacity per unit price above the margin (Mercure et al. 2018)") \
     X(carbon_tonnes_per_gdp, 0.4, "tonnes of CO2 per thousand USD of energy-sector output (rough)")      \
-    X(disaster_rate, 0.05, "annual probability of a major disaster per region at today's climate (EM-DAT)") \
-    X(disaster_warming, 0.5, "disaster hazard increase per C of warming above the start (IPCC AR6)")      \
-    X(disaster_loss, 0.02, "mean capital loss of a major disaster (share of regional capacity; Hsiang & Jina 2014)") \
+    /* ---- natural hazards (systems/disasters.cpp; docs/03#natural-hazards) ---- */                         \
+    X(enso0, 0.5, "Nino-3.4 SST anomaly at the start (C; NOAA ONI DJF 2019/20 = +0.5)")                    \
+    X(enso_heat0, -0.3, "equatorial Pacific heat content anomaly at the start (recharge oscillator units; WWV discharging in early 2020)") \
+    X(enso_growth, -0.6, "ENSO SST self-damping rate R (1/yr; Jin 1997 recharge oscillator; Burgers et al. 2005)") \
+    X(enso_coupling, 2.0, "SST response to heat content gamma (1/yr)")                                     \
+    X(enso_recharge, 1.25, "heat-content discharge by SST alpha (1/yr): period near 4 years")              \
+    X(enso_damping, 0.2, "heat-content damping r (1/yr)")                                                  \
+    X(enso_noise, 0.8, "stochastic westerly-wind-burst forcing of ENSO SST (C per sqrt(yr))")             \
+    X(precip_persistence, 0.4, "month-to-month autocorrelation of precipitation anomalies")                 \
+    X(precip_national, 0.6, "share of a region's precipitation anomaly common to its nation (spatial coherence)") \
+    X(soil_capacity_mm, 150.0, "soil water holding capacity of the bucket model (mm; Manabe 1969)")         \
+    X(drought_spei, -1.5, "SPEI-6 below which a region is in severe drought (McKee et al. 1993; Vicente-Serrano et al. 2010)") \
+    X(drought_crop_loss, 0.12, "agricultural output loss per unit SPEI below the threshold (Lesk, Rowhani & Ramankutty 2016)") \
+    X(famine_mortality, 0.002, "annual excess mortality of drought-affected rural people in the poorest nations (falls to 0 at 2,500 USD a head; x conflict)") \
+    X(flood_z, 2.0, "monthly precipitation anomaly (sd) on saturated soil that floods river plains (Jongman et al. 2012)") \
+    X(flood_mortality, 2e-5, "deaths per flood-affected person at 10,000 USD GDP per head (x income^-0.7; Jongman et al. 2015)") \
+    X(flood_damage, 0.03, "capital loss of flooded areas per unit severity (depth-damage; Huizinga et al. 2017)") \
+    X(cyclone_substeps, 4.0, "cyclone track sub-steps per day")                                           \
+    X(cyclone_pi_slope, 15.0, "potential intensity per C of SST above 26 C (m/s per C; Emanuel 1987)")    \
+    X(cyclone_intensify, 0.35, "approach rate of a cyclone to its potential intensity over warm water (1/day)") \
+    X(cyclone_land_decay, 2.3, "inland decay rate of cyclone winds (1/day; Kaplan & DeMaria 1995: 0.095/h)") \
+    X(cyclone_v_half, 74.7, "wind destroying half the exposed capital of a rich region (m/s; Emanuel 2011; Eberenz et al. 2021)") \
+    X(cyclone_surge_mortality, 0.002, "surge death rate of low-lying coastal people under a major hurricane at 10,000 USD GDP per head (x income^-0.7)") \
+    X(capital_output, 3.0, "capital stock per unit of GDP exposed to disasters (Berlemann & Wesselhoft 2014)") \
+    X(quake_mmi_c, 2.0, "intensity attenuation constant: MMI = 1.5 Mw - 3 log10(R km) + c")                \
+    X(quake_theta_poor, 10.0, "PAGER fatality median intensity for poor nations (Jaiswal & Wald 2010)")     \
+    X(quake_theta_rich, 14.0, "PAGER fatality median intensity for rich nations")                          \
+    X(quake_beta, 0.12, "PAGER fatality dispersion (log intensity)")                                      \
+    X(quake_loss_theta, 9.5, "PAGER economic-loss median intensity (Jaiswal & Wald 2013)")                 \
+    X(tsunami_min_mw, 7.5, "smallest megathrust earthquake that raises a damaging tsunami")                 \
+    X(tsunami_depth_median, 3.0, "inundation depth killing half the exposed people without warning (m; Koshimura et al. 2009)") \
     X(top_share_capital, 1.0, "elasticity of the top-1% income share to the capital-income share")       \
     /* ---- society and politics extensions ---- */                                                          \
     X(repression_deterrence, 0.4, "joining-cost rise at full repression (Davenport 2007)")                 \

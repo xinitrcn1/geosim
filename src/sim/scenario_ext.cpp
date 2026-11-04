@@ -537,3 +537,73 @@ void load_trade_tables(game_state& state, std::string const& dir, core::diagnost
 }
 
 } // namespace geosim::sim
+
+namespace geosim::sim {
+
+void load_hazard_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag) {
+    auto& w = state.world;
+    // Regions without coordinates or area take their nation's (one-region nations).
+    for(auto r : w.in_region) {
+        const auto n = r.get_owner();
+        if(!n) continue;
+        if(r.get_lat() == 0.0f && r.get_lon() == 0.0f) {
+            r.set_lat(n.get_lat());
+            r.set_lon(n.get_lon());
+        }
+        if(r.get_area_km2() <= 0.0f) r.set_area_km2(std::max(1000.0f, r.get_population() / 100.0f));
+    }
+    const std::string faults = assets_dir + "/defs/faults.csv";
+    if(exists(faults)) {
+        const auto t = core::csv_table::load(faults, diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const auto f = w.create_fault();
+            w.fault_set_key(f, core::pack_key(t.get(row, "key")));
+            w.fault_set_lat(f, static_cast<float>(t.number_or(row, "lat", 0.0)));
+            w.fault_set_lon(f, static_cast<float>(t.number_or(row, "lon", 0.0)));
+            w.fault_set_length_km(f, static_cast<float>(t.number_or(row, "length_km", 100.0)));
+            w.fault_set_recurrence_years(f, static_cast<float>(t.number_or(row, "recurrence", 200.0)));
+            w.fault_set_aperiodicity(f, static_cast<float>(t.number_or(row, "aperiodicity", 0.5)));
+            w.fault_set_mw_char(f, static_cast<float>(t.number_or(row, "mw", 7.0)));
+            w.fault_set_depth_km(f, static_cast<float>(t.number_or(row, "depth_km", 15.0)));
+            w.fault_set_subduction(f, static_cast<uint8_t>(t.number_or(row, "subduction", 0.0) != 0.0 ? 1 : 0));
+            // The year of the last rupture; init_disasters turns it into elapsed years.
+            w.fault_set_elapsed_years(f, static_cast<float>(t.number_or(row, "last", 1900.0)));
+        }
+    }
+    const std::string basins = assets_dir + "/defs/cyclone_basins.csv";
+    if(exists(basins)) {
+        const auto t = core::csv_table::load(basins, diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const auto b = w.create_cyclone_basin();
+            w.cyclone_basin_set_key(b, core::pack_key(t.get(row, "key")));
+            w.cyclone_basin_set_lat_min(b, static_cast<float>(t.number_or(row, "lat_min", 0.0)));
+            w.cyclone_basin_set_lat_max(b, static_cast<float>(t.number_or(row, "lat_max", 0.0)));
+            w.cyclone_basin_set_lon_min(b, static_cast<float>(t.number_or(row, "lon_min", 0.0)));
+            w.cyclone_basin_set_lon_max(b, static_cast<float>(t.number_or(row, "lon_max", 0.0)));
+            w.cyclone_basin_set_annual_count(b, static_cast<float>(t.number_or(row, "annual_count", 0.0)));
+            w.cyclone_basin_set_peak_month(b, static_cast<float>(t.number_or(row, "peak_month", 9.0)));
+            w.cyclone_basin_set_season_sd_months(b, static_cast<float>(t.number_or(row, "season_sd_months", 1.5)));
+            w.cyclone_basin_set_enso_effect(b, static_cast<float>(t.number_or(row, "enso_effect", 0.0)));
+            w.cyclone_basin_set_ridge_lat(b, static_cast<float>(t.number_or(row, "ridge_lat", 25.0)));
+            w.cyclone_basin_set_names_used(b, 0);
+            w.cyclone_basin_set_names_year(b, 0);
+        }
+    }
+    const std::string tele = assets_dir + "/defs/enso_teleconnections.csv";
+    if(exists(tele)) {
+        const auto t = core::csv_table::load(tele, diag);
+        for(auto r : w.in_region) {
+            for(std::size_t row = 0; row < t.rows(); ++row) {
+                const double lo = t.number_or(row, "lon_min", 0.0), hi = t.number_or(row, "lon_max", 0.0);
+                if(r.get_lat() < t.number_or(row, "lat_min", 0.0) || r.get_lat() > t.number_or(row, "lat_max", 0.0)) continue;
+                if(r.get_lon() < lo || r.get_lon() > hi) continue;
+                r.set_enso_tele(static_cast<float>(t.number_or(row, "effect", 0.0)));
+                r.set_tele_from(static_cast<uint8_t>(t.number_or(row, "month_from", 1.0)));
+                r.set_tele_to(static_cast<uint8_t>(t.number_or(row, "month_to", 12.0)));
+                break;
+            }
+        }
+    }
+}
+
+} // namespace geosim::sim

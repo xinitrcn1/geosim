@@ -104,6 +104,10 @@ enum org_flag : uint16_t {
 enum class org_rule : uint8_t { majority = 0, veto = 1, qualified = 2, consensus = 3 };
 enum class org_role : uint8_t { member = 0, elected = 1, permanent = 2, suspended = 3 };
 
+// disaster.kind / .status (systems/disasters.cpp)
+enum class disaster_kind : uint8_t { cyclone = 0, flood = 1, drought = 2, earthquake = 3, tsunami = 4, count };
+enum class disaster_status : uint8_t { warning = 0, ongoing = 1, over = 2 };
+
 // treaty.kind (systems/agreements.cpp)
 enum class treaty_kind : uint8_t { climate = 0, migration = 1, debt_relief = 2, conditional_aid = 3, power_sharing = 4, count };
 

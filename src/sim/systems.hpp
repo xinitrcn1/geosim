@@ -5,6 +5,7 @@
 #include "sim/game_state.hpp"
 #include "sim/model.hpp"
 
+#include <string>
 #include <vector>
 
 namespace geosim::sim {
@@ -197,6 +198,23 @@ void on_coup(game_state& state, dcon::nation_id n);
 [[nodiscard]] float club_sanction_shift(game_state const& state, dcon::nation_id n, dcon::nation_id target, float choice);
 [[nodiscard]] float regional_mediation_score(game_state const& state, dcon::nation_id n, dcon::nation_id m);
 void init_mega_events(game_state& state);
+// Natural hazards (disasters.cpp): ENSO, water balance (droughts, floods), tropical
+// cyclones, earthquakes and tsunamis.
+void init_disasters(game_state& state);
+void update_disasters(game_state& state);
+struct disaster_text {
+    std::string title; // "Hurricane Laura", "Magnitude 7.8 earthquake", "Floods", ...
+    std::string date;  // start, YYYY-MM-DD
+    disaster_kind kind = disaster_kind::cyclone;
+    disaster_status status = disaster_status::ongoing;
+    dcon::nation_id nation;
+    dcon::region_id region; // the worst-hit region
+    float deaths = 0.0f, affected = 0.0f;
+    double damage_usd = 0.0;   // capital destroyed and output lost (USD)
+    float gdp_loss_pct = 0.0f; // damage as a share of the nation's annual GDP (%)
+    bool potential = false;    // a warning: the impact is a forecast
+};
+[[nodiscard]] disaster_text describe_disaster(game_state const& state, dcon::disaster_id d);
 void update_mega_events(game_state& state);
 // Votes a draft by `sponsor` against `target` (shift: extra support); journals under
 // `code` (0 = silent). Returns 1 adopted, 0 vetoed or blocked, -1 too few votes.

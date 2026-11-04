@@ -530,14 +530,106 @@ Planned: housing wealth in each pop's balance sheet; regional rents.
   (**stranded assets**; Mercure et al. 2018; van der Ploeg & Rezai 2020). The
   price cuts emissions, raises energy costs and raises revenue. Paris
   pledges are treaty objects ([06](06-geopolitics-ai.md#agreements-and-rebels)).
-- **Disasters** (28 days, region shard): storms, floods, droughts and
-  wildfires strike at random with a hazard rising with warming (IPCC AR6),
-  higher in hot regions; each destroys a lognormal share of regional capacity
-  (losses persist; Hsiang & Jina 2014). Disaster aid follows
+- **Disasters** come from the climate and tectonic state, not from fixed
+  hazards ([natural hazards](#natural-hazards)). Disaster aid follows
   ([06](06-geopolitics-ai.md#coercion-aid-arms-and-treaties)).
 
 **Planned:** a full vintage capital stock (Solow 1956) per production unit;
 emissions from the full energy mix (gas, coal) rather than oil demand.
+
+## Natural hazards
+
+**Implemented** (`disasters.cpp`; parameters under "natural hazards").
+Disasters emerge from state variables that evolve under physical rules. The
+only randomness is weather noise and the timing of fault ruptures. This is a
+macro climate model, not a forecast or a weather model. Each disaster is a
+`disaster` record:
+- kind and status: a warning (potential impact), ongoing, or over;
+- the worst-hit region and the date;
+- deaths and people affected;
+- damage in USD and as a share of the nation's GDP.
+
+The client turns each record into a notification. Damage destroys regional
+capacity (`va0`), and deaths leave the population through the same path as
+violent deaths.
+
+- **ENSO.** The Niño-3.4 anomaly follows Jin's (1997) recharge oscillator
+  (SST and equatorial heat content), forced by wind-burst noise (Burgers, Jin
+  & van Oldenborgh 2005). It has a period of about four years and a standard
+  deviation of about 0.8 °C. The starting values come from the scenario: ONI
+  +0.5 in 2020 and −1.6 in 2008. ENSO shifts regional rain through
+  teleconnection boxes (`defs/enso_teleconnections.csv`; Ropelewski & Halpert
+  1987) and cyclone genesis by basin.
+- **Water balance** (monthly, per region). Each region uses its precipitation
+  climatology (WorldClim: annual total, wettest month and seasonality, in
+  `regions_geo.csv`).
+  - Rain varies with a persistent, partly national, ENSO-shifted lognormal
+    anomaly.
+  - Evapotranspiration rises with temperature (lapse rate by elevation), so
+    warming dries soils.
+  - A bucket soil holds the water (Manabe 1969).
+  - **Drought:** SPEI-6 below `drought_spei` (McKee et al. 1993;
+    Vicente-Serrano et al. 2010) cuts agricultural capacity in proportion to
+    the deficit (Lesk, Rowhani & Ramankutty 2016). Famine deaths hit poor
+    rural people (none above about 2,500 USD a head) and grow with conflict
+    (Sen 1981; Maxwell & Fitzpatrick 2012). There is one record per nation;
+    it accumulates deaths and lost output while it lasts.
+  - **Floods:** extreme monthly rain, more likely on saturated soil and in the
+    wet season. A large region holds many basins (extreme-value scaling).
+    Exposure is the flood-plain population; mortality and damage fall with
+    income (Jongman, Ward & Aerts 2012; Jongman et al. 2015; Huizinga et al.
+    2017).
+- **Tropical cyclones.** Seven basins (`defs/cyclone_basins.csv`; IBTrACS
+  climatology).
+  - Genesis follows the season, scaled by ENSO (Gray 1984; Camargo & Sobel
+    2005).
+  - Steering: west under the trades, recurving past the subtropical ridge
+    (Holland 1983).
+  - Intensity relaxes to the potential intensity of the SST, which tracks
+    warming (Emanuel 1987), and decays over land (Kaplan & DeMaria 1995).
+  - Damage uses Emanuel's (2011) cubic wind function with V½ near 75 m/s
+    (Eberenz, Lüthi & Bresch 2021), over the share of a region inside the
+    damaging wind field.
+  - Deaths come from storm surge on low-lying coasts (LECZ; McGranahan, Balk &
+    Anderson 2007) and from wind, falling with income (Kahn 2005; Toya &
+    Skidmore 2007).
+  - Storms carry WMO names. One and a half days before landfall a warning
+    record gives the potential impact; the actual impact replaces it.
+- **Earthquakes.** 55 major sources (`defs/faults.csv`, from paleoseismic
+  and historical records) accumulate strain since their last rupture
+  (elastic rebound; Reid 1910).
+  - The rupture hazard is the Brownian Passage Time renewal rate (Matthews,
+    Ellsworth & Reasenberg 2002; UCERF3), so long-quiet seismic gaps (Cascadia,
+    the central Himalaya, the Alpine Fault) are the likeliest.
+  - Magnitude grows with the slip deficit; rupture length follows Wells &
+    Coppersmith (1994).
+  - Moderate Gutenberg–Richter events between ruptures don't reset the
+    cycle.
+  - Shaking attenuates with distance and is integrated over each region's
+    area. Deaths and losses follow USGS PAGER (Jaiswal & Wald 2010, 2013),
+    with sturdier buildings in richer nations.
+- **Tsunamis.** Megathrust ruptures above `tsunami_min_mw` raise waves whose
+  height falls with distance (Abe 1981). They inundate the low coastal zone,
+  with deaths by depth (Koshimura et al. 2009), cut by warning, which comes
+  with income and distance.
+
+World 2020 run (one year, seed 0): about 11,300 deaths and 135 bn USD of
+damage. EM-DAT 2020 records about 15,000 deaths and 171 bn USD. By kind:
+- cyclones: 1,300 deaths, 20 bn USD;
+- floods: 4,700 deaths, 108 bn USD;
+- droughts: 4,100 deaths;
+- earthquakes: 1,100 deaths.
+
+A warming of 2 °C doubles the disaster count over 30 years in the slice
+(`test_economy_ext`).
+
+**Limits:**
+- Region disks stand in for coastlines, so a storm may cross a narrow strait
+  as if over land.
+- Tsunamis ignore land blocking along the path.
+- Faults outside `defs/faults.csv` never rupture.
+- In the 2020 and 2008 slices one region covers a whole nation, so hazards
+  are coarse there.
 
 ## Inequality within strata
 

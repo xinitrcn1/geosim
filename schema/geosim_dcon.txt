@@ -547,6 +547,26 @@ object{
 	property{ name{fiscal_capacity} type{float} }
 	property{ name{fiscal_capacity0} type{float} }
 	property{ name{ruggedness} type{float} }
+	property{ name{elevation_m} type{float} }
+	property{ name{lecz_share} type{float} }
+	property{ name{coastal} type{float} }
+	property{ name{floodplain_share} type{float} }
+	property{ name{precip_mm} type{float} }
+	property{ name{precip_peak_month} type{uint8_t} }
+	property{ name{precip_seasonality} type{float} }
+	property{ name{enso_tele} type{float} }
+	property{ name{precip_noise} type{float} }
+	property{ name{precip_anom} type{float} }
+	property{ name{soil_moisture} type{float} }
+	property{ name{spei} type{float} }
+	property{ name{drought_disaster} type{disaster_id} }
+	property{ name{flood_cooldown} type{float} }
+	property{ name{storm_seen} type{int32_t} }
+	property{ name{storm_wind} type{float} }
+	property{ name{tele_from} type{uint8_t} }
+	property{ name{tele_to} type{uint8_t} }
+	property{ name{crop_loss} type{float} }
+	property{ name{spei_var} type{float} }
 	property{ name{crisis_days} type{float} }
 }
 
@@ -701,6 +721,8 @@ object{
 	property{ name{emissions} type{float} }
 	property{ name{emission_intensity} type{float} }
 	property{ name{remittance_index} type{float} }
+	property{ name{enso} type{float} }
+	property{ name{enso_heat} type{float} }
 }
 
 object{
@@ -961,6 +983,92 @@ object{
 	property{ name{quota} type{float} }
 	property{ name{price_war_days} type{float} }
 	property{ name{capacity_bn} type{float} }
+}
+
+object{
+	name{disaster}
+	storage_type{erasable}
+	size{8192}
+	tag{scenario}
+
+	property{ name{kind} type{uint8_t} }
+	property{ name{status} type{uint8_t} }
+	property{ name{nation} type{nation_id} }
+	property{ name{region} type{region_id} }
+	property{ name{start} type{int32_t} }
+	property{ name{finish} type{int32_t} }
+	property{ name{lat} type{float} }
+	property{ name{lon} type{float} }
+	property{ name{magnitude} type{float} }
+	property{ name{deaths} type{float} }
+	property{ name{affected} type{float} }
+	property{ name{damage_usd} type{double} }
+	property{ name{gdp_loss_pct} type{float} }
+	property{ name{source} type{int32_t} }
+	property{ name{name_index} type{uint16_t} }
+	property{ name{basin} type{uint8_t} }
+	property{ name{restore} type{float} }
+}
+
+object{
+	name{storm}
+	storage_type{erasable}
+	size{128}
+	tag{scenario}
+
+	property{ name{basin} type{uint8_t} }
+	property{ name{name_index} type{uint16_t} }
+	property{ name{lat} type{float} }
+	property{ name{lon} type{float} }
+	property{ name{wind} type{float} }
+	property{ name{peak_wind} type{float} }
+	property{ name{radius_km} type{float} }
+	property{ name{heading} type{float} }
+	property{ name{speed_kmd} type{float} }
+	property{ name{age_days} type{float} }
+	property{ name{over_land} type{uint8_t} }
+	property{ name{deaths} type{float} }
+	property{ name{damage_usd} type{double} }
+	property{ name{serial} type{int32_t} }
+	property{ name{noise} type{float} }
+}
+
+object{
+	name{fault}
+	storage_type{contiguous}
+	size{128}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{lat} type{float} }
+	property{ name{lon} type{float} }
+	property{ name{length_km} type{float} }
+	property{ name{recurrence_years} type{float} }
+	property{ name{aperiodicity} type{float} }
+	property{ name{mw_char} type{float} }
+	property{ name{depth_km} type{float} }
+	property{ name{subduction} type{uint8_t} }
+	property{ name{elapsed_years} type{float} }
+}
+
+object{
+	name{cyclone_basin}
+	storage_type{contiguous}
+	size{8}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{lat_min} type{float} }
+	property{ name{lat_max} type{float} }
+	property{ name{lon_min} type{float} }
+	property{ name{lon_max} type{float} }
+	property{ name{annual_count} type{float} }
+	property{ name{peak_month} type{float} }
+	property{ name{season_sd_months} type{float} }
+	property{ name{enso_effect} type{float} }
+	property{ name{ridge_lat} type{float} }
+	property{ name{names_used} type{uint16_t} }
+	property{ name{names_year} type{int32_t} }
 }
 
 object{

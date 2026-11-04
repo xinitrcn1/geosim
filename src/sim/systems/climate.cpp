@@ -11,10 +11,7 @@
 // fossil capacity early - stranded assets (Mercure et al. 2018; van der Ploeg &
 // Rezai 2020). The price cuts emissions, raises energy costs (CPI) and raises
 // revenue.
-// Disasters (monthly, region shard). Major disasters (storms, floods, droughts,
-// wildfires) strike at random with a hazard that rises with warming (IPCC AR6)
-// and is higher in hot regions; each destroys a lognormal share of regional
-// capacity (cyclone losses persist for years; Hsiang & Jina 2014).
+// Natural disasters are in disasters.cpp (a climate and tectonic state, not dice rolls).
 
 #include "core/rng.hpp"
 #include "core/scheduler.hpp"
@@ -83,8 +80,6 @@ void update_climate_policy(game_state& state) {
     auto const& D = state.derived;
     const auto tick = static_cast<tick_t>(state.current_tick);
     const float years = static_cast<float>(monthly_cadence.period_days) / 365.0f;
-    float warming = 0.0f;
-    for(auto c : w.in_climate) warming = c.get_temperature() - static_cast<float>(P.temperature0);
     // Renewables technology index (if defined) for the clean vintage share.
     uint8_t ren = 0xFF;
     for(auto t : w.in_technology) {
@@ -105,30 +100,6 @@ void update_climate_policy(game_state& state) {
             const auto es = static_cast<uint8_t>(D.energy_sector.index());
             for(auto own : n.get_region_ownership()) own.get_region().set_va0(es, own.get_region().get_va0(es) * (1.0f - retire));
             n.set_va0(es, n.get_va0(es) * (1.0f - retire));
-        }
-        // Disasters, per region.
-        for(auto own : n.get_region_ownership()) {
-            auto r = own.get_region();
-            const float heat = std::max(0.5f, 1.0f + 0.05f * (r.get_temp_base() - 15.0f));
-            const float p = static_cast<float>(P.disaster_rate) * years * heat * std::max(0.0f, 1.0f + static_cast<float>(P.disaster_warming) * warming);
-            const auto ri = static_cast<uint32_t>(r.id.index());
-            if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::commodities), tick, 0x100000u + ri) < p) {
-                const float u1 = std::max(1e-6f, core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::commodities), tick, 0x100000u + ri, 1));
-                const float u2 = core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::commodities), tick, 0x100000u + ri, 2);
-                const float z = std::sqrt(-2.0f * std::log(u1)) * std::cos(2.0f * std::numbers::pi_v<float> * u2);
-                const float loss = std::min(0.3f, static_cast<float>(P.disaster_loss) * std::exp(0.8f * z - 0.32f));
-                for(uint8_t s = 0; s < D.sector_count; ++s) r.set_va0(s, r.get_va0(s) * (1.0f - loss));
-                n.set_disaster_losses(n.get_disaster_losses() + loss);
-                const auto d = w.create_decision();
-                w.decision_set_target(d, n.id);
-                w.decision_set_tick(d, state.current_tick);
-                w.decision_set_lever(d, journal_disaster);
-                w.decision_set_before(d, 0.0f);
-                w.decision_set_after(d, loss);
-                w.decision_set_pragmatic(d, static_cast<float>(r.id.index()));
-                w.decision_set_ideological(d, NAN);
-                w.decision_set_prior(d, NAN);
-            }
         }
     }
 }

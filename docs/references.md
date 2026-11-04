@@ -511,3 +511,39 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Kavetsos, G. & Szymanski, S. (2010). National well-being and international sports events. *Journal of Economic Psychology* 31(2). — Feel-good effect.
 - Grix, J. & Lee, D. (2013). Soft power, sports mega-events and emerging states: the lure of the politics of attraction. *Global Society* 27(4).
 - Snyder, G. (1984). The security dilemma in alliance politics. *World Politics* 36(4). — Entrapment and abandonment.
+
+## Natural hazards ([03](03-economy.md#natural-hazards))
+
+- Jin, F.-F. (1997). An equatorial ocean recharge paradigm for ENSO. *Journal of the Atmospheric Sciences* 54(7). — Recharge oscillator.
+- Burgers, G., Jin, F.-F. & van Oldenborgh, G. J. (2005). The simplest ENSO recharge oscillator. *Geophysical Research Letters* 32.
+- Ropelewski, C. & Halpert, M. (1987). Global and regional scale precipitation patterns associated with the El Niño/Southern Oscillation. *Monthly Weather Review* 115(8).
+- Manabe, S. (1969). Climate and the ocean circulation: the atmospheric circulation and the hydrology of the earth's surface. *Monthly Weather Review* 97(11). — Bucket soil model.
+- McKee, T., Doesken, N. & Kleist, J. (1993). The relationship of drought frequency and duration to time scales. *8th Conference on Applied Climatology*.
+- Vicente-Serrano, S., Beguería, S. & López-Moreno, J. (2010). A multiscalar drought index sensitive to global warming: the SPEI. *Journal of Climate* 23(7).
+- Lesk, C., Rowhani, P. & Ramankutty, N. (2016). Influence of extreme weather disasters on global crop production. *Nature* 529.
+- Sen, A. (1981). *Poverty and Famines.* Oxford UP.
+- Maxwell, D. & Fitzpatrick, M. (2012). The 2011 Somalia famine: context, causes, and complications. *Global Food Security* 1(1).
+- Jongman, B., Ward, P. & Aerts, J. (2012). Global exposure to river and coastal flooding. *Global Environmental Change* 22(4).
+- Jongman, B. et al. (2015). Declining vulnerability to river floods and the global benefits of adaptation. *PNAS* 112(18).
+- Huizinga, J., de Moel, H. & Szewczyk, W. (2017). *Global Flood Depth-Damage Functions.* JRC.
+- Knapp, K. et al. (2010). The International Best Track Archive for Climate Stewardship (IBTrACS). *BAMS* 91(3).
+- Gray, W. (1984). Atlantic seasonal hurricane frequency, part I: El Niño and 30 mb QBO influences. *Monthly Weather Review* 112(9).
+- Camargo, S. & Sobel, A. (2005). Western North Pacific tropical cyclone intensity and ENSO. *Journal of Climate* 18(15).
+- Holland, G. (1983). Tropical cyclone motion: environmental interaction plus a beta effect. *Journal of the Atmospheric Sciences* 40(2).
+- Emanuel, K. (1987). The dependence of hurricane intensity on climate. *Nature* 326.
+- Kaplan, J. & DeMaria, M. (1995). A simple empirical model for predicting the decay of tropical cyclone winds after landfall. *Journal of Applied Meteorology* 34(11).
+- Emanuel, K. (2011). Global warming effects on U.S. hurricane damage. *Weather, Climate, and Society* 3(4).
+- Eberenz, S., Lüthi, S. & Bresch, D. (2021). Regional tropical cyclone impact functions for globally consistent risk assessments. *Natural Hazards and Earth System Sciences* 21.
+- Kahn, M. (2005). The death toll from natural disasters: the role of income, geography, and institutions. *Review of Economics and Statistics* 87(2).
+- Toya, H. & Skidmore, M. (2007). Economic development and the impacts of natural disasters. *Economics Letters* 94(1).
+- McGranahan, G., Balk, D. & Anderson, B. (2007). The rising tide: assessing the risks of climate change and human settlements in low elevation coastal zones. *Environment and Urbanization* 19(1).
+- Reid, H. F. (1910). *The Mechanics of the Earthquake.* California Earthquake Investigation Commission. — Elastic rebound.
+- Matthews, M., Ellsworth, W. & Reasenberg, P. (2002). A Brownian model for recurrent earthquakes. *BSSA* 92(6).
+- Field, E. et al. (2015). Long-term time-dependent probabilities for the third Uniform California Earthquake Rupture Forecast (UCERF3). *BSSA* 105(2).
+- Wells, D. & Coppersmith, K. (1994). New empirical relationships among magnitude, rupture length, rupture width, rupture area, and surface displacement. *BSSA* 84(4).
+- Jaiswal, K. & Wald, D. (2010). An empirical model for global earthquake fatality estimation. *Earthquake Spectra* 26(4). — PAGER.
+- Jaiswal, K. & Wald, D. (2013). Estimating economic losses from earthquakes using an empirical approach. *Earthquake Spectra* 29(1).
+- Abe, K. (1981). Physical size of tsunamigenic earthquakes of the northwestern Pacific. *Physics of the Earth and Planetary Interiors* 27(3).
+- Koshimura, S., Oie, T., Yanagisawa, H. & Imamura, F. (2009). Developing fragility functions for tsunami damage estimation using numerical model and post-tsunami data from Banda Aceh. *Coastal Engineering Journal* 51(3).
+- Sawai, Y. et al. (2012); Goldfinger, C. et al. (2012); Sieh, K. et al. (2008); Cochran, U. et al. (2017); Bilham, R. (2019) — paleoseismic recurrence (see `assets/defs/faults.csv`).
+- EM-DAT, CRED / UCLouvain — disaster outcomes for comparison.

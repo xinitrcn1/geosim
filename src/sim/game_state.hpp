@@ -28,6 +28,7 @@ struct derived_indices {
     dcon::sector_id energy_sector;
     dcon::sector_id contact_sector;
     dcon::sector_id manufacturing_sector;
+    dcon::sector_id agriculture_sector; // key agr (drought crop losses)
     uint8_t npi_travel = 0xFF;
     uint8_t npi_testing = 0xFF;
     uint8_t npi_tracing = 0xFF;

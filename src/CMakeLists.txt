@@ -49,6 +49,7 @@ add_library(geosim_sim STATIC
     sim/systems/organisations.cpp
     sim/systems/geo_orgs.cpp
     sim/systems/megaevents.cpp
+    sim/systems/disasters.cpp
     sim/systems/reforms.cpp
     sim/systems/politics_ext.cpp
     sim/systems/agreements.cpp
@@ -114,6 +115,8 @@ if(GEOSIM_BUILD_CLIENT)
         client/map_data.cpp
         client/map_layer.cpp
         client/map_renderer.cpp
+        client/hazard_feed.cpp
+        client/sim_hazards.cpp
         client/sim_runner.cpp
         client/text.cpp
         client/ui_context.cpp

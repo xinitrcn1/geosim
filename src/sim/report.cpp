@@ -1,4 +1,7 @@
 #include "sim/report.hpp"
+#include <vector>
+#include <array>
+#include <algorithm>
 
 #include "core/calendar.hpp"
 #include "core/keys.hpp"
@@ -247,6 +250,38 @@ void write_journal_counts(game_state const& state, std::ostream& out) {
         const auto partner = std::isnan(d.get_pragmatic()) ? dcon::nation_id{} : dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(d.get_pragmatic())};
         out << "  " << d.get_tick() << " " << core::unpack_key(w.nation_get_iso3(d.get_target())) << " "
             << (partner ? core::unpack_key(w.nation_get_iso3(partner)) : std::string("-")) << " " << d.get_before() << " -> " << d.get_after() << "\n";
+    }
+    {
+        // Disasters by kind (records still held: the last two years).
+        static constexpr char const* kind_names[] = {"cyclone", "flood", "drought", "earthquake", "tsunami"};
+        std::array<int, 5> count{};
+        std::array<double, 5> deaths{}, damage{};
+        for(auto d : w.in_disaster) {
+            const auto k = d.get_kind();
+            if(k >= 5 || d.get_status() == static_cast<uint8_t>(disaster_status::warning)) continue;
+            ++count[k];
+            deaths[k] += d.get_deaths();
+            damage[k] += d.get_damage_usd();
+        }
+        out << "disasters (kind: nation-events, deaths, damage USD bn)\n";
+        for(int k = 0; k < 5; ++k) {
+            char line[160];
+            std::snprintf(line, sizeof(line), "  %-10s %5d %10.0f %9.1f\n", kind_names[k], count[k], deaths[k], damage[k] / 1e9);
+            out << line;
+        }
+        out << "largest disasters (date, nation, title, deaths, damage USD bn, % GDP)\n";
+        std::vector<dcon::disaster_id> list;
+        for(auto d : w.in_disaster) {
+            if(d.get_status() != static_cast<uint8_t>(disaster_status::warning)) list.push_back(d.id);
+        }
+        std::sort(list.begin(), list.end(), [&](auto a, auto b) { return w.disaster_get_deaths(a) + w.disaster_get_damage_usd(a) / 1e7 > w.disaster_get_deaths(b) + w.disaster_get_damage_usd(b) / 1e7; });
+        for(std::size_t i = 0; i < std::min<std::size_t>(25, list.size()); ++i) {
+            const auto t = describe_disaster(state, list[i]);
+            char line[200];
+            std::snprintf(line, sizeof(line), "  %s %s %-30s %9.0f %8.2f %6.2f\n", t.date.c_str(), core::unpack_key(w.nation_get_iso3(t.nation)).c_str(),
+                          t.title.c_str(), t.deaths, t.damage_usd / 1e9, t.gdp_loss_pct);
+            out << line;
+        }
     }
     out << "organisation log (day, nation, organisation, event, before -> after)\n";
     for(auto d : w.in_decision) {

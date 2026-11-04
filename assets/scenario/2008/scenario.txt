@@ -22,3 +22,7 @@ equity_wealth_gdp{1.2}
 wto_appellate{1}
 # No COVID-era vaccine programmes and COVAX in 2008.
 covax_share{0}
+# ENSO at the start of 2008: strong La Nina (NOAA ONI DJF 2007/08 = -1.6), equatorial heat
+# content recharging (warm water volume rising through 2008; McPhaden 2012).
+enso0{-1.6}
+enso_heat0{0.6}

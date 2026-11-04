@@ -1,0 +1,19 @@
+# ENSO precipitation teleconnections (systems/disasters.cpp): regions inside a box get a monthly
+# precipitation anomaly of `effect` standard deviations per C of Nino-3.4 during months
+# month_from..month_to (wrapping past December). Ropelewski & Halpert (1987, 1989); Dai & Wigley
+# (2000); Davey, Brookshaw & Ineson (2014). Negative = El Nino dries, La Nina wets.
+lat_min,lat_max,lon_min,lon_max,month_from,month_to,effect,label
+-40,-10,135,155,6,12,-0.5,eastern Australia
+-10,6,95,141,6,12,-0.6,Indonesia and Papua
+5,20,118,127,10,3,-0.4,Philippines
+8,30,68,90,6,9,-0.35,Indian monsoon
+-35,-15,15,40,11,3,-0.45,southern Africa
+-15,-2,-45,-34,2,5,-0.5,northeastern Brazil
+7,18,-92,-77,6,9,-0.35,Central America
+10,18,-18,15,7,9,-0.25,Sahel
+-6,2,-82,-78,1,4,0.9,coastal Ecuador and northern Peru
+-35,-24,-60,-48,10,1,0.5,southern Brazil, Uruguay, northeastern Argentina
+-5,8,36,48,10,12,0.6,East African short rains
+25,33,-112,-80,11,3,0.4,southern United States
+25,35,110,122,11,3,0.3,southern China
+-10,8,-75,-45,12,3,-0.4,Amazon basin

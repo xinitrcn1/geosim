@@ -1,0 +1,15 @@
+# Tropical cyclone basins (systems/disasters.cpp). Genesis box (lat/lon, degrees; lon in -180..180,
+# lon_min > lon_max wraps the date line); annual_count = named storms (>= 17 m/s) per year,
+# 1981-2010 climatology (IBTrACS; Knapp et al. 2010; Schreck, Knapp & Kossin 2014); peak_month and
+# season_sd_months shape the season (Gaussian in months, circular); enso_effect = change in genesis
+# per C of Nino-3.4 (El Nino suppresses Atlantic storms through shear: Gray 1984; favours the east
+# and central Pacific: Camargo & Sobel 2005); ridge_lat = latitude of the subtropical ridge where
+# storms recurve (steering; Holland 1983).
+key,lat_min,lat_max,lon_min,lon_max,annual_count,peak_month,season_sd_months,enso_effect,ridge_lat
+natl,9,25,-80,-20,12.1,9.0,1.2,-0.20,27
+epac,9,18,-125,-92,16.5,8.0,1.5,0.15,22
+wpac,6,22,120,165,25.7,8.5,2.2,0.05,25
+nio,8,20,62,95,4.8,10.0,2.6,-0.05,20
+sio,-20,-8,45,105,9.3,2.0,1.6,-0.05,-24
+aus,-20,-9,105,160,10.0,2.0,1.4,-0.15,-24
+spac,-20,-9,160,-140,7.0,2.5,1.4,0.25,-25
