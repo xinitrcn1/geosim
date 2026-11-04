@@ -420,6 +420,7 @@ object{
 	property{ name{spread_shock} type{float} }
 	property{ name{cpi_raw} type{float} }
 	property{ name{tourism_share} type{float} }
+	property{ name{oil_unit_scale} type{float} }
 	property{ name{travel_intensity} type{float} }
 	property{ name{eu_grant_pending} type{double} }
 	property{ name{eu_grant_start} type{int32_t} }

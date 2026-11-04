@@ -1911,6 +1911,7 @@ struct builder {
         for(auto const& iso : order) {
             const auto n = find_nation(state, iso);
             w.nation_set_oil_demand0(n, static_cast<float>(demand[iso] * scale));
+            w.nation_set_oil_unit_scale(n, 1.0f);
             w.nation_set_oil_demand(n, w.nation_get_oil_demand0(n));
         }
         if(row) {
@@ -1926,6 +1927,7 @@ struct builder {
                 if(in.oil_production <= 0.0) continue;
                 in.oil_production *= pscale;
                 const auto n = find_nation(state, iso);
+                w.nation_set_oil_unit_scale(n, static_cast<float>(pscale));
                 w.nation_set_oil_production0(n, static_cast<float>(in.oil_production));
                 w.nation_set_oil_production(n, static_cast<float>(in.oil_production));
                 w.nation_set_oil_target(n, static_cast<float>(in.oil_production));

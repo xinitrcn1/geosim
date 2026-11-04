@@ -58,7 +58,9 @@ void apply_events(game_state& state) {
             w.nation_set_prior_tti_set(n, 1);
             break;
         case event_kind::oil_production:
-            w.nation_set_prior_oil(n, e.get_value());
+            // Anchors are in data barrels; the model's production is scaled so that
+            // world supply equals demand at the start (scenario.cpp distribute_oil).
+            w.nation_set_prior_oil(n, e.get_value() * w.nation_get_oil_unit_scale(n));
             w.nation_set_prior_oil_set(n, 1);
             break;
         // Financial shocks (historical anchors for crises such as 2008): the markets
@@ -85,7 +87,7 @@ void apply_events(game_state& state) {
             break;
         case event_kind::oil_production_delta: {
             const float base = w.nation_get_prior_oil_set(n) ? w.nation_get_prior_oil(n) : w.nation_get_oil_production0(n);
-            w.nation_set_prior_oil(n, std::max(0.0f, base + e.get_value()));
+            w.nation_set_prior_oil(n, std::max(0.0f, base + e.get_value() * w.nation_get_oil_unit_scale(n)));
             w.nation_set_prior_oil_set(n, 1);
             break;
         }
