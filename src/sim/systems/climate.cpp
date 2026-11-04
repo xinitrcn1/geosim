@@ -94,7 +94,8 @@ void update_climate_policy(game_state& state) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
         // Fossil vintages shrink as clean capacity diffuses; early retirement above the margin.
         const float progress = ren != 0xFF ? std::max(0.0f, tech_progress(state, n.id, ren)) : 0.0f;
-        float fossil = n.get_fossil_share0() * (1.0f - progress);
+        // Renewables mandates speed clean capacity (reforms.cpp).
+        float fossil = n.get_fossil_share0() * (1.0f - std::min(1.0f, progress * (1.0f + static_cast<float>(P.mandate_diffusion) * n.get_energy_mandate())));
         const float over = std::max(0.0f, n.get_carbon_price() - static_cast<float>(P.carbon_fossil_margin)) / static_cast<float>(P.carbon_fossil_margin);
         const float retire = static_cast<float>(P.carbon_stranding) * over * years * fossil;
         n.set_stranded(n.get_stranded() + retire);

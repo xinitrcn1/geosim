@@ -138,8 +138,27 @@ void update_epidemic(game_state& state) {
             }
             const double other_n = world_n - own_n;
             const float prevalence = other_n > 0.0 ? static_cast<float>((world_i[p] - own_i) / other_n) : 0.0f;
+            // Commuting couples adjacent regions inside a nation (Balcan et al. 2009),
+            // cut by internal movement restrictions.
+            float commute = 0.0f;
+            {
+                const float own_prev = own_n > 0.0f ? static_cast<float>(own_i) / own_n : 0.0f;
+                auto prevalence_of = [&](dcon::region_id q) {
+                    float iq = 0.0f, nq = 0.0f;
+                    for(uint8_t a = 0; a < age_groups; ++a) {
+                        const uint8_t i = epi_index(p, a);
+                        iq += w.region_get_ep_i(q, i);
+                        nq += w.region_get_ep_s(q, i) + w.region_get_ep_e(q, i) + w.region_get_ep_i(q, i) + w.region_get_ep_r(q, i);
+                    }
+                    return nq > 0.0f ? iq / nq : 0.0f;
+                };
+                for(auto adj : r.get_region_adjacency_as_a()) commute += adj.get_weight() * std::max(0.0f, prevalence_of(adj.get_b().id) - own_prev);
+                for(auto adj : r.get_region_adjacency_as_b()) commute += adj.get_weight() * std::max(0.0f, prevalence_of(adj.get_a().id) - own_prev);
+                const float internal = D.npi_movement != 0xFF ? npi_fraction(state, n, D.npi_movement) : 0.0f;
+                commute *= static_cast<float>(P.commute_rate) * pop * (1.0f - 0.8f * internal);
+            }
             r.set_imported(p, static_cast<float>(P.travel_rate) * pop * prevalence * (1.0f - static_cast<float>(P.border_effect) * border)
-                                  * (1.0f - quarantine));
+                                  * (1.0f - quarantine) + commute);
             hospital_need += w.pathogen_get_hosp_share(pid) * static_cast<float>(own_i);
         }
         // Shared hospital capacity: overload from any pathogen raises every IFR.
@@ -356,21 +375,30 @@ void update_vaccination(game_state& state) {
             const double pc = n.get_gdp0() / std::max(1.0f, n.get_population());
             weight_total += n.get_population() * std::pow(pc / 10000.0, P.vaccine_income_priority);
         }
+        double pop_total = 0.0;
+        for(auto n : w.in_nation) pop_total += n.get_population();
         const auto p = static_cast<uint8_t>(pth.id.index());
         for(auto n : w.in_nation) {
             const double pc = n.get_gdp0() / std::max(1.0f, n.get_population());
-            const double share = weight_total > 0.0 ? n.get_population() * std::pow(pc / 10000.0, P.vaccine_income_priority) / weight_total : 0.0;
+            // COVAX pools a share of doses for equal per-capita allocation.
+            const double market = weight_total > 0.0 ? n.get_population() * std::pow(pc / 10000.0, P.vaccine_income_priority) / weight_total : 0.0;
+            const double share = (1.0 - P.covax_share) * market + P.covax_share * (pop_total > 0.0 ? n.get_population() / pop_total : 0.0);
             double left = doses * share;
             for(auto own : n.get_region_ownership()) {
                 auto r = own.get_region();
                 const double regional = left * r.get_population() / std::max(1.0f, n.get_population());
                 double remaining = regional;
+                // Priority (lever::vaccine_priority): the share of doses offered to the old
+                // first; the rest go by population (Bubar et al. 2021 on age prioritisation).
+                const float prio = std::clamp(n.get_vaccine_priority(), 0.0f, 1.0f);
+                const float old_share = r.get_old_share();
                 for(uint8_t g : {age_old, age_young}) {
                     const uint8_t i = epi_index(p, g);
                     const float s = r.get_ep_s(i);
                     const float alive = s + r.get_ep_e(i) + r.get_ep_i(i) + r.get_ep_r(i);
                     if(alive <= 0.0f || remaining <= 0.0) continue;
-                    const float given = static_cast<float>(std::min(remaining, static_cast<double>(alive) * 0.02)); // at most 2% of a group a day
+                    const double cap = g == age_old ? regional * (prio + (1.0f - prio) * old_share) : remaining;
+                    const float given = static_cast<float>(std::min({remaining, cap, static_cast<double>(alive) * 0.02})); // at most 2% of a group a day
                     const float immune = given * (s / alive) * pth.get_vaccine_efficacy();
                     r.set_ep_s(i, s - immune);
                     r.set_ep_r(i, r.get_ep_r(i) + immune);
@@ -379,6 +407,42 @@ void update_vaccination(game_state& state) {
                 n.set_vaccinated(n.get_vaccinated() + static_cast<float>(regional - remaining));
             }
         }
+    }
+}
+
+// Variants (daily): new variants emerge with a hazard proportional to world
+// infections (more replication, more mutation; Otto et al. 2021); each raises
+// transmissibility (Alpha, Delta: Davies et al. 2021; Campbell et al. 2021) and
+// escapes part of existing immunity.
+void update_variants(game_state& state) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    for(auto pth : w.in_pathogen) {
+        if(pth.get_first_seen() < 0 || pth.get_variants() >= 4) continue;
+        const auto p = static_cast<uint8_t>(pth.id.index());
+        double infections = 0.0;
+        for(auto r : w.in_region) infections += r.get_infections_p(p);
+        const float hazard = static_cast<float>(1.0 - std::exp(-P.variant_rate * infections));
+        if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::unrest), static_cast<uint32_t>(state.current_tick), 0x7F000000u + p) >= hazard) continue;
+        pth.set_variants(static_cast<uint8_t>(pth.get_variants() + 1));
+        pth.set_r0(pth.get_r0() * static_cast<float>(P.variant_r0_gain));
+        const float escape = static_cast<float>(P.variant_escape);
+        for(auto r : w.in_region) {
+            for(uint8_t a = 0; a < age_groups; ++a) {
+                const uint8_t i = epi_index(p, a);
+                const float moved = r.get_ep_r(i) * escape;
+                r.set_ep_r(i, r.get_ep_r(i) - moved);
+                r.set_ep_s(i, r.get_ep_s(i) + moved);
+            }
+        }
+        const auto d = w.create_decision();
+        w.decision_set_tick(d, state.current_tick);
+        w.decision_set_lever(d, journal_variant);
+        w.decision_set_before(d, static_cast<float>(pth.get_variants() - 1));
+        w.decision_set_after(d, static_cast<float>(pth.get_variants()));
+        w.decision_set_pragmatic(d, static_cast<float>(p));
+        w.decision_set_ideological(d, NAN);
+        w.decision_set_prior(d, NAN);
     }
 }
 

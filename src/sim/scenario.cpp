@@ -606,6 +606,19 @@ struct builder {
                 } else if(node.key == "oil_production_delta") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::oil_production_delta));
                     w.event_set_value(e, num("mbd"));
+                } else if(node.key == "house_price_shock") {
+                    w.event_set_kind(e, static_cast<uint8_t>(event_kind::house_price_shock));
+                    w.event_set_value(e, num("change"));
+                } else if(node.key == "equity_shock") {
+                    w.event_set_kind(e, static_cast<uint8_t>(event_kind::equity_shock));
+                    w.event_set_value(e, num("change"));
+                } else if(node.key == "credit_spread_shock") {
+                    w.event_set_kind(e, static_cast<uint8_t>(event_kind::credit_spread_shock));
+                    w.event_set_value(e, num("pp"));
+                    w.event_set_value2(e, static_cast<float>(node.num_or("unwind_days", 0.0, path, diag)));
+                } else if(node.key == "bank_capital_shock") {
+                    w.event_set_kind(e, static_cast<uint8_t>(event_kind::bank_capital_shock));
+                    w.event_set_value(e, num("pp"));
                 } else {
                     { diag.fail(where + ": unknown event kind '" + node.key + "'"); return; }
                 }
@@ -680,6 +693,19 @@ struct builder {
         }
         w.region_set_ifr_mult(r, 1.0f);
         w.region_set_children(r, static_cast<float>(pop * in.pop014));
+        // Age bands (demography): 0-14 and 65+ from WDI; working ages split 30/42/28.
+        w.region_resize_age_band(age_bands);
+        {
+            const double working = pop * std::max(0.0, 1.0 - in.pop014 - in.pop65);
+            w.region_set_age_band(r, 0, static_cast<float>(pop * in.pop014));
+            w.region_set_age_band(r, 1, static_cast<float>(working * 0.30));
+            w.region_set_age_band(r, 2, static_cast<float>(working * 0.42));
+            w.region_set_age_band(r, 3, static_cast<float>(working * 0.28));
+            w.region_set_age_band(r, 4, static_cast<float>(pop * in.pop65));
+            w.nation_set_old_share0(n, static_cast<float>(in.pop65));
+            w.region_set_house_price_r(r, 1.0f);
+            w.region_set_population_r0(r, static_cast<float>(pop));
+        }
         w.region_set_unrest_capacity(r, 1.0f);
         for(auto g : w.in_social_group) {
             if(g.get_nation() != n) continue;
@@ -1614,6 +1640,9 @@ struct builder {
         w.nation_resize_control(N);
         w.nation_resize_hostility(N);
         w.nation_resize_rivalry(N);
+        w.nation_resize_debt_holdings(N);
+        w.nation_resize_debt_holdings0(N);
+        w.nation_resize_fta_depth(N);
         w.nation_resize_un_alignment0(N);
         w.nation_resize_wto_dispute(N);
         w.nation_resize_wto_retaliation(N);
@@ -1877,6 +1906,7 @@ struct builder {
         load_sea_network(state, assets, diag);      // after nations: littoral links
         load_commodity_defs(state, assets, diag);
         load_technology_defs(state, assets, diag);
+        load_organisation_defs(state, assets, diag); // before rebuild_derived (organisation ids by kind)
         if(diag.failed()) return;
         setup_oil();
         rebuild_derived(state);
@@ -1931,7 +1961,10 @@ struct builder {
             if(auto inc = n.get_incumbent()) n.set_gov_tan0(-w.party_get_position(inc, static_cast<uint8_t>(value_axis::self_expression)));
         }
         init_strategy(state);
-        init_un(state);
+        init_organisations(state);
+        init_reforms(state);
+        init_politics_ext(state);
+        init_agreements(state);
     }
 };
 
@@ -1969,6 +2002,10 @@ void rebuild_derived(game_state& state) {
         case sector_role::manufacturing: d.manufacturing_sector = s.id; break;
         default: break;
         }
+    }
+    for(auto o : w.in_organisation) {
+        const auto k = o.get_kind();
+        if(k < 6 && !d.org[k]) d.org[k] = o.id;
     }
     for(auto k : w.in_npi_indicator) {
         const auto idx = static_cast<uint8_t>(k.id.index());

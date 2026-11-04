@@ -128,7 +128,7 @@ void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n) {
         const float debt = static_cast<float>(std::max(0.0, -w.nation_get_bal_gov(n)) / gdp);
         const float debt0 = static_cast<float>(w.nation_get_gov_debt0(n) / w.nation_get_gdp0(n));
         const float pragmatic = static_cast<float>(P.retirement_debt) * std::max(0.0f, debt - debt0 - 0.1f) * 10.0f
-                                * (1.0f + goal_bias(state, n, goal::consolidate));
+                                * (1.0f + goal_bias(state, n, goal::consolidate)) + plan_bias(state, n, goal::consolidate, 2);
         const float econ = minister_position(state, n, portfolio::finance, value_axis::economic_right);
         const float ideal = pragmatic * std::max(0.0f, 1.0f + econ);
         const float before = w.nation_get_retirement_age_shift(n);

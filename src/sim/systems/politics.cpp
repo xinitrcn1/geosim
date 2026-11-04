@@ -334,19 +334,55 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
     }
     const auto before = w.nation_get_incumbent(n);
     for(std::size_t j = 0; j < np; ++j) w.party_set_in_government(parties[j], j >= best_lo && j <= best_hi ? 1 : 0);
-    w.nation_set_incumbent(n, parties[largest]);
+    std::size_t head = largest;
+    // Presidential systems elect the executive separately, by a runoff between the top
+    // two first-round candidates where no one has a majority (Shugart & Carey 1992;
+    // Blais, Massicotte & Dobrzynska 1997). The president's party governs, with the
+    // legislature it gets (divided government).
+    if(w.nation_get_presidential(n) && np >= 2) {
+        std::size_t first = 0, second = 1;
+        for(std::size_t j = 0; j < np; ++j) {
+            if(w.party_get_vote_share(parties[j]) > w.party_get_vote_share(parties[first])) first = j;
+        }
+        second = first == 0 ? 1 : 0;
+        for(std::size_t j = 0; j < np; ++j) {
+            if(j != first && w.party_get_vote_share(parties[j]) > w.party_get_vote_share(parties[second])) second = j;
+        }
+        head = first;
+        if(w.party_get_vote_share(parties[first]) < 0.5f) {
+            double a = 0.0, b = 0.0;
+            for(auto own : w.nation_get_region_ownership(n)) {
+                for(auto loc : own.get_region().get_pop_location()) {
+                    auto p = loc.get_pop();
+                    const float sa = p.get_party_support(static_cast<uint8_t>(first)), sb = p.get_party_support(static_cast<uint8_t>(second));
+                    (sa >= sb ? a : b) += p.get_size() * (sa + sb);
+                }
+            }
+            head = a >= b ? first : second;
+        }
+        double gov = 0.0;
+        for(std::size_t j = 0; j < np; ++j) {
+            if(j == head) w.party_set_in_government(parties[j], 1);
+            if(w.party_get_in_government(parties[j]) && head != largest && j != head) w.party_set_in_government(parties[j], 0); // the president forms the cabinet
+            gov += w.party_get_in_government(parties[j]) ? seats[j] : 0.0;
+        }
+        best_seats = gov;
+    }
+    term_limit_check(state, n, before && before == parties[head]);
+    w.nation_set_incumbent(n, parties[head]);
+    if(!before || before != parties[head]) w.nation_set_tenure_days(n, 0.0f);
     w.nation_set_gov_seat_share(n, static_cast<float>(best_seats));
     allocate_portfolios(state, n);
 
     // The new government's position reshapes the executive.
     if(auto exec = w.nation_get_agent_from_executive_seat(n)) {
-        const float econ = w.party_get_position(parties[largest], static_cast<uint8_t>(value_axis::economic_right));
-        const float secular = w.party_get_position(parties[largest], static_cast<uint8_t>(value_axis::secular));
+        const float econ = w.party_get_position(parties[head], static_cast<uint8_t>(value_axis::economic_right));
+        const float secular = w.party_get_position(parties[head], static_cast<uint8_t>(value_axis::secular));
         w.agent_set_fiscal_hawk(exec, std::clamp(0.3f + 0.5f * econ, 0.0f, 1.0f));
         w.agent_set_order_ideal(exec, std::clamp(0.2f - 0.12f * w.nation_get_voice(n) - 0.2f * secular, 0.0f, 0.8f));
     }
     log_event(state, n, journal_election, before ? static_cast<float>(w.party_get_local_index(before)) : -1.0f,
-              static_cast<float>(w.party_get_local_index(parties[largest])));
+              static_cast<float>(w.party_get_local_index(parties[head])));
 }
 
 // Party adaptation (Laver 2005): one step per month.
@@ -596,7 +632,8 @@ void update_politics(game_state& state) {
         std::array<float, axes> policy{};
         for(uint8_t a = 0; a < axes; ++a) policy[a] = n.get_policy_position(a);
         const float outside = std::max(0.0f, outside_window(state, n.id, policy) - n.get_window_outside0());
-        const float target = 0.4f * procedural + 0.4f * performance + 0.2f * 0.7f - static_cast<float>(P.overton_legitimacy) * outside;
+        // Identity legitimacy (politics_ext.cpp): inclusion of identity groups (Gilley 2009).
+        const float target = 0.4f * procedural + 0.4f * performance + 0.2f * n.get_identity_legitimacy() - static_cast<float>(P.overton_legitimacy) * outside;
         float legit = n.get_legitimacy();
         legit += (target - legit) * std::min(1.0f, years / static_cast<float>(P.legitimacy_years));
         legit -= static_cast<float>(P.force_legitimacy_cost) * static_cast<float>(forced) * years;

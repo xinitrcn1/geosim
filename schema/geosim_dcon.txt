@@ -374,13 +374,57 @@ object{
 	property{ name{intervention} type{float} }
 	property{ name{un_ideal} type{float} }
 	property{ name{un_alignment0} type{array{uint16_t}{float}} }
-	property{ name{unsc_seat} type{uint8_t} }
-	property{ name{unsc_term_end} type{int32_t} }
 	property{ name{un_sanctioned} type{float} }
 	property{ name{peacekeeping} type{float} }
-	property{ name{wto_member} type{uint8_t} }
 	property{ name{wto_dispute} type{array{uint16_t}{float}} }
 	property{ name{wto_retaliation} type{array{uint16_t}{float}} }
+	property{ name{old_share0} type{float} }
+	property{ name{life_expectancy} type{float} }
+	property{ name{ige} type{float} }
+	property{ name{mobility_up} type{float} }
+	property{ name{police} type{float} }
+	property{ name{asylum_openness} type{float} }
+	property{ name{vat_shift} type{float} }
+	property{ name{tax_indirect0} type{float} }
+	property{ name{tax_firm0} type{float} }
+	property{ name{corporate_shift} type{float} }
+	property{ name{wealth_tax} type{float} }
+	property{ name{rd_pct} type{float} }
+	property{ name{rd_spending} type{float} }
+	property{ name{vintage_tfp} type{float} }
+	property{ name{investment_ref} type{float} }
+	property{ name{gini_ref} type{float} }
+	property{ name{subsidy} type{float} }
+	property{ name{epl_shift} type{float} }
+	property{ name{energy_mandate} type{float} }
+	property{ name{vaccine_priority} type{float} }
+	property{ name{reserves} type{float} }
+	property{ name{reserves0} type{float} }
+	property{ name{fx_intervention} type{float} }
+	property{ name{macroprudential} type{float} }
+	property{ name{decentralisation} type{float} }
+	property{ name{equalisation} type{float} }
+	property{ name{terrain} type{float} }
+	property{ name{willingness} type{float} }
+	property{ name{identity_legitimacy} type{float} }
+	property{ name{exclusion0} type{float} }
+	property{ name{term_limit_years} type{float} }
+	property{ name{tenure_days} type{float} }
+	property{ name{court_vacancy_days} type{float} }
+	property{ name{language} type{uint32_t} }
+	property{ name{religion} type{uint32_t} }
+	property{ name{climate_pledge} type{float} }
+	property{ name{shamed} type{float} }
+	property{ name{un_votes} type{array{uint16_t}{float}} }
+	property{ name{fta_depth} type{array{uint16_t}{float}} }
+	property{ name{rebel_agent} type{agent_id} }
+	property{ name{debt_holdings} type{array{uint16_t}{float}} }
+	property{ name{debt_holdings0} type{array{uint16_t}{float}} }
+	property{ name{spread_shock} type{float} }
+	property{ name{cpi_raw} type{float} }
+	property{ name{eu_grant_pending} type{double} }
+	property{ name{eu_grant_start} type{int32_t} }
+	property{ name{spread_unwind_days} type{float} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }
@@ -431,7 +475,7 @@ object{
 object{
 	name{region}
 	storage_type{contiguous}
-	size{4096}
+	size{8192}
 	tag{scenario}
 
 	property{ name{population} type{float} }
@@ -487,13 +531,21 @@ object{
 	property{ name{insurgency} type{float} }
 	property{ name{npi_offset} type{float} }
 	property{ name{governor} type{agent_id} }
+	property{ name{age_band} type{array{uint16_t}{float}} }
+	property{ name{house_price_r} type{float} }
+	property{ name{population_r0} type{float} }
+	property{ name{psi_region} type{float} }
+	property{ name{trust_r} type{float} }
+	property{ name{fiscal_capacity} type{float} }
+	property{ name{enemy_control} type{float} }
+	property{ name{ruggedness} type{float} }
 	property{ name{crisis_days} type{float} }
 }
 
 object{
 	name{pop}
 	storage_type{erasable}
-	size{4096}
+	size{32768}
 	tag{scenario}
 
 	property{ name{kind} type{uint8_t} }
@@ -624,6 +676,8 @@ object{
 	property{ name{vaccine_capacity} type{float} }
 	property{ name{first_seen} type{int32_t} }
 	property{ name{emergent} type{uint8_t} }
+	property{ name{variants} type{uint8_t} }
+	property{ name{variant_pressure} type{float} }
 }
 
 object{
@@ -646,6 +700,7 @@ object{
 	size{8}
 	tag{scenario}
 
+	property{ name{restraint} type{float} }
 	property{ name{key} type{uint32_t} }
 	property{ name{price} type{float} }
 	property{ name{price0} type{float} }
@@ -699,7 +754,7 @@ object{
 object{
 	name{firm}
 	storage_type{contiguous}
-	size{1024}
+	size{4096}
 	tag{scenario}
 
 	property{ name{nation} type{nation_id} }
@@ -818,7 +873,7 @@ object{
 object{
 	name{agent}
 	storage_type{erasable}
-	size{2048}
+	size{8192}
 	tag{scenario}
 
 	property{ name{kind} type{uint8_t} }
@@ -829,6 +884,11 @@ object{
 	property{ name{order_ideal} type{float} }
 	property{ name{goal} type{uint8_t} }
 	property{ name{goal_score} type{float} }
+	property{ name{plan_step} type{uint8_t} }
+	property{ name{plan_days} type{float} }
+	property{ name{strength} type{float} }
+	property{ name{demand} type{float} }
+	property{ name{home} type{nation_id} }
 	property{ name{fiscal_hawk} type{float} }
 	property{ name{credit_bias} type{float} }
 	property{ name{override_mode} type{array{uint16_t}{uint8_t}} }
@@ -843,7 +903,7 @@ object{
 object{
 	name{party}
 	storage_type{erasable}
-	size{2048}
+	size{4096}
 	tag{scenario}
 
 	property{ name{key} type{uint32_t} }
@@ -860,9 +920,43 @@ object{
 }
 
 object{
+	name{organisation}
+	storage_type{erasable}
+	size{64}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{kind} type{uint8_t} }
+	property{ name{rule} type{uint8_t} }
+	property{ name{threshold} type{float} }
+	property{ name{population_threshold} type{float} }
+	property{ name{votes_needed} type{uint8_t} }
+	property{ name{seats} type{uint16_t} }
+	property{ name{elected_seats} type{uint16_t} }
+	property{ name{term_years} type{float} }
+	property{ name{last_session} type{int32_t} }
+	property{ name{fund} type{float} }
+}
+
+object{
+	name{treaty}
+	storage_type{erasable}
+	size{4096}
+	tag{scenario}
+
+	property{ name{kind} type{uint8_t} }
+	property{ name{a} type{nation_id} }
+	property{ name{b} type{nation_id} }
+	property{ name{signed_tick} type{int32_t} }
+	property{ name{terms} type{float} }
+	property{ name{compliance} type{float} }
+	property{ name{active} type{uint8_t} }
+}
+
+object{
 	name{decision}
 	storage_type{erasable}
-	size{65536}
+	size{262144}
 	tag{scenario}
 
 	property{ name{agent} type{agent_id} }
@@ -881,7 +975,7 @@ object{
 object{
 	name{event}
 	storage_type{erasable}
-	size{16384}
+	size{65536}
 	tag{scenario}
 
 	property{ name{kind} type{uint8_t} }
@@ -896,7 +990,7 @@ object{
 relationship{
 	name{region_ownership}
 	storage_type{contiguous}
-	size{4096}
+	size{8192}
 	tag{scenario}
 
 	link{
@@ -916,7 +1010,7 @@ relationship{
 relationship{
 	name{pop_location}
 	storage_type{erasable}
-	size{4096}
+	size{32768}
 	tag{scenario}
 
 	link{
@@ -1035,6 +1129,29 @@ relationship{
 }
 
 relationship{
+	name{membership}
+	storage_type{erasable}
+	size{8192}
+	tag{scenario}
+
+	link{
+		object{organisation}
+		name{organisation}
+		type{many}
+		index_storage{list}
+	}
+	link{
+		object{nation}
+		name{member}
+		type{many}
+		index_storage{list}
+	}
+	property{ name{role} type{uint8_t} }
+	property{ name{term_end} type{int32_t} }
+	property{ name{exit_tick} type{int32_t} }
+}
+
+relationship{
 	name{region_adjacency}
 	storage_type{erasable}
 	size{32768}
@@ -1058,7 +1175,7 @@ relationship{
 relationship{
 	name{party_membership}
 	storage_type{erasable}
-	size{2048}
+	size{4096}
 	tag{scenario}
 
 	link{

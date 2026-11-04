@@ -1,0 +1,32 @@
+# Further per-nation inputs for the society, economy, politics and diplomacy extensions (hand-written;
+# rounded, approximate - to be replaced by the pipeline with the full dataset).
+# rd_pct: gross R&D expenditure, % GDP, 2018 (UNESCO UIS; AUS 2017, SAU 2013).
+# reserves_months: total reserves in months of imports, 2019 (WDI FI.RES.TOTL.MO, approximate).
+# decentralisation: sub-national share of general-government revenue (OECD Fiscal Decentralisation
+#   Database / IMF GFS, approximate; unitary states low).
+# terrain: share of mountainous terrain (Fearon & Laitin 2003 mtnest / 100, approximate).
+# term_limit_years: executive term limit (constitutions; 0 = none or parliamentary; CHN removed 2018).
+# language, religion: main official language (CEPII GeoDist comlang_off) and majority religion
+#   (Pew Research Center 2012 Global Religious Landscape; KOR, JPN, CHN unaffiliated plurality).
+iso3,rd_pct,reserves_months,decentralisation,terrain,term_limit_years,language,religion
+USA,2.83,1.2,0.45,0.21,8,eng,christian
+CHN,2.14,15.0,0.50,0.40,0,zho,none
+JPN,3.26,16.5,0.40,0.60,0,jpn,none
+DEU,3.13,1.5,0.40,0.08,0,deu,christian
+GBR,1.72,1.7,0.10,0.10,0,eng,christian
+FRA,2.20,1.4,0.20,0.10,10,fra,christian
+ITA,1.42,2.6,0.25,0.46,0,ita,christian
+ESP,1.24,1.3,0.35,0.40,0,spa,christian
+CAN,1.56,1.6,0.55,0.16,0,eng,christian
+KOR,4.81,6.9,0.25,0.52,5,kor,none
+AUS,1.79,1.6,0.36,0.02,0,eng,christian
+BRA,1.16,13.8,0.35,0.01,8,por,christian
+MEX,0.31,4.4,0.08,0.47,6,spa,christian
+IND,0.65,8.6,0.40,0.11,0,hin,hindu
+RUS,0.99,15.4,0.35,0.18,12,rus,christian
+TUR,1.03,4.2,0.10,0.56,10,tur,muslim
+IDN,0.23,7.2,0.10,0.23,10,ind,muslim
+SAU,0.82,28.0,0.00,0.06,0,ara,muslim
+ZAF,0.83,5.7,0.10,0.09,10,eng,christian
+ARG,0.49,7.0,0.20,0.25,8,spa,christian
+ROW,1.00,6.0,0.20,0.20,0,oth,other

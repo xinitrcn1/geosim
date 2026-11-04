@@ -1,0 +1,38 @@
+# Memberships at 2020-01-01 (organisations in assets/defs/organisations.txt). iso3 ALL = every
+# nation of the scenario. role: member | elected | permanent; term_end: last day of an elected
+# term; exit: leaving date.
+# UNSC: UN Charter art. 23 (permanent five); elected 2019-2020 in the slice: Germany, Indonesia,
+#   South Africa (un.org/securitycouncil/content/current-members).
+# WTO: wto.org members (all slice nations; Russia since 2012-08-22).
+# EU: Germany, France, Italy, Spain; the United Kingdom left on 2020-01-31.
+# HRC 2020 members among slice nations (ohchr.org membership by year; approximate - verify).
+org,iso3,role,term_end,exit
+unga,ALL,member,,
+who,ALL,member,,
+wto,ALL,member,,
+unsc,USA,permanent,,
+unsc,CHN,permanent,,
+unsc,RUS,permanent,,
+unsc,GBR,permanent,,
+unsc,FRA,permanent,,
+unsc,DEU,elected,2020-12-31,
+unsc,IDN,elected,2020-12-31,
+unsc,ZAF,elected,2020-12-31,
+eu,DEU,member,,
+eu,FRA,member,,
+eu,ITA,member,,
+eu,ESP,member,,
+eu,GBR,member,,2020-01-31
+hrc,ARG,elected,2021-12-31,
+hrc,AUS,elected,2020-12-31,
+hrc,BRA,elected,2022-12-31,
+hrc,MEX,elected,2020-12-31,
+hrc,IND,elected,2021-12-31,
+hrc,IDN,elected,2022-12-31,
+hrc,JPN,elected,2022-12-31,
+hrc,KOR,elected,2022-12-31,
+hrc,ITA,elected,2021-12-31,
+hrc,ESP,elected,2020-12-31,
+hrc,DEU,elected,2022-12-31,
+hrc,GBR,elected,2020-12-31,
+hrc,CHN,elected,2020-12-31,

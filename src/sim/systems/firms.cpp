@@ -281,8 +281,17 @@ void decide_tariff(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     w.agent_set_last_ai_choice(a, lev, raw);
     w.agent_set_last_choice(a, lev, choice);
     w.nation_set_tariff(n, choice);
-    // A currency union stands in for a customs union here: members share one external tariff.
-    if(auto bank = w.nation_get_bank_from_monetary_authority(n)) {
+    // A customs union (an organisation of kind union, e.g. the EU) has one external tariff.
+    if(const auto cu = organisation_of(state, org_kind::union_); cu && membership_in(state, cu, n)) {
+        double sum = 0.0, weight = 0.0;
+        for(auto m : w.organisation_get_membership_as_organisation(cu)) {
+            sum += w.nation_get_gdp0(m.get_member()) * w.nation_get_tariff(m.get_member());
+            weight += w.nation_get_gdp0(m.get_member());
+        }
+        if(weight > 0.0) {
+            for(auto m : w.organisation_get_membership_as_organisation(cu)) w.nation_set_tariff(m.get_member(), static_cast<float>(sum / weight));
+        }
+    } else if(auto bank = w.nation_get_bank_from_monetary_authority(n)) { // currency unions without a customs union
         double sum = 0.0, weight = 0.0;
         for(auto m : w.agent_get_monetary_authority(bank)) {
             sum += w.nation_get_gdp0(m.get_member()) * w.nation_get_tariff(m.get_member());

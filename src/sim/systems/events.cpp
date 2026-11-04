@@ -61,6 +61,28 @@ void apply_events(game_state& state) {
             w.nation_set_prior_oil(n, e.get_value());
             w.nation_set_prior_oil_set(n, 1);
             break;
+        // Financial shocks (historical anchors for crises such as 2008): the markets
+        // and banks then propagate them (assets.cpp wealth effects, credit.cpp lending).
+        case event_kind::house_price_shock:
+            w.nation_set_house_price(n, std::max(0.05f, w.nation_get_house_price(n) * (1.0f + e.get_value())));
+            for(auto own : w.nation_get_region_ownership(n)) {
+                own.get_region().set_house_price_r(std::max(0.05f, own.get_region().get_house_price_r() * (1.0f + e.get_value())));
+            }
+            break;
+        case event_kind::equity_shock:
+            w.nation_set_equity_price(n, std::max(0.05f, w.nation_get_equity_price(n) * (1.0f + e.get_value())));
+            break;
+        case event_kind::credit_spread_shock:
+            w.nation_set_lending_spread(n, w.nation_get_lending_spread(n) + e.get_value());
+            w.nation_set_spread_shock(n, w.nation_get_spread_shock(n) + e.get_value());
+            w.nation_set_spread_unwind_days(n, e.get_value2());
+            break;
+        case event_kind::bank_capital_shock:
+            // Losses (e.g. on securitised mortgages) cut bank capital; credit.cpp recomputes the ratio.
+            w.nation_set_bank_capital(n, std::max(0.0, w.nation_get_bank_capital(n) - e.get_value() / 100.0 * state.params.rwa_density
+                                                         * (w.nation_get_loans_hh(n) + w.nation_get_loans_firm(n))));
+            w.nation_set_capital_ratio(n, std::max(0.0f, w.nation_get_capital_ratio(n) - e.get_value() / 100.0f));
+            break;
         case event_kind::oil_production_delta: {
             const float base = w.nation_get_prior_oil_set(n) ? w.nation_get_prior_oil(n) : w.nation_get_oil_production0(n);
             w.nation_set_prior_oil(n, std::max(0.0f, base + e.get_value()));

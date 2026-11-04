@@ -100,7 +100,21 @@ void update_commodity_markets(game_state& state) {
         const float gf_w = gf_weight > 0.0 ? static_cast<float>(world_gf / gf_weight) : 1.0f;
         // Producers move toward the price-elastic level over a few months.
         float idx = c.get_supply_index() > 0.0f ? c.get_supply_index() : 1.0f;
-        const float target = std::pow(std::max(0.05f, rel), c.get_supply_elasticity()) * c.get_harvest();
+        // Producer concentration (Herfindahl of production shares) and two strategic
+        // responses: a concentrated cartel restrains supply when prices fall below 80% of
+        // 2019 (Stigler 1964: cartels hold better when few and large), and food exporters
+        // restrict exports in price spikes, which deepens them (Martin & Anderson 2012 on
+        // 2008 and 2010-11 grain bans; Headey 2011).
+        double hhi = 0.0, prod_total = 0.0;
+        for(auto n : w.in_nation) prod_total += n.get_commodity_prod(ci);
+        for(auto n : w.in_nation) {
+            const double sh = prod_total > 0.0 ? n.get_commodity_prod(ci) / prod_total : 0.0;
+            hhi += sh * sh;
+        }
+        const float cartel = hhi > 0.15 ? std::clamp(static_cast<float>(P.cartel_cut) * static_cast<float>(hhi) * std::max(0.0f, 0.8f - rel) * 5.0f, 0.0f, 0.3f) : 0.0f;
+        const float ban = c.get_harvest_sd() > 0.0f ? std::clamp(static_cast<float>(P.export_ban) * std::max(0.0f, rel - 1.3f), 0.0f, 0.2f) : 0.0f;
+        c.set_restraint(cartel + ban);
+        const float target = std::pow(std::max(0.05f, rel), c.get_supply_elasticity()) * c.get_harvest() * (1.0f - cartel - ban);
         idx += (target - idx) * 0.02f;
         c.set_supply_index(idx);
         supply = static_cast<double>(c.get_demand0()) * gf_w * idx;

@@ -108,7 +108,9 @@ situation assess(game_state const& state, dcon::nation_id n, double world_cases_
     auto const& D = state.derived;
     // Severity-weighted detected cases over all pathogens, and their growth.
     const float testing = D.npi_testing != 0xFF ? npi_fraction(state, n, D.npi_testing) : 0.0f;
-    const float detected_share = 0.2f + 0.8f * testing;
+    // WHO surveillance sharing improves what transparent states see (IHR 2005).
+    const float who = is_member(state, org_kind::health, n) ? static_cast<float>(P.who_detection) : 0.0f;
+    const float detected_share = (0.2f + 0.8f * testing) * (1.0f + who * w.nation_get_media_freedom(n));
     double cases = 0, growth_num = 0, pop = 0;
     for(auto own : w.nation_get_region_ownership(n)) {
         auto r = own.get_region();
@@ -511,6 +513,7 @@ void update_ai(game_state& state) {
             decide_fiscal_structure(state, a, n);
             decide_carbon_price(state, a, n);
             decide_policies(state, a, n);
+            decide_reforms(state, a, n);
         }
     }
     for(auto bank : w.in_agent) {
@@ -522,6 +525,7 @@ void update_ai(game_state& state) {
             continue;
         }
         decide_rate(state, bank.id); // daily: emergency meetings happen (Fed, 2020-03-03 and 03-15)
+        decide_bank_tools(state, bank.id);
     }
 }
 

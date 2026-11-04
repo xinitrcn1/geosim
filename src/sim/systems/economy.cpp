@@ -359,7 +359,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float pub_g = apply ? w.nation_get_public_investment(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     const float def_g = apply ? (w.nation_get_defense_share(n) - w.nation_get_defense_share0(n)) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     // Education and health above baseline (policy.cpp) buy public services.
-    const float svc_g = apply ? (w.nation_get_education_spending(n) + w.nation_get_health_spending(n)) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
+    const float svc_g = apply ? (w.nation_get_education_spending(n) + w.nation_get_health_spending(n) + w.nation_get_police(n) + w.nation_get_rd_spending(n))
+                                    / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     for(auto sec : w.in_sector) {
         if(core_key_is(sec.get_key(), "con")) dem[sec.id.index()] += pub_g * (1.0f - m_share);
     }
@@ -437,8 +438,14 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         pe += (pi - pe) * std::min(1.0f, dt / static_cast<float>(P.expectations_days));
         w.nation_set_inflation_expect(n, pe);
         const float oil_rel = D.oil ? w.commodity_get_price(D.oil) / w.commodity_get_price0(D.oil) : 1.0f;
-        w.nation_set_cpi(n, w.nation_get_core_price(n) * (1.0f + static_cast<float>(P.oil_cpi_share) * (oil_rel - 1.0f))
-                                * commodity_cpi_factor(state, n) * (1.0f + 0.05f * carbon_cost_share(state, n)));
+        // Energy and food above core inflation, part absorbed by subsidies; VAT changes
+        // pass into consumer prices (reforms.cpp).
+        const float raw = w.nation_get_core_price(n) * (1.0f + static_cast<float>(P.oil_cpi_share) * (oil_rel - 1.0f))
+                          * commodity_cpi_factor(state, n) * (1.0f + 0.05f * carbon_cost_share(state, n));
+        w.nation_set_cpi_raw(n, raw);
+        const float core_p = w.nation_get_core_price(n);
+        w.nation_set_cpi(n, (core_p + (raw - core_p) * (raw > core_p ? 1.0f - w.nation_get_subsidy(n) : 1.0f))
+                                * (1.0f + static_cast<float>(P.vat_pass) * w.nation_get_vat_shift(n) / 100.0f));
         // Sector relative prices: markups follow capacity pressure (Kalecki 1954); a
         // Calvo share resets each step (Calvo 1983). Normalised to the consumption basket,
         // so they shift the composition of demand, not aggregate inflation.
@@ -460,7 +467,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
 
     // ---- labour-market parameters for the pop pass
     const float coverage = w.nation_get_stw_coverage(n);
-    const float epl = w.nation_get_epl(n);
+    const float epl = std::max(0.0f, w.nation_get_epl(n) + static_cast<float>(P.epl_layoff) * 2.0f * w.nation_get_epl_shift(n));
     // OxCGRT E1 (income support) also records wage-subsidy schemes; where a job-retention
     // scheme covers workers, only the uncovered share boosts unemployment benefits.
     const float e1 = (D.npi_income_support != 0xFF ? npi_fraction(state, n, D.npi_income_support) : 0.0f) * (1.0f - coverage);
@@ -545,7 +552,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const double gov_interest = debt * static_cast<double>(w.nation_get_gov_rate(n)) / 365.0;
     // Later retirement (policy.cpp) cuts pension outlays (OECD Pensions at a Glance).
     const double pensions = static_cast<double>(w.nation_get_pensions0(n)) * p * gf
-                            * std::max(0.5, 1.0 - state.params.retirement_pension_saving * w.nation_get_retirement_age_shift(n));
+                            * std::max(0.5, 1.0 - state.params.retirement_pension_saving * w.nation_get_retirement_age_shift(n))
+                            * (apply ? static_cast<double>(pension_ageing_factor(state, n)) : 1.0); // ageing (society.cpp)
     auto per = [](double total, float weight) { return weight > 0.0f ? static_cast<float>(total / weight) : 0.0f; };
     w.nation_set_rate_transfer(n, per(pensions, w.nation_get_transfer_weight_total(n)));
     w.nation_set_rate_fiscal(n, per(fiscal_hh / dt, w.nation_get_size_total(n)));

@@ -64,6 +64,10 @@ enum class event_kind : uint8_t {
     oil_production = 6,       // value = absolute target (mb/d)
     oil_production_delta = 7, // value = change of target (mb/d)
     test_trace_isolate = 8,   // value = strength 0..1 of a suppression strategy
+    house_price_shock = 9,    // value = relative change of house prices (e.g. -0.2)
+    equity_shock = 10,        // value = relative change of equity prices
+    credit_spread_shock = 11, // value = lending-spread change (pp); value2 = days to unwind (0 = persistent)
+    bank_capital_shock = 12,  // value = bank capital ratio loss (pp)
 };
 
 // pop.values axes (Inglehart-Welzel + economic left-right), each roughly -1..1
@@ -72,7 +76,18 @@ enum class value_axis : uint8_t { secular = 0, self_expression = 1, economic_rig
 enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3, immigration = 4, environment = 5, corruption = 6, count };
 
 // agent.kind
-enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4, governor = 5 };
+enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4, governor = 5, rebel = 6 };
+
+// organisation.kind, .rule and membership.role (systems/organisations.cpp)
+enum class org_kind : uint8_t { assembly = 0, security = 1, trade = 2, union_ = 3, rights = 4, health = 5, count };
+enum class org_rule : uint8_t { majority = 0, veto = 1, qualified = 2, consensus = 3 };
+enum class org_role : uint8_t { member = 0, elected = 1, permanent = 2 };
+
+// treaty.kind (systems/agreements.cpp)
+enum class treaty_kind : uint8_t { climate = 0, migration = 1, debt_relief = 2, conditional_aid = 3, power_sharing = 4, count };
+
+// region.age_band (systems/demography.cpp): 0-14, 15-29, 30-49, 50-64, 65+
+inline constexpr uint8_t age_bands = 5;
 
 // nation.portfolio_party: ministries held by coalition parties (Gamson's law).
 // agent.goal: the strategic layer's current goal (systems/strategy.cpp).
@@ -112,6 +127,18 @@ enum class lever : uint8_t {
     health,          // executive (bill): health spending above the baseline, % of GDP (systems/policy.cpp)
     capital_controls,// executive: controls on portfolio flows, 0..1 (systems/policy.cpp)
     regional_npi,    // governor: regional NPI stringency relative to the national level (systems/policy.cpp)
+    police,          // executive (bill): police spending, % GDP above baseline (systems/reforms.cpp)
+    asylum,          // executive: refugee admission openness relative to 2019
+    vat,             // executive (bill): VAT rate shift (pp)
+    corporate_tax,   // executive (bill): corporate tax rate shift (pp)
+    wealth_tax,      // executive (bill): annual tax on top wealth (pct)
+    rd,              // executive (bill): public R&D, % GDP above baseline
+    subsidy,         // executive: fuel and food price support (share of the price rise absorbed)
+    epl,             // executive (bill): employment protection shift (OECD index points)
+    energy_mandate,  // executive (bill): renewables mandate strength 0..1
+    vaccine_priority,// executive: share of doses to the old first 0..1
+    fx_intervention, // central bank: reserve sales against depreciation 0..1
+    macroprudential, // central bank: countercyclical capital buffer (pp)
     count
 };
 
@@ -151,6 +178,13 @@ inline constexpr uint8_t journal_dispute = 0xEB;       // pragmatic = partner, b
 inline constexpr uint8_t journal_concession = 0xEA;    // target concedes to sanctions; pragmatic = sender
 inline constexpr uint8_t journal_unsc = 0xE9;          // pragmatic = target, before = kind (0 ceasefire, 1 sanctions, 2 peacekeeping), after = 1 adopted / 0 vetoed / -1 too few votes
 inline constexpr uint8_t journal_wto = 0xE8;           // pragmatic = respondent, before = 0 filed / 1 ruled, after = 1 complied / 0 retaliation / -1 appealed into the void
+inline constexpr uint8_t journal_variant = 0xE7;       // pragmatic = pathogen index, after = variant number
+inline constexpr uint8_t journal_term_limit = 0xE6;    // after = 1 evaded, 0 respected (new leader)
+inline constexpr uint8_t journal_court_seat = 0xE5;    // before/after = judicial independence
+inline constexpr uint8_t journal_agreement = 0xE4;     // pragmatic = partner, before = treaty kind, after = 1 signed / 0 broken / 2 ended
+inline constexpr uint8_t journal_rebels = 0xE3;        // after = 1 rebels formed, 0 settlement, -1 defeated
+inline constexpr uint8_t journal_eu_fund = 0xE2;       // after = fund size (share of EU GDP)
+inline constexpr uint8_t journal_plan = 0xE1;          // before = goal, after = plan step
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
@@ -194,6 +228,10 @@ enum class flow : uint8_t {
     public_services,       // education and health spending above baseline
     aid,                   // crisis aid between governments (via the rest of the world)
     arms,                  // arms imports: buyer's firms to the seller's firms
+    subsidies,             // fuel and food subsidies (government to households)
+    wealth_tax,            // annual wealth tax on top wealth holders
+    eu_fund,               // EU recovery-fund grants (via the rest of the world)
+    debt_relief,           // sovereign debt restructuring (creditors to the debtor government)
     count
 };
 

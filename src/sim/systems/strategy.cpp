@@ -90,6 +90,12 @@ float goal_bias(game_state const& state, dcon::nation_id n, goal g) {
     return a && w.agent_get_goal(a) == static_cast<uint8_t>(g) ? static_cast<float>(state.params.goal_gain) : 0.0f;
 }
 
+float plan_bias(game_state const& state, dcon::nation_id n, goal g, uint8_t step) {
+    auto const& w = state.world;
+    const auto a = w.nation_get_agent_from_executive_seat(n);
+    return a && w.agent_get_goal(a) == static_cast<uint8_t>(g) && w.agent_get_plan_step(a) >= step ? static_cast<float>(state.params.goal_gain) : 0.0f;
+}
+
 float fiscal_belief(game_state const& state, dcon::nation_id n) {
     auto const& w = state.world;
     const float est = w.nation_get_mult_est(n), prior = w.nation_get_mult_prior(n);
@@ -111,12 +117,28 @@ void init_strategy(game_state& state) {
         for(auto m : w.in_nation) {
             const auto k = static_cast<uint16_t>(m.id.index());
             n.set_energy_dependence0(k, n.get_energy_dependence(k));
+            n.set_debt_holdings0(k, n.get_debt_holdings(k));
         }
     }
 }
 
 void update_dependence(game_state& state) {
     auto& w = state.world;
+    // Reserve holdings of each issuer's debt (share of the holder's GDP): reserves
+    // (months of imports) allocated by the issuers' reserve-currency weights (IMF COFER).
+    {
+        double weight = 0.0;
+        for(auto m : w.in_nation) weight += m.get_reserve_currency();
+        for(auto n : w.in_nation) {
+            const double imports_y = n.get_gdp0() * std::max(0.05f, n.get_import_share());
+            const double reserves_usd = n.get_reserves() / 12.0 * imports_y;
+            for(auto m : w.in_nation) {
+                const auto k = static_cast<uint16_t>(m.id.index());
+                const double share = weight > 0.0 && m.id != n.id ? m.get_reserve_currency() / weight : 0.0;
+                n.set_debt_holdings(k, static_cast<float>(reserves_usd * share / std::max(1.0, n.get_gdp0())));
+            }
+        }
+    }
     for(auto n : w.in_nation) {
         const float demand = n.get_oil_demand();
         const float imported = demand > 0.0f ? std::max(0.0f, demand - n.get_oil_production()) / demand : 0.0f;
@@ -196,7 +218,33 @@ void update_strategy(game_state& state) {
         }
         if(best_score < static_cast<float>(P.goal_threshold)) best = 0;
         w.agent_set_goal_score(a, best_score);
+        // Plans (HTN-lite): a goal decomposes into ordered steps that unlock every 90 days
+        // while the goal persists (plan_bias): e.g. secure energy -> soften sanctions on
+        // suppliers -> renewables mandate -> R&D; restore growth -> public investment ->
+        // R&D -> corporate tax cut; consolidate -> less investment -> VAT -> pension
+        // reform; regime security -> repression -> police; deter a threat -> defence ->
+        // R&D (technology race) -> alliances; contain an epidemic -> health -> vaccine
+        // priority.
+        if(best == static_cast<std::size_t>(current) && best != 0) {
+            w.agent_set_plan_days(a, w.agent_get_plan_days(a) + static_cast<float>(monthly_cadence.period_days));
+            const auto step = static_cast<uint8_t>(std::min(2.0f, w.agent_get_plan_days(a) / 90.0f));
+            if(step > w.agent_get_plan_step(a)) {
+                w.agent_set_plan_step(a, step);
+                const auto d = w.create_decision();
+                w.decision_set_agent(d, a);
+                w.decision_set_target(d, n.id);
+                w.decision_set_tick(d, state.current_tick);
+                w.decision_set_lever(d, journal_plan);
+                w.decision_set_before(d, static_cast<float>(best));
+                w.decision_set_after(d, static_cast<float>(step));
+                w.decision_set_pragmatic(d, NAN);
+                w.decision_set_ideological(d, NAN);
+                w.decision_set_prior(d, NAN);
+            }
+        }
         if(best != static_cast<std::size_t>(current)) {
+            w.agent_set_plan_step(a, 0);
+            w.agent_set_plan_days(a, 0.0f);
             w.agent_set_goal(a, static_cast<uint8_t>(best));
             const auto d = w.create_decision();
             w.decision_set_agent(d, a);

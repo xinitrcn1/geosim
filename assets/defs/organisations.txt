@@ -1,0 +1,24 @@
+# International organisations (hand-written; moddable). Read by src/sim/scenario_ext.cpp;
+# behaviour in src/sim/systems/organisations.cpp. Memberships per scenario in
+# assets/scenario/<scenario>/organisations_curated.csv (role, term end, exit date).
+#
+# kind:  assembly (resolutions, voting alignment) | security (binding resolutions: ceasefire,
+#        sanctions, peace operations) | trade (dispute settlement) | union (common external
+#        tariff, recovery fund) | rights (naming and shaming) | health (surveillance sharing)
+# rule:  majority (share of members >= threshold) | veto (votes_needed yes votes and no
+#        permanent member against) | qualified (share of members >= threshold and share of
+#        members' population >= population_threshold) | consensus (no member against)
+# seats: total seats when not every member sits (elected_seats rotate every term_years);
+#        seats held by nations outside the scenario vote as the rest of the world.
+#
+# Sources: UN Charter arts. 18 and 23-27 (General Assembly, Security Council); Treaty on
+# European Union art. 16(4) (qualified majority: 55% of states, 65% of population); WTO
+# Dispute Settlement Understanding (negative consensus for panel reports); UN GA resolution
+# 60/251 (Human Rights Council, 47 seats, 3-year terms); WHO Constitution and IHR (2005).
+
+org{ key{unga}  kind{assembly} rule{majority}  threshold{0.5} }
+org{ key{unsc}  kind{security} rule{veto}      votes_needed{9} seats{15} elected_seats{10} term_years{2} }
+org{ key{wto}   kind{trade}    rule{consensus} }
+org{ key{eu}    kind{union}    rule{qualified} threshold{0.55} population_threshold{0.65} }
+org{ key{hrc}   kind{rights}   rule{majority}  threshold{0.5} seats{47} elected_seats{47} term_years{3} }
+org{ key{who}   kind{health}   rule{majority}  threshold{0.5} }

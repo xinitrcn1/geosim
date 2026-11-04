@@ -86,6 +86,14 @@ void update_credit(game_state& state) {
                   // start: the calibrated 2019 lending already reflects starting NPLs and capital.
                   - static_cast<float>(P.credit_crunch) * std::max(0.0f, std::min(static_cast<float>(P.capital_ratio_min), n.get_capital_ratio0()) - car)
                   - static_cast<float>(P.credit_npl_overhang) * std::max(0.0f, n.get_npl() - std::max(static_cast<float>(P.npl_reference), n.get_npl0()));
+        // Countercyclical capital buffer (macroprudential lever, reforms.cpp).
+        g -= static_cast<float>(P.ccyb_credit) * n.get_macroprudential() / 100.0f * 10.0f;
+        // Spread shocks (events) unwind over their stated horizon.
+        if(n.get_spread_shock() != 0.0f && n.get_spread_unwind_days() > 0.0f) {
+            const float back = n.get_spread_shock() * std::min(1.0f, dt / n.get_spread_unwind_days());
+            n.set_lending_spread(n.get_lending_spread() - back);
+            n.set_spread_shock(n.get_spread_shock() - back);
+        }
         // Directed lending by state banks (% GDP per year), split households / firms.
         const double directed = static_cast<double>(n.get_directed_credit()) / 100.0 * gdp_nom * years;
         const double dir_f = directed * P.directed_firm_share;

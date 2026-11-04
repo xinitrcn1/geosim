@@ -232,6 +232,45 @@ void load_technology_defs(game_state& state, std::string const& assets_dir, core
     }
 }
 
+void load_organisation_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag) {
+    const std::string path = assets_dir + "/defs/organisations.txt";
+    if(!exists(path)) return;
+    auto& w = state.world;
+    for(auto const& node : core::load_defs(path, diag)) {
+        if(node.key != "org") {
+            diag.fail(path, node.line, "expected org{...}");
+            return;
+        }
+        const auto key = node.req("key", path, diag);
+        if(key.empty() || key.size() > 4) {
+            diag.fail(path, node.line, "organisation keys must be 1-4 characters");
+            return;
+        }
+        const auto o = w.create_organisation();
+        w.organisation_set_key(o, core::pack_key(key));
+        const std::string kind(node.req("kind", path, diag));
+        const std::string rule(node.req("rule", path, diag));
+        static constexpr char const* kinds[] = {"assembly", "security", "trade", "union", "rights", "health"};
+        static constexpr char const* rules[] = {"majority", "veto", "qualified", "consensus"};
+        int ki = -1, ri = -1;
+        for(int i = 0; i < 6; ++i) ki = kind == kinds[i] ? i : ki;
+        for(int i = 0; i < 4; ++i) ri = rule == rules[i] ? i : ri;
+        if(ki < 0 || ri < 0) {
+            diag.fail(path, node.line, "unknown kind or rule");
+            return;
+        }
+        w.organisation_set_kind(o, static_cast<uint8_t>(ki));
+        w.organisation_set_rule(o, static_cast<uint8_t>(ri));
+        w.organisation_set_threshold(o, static_cast<float>(node.num_or("threshold", 0.5, path, diag)));
+        w.organisation_set_population_threshold(o, static_cast<float>(node.num_or("population_threshold", 0.0, path, diag)));
+        w.organisation_set_votes_needed(o, static_cast<uint8_t>(node.num_or("votes_needed", 0.0, path, diag)));
+        w.organisation_set_seats(o, static_cast<uint16_t>(node.num_or("seats", 0.0, path, diag)));
+        w.organisation_set_elected_seats(o, static_cast<uint16_t>(node.num_or("elected_seats", 0.0, path, diag)));
+        w.organisation_set_term_years(o, static_cast<float>(node.num_or("term_years", 0.0, path, diag)));
+        w.organisation_set_last_session(o, -1);
+    }
+}
+
 void load_conflict_tables(game_state& state, std::string const& dir, core::diagnostics& diag) {
     auto& w = state.world;
     if(exists(dir + "/conflict_curated.csv")) {
@@ -251,18 +290,67 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
             w.nation_set_rivalry(b, static_cast<uint16_t>(a.index()), r);
         }
     }
-    for(auto n : w.in_nation) n.set_wto_member(1); // default; the table refines it
-    if(exists(dir + "/un_curated.csv")) {
-        const auto t = core::csv_table::load(dir + "/un_curated.csv", diag);
+    // Memberships of international organisations (defs/organisations.txt).
+    if(exists(dir + "/organisations_curated.csv")) {
+        const auto t = core::csv_table::load(dir + "/organisations_curated.csv", diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const auto key = core::pack_key(t.get(row, "org"));
+            dcon::organisation_id org;
+            for(auto o : w.in_organisation) {
+                if(o.get_key() == key) org = o.id;
+            }
+            if(!org) {
+                diag.fail(dir + "/organisations_curated.csv: unknown organisation '" + std::string(t.get(row, "org")) + "'");
+                return;
+            }
+            const auto role_s = t.get(row, "role");
+            const auto role = role_s == "permanent" ? org_role::permanent : role_s == "elected" ? org_role::elected : org_role::member;
+            auto add = [&](dcon::nation_id n) {
+                const auto m = w.force_create_membership(org, n);
+                w.membership_set_role(m, static_cast<uint8_t>(role));
+                w.membership_set_term_end(m, -1);
+                w.membership_set_exit_tick(m, -1);
+                if(auto d = core::parse_date(t.get(row, "term_end"))) w.membership_set_term_end(m, core::tick_from_date(*d));
+                if(auto d = core::parse_date(t.get(row, "exit"))) w.membership_set_exit_tick(m, core::tick_from_date(*d));
+            };
+            if(t.get(row, "iso3") == "ALL") {
+                for(auto n : w.in_nation) add(n.id);
+            } else if(const auto n = find_nation(state, t.get(row, "iso3"))) {
+                add(n);
+            }
+        }
+    }
+    // Further per-nation inputs (society, economy, politics extensions).
+    for(auto n : w.in_nation) {
+        n.set_rd_pct(1.0f);
+        n.set_reserves(6.0f);
+        n.set_reserves0(6.0f);
+        n.set_terrain(0.2f);
+        n.set_decentralisation(0.2f);
+        n.set_asylum_openness(1.0f);
+        n.set_vintage_tfp(1.0f);
+        n.set_tax_indirect0(n.get_tax_indirect());
+        n.set_tax_firm0(n.get_tax_firm());
+        n.set_willingness(0.5f);
+        n.set_identity_legitimacy(0.7f);
+        n.set_vaccine_priority(0.8f);
+    }
+    if(exists(dir + "/nations_ext_curated.csv")) {
+        const auto t = core::csv_table::load(dir + "/nations_ext_curated.csv", diag);
         for(std::size_t row = 0; row < t.rows(); ++row) {
             const auto n = find_nation(state, t.get(row, "iso3"));
             if(!n) continue;
-            const auto seat = t.get(row, "unsc");
-            w.nation_set_unsc_seat(n, seat == "P" ? 2 : seat == "E" ? 1 : 0);
-            if(auto d = core::parse_date(t.get(row, "term_end"))) w.nation_set_unsc_term_end(n, core::tick_from_date(*d));
-            w.nation_set_wto_member(n, t.number_or(row, "wto", 1.0) > 0.0 ? 1 : 0);
+            w.nation_set_rd_pct(n, static_cast<float>(t.number_or(row, "rd_pct", 1.0)));
+            w.nation_set_reserves(n, static_cast<float>(t.number_or(row, "reserves_months", 6.0)));
+            w.nation_set_reserves0(n, w.nation_get_reserves(n));
+            w.nation_set_decentralisation(n, static_cast<float>(t.number_or(row, "decentralisation", 0.2)));
+            w.nation_set_terrain(n, static_cast<float>(t.number_or(row, "terrain", 0.2)));
+            w.nation_set_term_limit_years(n, static_cast<float>(t.number_or(row, "term_limit_years", 0.0)));
+            w.nation_set_language(n, core::pack_key(t.get(row, "language")));
+            w.nation_set_religion(n, core::pack_key(t.get(row, "religion")));
         }
     }
+    for(auto own : w.in_region_ownership) own.get_region().set_ruggedness(own.get_nation().get_terrain());
     // Arms imports: the share of procurement bought abroad falls with industrial
     // capability (SIPRI arms transfers; large producers import little).
     for(auto n : w.in_nation) n.set_arms_import_share(0.3f);

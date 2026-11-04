@@ -53,7 +53,8 @@ int main() {
         auto s = make();
         auto& w = s->world;
         const auto chn = sim::find_nation(*s, "CHN"), ind = sim::find_nation(*s, "IND");
-        CHECK(w.nation_get_unsc_seat(chn) == 2);
+        CHECK(sim::org_role_of(*s, sim::org_kind::security, chn) == static_cast<int>(sim::org_role::permanent));
+        CHECK(sim::is_member(*s, sim::org_kind::union_, sim::find_nation(*s, "DEU")));
         for(int d = 0; d < 60; ++d) {
             w.nation_set_control(ind, ix(chn), 0.2f);
             sim::advance_day(*s);

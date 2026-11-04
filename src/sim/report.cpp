@@ -93,7 +93,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     static constexpr char const* names[] = {"consumption", "gov_purchases", "exports", "imports", "wages_private",
         "wages_public", "job_retention_pay", "unemployment_benefits", "pensions", "fiscal_households", "fiscal_firms",
         "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households", "household_transfers", "remittances_in", "remittances_out", "sovereign_default",
-        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio", "public_services", "aid", "arms"};
+        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio", "public_services", "aid", "arms", "subsidies", "wealth_tax", "eu_fund", "debt_relief"};
     static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(flow::count));
     auto const& w = state.world;
     const double days = std::max(1.0, w.nation_get_acc_days(n));
@@ -101,7 +101,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     out << "flows for " << core::unpack_key(w.nation_get_iso3(n)) << " (year to date, % of nominal GDP over the period)\n";
     static constexpr char const* levers[] = {"fiscal", "stw_coverage", "stw_replacement", "tti", "policy_rate", "oil_target", "directed_credit",
         "info_control", "asset_purchases", "net_filtering", "tariff", "hoarding", "investment", "tax_scale", "public_investment", "min_wage",
-        "defense", "wage_push", "carbon_price", "repression", "immigration", "retirement_age", "education", "health", "capital_controls", "regional_npi"};
+        "defense", "wage_push", "carbon_price", "repression", "immigration", "retirement_age", "education", "health", "capital_controls", "regional_npi", "police", "asylum", "vat", "corporate_tax", "wealth_tax", "rd", "subsidy", "epl", "energy_mandate", "vaccine_priority", "fx_intervention", "macroprudential"};
     static_assert(sizeof(levers) / sizeof(levers[0]) == static_cast<std::size_t>(lever::count));
     auto label = [&](uint32_t code) {
         const auto kind = static_cast<cause_kind>(code >> 24);
@@ -170,7 +170,10 @@ void write_journal_counts(game_state const& state, std::ostream& out) {
                                      {journal_cyber, "cyber"},         {journal_insurgency, "insurgency"}, {journal_bill, "bill"},
                                      {journal_no_confidence, "no_confidence"}, {journal_court, "court"}, {journal_regime_change, "regime_change"},
                                      {journal_treaty, "treaty"},       {journal_disaster, "disaster"},   {journal_goal, "goal"},
-                                     {journal_alliance_call, "alliance_call"}, {journal_dispute, "dispute"}, {journal_concession, "concession"}};
+                                     {journal_alliance_call, "alliance_call"}, {journal_dispute, "dispute"}, {journal_concession, "concession"},
+                                     {journal_unsc, "unsc"}, {journal_wto, "wto"}, {journal_variant, "variant"}, {journal_term_limit, "term_limit"},
+                                     {journal_court_seat, "court_seat"}, {journal_agreement, "agreement"}, {journal_rebels, "rebels"},
+                                     {journal_eu_fund, "eu_fund"}, {journal_plan, "plan"}};
     std::map<uint8_t, int> counts;
     for(auto d : w.in_decision) ++counts[d.get_lever()];
     out << "journal events (" << state.current_tick << " days)\n";

@@ -41,6 +41,8 @@ struct derived_indices {
     uint8_t lever_base = 0;
     uint8_t lever_count = 0;
     uint8_t tech_count = 0;
+    // The organisation of each kind (first defined), if any (organisations.cpp).
+    dcon::organisation_id org[6];
 };
 
 struct game_state {

@@ -67,7 +67,9 @@ void update_treaties(game_state& state) {
             const auto u = core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
                                            0x60000000u + static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index()));
             if(n.get_alliance(km) <= 0.0f) {
-                if(shared > static_cast<float>(P.alliance_threat) && trust > 0.5f && distance < 0.3f && n.get_at_war(km) <= 0.0f && u < 0.5f * years) {
+                // The deter-threat plan's last step seeks allies (strategy.cpp).
+                const float seek = std::max(plan_bias(state, n.id, goal::deter_threat, 2), plan_bias(state, m.id, goal::deter_threat, 2));
+                if(shared > static_cast<float>(P.alliance_threat) * (1.0f - seek) && trust > 0.5f - seek && distance < 0.3f && n.get_at_war(km) <= 0.0f && u < 0.5f * years) {
                     n.set_alliance(km, 1.0f);
                     m.set_alliance(kn, 1.0f);
                     log_treaty(state, n.id, m.id, 0.0f, 1.0f);
@@ -93,6 +95,18 @@ void update_treaties(game_state& state) {
                     };
                     if(ratifies(n.id) && ratifies(m.id)) {
                         fta = 0.01f;
+                        // Level I (Putnam 1988): the depth is the Nash bargaining outcome over
+                        // liberalisation, bounded by the narrower win-set; the side with the
+                        // narrower win-set claims a larger share of the gains (Schelling 1960).
+                        auto winset = [&](dcon::nation_id x) {
+                            return std::clamp(1.0f - static_cast<float>(P.fta_ratification) * 10.0f * w.nation_get_lobby_pressure(x)
+                                                  - 0.5f * std::max(0.0f, 0.5f - w.nation_get_gov_seat_share(x)), 0.2f, 1.0f);
+                        };
+                        const float wn = winset(n.id), wm = winset(m.id);
+                        const float depth = std::min(wn, wm);
+                        const float split = static_cast<float>(P.nash_split) + 0.25f * (wm - wn); // n's share of the gains
+                        n.set_fta_depth(km, depth * std::clamp(2.0f * split, 0.5f, 1.5f));
+                        m.set_fta_depth(kn, depth * std::clamp(2.0f * (1.0f - split), 0.5f, 1.5f));
                         log_treaty(state, n.id, m.id, 1.0f, 1.0f);
                     } else {
                         log_treaty(state, n.id, m.id, 1.0f, -1.0f); // signed, not ratified

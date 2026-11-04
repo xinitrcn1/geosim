@@ -125,6 +125,29 @@ void update_climate_policy(game_state& state);
 void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n);
 void update_policy(game_state& state);
 void allocate_portfolios(game_state& state, dcon::nation_id n);
+// Remaining policy catalogue (reforms.cpp): police, asylum, VAT, corporate and wealth
+// taxes, R&D, subsidies, EPL, energy mandates, vaccine priority (executive, weekly);
+// FX intervention and macroprudential buffers (central bank, daily); monthly channels.
+void decide_reforms(game_state& state, dcon::agent_id a, dcon::nation_id n);
+void decide_bank_tools(game_state& state, dcon::agent_id bank);
+void init_reforms(game_state& state);
+void update_reforms(game_state& state);
+[[nodiscard]] float reform_growth(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float price_spike(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float pension_ageing_factor(game_state const& state, dcon::nation_id n);
+void update_variants(game_state& state);
+// Politics extensions (politics_ext.cpp): court appointments, term limits, identity
+// legitimacy, willingness to serve (monthly).
+void init_politics_ext(game_state& state);
+void update_politics_ext(game_state& state);
+void term_limit_check(game_state& state, dcon::nation_id n, bool same_party);
+// Agreements with terms and compliance (agreements.cpp, monthly): climate pledges,
+// migration deals, debt relief, conditional aid; rebels and power sharing.
+void init_agreements(game_state& state);
+void update_agreements(game_state& state);
+[[nodiscard]] bool has_treaty(game_state const& state, treaty_kind k, dcon::nation_id a, dcon::nation_id b);
+// HTN-lite plan steps (strategy.cpp): the bias of goal `g` on a lever used from step `step`.
+[[nodiscard]] float plan_bias(game_state const& state, dcon::nation_id n, goal g, uint8_t step);
 // Strategy layer (docs/06): goals, response tables, information quality,
 // credibility and energy dependence (strategy.cpp).
 void init_strategy(game_state& state);
@@ -148,11 +171,19 @@ void start_war(game_state& state, dcon::nation_id n, dcon::nation_id m);
 void update_diplomacy(game_state& state);
 [[nodiscard]] float mediation_score(game_state const& state, dcon::nation_id n, dcon::nation_id m);
 void insurgency_support(game_state const& state, dcon::nation_id n, float& for_government, float& for_rebels);
-// International organisations (un.cpp): General Assembly alignment, Security Council
-// resolutions (ceasefire, sanctions, peace operations), elections; WTO disputes.
-void init_un(game_state& state);
-void update_un(game_state& state);
+// International organisations (organisations.cpp): generic membership and voting
+// rules; General Assembly sessions, Security Council resolutions, WTO disputes, the
+// EU's customs union and recovery fund, Human Rights Council shaming, WHO.
+void init_organisations(game_state& state);
+void update_organisations(game_state& state);
 void compute_un_ideals(game_state& state);
+[[nodiscard]] dcon::organisation_id organisation_of(game_state const& state, org_kind k);
+[[nodiscard]] dcon::membership_id membership_in(game_state const& state, dcon::organisation_id o, dcon::nation_id n);
+[[nodiscard]] bool is_member(game_state const& state, org_kind k, dcon::nation_id n);
+[[nodiscard]] int org_role_of(game_state const& state, org_kind k, dcon::nation_id n); // -1 if not a member
+// Votes a draft by `sponsor` against `target` (shift: extra support); journals under
+// `code` (0 = silent). Returns 1 adopted, 0 vetoed or blocked, -1 too few votes.
+float org_vote(game_state& state, dcon::organisation_id o, dcon::nation_id sponsor, dcon::nation_id target, float shift, uint8_t code, float kind_tag);
 [[nodiscard]] float un_alignment(game_state const& state, dcon::nation_id a, dcon::nation_id b);
 [[nodiscard]] float un_sanction_floor(game_state const& state, dcon::nation_id n, dcon::nation_id target);
 [[nodiscard]] float peacekeeping_factor(game_state const& state, dcon::nation_id n, dcon::nation_id m);

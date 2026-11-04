@@ -123,8 +123,8 @@ void update_institutions(game_state& state) {
             }
         }
 
-        // Courts: forced levers beyond the legal range are struck down.
-        n.set_judicial(n.get_liberal());
+        // Courts: forced levers beyond the legal range are struck down. Judicial
+        // independence is a stock changed by appointments (politics_ext.cpp).
         if(auto exec = n.get_executive_seat().get_agent()) {
             for(uint8_t l = 0; l < D.lever_count; ++l) {
                 if(exec.get_override_mode(l) != static_cast<uint8_t>(override_mode::force)) continue;

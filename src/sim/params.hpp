@@ -502,6 +502,63 @@
     X(wto_win, 0.85, "probability the complainant wins (Hudec 1993; Bown 2009)")                         \
     X(wto_appellate, 0.0, "Appellate Body functioning (0 = paralysed since 2019-12-11: losers appeal into the void)") \
     X(wto_retaliation, 0.2, "sanction floor of authorised retaliation (suspension of concessions)")      \
+    /* ---- demography, mobility, values (docs/04) ---- */                                               \
+    X(mortality_income, 0.3, "elasticity of adult mortality to income relative to 2019 (Preston 1975; Cutler, Deaton & Lleras-Muney 2006)") \
+    X(mortality_health, 0.05, "mortality cut per % GDP of health spending above baseline")               \
+    X(pension_ageing, 1.0, "elasticity of pension outlays to the old-age share relative to 2019")        \
+    X(gatsby_slope, 1.4, "intergenerational earnings elasticity per unit Gini (Corak 2013 Great Gatsby curve)") \
+    X(mobility_rate, 0.01, "annual share of low-skill workers moving up a tier at zero IGE (Chetty et al. 2014)") \
+    X(cohort_replacement, 0.02, "annual share of the adult population replaced by new cohorts (Inglehart 1977)") \
+    X(formative_security, 0.5, "self-expression of a new cohort per unit secure upbringing (scarcity hypothesis)") \
+    X(police_crime, 0.3, "crime elasticity to police spending (Chalfin & McCrary 2017; Levitt 1997)")    \
+    X(trust_region_unrest, 0.05, "regional trust lost per unrest level")                                 \
+    X(commute_rate, 0.02, "daily share of infection pressure from adjacent regions (commuting; Balcan et al. 2009)") \
+    X(variant_rate, 2e-11, "daily variant emergence hazard per world infection (Otto et al. 2021)")       \
+    X(variant_r0_gain, 1.4, "transmissibility gain of a new variant (Alpha / Delta; Davies et al. 2021)")  \
+    X(variant_escape, 0.2, "share of immune people made susceptible again by a new variant")             \
+    X(asylum_refugee, 1.0, "refugee arrivals per unit asylum openness (UNHCR; Hatton 2009)")             \
+    /* ---- economy extensions (docs/03) ---- */                                                           \
+    X(rd_tfp, 0.1, "trend-growth gain per pp of R&D above 2019 (Romer 1990; Griliches 1992; Ugur et al. 2016)") \
+    X(vintage_embodiment, 0.3, "share of frontier technology embodied in new capital (Solow 1960; Greenwood et al. 1997)") \
+    X(depreciation, 0.05, "annual capital depreciation (vintage turnover)")                              \
+    X(housing_supply, 1.5, "regional housing supply elasticity (Saiz 2010 median)")                     \
+    X(wealth_tax_flight, 0.3, "wealth-tax base erosion per pp of tax (Jakobsen et al. 2020; Saez & Zucman 2019)") \
+    X(vat_pass, 1.0, "pass-through of VAT changes to consumer prices (Benzarti et al. 2020)")            \
+    X(subsidy_fiscal, 1.0, "fiscal cost of a fuel/food subsidy per unit price support x consumption share (Coady et al. 2015)") \
+    X(epl_layoff, 0.5, "layoff lag change per unit EPL shift (OECD EPL; Boeri & Jimeno 2005)")           \
+    X(mandate_diffusion, 0.5, "renewables diffusion speed-up per unit energy mandate (IEA; Johnstone et al. 2010)") \
+    X(equalisation_gain, 0.5, "share of regional fiscal capacity gaps closed by equalisation (Boadway & Shah 2009)") \
+    X(cartel_cut, 0.5, "supply restraint of a concentrated producer cartel per unit price fall below 0.8 (Stigler 1964)") \
+    X(export_ban, 0.3, "supply withdrawn by grain export restrictions per unit price spike above 1.3 (Martin & Anderson 2012)") \
+    /* ---- monetary and financial extensions ---- */                                                      \
+    X(fx_defend, 0.5, "share of depreciation pressure absorbed by reserve sales at full intervention (Fratzscher et al. 2019)") \
+    X(reserves_use, 12.0, "months of reserves spent per year at full intervention and pressure")         \
+    X(ccyb_credit, 0.5, "credit growth cut per pp countercyclical buffer (Cerutti, Claessens & Laeven 2017)") \
+    /* ---- politics extensions (docs/05) ---- */                                                          \
+    X(court_vacancy_years, 6.0, "mean years between court vacancies")                                     \
+    X(court_capture, 0.15, "judicial independence lost per vacancy filled by a low-liberal executive (Helmke 2017)") \
+    X(identity_weight, 0.2, "weight of identity legitimacy (inclusion of groups; Gilley 2009)")          \
+    X(term_evasion, 0.5, "probability an autocratising incumbent evades a term limit (Versteeg et al. 2020)") \
+    X(willingness_war, 1.0, "war-effort gain per unit willingness to serve (Levi 1997; Horowitz et al. 2011)") \
+    /* ---- diplomacy and organisations extensions (docs/06) ---- */                                      \
+    X(language_trust, 0.05, "trust from a common official language (Guiso, Sapienza & Zingales 2009; Melitz & Toubal 2014)") \
+    X(religion_trust, 0.05, "trust from a shared majority religion")                                     \
+    X(debt_dependence_cost, 1.0, "sanction cost per unit of the target's debt held (share of its GDP)")  \
+    X(pledge_slack, 0.8, "share of a climate pledge that counts as compliance (Victor 2011)")            \
+    X(pledge_credibility, 0.1, "credibility lost per year in breach of a climate pledge")               \
+    X(debt_relief_haircut, 0.3, "debt cut of a sovereign restructuring (Cruces & Trebesch 2013)")        \
+    X(migration_deal_aid, 0.002, "aid (share of donor GDP per year) in a migration-control deal (EU-Turkey 2016)") \
+    X(shaming_legitimacy, 0.05, "legitimacy lost per year when named and shamed (Hafner-Burton 2008)")  \
+    X(who_detection, 0.2, "detection gain from WHO surveillance sharing (IHR 2005)")                    \
+    X(covax_share, 0.2, "share of vaccine doses pooled for equal-per-capita allocation (COVAX)")         \
+    X(eu_fund_trigger, 3.0, "EU-wide output gap (pp) that triggers a common recovery fund (NextGenerationEU 2020)") \
+    X(eu_fund_size, 0.05, "EU recovery fund (share of EU GDP), allocated by output loss")               \
+    X(eu_fund_lag_days, 300.0, "days from agreement to first disbursement (national ratification of the Own Resources Decision)") \
+    X(eu_fund_years, 6.0, "disbursement period of the recovery fund (years; NGEU 2021-2026)")             \
+    X(nash_split, 0.5, "baseline Nash-bargaining share of FTA gains; narrow win-sets claim more (Schelling 1960)") \
+    X(rebel_negotiate, 0.5, "annual hazard of a negotiated settlement with rebels at a mutually hurting stalemate (Zartman 1989)") \
+    X(power_sharing, 0.5, "cut in a group's exclusion under a power-sharing deal (Hartzell & Hoddie 2003)") \
+    X(ruggedness_insurgency, 1.0, "insurgency hazard gain per unit mountainous terrain (Fearon & Laitin 2003)") \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

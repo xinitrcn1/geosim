@@ -466,6 +466,58 @@ wto_panel_days{450}                      # days from request to panel report (Bu
 wto_win{0.85}                            # probability the complainant wins (Hudec 1993; Bown 2009)
 wto_appellate{0}                         # Appellate Body functioning (0 = paralysed since 2019-12-11: losers appeal into the void)
 wto_retaliation{0.2}                     # sanction floor of authorised retaliation (suspension of concessions)
+mortality_income{0.3}                    # elasticity of adult mortality to income relative to 2019 (Preston 1975; Cutler, Deaton & Lleras-Muney 2006)
+mortality_health{0.05}                   # mortality cut per % GDP of health spending above baseline
+pension_ageing{1}                        # elasticity of pension outlays to the old-age share relative to 2019
+gatsby_slope{1.4}                        # intergenerational earnings elasticity per unit Gini (Corak 2013 Great Gatsby curve)
+mobility_rate{0.01}                      # annual share of low-skill workers moving up a tier at zero IGE (Chetty et al. 2014)
+cohort_replacement{0.02}                 # annual share of the adult population replaced by new cohorts (Inglehart 1977)
+formative_security{0.5}                  # self-expression of a new cohort per unit secure upbringing (scarcity hypothesis)
+police_crime{0.3}                        # crime elasticity to police spending (Chalfin & McCrary 2017; Levitt 1997)
+trust_region_unrest{0.05}                # regional trust lost per unrest level
+commute_rate{0.02}                       # daily share of infection pressure from adjacent regions (commuting; Balcan et al. 2009)
+variant_rate{2e-11}                      # daily variant emergence hazard per world infection (Otto et al. 2021)
+variant_r0_gain{1.4}                     # transmissibility gain of a new variant (Alpha / Delta; Davies et al. 2021)
+variant_escape{0.2}                      # share of immune people made susceptible again by a new variant
+asylum_refugee{1}                        # refugee arrivals per unit asylum openness (UNHCR; Hatton 2009)
+rd_tfp{0.1}                              # trend-growth gain per pp of R&D above 2019 (Romer 1990; Griliches 1992; Ugur et al. 2016)
+vintage_embodiment{0.3}                  # share of frontier technology embodied in new capital (Solow 1960; Greenwood et al. 1997)
+depreciation{0.05}                       # annual capital depreciation (vintage turnover)
+housing_supply{1.5}                      # regional housing supply elasticity (Saiz 2010 median)
+wealth_tax_flight{0.3}                   # wealth-tax base erosion per pp of tax (Jakobsen et al. 2020; Saez & Zucman 2019)
+vat_pass{1}                              # pass-through of VAT changes to consumer prices (Benzarti et al. 2020)
+subsidy_fiscal{1}                        # fiscal cost of a fuel/food subsidy per unit price support x consumption share (Coady et al. 2015)
+epl_layoff{0.5}                          # layoff lag change per unit EPL shift (OECD EPL; Boeri & Jimeno 2005)
+mandate_diffusion{0.5}                   # renewables diffusion speed-up per unit energy mandate (IEA; Johnstone et al. 2010)
+equalisation_gain{0.5}                   # share of regional fiscal capacity gaps closed by equalisation (Boadway & Shah 2009)
+cartel_cut{0.5}                          # supply restraint of a concentrated producer cartel per unit price fall below 0.8 (Stigler 1964)
+export_ban{0.3}                          # supply withdrawn by grain export restrictions per unit price spike above 1.3 (Martin & Anderson 2012)
+fx_defend{0.5}                           # share of depreciation pressure absorbed by reserve sales at full intervention (Fratzscher et al. 2019)
+reserves_use{12}                         # months of reserves spent per year at full intervention and pressure
+ccyb_credit{0.5}                         # credit growth cut per pp countercyclical buffer (Cerutti, Claessens & Laeven 2017)
+court_vacancy_years{6}                   # mean years between court vacancies
+court_capture{0.15}                      # judicial independence lost per vacancy filled by a low-liberal executive (Helmke 2017)
+identity_weight{0.2}                     # weight of identity legitimacy (inclusion of groups; Gilley 2009)
+term_evasion{0.5}                        # probability an autocratising incumbent evades a term limit (Versteeg et al. 2020)
+willingness_war{1}                       # war-effort gain per unit willingness to serve (Levi 1997; Horowitz et al. 2011)
+language_trust{0.05}                     # trust from a common official language (Guiso, Sapienza & Zingales 2009; Melitz & Toubal 2014)
+religion_trust{0.05}                     # trust from a shared majority religion
+debt_dependence_cost{1}                  # sanction cost per unit of the target's debt held (share of its GDP)
+pledge_slack{0.8}                        # share of a climate pledge that counts as compliance (Victor 2011)
+pledge_credibility{0.1}                  # credibility lost per year in breach of a climate pledge
+debt_relief_haircut{0.3}                 # debt cut of a sovereign restructuring (Cruces & Trebesch 2013)
+migration_deal_aid{0.002}                # aid (share of donor GDP per year) in a migration-control deal (EU-Turkey 2016)
+shaming_legitimacy{0.05}                 # legitimacy lost per year when named and shamed (Hafner-Burton 2008)
+who_detection{0.2}                       # detection gain from WHO surveillance sharing (IHR 2005)
+covax_share{0.2}                         # share of vaccine doses pooled for equal-per-capita allocation (COVAX)
+eu_fund_trigger{3}                       # EU-wide output gap (pp) that triggers a common recovery fund (NextGenerationEU 2020)
+eu_fund_size{0.05}                       # EU recovery fund (share of EU GDP), allocated by output loss
+eu_fund_lag_days{300}                    # days from agreement to first disbursement (national ratification of the Own Resources Decision)
+eu_fund_years{6}                         # disbursement period of the recovery fund (years; NGEU 2021-2026)
+nash_split{0.5}                          # baseline Nash-bargaining share of FTA gains; narrow win-sets claim more (Schelling 1960)
+rebel_negotiate{0.5}                     # annual hazard of a negotiated settlement with rebels at a mutually hurting stalemate (Zartman 1989)
+power_sharing{0.5}                       # cut in a group's exclusion under a power-sharing deal (Hartzell & Hoddie 2003)
+ruggedness_insurgency{1}                 # insurgency hazard gain per unit mountainous terrain (Fearon & Laitin 2003)
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

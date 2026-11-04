@@ -73,7 +73,7 @@ void update_longrun(game_state& state) {
                            + static_cast<float>(P.human_capital_growth) * (n.get_tertiary_share() - n.get_tertiary0())
                            - static_cast<float>(P.net_growth_cost) * std::max(0.0f, n.get_net_filtering() - n.get_net_filtering0())
                            + static_cast<float>(P.trust_growth) * (n.get_social_trust() - n.get_social_trust0())
-                           + catch_up_growth(state, n.id));
+                           + catch_up_growth(state, n.id) + reform_growth(state, n.id));
     }
 
     // Climate: global, once per 28 days.

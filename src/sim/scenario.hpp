@@ -36,5 +36,7 @@ void load_technology_defs(game_state& state, std::string const& assets_dir, core
 void load_trade_tables(game_state& state, std::string const& scenario_dir, core::diagnostics& diag);
 // Nuclear arsenals and strategic rivalries (optional; docs/06).
 void load_conflict_tables(game_state& state, std::string const& scenario_dir, core::diagnostics& diag);
+// International organisations (defs/organisations.txt; memberships per scenario).
+void load_organisation_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
 
 } // namespace geosim::sim

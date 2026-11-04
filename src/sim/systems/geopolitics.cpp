@@ -209,7 +209,9 @@ static double pair_access(game_state const& state, dcon::nation_id n, dcon::nati
     const double base = static_cast<double>(w.nation_get_m0(m)) * w.nation_get_gf(m);
     const double demand = base > 0.0 ? w.nation_get_imports(m) / base : 1.0;
     // FTAs phase in a trade gain (treaties.cpp; Baier & Bergstrand 2007).
-    const double fta = std::exp(P.fta_trade_gain * w.nation_get_fta(n, k));
+    // Deeper agreements (Level-I bargaining in treaties.cpp) liberalise more (Dür, Baccini & Elsig 2014).
+    const float depth = w.nation_get_fta_depth(n, k) > 0.0f ? w.nation_get_fta_depth(n, k) : 1.0f;
+    const double fta = std::exp(P.fta_trade_gain * w.nation_get_fta(n, k) * depth);
     // Armington (1969): in m's market, n competes with m's other suppliers on relative
     // real exchange rates (its competitiveness against m's own producers is the
     // export elasticity in economy.cpp).
@@ -264,7 +266,8 @@ static void update_insurgency(game_state& state, dcon::nation_id n, float years)
             if(r.get_crisis_days() >= static_cast<float>(P.insurgency_days)) {
                 const float youth_jobless = std::max(0.0f, w.nation_get_unemployment(n) * w.nation_get_youth_unemp_rel(n) - 0.1f);
                 const float hazard = static_cast<float>(P.insurgency_rate) * years * (1.0f - w.nation_get_state_capacity(n))
-                                     * (0.3f + excluded) * (1.0f + 3.0f * youth_jobless) * peacekeeping_factor(state, n, {});
+                                     * (0.3f + excluded) * (1.0f + 3.0f * youth_jobless) * peacekeeping_factor(state, n, {})
+                                     * (1.0f + static_cast<float>(P.ruggedness_insurgency) * r.get_ruggedness()); // rough terrain (Fearon & Laitin 2003)
                 if(u < hazard) {
                     r.set_insurgency(1.0f);
                     log_event(state, n, n, journal_insurgency, 0.0f, 1.0f);
@@ -336,14 +339,19 @@ void update_front(game_state& state, dcon::nation_id n, dcon::nation_id m, float
     auto const& P = state.params;
     const auto kn = static_cast<uint16_t>(n.index()), km = static_cast<uint16_t>(m.index());
     const float reach = 1.0f / (1.0f + distance_km(state, n, m) / static_cast<float>(P.supply_km));
-    const float fn = w.nation_get_cinc(n) * std::max(0.1f, w.nation_get_war_effort(n)), fm = w.nation_get_cinc(m) * std::max(0.1f, w.nation_get_war_effort(m));
+    // Committed force: capability x war effort x willingness to serve (politics_ext.cpp).
+    const float wn = 0.5f + static_cast<float>(P.willingness_war) * (w.nation_get_willingness(n) - 0.5f);
+    const float wm = 0.5f + static_cast<float>(P.willingness_war) * (w.nation_get_willingness(m) - 0.5f);
+    const float fn = w.nation_get_cinc(n) * std::max(0.1f, w.nation_get_war_effort(n)) * 2.0f * std::max(0.1f, wn);
+    const float fm = w.nation_get_cinc(m) * std::max(0.1f, w.nation_get_war_effort(m)) * 2.0f * std::max(0.1f, wm);
+    // Rugged terrain favours the defender (Fearon & Laitin 2003; Tkach 2023 on mountains).
     const float def = static_cast<float>(P.defender_advantage);
     // Fighting on the soil one side already holds; with no line yet, on the soil of the
     // side with less projected strength.
     const bool on_n = w.nation_get_control(n, km) > 0.0f
                       || (w.nation_get_control(m, kn) <= 0.0f && fm >= fn);
     const float attack = on_n ? fm * reach : fn * reach;
-    const float defend = on_n ? fn * def : fm * def;
+    const float defend = (on_n ? fn : fm) * def * (1.0f + w.nation_get_terrain(on_n ? n : m));
     const float adv = (attack * attack - defend * defend) / std::max(1e-12f, attack * attack + defend * defend);
     const float move = static_cast<float>(P.lanchester_speed) * adv * years;
     if(on_n) {
@@ -390,10 +398,14 @@ void update_geopolitics(game_state& state) {
             // Trust and threat.
             // Reputation (strategy.cpp) and diaspora ties (affinity) shift trust.
             const float ties = std::min(1.0f, 100.0f * (n.get_diaspora(k) + m.get_diaspora(kn)) / std::max(1.0f, static_cast<float>(n.get_population())));
+            // Cultural affinity: common language and religion (Guiso, Sapienza & Zingales 2009),
+            // constant, so it sits in the trust level, not in its changes.
+            const float culture = (n.get_language() != 0 && n.get_language() == m.get_language() ? static_cast<float>(P.language_trust) : 0.0f)
+                                  + (n.get_religion() != 0 && n.get_religion() == m.get_religion() ? static_cast<float>(P.religion_trust) : 0.0f);
             const float trust_target = std::clamp(0.5f + 0.25f * n.get_alliance(k) - 0.4f * regime_distance(state, n.id, m.id)
                                                       - 0.3f * sanctioned - 0.5f * war - 0.2f * claims
                                                       - static_cast<float>(P.credibility_trust) * (1.0f - m.get_credibility())
-                                                      + static_cast<float>(P.affinity_trust) * ties
+                                                      + static_cast<float>(P.affinity_trust) * ties + culture
                                                       - 0.2f * n.get_rivalry(k) - 0.1f * std::max(0.0f, std::min(4.0f, n.get_hostility(k)) - 1.0f)
                                                       + static_cast<float>(P.ga_alignment_trust) * (un_alignment(state, n.id, m.id) - n.get_un_alignment0(k)), 0.0f, 1.0f);
             float trust = n.get_trust(k);
@@ -413,6 +425,9 @@ void update_geopolitics(game_state& state) {
                 const float pragmatic = std::clamp(static_cast<float>(P.sanction_security_gain) * (threat - 0.2f)
                                                        - static_cast<float>(P.sanction_dependence_cost) * dependence + retaliation
                                                        - static_cast<float>(P.energy_dependence_cost) * (energy - n.get_energy_dependence0(k))
+                                                       // Holdings of the target's debt (reserve assets) beyond 2019: the
+                                                       // sender's own assets are at stake (Farrell & Newman 2019).
+                                                       - static_cast<float>(P.debt_dependence_cost) * (n.get_debt_holdings(k) - n.get_debt_holdings0(k))
                                                        - 10.0f * goal_bias(state, n.id, goal::secure_energy) * energy, 0.0f, 1.0f);
                 const float ideological = std::clamp(static_cast<float>(P.sanction_ideology_gain) * (regime_distance(state, n.id, m.id) - 0.3f),
                                                      0.0f, 1.0f);
@@ -499,7 +514,8 @@ void update_geopolitics(game_state& state) {
                     const float settle = static_cast<float>(P.peace_base_rate) * years * (1.0f + 10.0f * (n.get_war_cost() + m.get_war_cost()))
                                          * (1.0f + static_cast<float>(P.occupation_settle) * decisive)
                                          * (1.0f + static_cast<float>(P.mediation_gain) * mediation_score(state, n.id, m.id))
-                                         * (n.get_hostility(k) >= 5.5f ? 1.0f + static_cast<float>(P.ceasefire_settle) : 1.0f); // UNSC ceasefire demand
+                                         * (n.get_hostility(k) >= 5.5f ? 1.0f + static_cast<float>(P.ceasefire_settle) : 1.0f) // UNSC ceasefire demand
+                                         * (2.0f - std::min(n.get_willingness(), m.get_willingness())); // war weariness (Mueller 1973)
                     if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
                                        0x80000000u + static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index())) < settle) {
                         n.set_at_war(k, 0.0f);

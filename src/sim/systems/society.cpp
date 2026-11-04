@@ -220,8 +220,9 @@ void update_demography(game_state& state) {
             }
         }
 
-        // Retirement: a share of each worker pop moves to the retired pop of its group.
-        const float retire = years / static_cast<float>(P.working_years);
+        // Retirement: a share of each worker pop moves to the retired pop of its group;
+        // a later statutory age (policy.cpp) lengthens working lives.
+        const float retire = years / std::max(20.0f, static_cast<float>(P.working_years) + n.get_retirement_age_shift());
         float retiring = 0.0f;
         float young_alive = 0.0f;
         {
@@ -246,8 +247,13 @@ void update_demography(game_state& state) {
         // Baseline (non-COVID) mortality, then epidemic deaths by age.
         retired_size = 0.0f;
         for(auto p : pops.by_kind[retired_kind]) retired_size += w.pop_get_size(p);
-        const float old_deaths = retired_size * n.get_death_rate_old() * years;
-        const float young_deaths = (population - retired_size) * static_cast<float>(P.young_mortality) * years;
+        // Mortality follows income and health spending relative to 2019 (Preston 1975;
+        // Cutler, Deaton & Lleras-Muney 2006).
+        const float income_rel = std::max(0.3f, n.get_gdp_real() / std::max(1.0f, n.get_gdp0_daily() * n.get_gf()));
+        const float mortality = std::clamp(std::pow(income_rel, -static_cast<float>(P.mortality_income))
+                                               * (1.0f - static_cast<float>(P.mortality_health) * n.get_health_spending()), 0.5f, 2.0f);
+        const float old_deaths = retired_size * n.get_death_rate_old() * years * mortality;
+        const float young_deaths = (population - retired_size) * static_cast<float>(P.young_mortality) * years * mortality;
         remove_alive(state, r.id, age_old, old_deaths);
         remove_alive(state, r.id, age_young, young_deaths);
         const float epi_old = r.get_epi_deaths_old();
@@ -271,7 +277,77 @@ void update_demography(game_state& state) {
             }
         }
         r.set_population(std::max(0.0f, population - old_deaths - young_deaths - epi_old - epi_young));
+
+        // Age bands (0-14, 15-29, 30-49, 50-64, 65+): a cohort-component account fed by
+        // the flows above (UN WPP method, coarse): births enter band 0, each band ages
+        // into the next at 1/width per year, deaths fall on the bands of their group.
+        {
+            static constexpr float width[age_bands] = {15.0f, 15.0f, 20.0f, 15.0f, 1e9f};
+            std::array<float, age_bands> band{};
+            float total = 0.0f;
+            for(uint8_t b = 0; b < age_bands; ++b) total += band[b] = r.get_age_band(b);
+            if(total > 0.0f) {
+                std::array<float, age_bands> next = band;
+                next[0] += births;
+                for(uint8_t b = 0; b + 1 < age_bands; ++b) {
+                    const float up = band[b] * years / width[b];
+                    next[b] -= up;
+                    next[b + 1] += up;
+                }
+                const float working = next[1] + next[2] + next[3];
+                const float young_d = young_deaths + epi_young;
+                for(uint8_t b = 1; b <= 3 && working > 0.0f; ++b) next[b] = std::max(0.0f, next[b] - young_d * next[b] / working);
+                next[4] = std::max(0.0f, next[4] - old_deaths - epi_old);
+                // Keep the account consistent with the population total.
+                float sum = 0.0f;
+                for(float v : next) sum += v;
+                const float scale = sum > 0.0f ? r.get_population() / sum : 1.0f;
+                for(uint8_t b = 0; b < age_bands; ++b) r.set_age_band(b, next[b] * scale);
+            }
+        }
+
+        // Intergenerational mobility between class tiers (low -> mid -> high skill),
+        // lower where inequality is high: the Great Gatsby curve (Corak 2013; Chetty et
+        // al. 2014). The intergenerational elasticity IGE = gatsby_slope x Gini - 0.2.
+        {
+            const float ige = std::clamp(static_cast<float>(P.gatsby_slope) * n.get_gini() - 0.2f, 0.1f, 0.9f);
+            n.set_ige(ige);
+            const float up = static_cast<float>(P.mobility_rate) * (1.0f - ige) * years;
+            float moved = 0.0f;
+            for(uint8_t k = 0; k + 1 < worker_kinds; ++k) {
+                for(auto p : pops.by_kind[k]) {
+                    if(w.pop_get_stratum(p) != static_cast<uint8_t>(stratum::base)) continue;
+                    const auto q = find_pop(state, pops, static_cast<uint8_t>(k + 1), w.pop_get_group(p));
+                    if(!q) continue;
+                    // Movers are the unemployed and the young: they re-enter as job seekers.
+                    const float people = std::min(w.pop_get_unemployed(p), workforce(state, p) * up);
+                    if(people <= 0.0f) continue;
+                    const float frac = people / std::max(1.0f, workforce(state, p));
+                    move_money(state, p, q, frac);
+                    w.pop_set_unemployed(p, w.pop_get_unemployed(p) - people);
+                    w.pop_set_size(p, std::max(0.0f, w.pop_get_size(p) - people));
+                    add_seekers(state, q, people, n.get_unemployment0());
+                    moved += people;
+                }
+            }
+            n.set_mobility_up(moved);
+        }
     }
+}
+
+// Pension outlays scale with the old-age share relative to 2019 (ageing).
+float pension_ageing_factor(game_state const& state, dcon::nation_id n) {
+    auto const& w = state.world;
+    const float s0 = w.nation_get_old_share0(n);
+    if(s0 <= 0.0f) return 1.0f;
+    float old = 0.0f, total = 0.0f;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        auto r = own.get_region();
+        old += r.get_age_band(age_bands - 1);
+        for(uint8_t b = 0; b < age_bands; ++b) total += r.get_age_band(b);
+    }
+    if(total <= 0.0f) return 1.0f;
+    return std::pow(std::max(0.2f, old / total / s0), static_cast<float>(state.params.pension_ageing));
 }
 
 // ---------------------------------------------------------------- migration
@@ -326,7 +402,9 @@ void update_migration(game_state& state) {
                 // Same group on the other side (domestic); immigrants abroad.
                 const auto y = domestic ? find_pop(state, pb, k, w.pop_get_group(x)) : find_pop(state, pb, k, arrival_group(state, nb));
                 if(!y) continue;
-                const float gap = std::log(expected(y) / expected(x));
+                // Housing costs deter moves to booming regions (Ganong & Shoag 2017).
+                const float housing = 0.3f * std::log(std::max(0.05f, w.region_get_house_price_r(b)) / std::max(0.05f, w.region_get_house_price_r(a)));
+                const float gap = std::log(expected(y) / expected(x)) - housing;
                 if(gap > cost) {
                     moves.push_back({x, y, rate * years * (gap - cost) * workforce(state, x) * open * edge.get_weight() / std::max(1e-6f, wsum_a)});
                 } else if(-gap > cost && domestic) {
@@ -356,7 +434,9 @@ void update_migration(game_state& state) {
             // Docquier & Ozden 2011): a diaspora from n already in m pulls more.
             const auto ni = static_cast<uint16_t>(n.id.index());
             const float network = 1.0f + static_cast<float>(P.diaspora_pull) * 100.0f * m.get_diaspora(ni) / std::max(1.0f, static_cast<float>(m.get_population()));
-            const float gravity = static_cast<float>(m.get_population() / world_pop) * network * m.get_immigration_openness();
+            // A migration deal (agreements.cpp) has the origin hold departures to that destination.
+            const float deal = has_treaty(state, treaty_kind::migration, m.id, n.id) ? 0.3f : 1.0f;
+            const float gravity = static_cast<float>(m.get_population() / world_pop) * network * m.get_immigration_openness() * deal;
             const auto dest_group = arrival_group(state, m.id);
             for(uint8_t k = 0; k < worker_kinds; ++k) {
               for(auto x : po.by_kind[k]) {
@@ -366,7 +446,8 @@ void update_migration(game_state& state) {
                 float at_war = 0.0f;
                 for(auto o : w.in_nation) at_war = std::max(at_war, n.get_at_war(static_cast<uint8_t>(o.id.index())));
                 const float gap = std::log(expected(y) / expected(x)) - static_cast<float>(P.migration_cost_international)
-                                  + static_cast<float>(P.refugee_push) * at_war * (1.0f + static_cast<float>(P.refugee_occupation) * n.get_occupied());
+                                  + static_cast<float>(P.refugee_push) * at_war * (1.0f + static_cast<float>(P.refugee_occupation) * n.get_occupied())
+                                        * static_cast<float>(P.asylum_refugee) * m.get_asylum_openness();
                 if(gap > 0.0f) {
                     moves.push_back({x, y, static_cast<float>(P.migration_rate_international) * years * gap * workforce(state, x) * open * gravity});
                 }
@@ -545,6 +626,17 @@ void update_unrest(game_state& state) {
         n.set_psi(((1.0f + 3.0f * mmp) * (1.0f + 5.0f * emp) - 1.0f) * (1.0f + 0.5f * sfd));
     }
 
+    // Last month's national grievance (population-weighted), the reference for regional PSI.
+    std::vector<float> nation_grievance(w.nation_size(), 0.0f);
+    {
+        std::vector<float> pop(w.nation_size(), 0.0f);
+        for(auto r : w.in_region) {
+            const auto ni = static_cast<std::size_t>(r.get_owner().id.index());
+            nation_grievance[ni] += r.get_grievance() * r.get_population();
+            pop[ni] += r.get_population();
+        }
+        for(std::size_t i = 0; i < pop.size(); ++i) nation_grievance[i] = pop[i] > 0.0f ? nation_grievance[i] / pop[i] : 0.0f;
+    }
     for(auto r : w.in_region) {
         if(!is_due(static_cast<uint32_t>(r.id.index()), tick, monthly_cadence)) continue;
         const auto n = r.get_owner();
@@ -566,6 +658,13 @@ void update_unrest(game_state& state) {
         }
         const float grievance = size > 0 ? static_cast<float>(g / size) : 0.0f;
         r.set_grievance(grievance);
+        // Regional PSI: the national index concentrated where grievance is (its
+        // population-weighted mean stays the national value; Turchin 2016 applied
+        // to regions, cf. Goldstone et al. 2010 on local instability).
+        const float ng = std::max(0.02f, nation_grievance[static_cast<std::size_t>(n.id.index())]);
+        r.set_psi_region(n.get_psi() * std::clamp((grievance + 0.02f) / (ng + 0.02f), 0.5f, 2.0f));
+        // Regional trust: national trust eroded locally by unrest (Putnam 1993).
+        r.set_trust_r(std::clamp(n.get_social_trust() - static_cast<float>(P.trust_region_unrest) * r.get_unrest(), 0.0f, 1.0f));
         // Corruption is more visible, and more resented, where people are online.
         const float amplifier = 1.0f + static_cast<float>(P.corruption_amplifier) * n.get_corruption() * n.get_connectivity();
         // Blocked emigration bottles up voice (Hirschman 1970): travel bans x emigrant networks.
@@ -578,8 +677,10 @@ void update_unrest(game_state& state) {
         const float wage_loss = std::max(0.0f, 1.0f - n.get_wage_real() * n.get_core_price() / std::max(0.01f, n.get_cpi()));
         const float strikes = static_cast<float>(P.strike_drive) * n.get_union_density() * wage_loss * 10.0f;
         const float drive = (static_cast<float>(P.unrest_grievance) * grievance * (1.0f - n.get_legitimacy())
-                             + static_cast<float>(P.unrest_psi) * n.get_psi()) * amplifier
-                            + exit_blocked + backlash + strikes;
+                             + static_cast<float>(P.unrest_psi) * r.get_psi_region()) * amplifier
+                            + exit_blocked + backlash + strikes
+                            // Fiscally starved regions resent the centre (Boadway & Shah 2009).
+                            + 0.2f * std::max(0.0f, 1.0f - r.get_fiscal_capacity());
         r.set_drive(std::clamp(drive, 0.0f, 2.0f));
     }
 }
@@ -614,7 +715,9 @@ void update_social_capital(game_state& state) {
                                               0.01f, 0.95f);
         n.set_social_trust(n.get_social_trust() + (trust_target - n.get_social_trust()) * std::min(1.0f, years / static_cast<float>(P.social_trust_years)));
         const float poverty_rise = std::max(0.0f, n.get_poverty() - n.get_poverty0());
-        n.set_crime(1.0f + static_cast<float>(P.crime_unemployment) * std::max(0.0f, n.get_unemployment() - n.get_unemployment0()) + 2.0f * poverty_rise);
+        // Police spending above baseline (reforms.cpp) deters crime (Chalfin & McCrary 2017).
+        n.set_crime(std::max(0.3f, (1.0f + static_cast<float>(P.crime_unemployment) * std::max(0.0f, n.get_unemployment() - n.get_unemployment0()) + 2.0f * poverty_rise)
+                                       * (1.0f - static_cast<float>(P.police_crime) * n.get_police())));
         // Demographic transition.
         const float gdp_pc = static_cast<float>(n.get_gdp_real() * 365.0 / std::max(1.0f, n.get_population()));
         const float inc_rel = n.get_gdp_pc0() > 0.0f ? std::max(0.1f, gdp_pc / n.get_gdp_pc0()) : 1.0f;

@@ -114,10 +114,19 @@ void update_finance(game_state& state) {
                                                   - static_cast<float>(P.fx_dollarisation) * static_cast<float>(substitution)
                                                   - static_cast<float>(P.fx_flight) * static_cast<float>(flight)
                                                   + static_cast<float>(P.fx_capital_flows) * static_cast<float>(inflows));
+        // Reserve sales absorb part of the depreciation pressure while reserves last.
+        float dl = dlog;
+        if(dl < 0.0f && w.nation_get_fx_intervention(lead) > 0.0f && w.nation_get_reserves(lead) > 0.5f) {
+            const float iv = w.nation_get_fx_intervention(lead);
+            dl *= 1.0f - static_cast<float>(P.fx_defend) * iv;
+            w.nation_set_reserves(lead, std::max(0.0f, w.nation_get_reserves(lead) - static_cast<float>(P.reserves_use) * iv * std::min(1.0f, -dlog / std::max(1e-6f, years) * 5.0f) * years));
+        } else {
+            w.nation_set_reserves(lead, w.nation_get_reserves(lead) + (w.nation_get_reserves0(lead) - w.nation_get_reserves(lead)) * std::min(1.0f, years / 3.0f));
+        }
         for(auto m : members) {
             const auto n = m.get_member().id;
-            w.nation_set_exchange_rate(n, std::clamp(w.nation_get_exchange_rate(n) * std::exp(dlog), 0.2f, 5.0f));
-            w.nation_set_fx_change(n, dlog / years);
+            w.nation_set_exchange_rate(n, std::clamp(w.nation_get_exchange_rate(n) * std::exp(dl), 0.2f, 5.0f));
+            w.nation_set_fx_change(n, dl / years);
         }
     }
     for(auto nat : w.in_nation) {
