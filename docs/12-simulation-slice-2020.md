@@ -95,7 +95,18 @@ The 2019 data are turned into a consistent steady state, checked by
 - `test_trace_isolate` events encode suppression strategies (China, Korea, Japan, Australia): extra tracing capacity, centralised isolation (Pan et al. 2020), arrival quarantine.
 - Seeding: 30 days before cumulative reported deaths reach 10 (Flaxman et al. 2020); Wuhan seeded on 2020-01-01.
 
-**Economy** (`systems/economy.cpp`, weekly per nation)
+**Economy** (`systems/economy.cpp`, weekly per nation, sharded by nation index)
+
+- Structure: production capacity and output live on **regions**, labour, incomes and
+  consumption on **pops**; both are DCON `execute_parallel_over_*` SIMD passes that
+  gather nation values through cached ids and blend lanes with a `mask_vector`, so only
+  nations whose weekly shard is due change. National goods markets clear in a scalar
+  nation pass between them; a serial reduction posts every pop flow to the ledger in
+  index order (exact money conservation). Labour markets are local: each pop hires from
+  its own unemployed, by skill.
+- Optional `regions.csv`, `region_sectors.csv`, `adjacency.csv` split nations into
+  regions (tested with a synthetic split in `tests/test_multiregion.cpp`); without them
+  a nation is one region.
 
 - Capacity = potential x (1 - NPI cut) x (1 - sickness); NPI cuts per sector from `sectors.txt` (Dingel & Neiman 2020; del Rio-Chanona et al. 2020), smaller for targeted measures, halving with business **adaptation** (OECD Economic Outlook Dec 2020); supply-chain exposure for manufacturing.
 - Household demand from real permanent income, precautionary saving, rates, excess deposits; contact services hit by voluntary avoidance (Goolsbee & Syverson 2021); 30% of blocked contact spending shifts to goods.

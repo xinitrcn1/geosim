@@ -12,10 +12,10 @@ void apply_events(game_state& state);
 // Daily: metapopulation SEIR (docs/04-society.md#health-and-epidemics).
 void update_epidemic(game_state& state);
 
-// Weekly per nation: production, demand, labour, prices, ledger flows
-// (docs/03-economy.md). `dt` is the number of days covered.
+// Daily driver; each nation updates weekly on its shard (docs/03-economy.md).
+// baseline_probe: every nation, one day, incomes only (no money moves), for calibration.
 enum class economy_mode { simulate, baseline_probe };
-void update_economy(game_state& state, dcon::nation_id n, float dt, economy_mode mode = economy_mode::simulate);
+void update_economy(game_state& state, economy_mode mode = economy_mode::simulate);
 
 // Daily: world crude market (docs/03-economy.md#prices).
 void update_oil_market(game_state& state);

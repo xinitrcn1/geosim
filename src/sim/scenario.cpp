@@ -15,6 +15,7 @@
 #include "core/csv.hpp"
 #include "core/defs.hpp"
 #include "core/keys.hpp"
+#include "core/scheduler.hpp"
 #include "sim/model.hpp"
 #include "sim/systems.hpp"
 
@@ -46,7 +47,17 @@ struct nation_input {
     std::array<double, max_sectors> emp_share{};
 };
 
+struct region_input {
+    std::string id;
+    std::string iso;
+    double lat = 0, lon = 0, area = 0, pop_share = 1, urban = 0.5;
+    std::array<double, max_sectors> va_share{};  // share of the nation's sector VA
+    std::array<double, max_sectors> emp_share{}; // share of the nation's sector employment
+    bool has_sectors = false;
+};
+
 struct builder {
+    builder(game_state& s, std::string a, std::string sc) : state(s), assets(std::move(a)), scenario(std::move(sc)) {}
     game_state& state;
     std::string assets;
     std::string scenario;
@@ -54,6 +65,8 @@ struct builder {
     std::map<std::string, uint8_t> sector_by_key;
     std::map<std::string, uint8_t> npi_by_key;
     std::map<std::string, nation_input> inputs;
+    std::map<std::string, std::vector<region_input>> regions_of; // optional regions.csv
+    std::map<std::string, dcon::region_id> region_by_id;
     std::vector<std::string> order;
 
     void warn(std::string msg) { report.warnings.push_back(std::move(msg)); }
@@ -233,6 +246,70 @@ struct builder {
         }
     }
 
+    // Optional sub-national tables (regions.csv, region_sectors.csv, adjacency.csv).
+    // Without them every nation is a single region.
+    void load_regions() {
+        const std::string dir = assets + "/scenario/" + scenario;
+        if(!fs::exists(dir + "/regions.csv")) {
+            return;
+        }
+        const auto t = core::csv_table::load(dir + "/regions.csv");
+        std::map<std::string, std::pair<std::string, std::size_t>> index;
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            region_input r;
+            r.id = std::string(t.get(row, "region"));
+            r.iso = std::string(t.get(row, "iso3"));
+            if(!inputs.count(r.iso)) {
+                throw std::runtime_error(dir + "/regions.csv: region " + r.id + " of unknown nation " + r.iso);
+            }
+            r.lat = t.number_or(row, "lat", 0.0);
+            r.lon = t.number_or(row, "lon", 0.0);
+            r.area = t.number_or(row, "area_km2", 0.0);
+            r.pop_share = t.number_or(row, "pop_share", 0.0);
+            r.urban = t.number_or(row, "urban_share", 0.5);
+            auto& list = regions_of[r.iso];
+            index[r.id] = {r.iso, list.size()};
+            list.push_back(r);
+        }
+        for(auto& [iso, list] : regions_of) { // normalise shares within each nation
+            double sum = 0.0;
+            for(auto const& r : list) sum += r.pop_share;
+            for(auto& r : list) r.pop_share = sum > 0.0 ? r.pop_share / sum : 1.0 / static_cast<double>(list.size());
+        }
+        if(fs::exists(dir + "/region_sectors.csv")) {
+            const auto rs = core::csv_table::load(dir + "/region_sectors.csv");
+            for(std::size_t row = 0; row < rs.rows(); ++row) {
+                auto it = index.find(std::string(rs.get(row, "region")));
+                auto sk = sector_by_key.find(std::string(rs.get(row, "sector")));
+                if(it == index.end() || sk == sector_by_key.end()) {
+                    throw std::runtime_error(dir + "/region_sectors.csv: unknown region or sector at row " + std::to_string(row + 1));
+                }
+                auto& r = regions_of[it->second.first][it->second.second];
+                r.va_share[sk->second] = rs.number_or(row, "va_share", 0.0);
+                r.emp_share[sk->second] = rs.number_or(row, "emp_share", 0.0);
+                r.has_sectors = true;
+            }
+        }
+    }
+
+    void load_adjacency() {
+        const std::string path = assets + "/scenario/" + scenario + "/adjacency.csv";
+        if(!fs::exists(path)) {
+            return;
+        }
+        auto& w = state.world;
+        const auto t = core::csv_table::load(path);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            auto a = region_by_id.find(std::string(t.get(row, "region_a")));
+            auto b = region_by_id.find(std::string(t.get(row, "region_b")));
+            if(a == region_by_id.end() || b == region_by_id.end()) {
+                throw std::runtime_error(path + ": unknown region at row " + std::to_string(row + 1));
+            }
+            const auto rel = w.force_create_region_adjacency(a->second, b->second);
+            w.region_adjacency_set_weight(rel, static_cast<float>(t.number_or(row, "weight", 1.0)));
+        }
+    }
+
     // ------------------------------------------------------------ events
     void load_events() {
         const std::string dir = assets + "/events/" + scenario;
@@ -314,18 +391,46 @@ struct builder {
         auto& w = state.world;
         const auto n = w.create_nation();
         w.nation_set_iso3(n, core::pack_key(in.iso));
+        std::vector<region_input> list = regions_of.count(in.iso) ? regions_of[in.iso] : std::vector<region_input>{};
+        if(list.empty()) {
+            region_input whole;
+            whole.id = in.iso;
+            whole.iso = in.iso;
+            list.push_back(whole);
+        }
+        for(auto const& ri : list) {
+            create_region(n, in, ri);
+        }
+    }
+
+    void create_region(dcon::nation_id n, nation_input const& in, region_input const& ri) {
+        auto& w = state.world;
+        const double pop = in.population * ri.pop_share;
         const auto r = w.create_region();
+        region_by_id[ri.id] = r;
         w.force_create_region_ownership(r, n);
-        w.region_set_population(r, static_cast<float>(in.population));
+        w.region_set_owner(r, n);
+        w.region_set_shard(r, static_cast<int32_t>(static_cast<uint32_t>(n.index()) % weekly.shards));
+        w.region_set_population(r, static_cast<float>(pop));
+        w.region_set_lat(r, static_cast<float>(ri.lat));
+        w.region_set_lon(r, static_cast<float>(ri.lon));
+        w.region_set_area_km2(r, static_cast<float>(ri.area));
+        w.region_set_urban_share(r, static_cast<float>(ri.urban));
         w.region_set_old_share(r, static_cast<float>(in.pop65));
-        w.region_set_hemisphere(r, static_cast<float>(in.hemisphere));
+        // Seasonality follows the region's latitude when known, else the nation's hemisphere.
+        w.region_set_hemisphere(r, ri.lat != 0.0 ? static_cast<float>(std::clamp(ri.lat / 23.5, -1.0, 1.0))
+                                                  : static_cast<float>(in.hemisphere));
         w.region_set_beds_per_1000(r, static_cast<float>(in.beds));
-        w.region_set_ep_s(r, age_young, static_cast<float>(in.population * (1.0 - in.pop65)));
-        w.region_set_ep_s(r, age_old, static_cast<float>(in.population * in.pop65));
+        w.region_set_ep_s(r, age_young, static_cast<float>(pop * (1.0 - in.pop65)));
+        w.region_set_ep_s(r, age_old, static_cast<float>(pop * in.pop65));
         w.region_set_ifr_mult(r, 1.0f);
         for(uint8_t k = 0; k < 4; ++k) {
             const auto p = w.create_pop();
             w.pop_set_kind(p, k);
+            w.pop_set_is_worker(p, k < worker_kinds ? 1.0f : 0.0f);
+            w.pop_set_nation(p, n);
+            w.pop_set_home(p, r);
+            w.pop_set_shard(p, w.region_get_shard(r));
             w.force_create_pop_location(p, r);
         }
     }
@@ -440,32 +545,85 @@ struct builder {
             w.nation_set_comp_x(n, s, static_cast<float>(a[s][3] / col[3]));
         }
 
-        // Pops.
+        // Regions: value added and employment by the region's share (population share
+        // until regional tables are provided), then pops per region.
         const double unemployed = in.labor_force * in.unemployment;
         const std::array<float, 3> u_share = {0.5f, 0.35f, 0.15f};
         const std::array<float, 4> owner = {0.02f, 0.13f, 0.55f, 0.30f};
         const std::array<float, 4> transfer = {0.20f, 0.05f, 0.0f, 0.75f};
+        std::array<double, 4> kind_size{};
+        std::size_t ridx = 0;
+        auto const& rlist = regions_of.count(in.iso) ? regions_of[in.iso] : std::vector<region_input>{};
         for(auto own : w.nation_get_region_ownership(n)) {
-            for(auto loc : own.get_region().get_pop_location()) {
+            auto reg = own.get_region();
+            const double share = reg.get_population() / in.population;
+            region_input const* ri = ridx < rlist.size() ? &rlist[ridx] : nullptr;
+            ++ridx;
+            std::array<double, max_sectors> va_sh{};
+            std::array<double, max_sectors> emp_sh{};
+            for(uint8_t s = 0; s < S; ++s) {
+                va_sh[s] = ri && ri->has_sectors ? ri->va_share[s] : share;
+                emp_sh[s] = ri && ri->has_sectors ? ri->emp_share[s] : share;
+                reg.set_va0(s, static_cast<float>(va[s] * va_sh[s]));
+                reg.set_capacity(s, static_cast<float>(va[s] * va_sh[s]));
+                reg.set_output(s, static_cast<float>(va[s] * va_sh[s]));
+                reg.set_util(s, 1.0f);
+            }
+            for(auto loc : reg.get_pop_location()) {
                 auto p = loc.get_pop();
                 const auto k = p.get_kind();
                 double size = 0.0;
                 if(k < worker_kinds) {
                     for(uint8_t s = 0; s < S; ++s) {
-                        const float e = w.nation_get_emp0(n, s) * w.sector_get_skill(dcon::sector_id{s}, k);
+                        const dcon::sector_id sid{s};
+                        const float e_region = static_cast<float>(w.nation_get_emp0(n, s) * emp_sh[s]);
+                        const float e = e_region * w.sector_get_skill(sid, k);
+                        double mix = 0.0;
+                        for(uint8_t kk = 0; kk < worker_kinds; ++kk) {
+                            mix += w.sector_get_skill(sid, kk) * (kk == 0 ? P.wage_low : kk == 1 ? P.wage_mid : P.wage_high);
+                        }
+                        const double mult = k == 0 ? P.wage_low : k == 1 ? P.wage_mid : P.wage_high;
                         p.set_employed(s, e);
+                        p.set_emp0(s, e);
+                        p.set_need_slow(s, e);
+                        p.set_hours(s, 1.0f);
+                        p.set_wage0(s, static_cast<float>(w.sector_get_labor_share(sid) * va[s] * va_sh[s] / std::max(1.0f, e_region) * mult / mix));
                         size += e;
                     }
-                    p.set_unemployed(static_cast<float>(unemployed * u_share[k]));
-                    size += unemployed * u_share[k];
+                    p.set_unemployed(static_cast<float>(unemployed * share * u_share[k]));
+                    size += unemployed * share * u_share[k];
+                    double wsum = 0.0, esum = 0.0;
+                    for(uint8_t s = 0; s < S; ++s) {
+                        wsum += static_cast<double>(p.get_emp0(s)) * p.get_wage0(s);
+                        esum += p.get_emp0(s);
+                    }
+                    p.set_wage_avg0(static_cast<float>(esum > 0.0 ? wsum / esum : 0.0));
                 } else {
-                    size = in.population * in.pop65;
+                    size = reg.get_population() * in.pop65;
                 }
                 p.set_size(static_cast<float>(size));
                 p.set_owner_share(owner[k]);
                 p.set_transfer_share(transfer[k]);
+                kind_size[k] += size;
             }
         }
+        // Income weights: each kind's national share, split across regions by pop size.
+        double owner_total = 0.0, transfer_total = 0.0, size_total = 0.0;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                auto p = loc.get_pop();
+                const auto k = p.get_kind();
+                const double frac = kind_size[k] > 0.0 ? p.get_size() / kind_size[k] : 0.0;
+                p.set_owner_weight(static_cast<float>(owner[k] * frac));
+                p.set_transfer_weight(static_cast<float>(transfer[k] * frac));
+                owner_total += owner[k] * frac;
+                transfer_total += transfer[k] * frac;
+                size_total += p.get_size();
+            }
+        }
+        w.nation_set_owner_weight_total(n, static_cast<float>(owner_total));
+        w.nation_set_transfer_weight_total(n, static_cast<float>(transfer_total));
+        w.nation_set_size_total(n, static_cast<float>(size_total));
 
         // Government and taxes.
         const auto gov_s = static_cast<uint8_t>(D.gov_sector.index());
@@ -574,8 +732,14 @@ struct builder {
             w.nation_set_oil_share_of_energy(n, static_cast<float>(std::min(0.9, oil_value * P.oil_value_added_share / ene)));
         }
 
-        // Probe: incomes at the baseline, then consumption and saving per pop.
-        update_economy(state, n, 1.0f, economy_mode::baseline_probe);
+    }
+
+    // Second calibration phase, after one probe pass of the economy has computed
+    // every pop's baseline income: consumption and saving per pop, balances, Gini.
+    void finish(dcon::nation_id n, nation_input const& in) {
+        auto& w = state.world;
+        const double C0 = w.nation_get_c0(n);
+        const double debt0 = w.nation_get_gov_debt0(n);
         double weighted = 0.0;
         const std::array<double, 4> mpc = {1.0, 0.9, 0.7, 0.95};
         for(auto own : w.nation_get_region_ownership(n)) {
@@ -593,11 +757,13 @@ struct builder {
                 p.set_income_perm(static_cast<float>(inc));
                 p.set_saving_rate0(static_cast<float>(1.0 - c_p / inc));
                 p.set_consumption(static_cast<float>(c_p));
+                p.set_c_des(static_cast<float>(c_p));
                 const double deposits = inc * 365.0 * (p.get_kind() == 2 ? 1.5 : 0.5);
                 p.set_balance(deposits);
                 p.set_balance_trend(deposits);
             }
         }
+        w.nation_set_c_des_total(n, C0);
         w.nation_set_bal_gov(n, -debt0);
         w.nation_set_bal_fin(n, debt0);
         w.nation_set_bal_firms(n, 0.0);
@@ -793,12 +959,25 @@ struct builder {
         w.region_resize_ep_r(age_groups);
         w.region_resize_ep_h(age_groups);
         w.region_resize_ep_d(age_groups);
+        w.region_resize_va0(S);
+        w.region_resize_capacity(S);
+        w.region_resize_output(S);
+        w.region_resize_util(S);
         w.pop_resize_employed(S);
+        w.pop_resize_emp0(S);
+        w.pop_resize_wage0(S);
+        w.pop_resize_hours(S);
+        w.pop_resize_need_slow(S);
+        w.nation_resize_npi_cut(S);
+        w.nation_resize_sector_factor(S);
+        w.nation_resize_fill(S);
 
         load_nations();
+        load_regions();
         for(auto const& iso : order) {
             create_nation(inputs[iso]);
         }
+        load_adjacency();
         setup_oil();
         rebuild_derived(state);
         if(!state.derived.gov_sector) {
@@ -808,6 +987,10 @@ struct builder {
         distribute_oil();
         for(auto const& iso : order) {
             calibrate(find_nation(state, iso), inputs[iso]);
+        }
+        update_economy(state, economy_mode::baseline_probe);
+        for(auto const& iso : order) {
+            finish(find_nation(state, iso), inputs[iso]);
         }
         create_agents();
     }
@@ -862,7 +1045,7 @@ void rebuild_derived(game_state& state) {
 }
 
 scenario_report build_scenario(game_state& state, std::string const& assets_dir, std::string const& scenario) {
-    builder b{state, assets_dir, scenario, {}, {}, {}, {}, {}};
+    builder b{state, assets_dir, scenario};
     b.run();
     state.current_tick = 0;
     return std::move(b.report);

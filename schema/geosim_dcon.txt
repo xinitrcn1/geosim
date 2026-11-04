@@ -55,6 +55,29 @@ object{
 	property{ name{tti_strength} type{float} }
 	property{ name{flows} type{array{uint8_t}{double}} }
 
+	property{ name{gf} type{float} }
+	property{ name{npi_cut} type{array{uint8_t}{float}} }
+	property{ name{sector_factor} type{array{uint8_t}{float}} }
+	property{ name{fill} type{array{uint8_t}{float}} }
+	property{ name{rate_transfer} type{float} }
+	property{ name{rate_fiscal} type{float} }
+	property{ name{rate_dividend} type{float} }
+	property{ name{rate_interest} type{float} }
+	property{ name{conf_rate} type{float} }
+	property{ name{cons_fill} type{float} }
+	property{ name{fee_share} type{float} }
+	property{ name{benefit_mult} type{float} }
+	property{ name{benefit_base} type{float} }
+	property{ name{stw_mult} type{float} }
+	property{ name{lf_exit} type{float} }
+	property{ name{layoff_speed_eff} type{float} }
+	property{ name{absorb} type{float} }
+	property{ name{owner_weight_total} type{float} }
+	property{ name{transfer_weight_total} type{float} }
+	property{ name{size_total} type{float} }
+	property{ name{c_des_total} type{double} }
+	property{ name{wage_bill_private} type{double} }
+	property{ name{programmes} type{double} }
 	property{ name{c0} type{float} }
 	property{ name{g0} type{float} }
 	property{ name{i0} type{float} }
@@ -124,6 +147,17 @@ object{
 	tag{scenario}
 
 	property{ name{population} type{float} }
+	property{ name{owner} type{nation_id} }
+	property{ name{key} type{uint32_t} }
+	property{ name{shard} type{int32_t} }
+	property{ name{lat} type{float} }
+	property{ name{lon} type{float} }
+	property{ name{area_km2} type{float} }
+	property{ name{urban_share} type{float} }
+	property{ name{va0} type{array{uint8_t}{float}} }
+	property{ name{capacity} type{array{uint8_t}{float}} }
+	property{ name{output} type{array{uint8_t}{float}} }
+	property{ name{util} type{array{uint8_t}{float}} }
 	property{ name{old_share} type{float} }
 	property{ name{hemisphere} type{float} }
 	property{ name{beds_per_1000} type{float} }
@@ -152,7 +186,32 @@ object{
 	tag{scenario}
 
 	property{ name{kind} type{uint8_t} }
+	property{ name{is_worker} type{float} }
+	property{ name{nation} type{nation_id} }
+	property{ name{home} type{region_id} }
+	property{ name{shard} type{int32_t} }
 	property{ name{size} type{float} }
+	property{ name{emp0} type{array{uint8_t}{float}} }
+	property{ name{wage0} type{array{uint8_t}{float}} }
+	property{ name{hours} type{array{uint8_t}{float}} }
+	property{ name{need_slow} type{array{uint8_t}{float}} }
+	property{ name{wage_avg0} type{float} }
+	property{ name{owner_weight} type{float} }
+	property{ name{transfer_weight} type{float} }
+	property{ name{c_des} type{float} }
+	property{ name{excess_deposits} type{float} }
+	property{ name{f_wage_private} type{float} }
+	property{ name{f_wage_public} type{float} }
+	property{ name{f_stw} type{float} }
+	property{ name{f_benefit} type{float} }
+	property{ name{f_transfer} type{float} }
+	property{ name{f_fiscal} type{float} }
+	property{ name{f_dividend} type{float} }
+	property{ name{f_interest} type{float} }
+	property{ name{f_tax} type{float} }
+	property{ name{f_spend_firms} type{float} }
+	property{ name{f_spend_gov} type{float} }
+	property{ name{f_programmes} type{float} }
 	property{ name{employed} type{array{uint8_t}{float}} }
 	property{ name{unemployed} type{float} }
 	property{ name{inactive} type{float} }
@@ -416,4 +475,25 @@ relationship{
 		index_storage{list}
 	}
 	property{ name{strength} type{float} }
+}
+
+relationship{
+	name{region_adjacency}
+	storage_type{erasable}
+	size{32768}
+	tag{scenario}
+
+	link{
+		object{region}
+		name{a}
+		type{many}
+		index_storage{list}
+	}
+	link{
+		object{region}
+		name{b}
+		type{many}
+		index_storage{list}
+	}
+	property{ name{weight} type{float} }
 }
