@@ -192,7 +192,7 @@ on the CPU (64 MB). The tooltip names the region and its controller.
 
 ## Electoral map
 
-The Politics tab (🗳 in the top bar; `--politics ISO3`) shows one nation as an
+The Politics window (🗳 in the top bar; `--politics ISO3`) shows one nation as an
 election map in plain Mercator (north up, not the oblique view projection),
 like a US election map with its Alaska and Hawaii insets, for every nation. The nation defaults to the
 player's first; ◀ ▶ step through the nations, and clicking a region on the
@@ -217,7 +217,7 @@ main map while the tab is open shows its nation.
   left) or beside it (Alaska). Each inset gets a thin grey frame. For the USA
   the packed layout covers about a quarter of the raw bounding box
   (`test_map_view`).
-- **Drawing**: the layout is rasterised once at 480 cells on its long side,
+- **Drawing**: the layout is rasterised once at 960 cells on its long side,
   each cell mapped back through its inset's transform to lon/lat and the
   full-resolution region raster, so the regions keep their real shapes; white
   lines separate regions. The tab draws it as run-length quads coloured by the

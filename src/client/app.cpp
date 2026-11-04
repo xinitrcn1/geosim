@@ -219,6 +219,7 @@ int run_app(app_options const& opt) {
         view.scale = static_cast<double>(metrics.pixel_w) / (75.0 * map_deg);
         bool dragging = false;
         float press_x = 0, press_y = 0;
+        steady::time_point hover_since{};
         const std::string politics_iso = opt.politics;
         bool politics_iso_done = false;
         float drag_x = 0, drag_y = 0;
@@ -477,26 +478,42 @@ int run_app(app_options const& opt) {
                 }
                 if(key_pan_x != 0 || key_pan_y != 0) view.pan(key_pan_x, key_pan_y);
                 if(key_zoom != 1.0) view.zoom_at(key_zoom, 0, 0);
-                // Hover: the region under the pointer gets a tooltip; moving onto the
-                // tooltip keeps it and expands its details.
-                if(on_tooltip && hud.tooltip_region >= 0) {
-                    hud.tooltip_expanded = true;
-                } else if(hud.politics_tile >= 0) { // an electoral tile
-                    hud.tooltip_region = hud.politics_tile;
-                    hud.tooltip_tile = true;
-                    hud.tooltip_x = input.mouse_x;
-                    hud.tooltip_y = input.mouse_y;
-                    hud.tooltip_expanded = false;
+                // Hover: the region (or electoral tile) under the pointer gets a compact
+                // tooltip; keeping the pointer still (within a few pixels) for 2 s of real
+                // time expands it into the detail panel, which stays open while the pointer
+                // is on it. Another region collapses it and restarts the timer.
+                int candidate = -1;
+                bool candidate_tile = false;
+                if(hud.politics_tile >= 0) {
+                    candidate = hud.politics_tile;
+                    candidate_tile = true;
                 } else if(!on_ui && !dragging && input.mouse_x >= 0) {
-                    hud.tooltip_tile = false;
                     double lon = 0, lat = 0;
                     view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
-                    hud.tooltip_region = political.pick(lon / map_deg, lat / map_deg);
-                    hud.tooltip_x = input.mouse_x;
-                    hud.tooltip_y = input.mouse_y;
-                    hud.tooltip_expanded = false;
+                    candidate = political.pick(lon / map_deg, lat / map_deg);
+                }
+                const auto hover_now = steady::now();
+                if(on_tooltip && hud.tooltip_region >= 0) {
+                    hud.tooltip_expanded = true; // reading the panel
+                    hud.tooltip_progress = 1.0f;
+                } else if(candidate >= 0) {
+                    const bool same = candidate == hud.tooltip_region && candidate_tile == hud.tooltip_tile;
+                    const bool still = std::fabs(input.mouse_x - hud.tooltip_x) < 4.0f && std::fabs(input.mouse_y - hud.tooltip_y) < 4.0f;
+                    if(!same || (!still && !hud.tooltip_expanded) || (hud.tooltip_expanded && !same)) {
+                        hud.tooltip_region = candidate;
+                        hud.tooltip_tile = candidate_tile;
+                        hud.tooltip_x = input.mouse_x;
+                        hud.tooltip_y = input.mouse_y;
+                        hud.tooltip_expanded = false;
+                        hover_since = hover_now;
+                    }
+                    if(!hud.tooltip_expanded) {
+                        hud.tooltip_progress = static_cast<float>(std::chrono::duration<double>(hover_now - hover_since).count() / 2.0);
+                        if(hud.tooltip_progress >= 1.0f) hud.tooltip_expanded = true;
+                    }
                 } else {
                     hud.tooltip_region = -1;
+                    hud.tooltip_expanded = false;
                 }
                 if(hud.tooltip_region >= 0) {
                     draw_map_tooltip(ui, hud.tooltip_tile ? political.describe_tile(hud.tooltip_region, hud.politics_mode, sim)

@@ -19,8 +19,14 @@
 
 namespace geosim::client {
 
+// Alert categories (top-bar filter icons; docs/08-ui.md#layout). `system`
+// (local notices such as "scenario ready") is never filtered.
+enum class alert_category : uint8_t { economic, political, security, diplomacy, disaster, health, society, system, count };
+inline constexpr std::size_t alert_filter_count = static_cast<std::size_t>(alert_category::system);
+
 struct alert {
     uint64_t key = 0;
+    alert_category cat = alert_category::system;
     int32_t tick = 0;
     std::string icon;
     std::string title;
@@ -39,6 +45,9 @@ public:
     void upsert(alert a);
     void dismiss(uint64_t key);
     void dismiss_all() { items_.clear(); }
+    // New alerts since the bell was last opened (the badge).
+    [[nodiscard]] std::size_t unread() const noexcept { return unread_; }
+    void mark_seen() noexcept { unread_ = 0; }
     [[nodiscard]] std::vector<alert> const& items() const noexcept { return items_; }
 
 private:
@@ -50,6 +59,7 @@ private:
     int32_t scanned_to_ = 0;
     std::chrono::steady_clock::time_point last_request_{};
     uint64_t local_serial_ = 0;
+    std::size_t unread_ = 0;
 };
 
 enum class hud_action : uint8_t { none, policy, budget, diplomacy, military, politics };
@@ -101,7 +111,7 @@ struct electoral_view_info {
     std::vector<std::string> strip; // national result / regime indicators
 };
 
-// The open view's tab: legend and a short summary.
+// The map mode's legend box (title, swatches, a note; `summary` is not drawn).
 struct map_tab_info {
     std::string title;
     std::vector<legend_item> legend;
@@ -114,12 +124,15 @@ struct hud_state {
     hud_action open = hud_action::none; // action panel requested (panels are not implemented yet)
     float alert_scroll = 0;             // first visible alert
     int requested_speed = -1;           // set by the time controls; -1 = no change this frame
+    bool alerts_hidden = false;          // the bell toggles the alert list
+    uint32_t alert_filter = (1u << alert_filter_count) - 1; // bit per alert_category shown
     // Map tooltip: the region it describes, where it is anchored, its rect last
     // frame (the pointer on it keeps it and expands it).
     int tooltip_region = -1;
     float tooltip_x = 0, tooltip_y = 0;
     rect tooltip_rect{};
     bool tooltip_expanded = false;
+    float tooltip_progress = 0; // 0..1 towards auto-expansion (2 s still pointer)
     // Politics tab: the nation shown (sim nation index, -1 = the player's first),
     // the electoral-map mode button, the tile under the pointer, nation stepping.
     int politics_nation = -1;
@@ -129,8 +142,10 @@ struct hud_state {
     bool tooltip_tile = false; // the tooltip describes an electoral tile, not the main map
 };
 
-// `tab` (may be null): the open view's tab panel, drawn when a view other than
-// political is selected; while it is open only the first agent bar shows.
+// `tab` (may be null): the map mode's legend (bottom right; the alert column
+// ends above it). `politics` (may be null): the Politics window's content. An
+// open window (st.open) fills the space left of the alerts, below the first
+// agent bar; while it is open only that agent bar shows.
 void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab = nullptr,
                electoral_view_info const* politics = nullptr);
 // The map tooltip (call after build_hud, with the region under the pointer).

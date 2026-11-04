@@ -51,6 +51,7 @@ alert hazard_feed::make_alert(disaster_note const& n, bool mine) {
     if(impact.empty()) impact = n.potential ? "Impact being assessed" : "No casualties reported";
     a.impact = n.potential ? "Could cause " + impact : impact;
     a.t = mine ? tone::bad : tone::neutral;
+    a.cat = alert_category::disaster;
     return a;
 }
 

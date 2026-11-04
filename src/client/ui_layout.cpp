@@ -74,7 +74,9 @@ void alert_feed::push_local(std::string icon, std::string title, std::string det
     a.title = std::move(title);
     a.detail = std::move(detail);
     a.t = t;
+    a.cat = alert_category::system;
     items_.insert(items_.begin(), std::move(a));
+    ++unread_;
 }
 
 void alert_feed::upsert(alert a) {
@@ -86,6 +88,7 @@ void alert_feed::upsert(alert a) {
     }
     if(!seen_.insert(a.key).second) return; // dismissed earlier
     items_.insert(items_.begin(), std::move(a));
+    ++unread_;
     if(items_.size() > 200) items_.resize(200);
 }
 
@@ -172,7 +175,20 @@ void alert_feed::add(journal_entry const& e, sim_runner const& sim) {
     default:
         return;
     }
+    // Categories for the top-bar filters.
+    switch(e.code) {
+    case journal_default: case journal_chokepoint: a.cat = alert_category::economic; break;
+    case journal_election: case journal_regime_change: case journal_no_confidence: case journal_court: case journal_term_limit:
+        a.cat = alert_category::political; break;
+    case journal_war: case journal_coup: case journal_cyber: case journal_rebels: a.cat = alert_category::security; break;
+    case journal_peace: case journal_sanction: case journal_dispute: case journal_concession: case journal_alliance_call: case journal_agreement:
+        a.cat = alert_category::diplomacy; break;
+    case journal_variant: a.cat = alert_category::health; break;
+    case journal_insurgency: a.cat = alert_category::society; break;
+    default: a.cat = alert_category::system; break;
+    }
     items_.insert(items_.begin(), std::move(a));
+    ++unread_;
 }
 
 // --- HUD --------------------------------------------------------------------
@@ -184,7 +200,7 @@ void separator(ui_context& ui, float x, rect bar) {
 }
 
 // Top bar: returns its rect.
-rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
+rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st, alert_feed& alerts) {
     const float h = ui.px(style::top_bar_height);
     const float b = ui.px(style::button_size);
     const float icon = ui.px(style::icon_size);
@@ -197,7 +213,7 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
     const float date_w = ui.text_width("Wed 30 Sep 2020", font, font_weight::semibold);
     const float buttons = static_cast<float>(1 + max_speed) * (b + gap) + static_cast<float>(std::size(action_buttons) + std::size(filter_buttons)) * (b + gap);
     const float w = pad + date_w + pad * 2 + buttons + pad * 4;
-    rect bar{0, 0, std::round(w), std::round(h)}; // flush with the window's top-left corner
+    rect bar{0, 0, std::max(std::round(w), ui.width()), std::round(h)}; // flush with the window's top edge, full width
     ui.panel(bar, panel_kind::opaque);
 
     float x = bar.x + pad;
@@ -249,6 +265,53 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
         }
         x += b + gap;
     }
+    // Right end: alert category filters and the notification bell.
+    {
+        static constexpr char const* cat_icon[alert_filter_count] = {"📈", "🏛", "⚔", "🤝", "🌀", "🦠", "✊"};
+        static constexpr char const* cat_tip[alert_filter_count] = {
+            "Alerts: economy (defaults, shipping)", "Alerts: politics (elections, regime changes, votes, courts)",
+            "Alerts: security (wars, coups, rebels, cyber attacks)", "Alerts: diplomacy (peace, sanctions, disputes, agreements, allies)",
+            "Alerts: disasters (cyclones, floods, droughts, earthquakes, tsunamis)", "Alerts: health (pathogen variants)",
+            "Alerts: society (insurgencies)"};
+        std::size_t count[alert_filter_count] = {};
+        for(auto const& a : alerts.items()) {
+            if(a.cat != alert_category::system) ++count[static_cast<std::size_t>(a.cat)];
+        }
+        float rx = bar.right() - pad - b;
+        // The bell: toggles the list and marks everything seen; a red badge counts the unread.
+        if(ui.button("alerts.bell", layer::scene, {rx, by, b, b}, "🔔", icon, !st.alerts_hidden,
+                     st.alerts_hidden ? "Show alerts" : "Hide alerts (marks them seen)")) {
+            st.alerts_hidden = !st.alerts_hidden;
+            alerts.mark_seen();
+        }
+        if(alerts.unread() > 0) {
+            char n[8];
+            if(alerts.unread() > 99) std::snprintf(n, sizeof(n), "99+");
+            else std::snprintf(n, sizeof(n), "%zu", alerts.unread());
+            const float bsz = ui.px(11);
+            const float bw = std::max(ui.px(14), ui.text_width(n, bsz, font_weight::semibold) + ui.px(6));
+            const rect badge{std::round(rx + b - bw + ui.px(3)), std::round(by - ui.px(1)), std::round(bw), std::round(ui.px(14))};
+            ui.fill(layer::scene, badge, hex(0xE0322B));
+            ui.text_in(layer::scene, badge, n, bsz, style::text, align::centre, font_weight::semibold);
+        }
+        rx -= pad;
+        separator(ui, rx, bar);
+        rx -= pad;
+        for(std::size_t k = alert_filter_count; k-- > 0;) {
+            rx -= b;
+            const bool on = st.alert_filter >> k & 1u;
+            char id[40];
+            std::snprintf(id, sizeof(id), "alerts.filter.%zu", k);
+            if(ui.button(id, layer::scene, {rx, by, b, b}, cat_icon[k], icon, on, cat_tip[k])) st.alert_filter ^= 1u << k;
+            if(count[k] > 0) {
+                char n[8];
+                if(count[k] > 99) std::snprintf(n, sizeof(n), "99+");
+                else std::snprintf(n, sizeof(n), "%zu", count[k]);
+                ui.text_in(layer::scene, {rx, by + b - ui.px(11), b - ui.px(2), ui.px(11)}, n, ui.px(9), on ? style::text : style::text_dim, align::right);
+            }
+            rx -= gap;
+        }
+    }
     return bar;
 }
 
@@ -296,8 +359,19 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w, std::s
     return y;
 }
 
-void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, float y) {
-    auto const& items = alerts.items();
+bool shown(alert const& a, hud_state const& st) {
+    return a.cat == alert_category::system || (st.alert_filter >> static_cast<uint32_t>(a.cat) & 1u);
+}
+
+// The alert column: cards only (the count, filters and the bell live in the top
+// bar), newest first, filtered by category; the wheel scrolls; a small
+// "Dismiss all" at its end.
+void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, float y, float bottom) {
+    if(st.alerts_hidden) return;
+    std::vector<alert const*> items;
+    for(auto const& a : alerts.items()) {
+        if(shown(a, st)) items.push_back(&a);
+    }
     if(items.empty()) return;
     const float pad = ui.px(style::pad);
     const float w = ui.px(style::alert_width);
@@ -307,41 +381,24 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
     const float small = ui.px(style::font_small);
     const float icon = ui.px(20);
     const float x = ui.width() - w - gap; // the right side of the window
-
-    // Header: count + dismiss all.
-    const float hh = ui.px(26);
-    rect header{x, y, w, hh};
-    ui.panel(header, panel_kind::translucent);
+    const float foot = ui.px(20);         // "Dismiss all"
     const float h_impact = ui.px(style::alert_height + 16); // a card with a third (impact) line
-    const auto visible = static_cast<std::size_t>(std::max(1.0f, std::floor((ui.height() - y - hh - gap * 2) / (h + gap))));
+    bottom -= foot + gap;
+    const auto visible = static_cast<std::size_t>(std::max(1.0f, std::floor((bottom - y + gap) / (h + gap))));
     const float max_scroll = static_cast<float>(items.size() > visible ? items.size() - visible : 0);
     st.alert_scroll = std::clamp(st.alert_scroll, 0.0f, max_scroll);
     const auto first = static_cast<std::size_t>(st.alert_scroll);
-    char title[64];
-    if(items.size() > visible) {
-        std::snprintf(title, sizeof(title), "Alerts %zu–%zu of %zu", first + 1, std::min(items.size(), first + visible), items.size());
-    } else {
-        std::snprintf(title, sizeof(title), "Alerts (%zu)", items.size());
-    }
-    ui.text_in(layer::overlay, {x + pad, y, w, hh}, title, small, style::text_dim, align::left, font_weight::semibold);
-    const float cw = ui.text_width("Dismiss all", small) + pad * 2;
-    if(ui.button("alerts.clear", layer::overlay, {header.right() - cw, y, cw, hh}, "Dismiss all", small)) {
-        alerts.dismiss_all();
-        st.alert_scroll = 0;
-        return;
-    }
-    y += hh + gap;
-
-    rect column{x, y, w, static_cast<float>(visible) * (h + gap)};
+    rect column{x, y, w, bottom - y};
     // Wheel scrolls the list; the new offset applies from the next frame.
     st.alert_scroll = std::clamp(st.alert_scroll - ui.take_wheel(column), 0.0f, max_scroll);
 
     uint64_t dismiss = 0;
-    const float bottom = ui.height() - gap;
-    for(std::size_t i = first; i < items.size() && i < first + visible; ++i) {
-        alert const& a = items[i];
+    std::size_t drawn = 0;
+    for(std::size_t i = first; i < items.size(); ++i) {
+        alert const& a = *items[i];
         const float ch = a.impact.empty() ? h : h_impact;
-        if(i > first && y + ch > bottom) break;
+        if(y + ch > bottom) break;
+        ++drawn;
         rect card{x, y, w, ch};
         ui.panel(card, panel_kind::translucent);
         ui.text_in(layer::overlay, {x + pad, y, icon, ch}, a.icon, icon, style::text, align::centre);
@@ -362,70 +419,78 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
         }
         y += ch + gap;
     }
+    // Footer: position in the list and "Dismiss all" (small, unobtrusive).
+    char where[48];
+    std::snprintf(where, sizeof(where), "%zu–%zu of %zu", first + 1, first + drawn, items.size());
+    rect footer{x, y, w, foot};
+    ui.panel(footer, panel_kind::translucent);
+    ui.text_in(layer::overlay, {x + pad, y, w, foot}, where, small, style::text_dim);
+    const float cw = ui.text_width("Dismiss all", small) + pad * 2;
+    if(ui.button("alerts.clear", layer::overlay, {footer.right() - cw, y, cw, foot}, "Dismiss all", small, false,
+                 "Dismiss every alert (all categories)")) {
+        alerts.dismiss_all();
+        st.alert_scroll = 0;
+        return;
+    }
     if(dismiss) alerts.dismiss(dismiss);
 }
 
 } // namespace
 
-// The open view's tab: flat white, a blue title strip, below the top bar and
-// left of the alert column.
-void view_tab(ui_context& ui, map_tab_info const& tab, hud_state& st, float y, bool alerts_shown) {
+// The map mode's legend: a compact flat box in the bottom-right corner, under the
+// alert column (which ends above it). Returns its top edge.
+float legend_box(ui_context& ui, map_tab_info const& tab) {
     const float pad = ui.px(style::pad);
     const float gap = ui.px(style::gap);
-    const float w = ui.px(style::tab_width);
-    const float hh = ui.px(style::tab_header);
-    const float font = ui.px(14);
     const float small = ui.px(style::font_small);
-    const float line = ui.px(19);
-    const float right = alerts_shown ? ui.width() - ui.px(style::alert_width) - gap * 2 : ui.width() - gap;
-    const float x = right - w;
-    float h = hh + pad + static_cast<float>(tab.legend.size()) * line + pad;
-    if(!tab.note.empty()) h += line;
-    if(!tab.summary.empty()) h += pad + static_cast<float>(tab.summary.size()) * line;
-    rect r{x, y, w, h};
+    const float line = ui.px(18);
+    const float hh = ui.px(22);
+    const float sw = ui.px(12);
+    float w = ui.text_width(tab.title, ui.px(13), font_weight::semibold) + pad * 2;
+    for(auto const& item : tab.legend) w = std::max(w, pad + sw + pad + ui.text_width(item.label, small) + pad);
+    if(!tab.note.empty()) w = std::max(w, ui.text_width(tab.note, small) + pad * 2);
+    w = std::min(w, ui.px(style::alert_width));
+    const float h = hh + pad * 0.5f + static_cast<float>(tab.legend.size()) * line + (tab.note.empty() ? 0.0f : line) + pad * 0.5f;
+    rect r{ui.width() - w - gap, ui.height() - h - gap, w, h};
     ui.flat_panel(r, hh);
-    ui.text_in(layer::overlay, {x + pad, y, w, hh}, tab.title, font, style::text, align::left, font_weight::semibold);
-    const float bs = ui.px(22);
-    if(ui.button("tab.close", layer::overlay, {r.right() - bs - ui.px(3), y + (hh - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false,
-                 "Close (political view)")) {
-        st.filter = map_filter::political;
-    }
+    ui.text_in(layer::overlay, {r.x + pad, r.y, w, hh}, tab.title, ui.px(13), style::text, align::left, font_weight::semibold);
     ui.set_text_backing(false);
-    float cy = y + hh + pad;
-    const float sw = ui.px(14);
+    float cy = r.y + hh + pad * 0.5f;
     for(auto const& item : tab.legend) {
-        ui.fill(layer::overlay, {x + pad, std::round(cy + (line - sw) * 0.5f), sw, sw}, item.colour);
-        ui.text_in(layer::overlay, {x + pad + sw + pad, cy, w, line}, item.label, small, style::flat_text);
+        ui.fill(layer::overlay, {r.x + pad, std::round(cy + (line - sw) * 0.5f), sw, sw}, item.colour);
+        ui.text_in(layer::overlay, {r.x + pad + sw + pad, cy, w, line}, item.label, small, style::flat_text);
         cy += line;
     }
-    if(!tab.note.empty()) {
-        ui.text_in(layer::overlay, {x + pad, cy, w, line}, tab.note, small, style::flat_dim);
-        cy += line;
-    }
-    if(!tab.summary.empty()) {
-        cy += pad * 0.5f;
-        ui.fill(layer::overlay, {x + pad, std::round(cy), w - pad * 2, std::max(1.0f, std::round(ui.px(1)))}, style::flat_rule);
-        cy += pad * 0.5f;
-        for(auto const& s : tab.summary) {
-            ui.text_in(layer::overlay, {x + pad, cy, w - pad * 2, line}, s, small, style::flat_text);
-            cy += line;
-        }
-    }
+    if(!tab.note.empty()) ui.text_in(layer::overlay, {r.x + pad, cy, w - pad * 2, line}, tab.note, small, style::flat_dim);
     ui.set_text_backing(true);
+    return r.y;
+}
+
+// A window (Politics, Government policy, Diplomacy...): flat white with a blue
+// title strip, filling the space below the top bar and the first agent bar,
+// left of the alert column, down to the bottom margin. Returns the body rect.
+rect window_frame(ui_context& ui, hud_state& st, rect win, std::string_view title, std::string_view subtitle) {
+    const float pad = ui.px(style::pad);
+    const float hh = ui.px(style::tab_header);
+    ui.flat_panel(win, hh);
+    const float tw = ui.text_in(layer::overlay, {win.x + pad, win.y, win.w, hh}, title, ui.px(14), style::text, align::left, font_weight::semibold);
+    if(!subtitle.empty()) ui.text_in(layer::overlay, {win.x + pad + tw + pad, win.y, win.w, hh}, subtitle, ui.px(14), style::text_dim);
+    const float bs = ui.px(22);
+    if(ui.button("window.close", layer::overlay, {win.right() - bs - ui.px(3), win.y + (hh - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false, "Close")) {
+        st.open = hud_action::none;
+    }
+    return {win.x, win.y + hh, win.w, win.h - hh};
 }
 
 // The Politics tab: the electoral tile map of one nation, its mode buttons and
 // the national result (or regime indicators), flat white like the view tabs.
-void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st, float y, bool alerts_shown) {
+void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st, rect win) {
     const float pad = ui.px(style::pad);
-    const float gap = ui.px(style::gap);
     const float hh = ui.px(style::tab_header);
-    const float font = ui.px(14);
     const float small = ui.px(style::font_small);
     const float line = ui.px(18);
-    const float right = alerts_shown ? ui.width() - ui.px(style::alert_width) - gap * 2 : ui.width() - gap;
-    const float w = std::min(ui.px(560), right - gap);
-    const float x = right - w;
+    const float w = win.w;
+    const float x = win.x, y = win.y;
     // Mode buttons, wrapped into rows.
     const float bh = ui.px(22);
     std::vector<rect> buttons;
@@ -441,7 +506,6 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
     }
     const float rows_h = info.modes.empty() ? 0.0f : by + bh;
     const float map_w = w - pad * 2;
-    const float map_h = std::min(ui.px(320), std::max(ui.px(140), map_w / std::max(0.4f, info.aspect)));
     // The national strip, word-wrapped to the tab.
     std::vector<std::string> strip;
     for(auto const& sline : info.strip) {
@@ -461,16 +525,12 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
         }
         if(!cur.empty()) strip.push_back(cur);
     }
-    const float h = hh + pad + rows_h + pad + map_h + pad + (info.legend.empty() ? 0.0f : line) +
-                    static_cast<float>(strip.size()) * line + pad;
-    rect r{x, y, w, h};
-    ui.flat_panel(r, hh);
-    float tw = ui.text_in(layer::overlay, {x + pad, y, w, hh}, "Politics", font, style::text, align::left, font_weight::semibold);
-    tw += ui.text_in(layer::overlay, {x + pad + tw + pad, y, w, hh}, info.nation, font, style::text_dim);
+    // The map takes the rest of the window.
+    const float map_h = std::max(ui.px(80), win.h - (hh + pad + rows_h + pad + pad + (info.legend.empty() ? 0.0f : line) +
+                                                     static_cast<float>(strip.size()) * line + pad));
+    rect r = win;
+    window_frame(ui, st, win, "Politics", info.nation);
     const float bs = ui.px(22);
-    if(ui.button("politics.close", layer::overlay, {r.right() - bs - ui.px(3), y + (hh - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false, "Close")) {
-        st.open = hud_action::none;
-    }
     if(ui.button("politics.next", layer::overlay, {r.right() - 2 * bs - ui.px(6), y + (hh - bs) * 0.5f, bs, bs}, "▶", ui.px(12), false,
                  "Next nation (or click a nation on the map)")) {
         st.politics_step = 1;
@@ -546,14 +606,29 @@ void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& s
                electoral_view_info const* politics) {
     st.requested_speed = -1;
     st.politics_step = 0;
-    const rect bar = top_bar(ui, sim, st);
-    const bool politics_open = politics && st.open == hud_action::politics;
-    const bool tab_open = !politics_open && tab && st.filter != map_filter::political;
-    agent_bars(ui, sim, bar.bottom(), bar.w, tab_open || politics_open ? 1 : static_cast<std::size_t>(-1));
-    alert_list(ui, sim, alerts, st, bar.bottom() + ui.px(style::gap)); // right side, below the top bar; floating cards keep their margins
-    if(politics_open) politics_tab(ui, *politics, st, bar.bottom() + ui.px(style::gap), !alerts.items().empty());
-    else if(tab_open) view_tab(ui, *tab, st, bar.bottom() + ui.px(style::gap), !alerts.items().empty());
-    if(!politics_open) st.politics_tile = -1;
+    const rect bar = top_bar(ui, sim, st, alerts);
+    const float gap = ui.px(style::gap);
+    const bool window_open = st.open != hud_action::none;
+    const float bars_bottom = agent_bars(ui, sim, bar.bottom(), bar.w, window_open ? 1 : static_cast<std::size_t>(-1));
+    // Bottom-right: the map mode's legend; the alert column ends above it.
+    float alerts_bottom = ui.height() - gap;
+    if(tab && st.filter != map_filter::political) alerts_bottom = legend_box(ui, *tab) - gap;
+    alert_list(ui, sim, alerts, st, bar.bottom() + gap, alerts_bottom); // right side, below the top bar; floating cards keep their margins
+    // A window fills the space left of the alert column, below the first agent bar.
+    st.politics_tile = -1;
+    if(window_open) {
+        const float right = ui.width() - ui.px(style::alert_width) - gap * 2;
+        const rect win{gap, bars_bottom + gap, std::max(ui.px(200), right - gap), std::max(ui.px(120), ui.height() - bars_bottom - gap * 2)};
+        if(st.open == hud_action::politics && politics) {
+            politics_tab(ui, *politics, st, win);
+        } else {
+            const auto i = static_cast<std::size_t>(st.open) - 1;
+            const rect body = window_frame(ui, st, win, action_buttons[i].tip, "");
+            ui.set_text_backing(false);
+            ui.text_in(layer::overlay, {body.x, body.y, body.w, body.h}, "Not available yet", ui.px(14), style::flat_dim, align::centre);
+            ui.set_text_backing(true);
+        }
+    }
 }
 
 void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& st) {
@@ -573,7 +648,6 @@ void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& s
     const float hh = ui.px(style::tab_header);
     float h = hh + line * 1.2f + pad;
     if(expanded) h += pad + static_cast<float>(info.details.size()) * line;
-    else if(!info.details.empty()) h += line;
     float x = std::min(st.tooltip_x + ui.px(14), ui.width() - w - ui.px(2));
     float y = std::min(st.tooltip_y + ui.px(16), ui.height() - h - ui.px(2));
     x = std::max(0.0f, x);
@@ -601,8 +675,11 @@ void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& s
             }
             cy += line;
         }
-    } else if(!info.details.empty()) {
-        ui.text_in(layer::overlay, {r.x + pad, cy, w, line}, "Point here for details", small, style::flat_dim);
+    }
+    // Compact: a thin bar under the title strip fills over the 2 s until it expands.
+    if(!expanded && !info.details.empty() && st.tooltip_progress > 0.05f) {
+        const float bar = std::max(1.0f, std::round(ui.px(2)));
+        ui.fill(layer::overlay, {r.x, r.y + hh, std::round(r.w * std::min(1.0f, st.tooltip_progress)), bar}, hex(0x8FB4E3));
     }
     ui.set_text_backing(true);
 }

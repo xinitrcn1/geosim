@@ -459,7 +459,7 @@ map_tooltip_info map_layer::describe(int i, map_filter view, sim_runner const& s
         add("Seaborne share", fmt("%.0f%%", nat->seaborne));
         add("Freight cost (index)", fmt("%.2f", nat->freight));
         add("Logistics delay", fmt("%.1f days", nat->logistics_delay));
-        heading("Top export destinations");
+        if(nat->partner[0] != 0xFFFF) heading("Top export destinations");
         for(int k = 0; k < 5; ++k) {
             if(nat->partner[k] == 0xFFFF) continue;
             add(sim.nation_name(nat->partner[k]), fmt("%.1f%%", nat->partner_share[k]));
@@ -527,7 +527,7 @@ map_tab_info map_layer::tab(map_filter view, sim_runner const& sim, hazard_feed 
     }
     case map_filter::economy:
         t.legend = {{colour_of(0xD0473A), "GDP below 2019"}, {colour_of(0x2E9E58), "GDP above 2019"}};
-        t.note = "Point at a region, then its tooltip.";
+        t.note = "Rest the pointer on a region for details.";
         break;
     case map_filter::trade:
         t.legend = {{colour_of(0xD0473A), "Exports share falling"}, {colour_of(0x2E9E58), "Exports share rising"}};
@@ -844,7 +844,7 @@ map_layer::inset_cache const& map_layer::build_insets(int nation) const {
     // 5. Rasterise the layout: each cell maps back through its placement to lon/lat.
     const merc_rect u = union_of(placed);
     const double aspect = u.w() / std::max(1e-9, u.h());
-    constexpr int long_side = 480;
+    constexpr int long_side = 960; // cells on the long side: about one per pixel in a full-HD window
     raster->w = aspect >= 1.0 ? long_side : std::max(16, static_cast<int>(long_side * aspect));
     raster->h = aspect >= 1.0 ? std::max(16, static_cast<int>(long_side / aspect)) : long_side;
     raster->cell.assign(static_cast<std::size_t>(raster->w) * static_cast<std::size_t>(raster->h), electoral_raster::empty);
