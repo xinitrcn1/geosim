@@ -120,6 +120,65 @@ scenario does not simulate keep their world2020 owner and colour. The owners
 takes its new owner's colour and the national border moves with it. Before
 the scenario is loaded the asset's own owners are shown.
 
+4. **Clouds** (on by default, **C** toggles, `--clouds 0`): flat,
+   translucent (50 %) cover drawn over the political map. A 3D value-noise fbm
+   on the unit sphere (no seam, no pole pinch) is advected by a climatological
+   zonal wind — easterly trades peaking at 13°, westerlies at 47°, polar
+   easterlies — using a two-phase flow map (1.5-day cycles cross-faded, so the
+   latitudinal shear never smears the noise into streaks). It is thresholded
+   by a cover climatology: a base of 0.36, the ITCZ band (centred at
+   4° + 7°·season, i.e. ~11° N in northern summer, ~3° S in winter), storm
+   tracks around 52° ± 4° (poleward in summer), polar stratus, and a clear
+   subtropical-high band at 24°; cover drops by up to 75 % over land whose
+   colour is sandy and bright (deserts, steppes), so the Sahara and Arabia stay
+   clear. The cloud clock follows the simulation (frozen when paused) but runs
+   at most 2 days per real second, so clouds stay readable at high speeds.
+5. **Tropical cyclones** (hazard UBO, up to 64 "mass points": lon, lat,
+   maximum wind, gale radius): a logarithmic spiral of two bands
+   (`θ + 3.2·ln r`, anticlockwise in the north and clockwise in the south,
+   turning with the cloud clock) out to 2.4 gale radii, a central dense
+   overcast inside ~0.5 radii and, from 33 m/s (hurricane / typhoon), a clear
+   eye of ~10–25 km; opacity grows with the wind. Denser than the background
+   cover.
+6. **Earthquakes** (up to 32: epicentre, Mw, age): a news-style ring of four
+   red circles expanding from the epicentre (radius
+   `40 km · 2^(Mw − 5.5)`, at least 14 + 7·(Mw − 5) px), with a red dot,
+   fading out between 3 and 7 sim days after the event.
+
+## Hazards
+
+`hazard_feed` requests a `hazard_snapshot` every 250 ms
+(`sim_runner::request_hazards`, `sim_hazards.cpp`; storms and disasters are
+erasable objects, so they are copied at the sim's sync point, never read
+racily): every live `storm` (position, wind, gale radius) and every
+`disaster` record; earthquakes of the last 7 days feed the rings. Each
+disaster record becomes an alert (docs/08 *Layout*). `--hazard-demo 1`
+draws two fixed cyclones and a Mw 9 earthquake for visual checks.
+
+## Regional geography
+
+`python3 tools/pipeline/build_region_geo.py` (15 s, after `build_map.py`;
+WorldClim from `fetch.py --map-only`) writes per-region zonal statistics of the
+map raster for the disaster model: `assets/scenario/world2020/regions_geo.csv`
+(one row per `regions.csv` region) and, for the slices, `2020/` and
+`2008/regions_geo.csv` (one row per nation, area-weighted over its world2020
+regions; ROW = every nation outside the slice). On the 5′ grid, cells weighted
+by cos(latitude):
+
+| Column | Definition |
+|---|---|
+| `area_km2`, `lat`, `lon` | land area (85.86 km² · cos φ per cell; includes the coastal gap fill, so small islands read high) and spherical land centroid; empty for ROW |
+| `elevation_m` | mean land elevation (ETOPO1, negative as 0) |
+| `lecz_share` | low-elevation coastal zone (McGranahan et al. 2007): land < 10 m within 2 cells (~18 km) of water connected to the open ocean (lakes and the Caspian excluded) |
+| `coastal` | region next to the ocean (0/1; slices: share of the nation's regions) |
+| `floodplain_share` | proxy: land < 100 m whose relief (max − min) in a 5 × 5-cell (~45 km) window is < 50 m — low, flat deltas and river and coastal plains |
+| `precip_mm`, `precip_peak_month`, `precip_seasonality` | WorldClim 2.1 (1970–2000, 10′): annual total, wettest month, CV of the 12 monthly means |
+| `koppen` | area-dominant Köppen-Geiger main class A–E |
+
+Regions without a cell (156 tiny islands and enclaves) take the cell at their
+centroid and their nation's mean. WorldClim's terms forbid redistributing its
+data: only these regional aggregates ship.
+
 Not done yet: hover / picking (the CPU keeps no ID raster), labels, the
 scalar filters and legend below, hatching for no-data, vector borders for
 very close zoom (beyond ~12 px per cell the border staircase of the

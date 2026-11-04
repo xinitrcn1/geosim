@@ -390,7 +390,7 @@ bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list co
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
     if(map.renderer && map.view && map.renderer->ready()) {
-        map.renderer->draw(cmd, *map.view, static_cast<float>(e.width), static_cast<float>(e.height), scale, map.political);
+        map.renderer->draw(cmd, *map.view, static_cast<float>(e.width), static_cast<float>(e.height), scale, map.political, map.anim);
     }
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, quad_layout_, 0, 1, &ui_scene_set_, 0, nullptr);
     draw_batches(cmd, scene, scene_base, time, scale);

@@ -44,7 +44,7 @@ inline constexpr float font_small = 12.0f;
 inline constexpr float icon_size = 18.0f;
 inline constexpr float border = 1.0f;
 inline constexpr float separator_strip = 1.0f;
-inline constexpr float alert_width = 340.0f;
+inline constexpr float alert_width = 380.0f;
 inline constexpr float alert_height = 44.0f;
 
 } // namespace geosim::client::style

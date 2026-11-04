@@ -14,6 +14,7 @@
 // simulation can run.
 
 #include "core/calendar.hpp"
+#include "map_hazards.hpp"
 #include "ui_context.hpp"
 
 #include <atomic>
@@ -114,6 +115,11 @@ public:
     // reads like the indicators. `out` keeps its size (from request_map_world).
     void read_region_owners(std::vector<uint16_t>& out) const noexcept;
 
+    // Live cyclones, earthquakes of the last week and every disaster record, with
+    // their notification text (sim::describe_disaster), at the next sync point.
+    // Implemented in sim_hazards.cpp.
+    std::future<hazard_snapshot> request_hazards();
+
     // Indicator panels for the agents the player controls (racy direct reads;
     // call from the UI thread once status() == running).
     std::vector<agent_panel> read_agents();
@@ -143,6 +149,15 @@ private:
     std::unique_ptr<game_state> state_;
     int64_t epoch_days_ = core::epoch_days_1970;
     std::vector<controlled> controlled_;
+    // Display names, set on the sim thread before status() becomes running, then
+    // read-only: nations.csv names (cut at a comma) by nation index, and the
+    // scenario's regions.csv names by region index (empty without regions.csv).
+    std::vector<std::string> nation_names_;
+    std::vector<std::string> region_names_;
+
+public:
+    // "Louisiana, United States" / "Japan" (valid once running; ids out of range -> "").
+    [[nodiscard]] std::string place_name(uint32_t nation_index, uint32_t region_index) const;
 
     std::jthread thread_; // joins on destruction
     std::mutex mutex_;

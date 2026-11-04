@@ -23,6 +23,7 @@ struct alert {
     std::string icon;
     std::string title;
     std::string detail;
+    std::string impact; // disasters: casualties and damage (a third line on the card)
     tone t = tone::neutral;
 };
 
@@ -31,6 +32,9 @@ class alert_feed {
 public:
     void poll(sim_runner& sim);
     void push_local(std::string icon, std::string title, std::string detail, tone t);
+    // Adds an alert, or updates it in place when its key is already listed
+    // (a disaster whose toll grows); a dismissed key is not shown again.
+    void upsert(alert a);
     void dismiss(uint64_t key);
     void dismiss_all() { items_.clear(); }
     [[nodiscard]] std::vector<alert> const& items() const noexcept { return items_; }

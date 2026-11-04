@@ -21,8 +21,17 @@ struct map_push {
     uint32_t flags;
     uint32_t id_levels;
     uint32_t id_w, id_h;
+    float anim[4];   // cloud days, seconds, cloud strength, day of year
+    uint32_t counts[4]; // storms, quakes
 };
-static_assert(sizeof(map_push) == 80);
+static_assert(sizeof(map_push) == 112);
+
+// std140 layout of world_map.frag hazard_block.
+struct hazard_ubo {
+    float storm[map_max_storms][4];
+    float quake[map_max_quakes][4];
+    float quake_t[map_max_quakes][4];
+};
 
 bool vk_ok(VkResult r, char const* what, core::diagnostics& diag) {
     if(r == VK_SUCCESS) return true;
@@ -102,21 +111,23 @@ bool map_renderer::init(vk_context& vk, VkFormat format, core::diagnostics& diag
     sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     if(!vk_ok(vkCreateSampler(dev, &sci, nullptr, &nearest_), "vkCreateSampler", diag)) return false;
 
-    const VkDescriptorSetLayoutBinding bindings[3] = {
+    const VkDescriptorSetLayoutBinding bindings[4] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
         {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+        {3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
     };
     VkDescriptorSetLayoutCreateInfo dl{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-    dl.bindingCount = 3;
+    dl.bindingCount = 4;
     dl.pBindings = bindings;
     if(!vk_ok(vkCreateDescriptorSetLayout(dev, &dl, nullptr, &set_layout_), "vkCreateDescriptorSetLayout", diag)) return false;
 
-    const VkDescriptorPoolSize sizes[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 * frames_in_flight},
-                                           {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, frames_in_flight}};
+    const VkDescriptorPoolSize sizes[3] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 * frames_in_flight},
+                                           {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, frames_in_flight},
+                                           {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, frames_in_flight}};
     VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     pci.maxSets = frames_in_flight;
-    pci.poolSizeCount = 2;
+    pci.poolSizeCount = 3;
     pci.pPoolSizes = sizes;
     if(!vk_ok(vkCreateDescriptorPool(dev, &pci, nullptr, &pool_), "vkCreateDescriptorPool", diag)) return false;
 
@@ -200,34 +211,62 @@ bool map_renderer::upload(map_data const& data, core::diagnostics& diag) {
     ai.pSetLayouts = layouts;
     if(!vk_ok(vkAllocateDescriptorSets(vk_->device, &ai, sets_), "vkAllocateDescriptorSets", diag)) return false;
     for(uint32_t f = 0; f < frames_in_flight; ++f) {
-        if(!vk_->create_buffer(table_bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, tables_[f], diag)) return false;
+        if(!vk_->create_buffer(table_bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, tables_[f], diag)
+           || !vk_->create_buffer(sizeof(hazard_ubo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true, hazards_[f], diag)) {
+            return false;
+        }
         std::memset(tables_[f].mapped, 0, table_bytes);
+        std::memset(hazards_[f].mapped, 0, sizeof(hazard_ubo));
         const VkDescriptorImageInfo terrain{linear_, terrain_.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         const VkDescriptorImageInfo ids{nearest_, ids_.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         const VkDescriptorBufferInfo table{tables_[f].buffer, 0, table_bytes};
-        VkWriteDescriptorSet w[3]{};
-        for(uint32_t i = 0; i < 3; ++i) {
+        const VkDescriptorBufferInfo hazards{hazards_[f].buffer, 0, sizeof(hazard_ubo)};
+        VkWriteDescriptorSet w[4]{};
+        for(uint32_t i = 0; i < 4; ++i) {
             w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             w[i].dstSet = sets_[f];
             w[i].dstBinding = i;
             w[i].descriptorCount = 1;
-            w[i].descriptorType = i == 2 ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            w[i].descriptorType = i == 2   ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+                                  : i == 3 ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                                           : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         }
         w[0].pImageInfo = &terrain;
         w[1].pImageInfo = &ids;
         w[2].pBufferInfo = &table;
-        vkUpdateDescriptorSets(vk_->device, 3, w, 0, nullptr);
+        w[3].pBufferInfo = &hazards;
+        vkUpdateDescriptorSets(vk_->device, 4, w, 0, nullptr);
     }
     ready_ = true;
     return true;
 }
 
-void map_renderer::draw(VkCommandBuffer cmd, map_view const& view, float width, float height, float line_scale, bool political) {
+void map_renderer::draw(VkCommandBuffer cmd, map_view const& view, float width, float height, float line_scale, bool political,
+                        map_anim const& anim) {
     if(!ready_) return;
     const uint32_t frame = vk_->frame_index();
     // The frame slot's fence has been waited on: its table is not in use.
     const std::size_t bytes = std::min<std::size_t>(table_.size() * sizeof(uint32_t), static_cast<std::size_t>(tables_[frame].size));
     std::memcpy(tables_[frame].mapped, table_.data(), bytes);
+    hazard_ubo hz{};
+    const auto storms = static_cast<uint32_t>(std::min(storms_.size(), map_max_storms));
+    const auto quakes = static_cast<uint32_t>(std::min(quakes_.size(), map_max_quakes));
+    for(uint32_t i = 0; i < storms; ++i) {
+        auto const& s = storms_[i];
+        hz.storm[i][0] = s.lon;
+        hz.storm[i][1] = s.lat;
+        hz.storm[i][2] = s.wind;
+        hz.storm[i][3] = s.radius_km;
+    }
+    for(uint32_t i = 0; i < quakes; ++i) {
+        auto const& q = quakes_[i];
+        hz.quake[i][0] = q.lon;
+        hz.quake[i][1] = q.lat;
+        hz.quake[i][2] = q.magnitude;
+        hz.quake[i][3] = q.age_days;
+        hz.quake_t[i][0] = q.shown_seconds;
+    }
+    std::memcpy(hazards_[frame].mapped, &hz, sizeof(hz));
 
     const map_view::frame b = view.basis();
     map_push push{};
@@ -248,6 +287,12 @@ void map_renderer::draw(VkCommandBuffer cmd, map_view const& view, float width, 
     push.id_levels = id_levels_;
     push.id_w = id_w_;
     push.id_h = id_h_;
+    push.anim[0] = anim.cloud_days;
+    push.anim[1] = anim.seconds;
+    push.anim[2] = anim.cloud_strength;
+    push.anim[3] = anim.day_of_year;
+    push.counts[0] = storms;
+    push.counts[1] = quakes;
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &sets_[frame], 0, nullptr);
     vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
@@ -261,6 +306,7 @@ void map_renderer::shutdown() {
     vk_->destroy_image(terrain_);
     vk_->destroy_image(ids_);
     for(auto& t : tables_) vk_->destroy_buffer(t);
+    for(auto& h : hazards_) vk_->destroy_buffer(h);
     if(pipeline_) vkDestroyPipeline(dev, pipeline_, nullptr);
     if(layout_) vkDestroyPipelineLayout(dev, layout_, nullptr);
     if(pool_) vkDestroyDescriptorPool(dev, pool_, nullptr);

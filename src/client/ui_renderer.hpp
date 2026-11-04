@@ -26,6 +26,7 @@ struct map_pass {
     map_renderer* renderer = nullptr;
     map_view const* view = nullptr;
     bool political = true;
+    map_anim anim{};
 };
 
 class ui_renderer {

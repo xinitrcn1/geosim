@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <map>
 
 namespace geosim::client {
 
@@ -191,6 +192,13 @@ void sim_runner::read_region_owners(std::vector<uint16_t>& out) const noexcept {
     }
 }
 
+std::string sim_runner::place_name(uint32_t nation_index, uint32_t region_index) const {
+    const std::string nation = nation_index < nation_names_.size() ? nation_names_[nation_index] : std::string{};
+    const std::string region = region_index < region_names_.size() ? region_names_[region_index] : std::string{};
+    if(region.empty() || region == nation) return nation;
+    return nation.empty() ? region : region + ", " + nation;
+}
+
 void sim_runner::run() {
     auto state = std::make_unique<game_state>();
     const auto report = sim::build_scenario(*state, assets_, scenario_);
@@ -227,6 +235,52 @@ void sim_runner::run() {
         c.unemployment0 = state->world.nation_get_unemployment(n);
         c.yield0 = state->world.nation_get_yield10(n);
         controlled_.push_back(std::move(c));
+    }
+    // Names for notifications: every nation, and each region matched to its regions.csv
+    // row by owner and nearest coordinates (the sim keeps no region names).
+    {
+        auto const& w = state->world;
+        nation_names_.assign(w.nation_size(), std::string{});
+        std::map<std::string, std::size_t> nation_of_iso;
+        for(auto n : w.in_nation) {
+            const std::string iso = core::unpack_key(n.get_iso3());
+            nation_of_iso[iso] = n.id.index();
+            nation_names_[n.id.index()] = iso;
+        }
+        for(std::size_t r = 0; iso_col && name_col && r < names.rows(); ++r) {
+            auto it = nation_of_iso.find(std::string(names.get(r, *iso_col)));
+            if(it == nation_of_iso.end()) continue;
+            std::string full(names.get(r, *name_col));
+            const std::size_t comma = full.find(',');
+            if(comma != std::string::npos && comma > 0) full.resize(comma);
+            if(!full.empty()) nation_names_[it->second] = full;
+        }
+        region_names_.assign(w.region_size(), std::string{});
+        core::diagnostics rdiag;
+        const std::string rpath = assets_ + "/scenario/" + scenario_ + "/regions.csv";
+        if(std::FILE* probe = std::fopen(rpath.c_str(), "rb")) {
+            std::fclose(probe);
+            const auto rt = core::csv_table::load(rpath, rdiag);
+            const auto ri = rt.column("iso3"), rn = rt.column("name"), rla = rt.column("lat"), rlo = rt.column("lon");
+            std::map<std::string, std::vector<std::size_t>> rows_of;
+            for(std::size_t r = 0; ri && rn && r < rt.rows(); ++r) rows_of[std::string(rt.get(r, *ri))].push_back(r);
+            for(auto reg : w.in_region) {
+                const auto owner = reg.get_owner();
+                if(!owner || !rla || !rlo) continue;
+                auto it = rows_of.find(core::unpack_key(owner.get_iso3()));
+                if(it == rows_of.end()) continue;
+                double best = 1e30;
+                for(std::size_t r : it->second) {
+                    const double dlat = rt.number_or(r, "lat", 0.0) - reg.get_lat();
+                    const double dlon = rt.number_or(r, "lon", 0.0) - reg.get_lon();
+                    const double d = dlat * dlat + dlon * dlon;
+                    if(d < best) {
+                        best = d;
+                        region_names_[reg.id.index()] = std::string(rt.get(r, *rn));
+                    }
+                }
+            }
+        }
     }
     epoch_days_ = state->epoch_days;
     tick_.store(state->current_tick);

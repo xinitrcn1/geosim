@@ -1,6 +1,7 @@
 #include "app.hpp"
 
 #include "audio/music.hpp"
+#include "hazard_feed.hpp"
 #include "map_data.hpp"
 #include "map_layer.hpp"
 #include "map_renderer.hpp"
@@ -145,6 +146,15 @@ music_mood derive_music_mood(sim_runner& sim, alert_feed const& alerts) {
     return out;
 }
 
+// --hazard-demo: two tropical cyclones drifting west-northwest and a great
+// earthquake, to check the map's weather and event layers without the sim feed.
+void demo_hazards(double days, float seconds, std::vector<map_storm>& storms, std::vector<map_quake>& quakes) {
+    const auto d = static_cast<float>(std::fmod(days, 12.0));
+    storms = {{-62.0f - 1.6f * d, 18.0f + 0.5f * d, 62.0f, 260.0f}, {138.0f - 1.2f * d, 14.0f + 0.7f * d, 45.0f, 320.0f},
+              {-150.0f, -15.0f, 25.0f, 180.0f}};
+    quakes = {{1, 142.4f, 38.3f, 9.0f, 0.5f, seconds}};
+}
+
 // --map-view "lon,lat,span": focus in degrees, window width in degrees of arc.
 bool parse_map_view(std::string const& s, double& lon, double& lat, double& span) {
     return std::sscanf(s.c_str(), "%lf,%lf,%lf", &lon, &lat, &span) == 3 && span > 0.0;
@@ -210,6 +220,15 @@ int run_app(app_options const& opt) {
         float drag_x = 0, drag_y = 0;
         double key_pan_x = 0, key_pan_y = 0, key_zoom = 1.0;
         double cell_radians = 2.0 * map_pi / 8192.0;
+        // Clouds: advected on their own clock, which follows the simulation (frozen when
+        // paused) at most at 2 days per second so they stay readable at high speeds.
+        bool clouds_on = opt.clouds;
+        double cloud_days = 0.0;
+        auto last_frame = steady::now();
+        std::vector<map_storm> storms;
+        std::vector<map_quake> quakes;
+        hazard_feed hazards; // cyclones, earthquakes and disaster alerts from the sim
+        bool demo_alerts = false;
 
         audio::music_system music;
         if(opt.music) music.start(opt.music_seed, opt.music_volume);
@@ -291,6 +310,9 @@ int run_app(app_options const& opt) {
                         key_pan_y += k == SDLK_UP ? step : k == SDLK_DOWN ? -step : 0.0;
                     } else if(k == SDLK_PAGEUP || k == SDLK_PAGEDOWN) {
                         key_zoom *= k == SDLK_PAGEUP ? 1.5 : 1.0 / 1.5;
+                    } else if(k == SDLK_C && !(ev.key.mod & SDL_KMOD_CTRL)) {
+                        clouds_on = !clouds_on;
+                        SDL_Log("clouds %s", clouds_on ? "on" : "off");
                     } else if(k == SDLK_M && music.running()) {
                         music.set_muted(!music.muted());
                         SDL_Log("music %s", music.muted() ? "muted" : "on");
@@ -419,7 +441,55 @@ int run_app(app_options const& opt) {
                 exit_code = fail("frame acquire", diag.error());
                 break;
             }
-            const map_pass map_draw{&map, &view, hud.filter == map_filter::political};
+            const auto frame_now = steady::now();
+            const double frame_dt = std::min(0.25, std::chrono::duration<double>(frame_now - last_frame).count());
+            last_frame = frame_now;
+            if(sim.status() == sim_status::running && sim.speed() > 0) {
+                const double rate = sim.speed() < max_speed ? days_per_second[sim.speed()] : sim.measured_days_per_second();
+                cloud_days += frame_dt * std::min(rate, 2.0);
+            }
+            hazards.poll(sim, alerts, static_cast<float>(elapsed));
+            if(opt.hazard_demo && !demo_alerts && sim.status() == sim_status::running) {
+                demo_alerts = true;
+                disaster_note warn;
+                warn.key = 0xDE30;
+                warn.kind = 0;
+                warn.title = "Hurricane Laura";
+                warn.place = "Louisiana, United States";
+                warn.date = format_long_date(sim.date());
+                warn.deaths = 40;
+                warn.affected = 1.2e6f;
+                warn.damage_usd = 1.9e10;
+                warn.gdp_loss_pct = 0.09f;
+                warn.potential = true;
+                alerts.upsert(hazard_feed::make_alert(warn, true));
+                disaster_note quake = warn;
+                quake.key = 0xDE31;
+                quake.kind = 3;
+                quake.title = "Magnitude 9.0 earthquake";
+                quake.place = "Miyagi, Japan";
+                quake.deaths = 18500;
+                quake.affected = 4.5e5f;
+                quake.damage_usd = 2.35e11;
+                quake.gdp_loss_pct = 4.1f;
+                quake.potential = false;
+                alerts.upsert(hazard_feed::make_alert(quake, false));
+            }
+            if(opt.hazard_demo) {
+                demo_hazards(cloud_days, static_cast<float>(elapsed), storms, quakes);
+                map.set_hazards(storms, quakes);
+            } else {
+                map.set_hazards(hazards.storms(), hazards.quakes());
+            }
+            map_anim anim;
+            anim.cloud_days = static_cast<float>(std::fmod(cloud_days, 3000.0));
+            anim.seconds = static_cast<float>(elapsed);
+            anim.cloud_strength = clouds_on ? 0.5f : 0.0f;
+            if(sim.status() == sim_status::running) {
+                const core::civil_date today = sim.date();
+                anim.day_of_year = static_cast<float>(core::days_from_civil(today) - core::days_from_civil({today.year, 1, 1}) + 1);
+            }
+            const map_pass map_draw{&map, &view, hud.filter == map_filter::political, anim};
             if(!renderer.record(text, ui.scene, ui.overlay, static_cast<float>(elapsed), scale, capture_next, diag, map_draw)) {
                 exit_code = fail("frame recording", diag.error());
                 vk.end_frame(diag);

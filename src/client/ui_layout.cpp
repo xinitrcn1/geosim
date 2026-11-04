@@ -76,6 +76,18 @@ void alert_feed::push_local(std::string icon, std::string title, std::string det
     items_.insert(items_.begin(), std::move(a));
 }
 
+void alert_feed::upsert(alert a) {
+    for(auto& existing : items_) {
+        if(existing.key == a.key) {
+            existing = std::move(a);
+            return;
+        }
+    }
+    if(!seen_.insert(a.key).second) return; // dismissed earlier
+    items_.insert(items_.begin(), std::move(a));
+    if(items_.size() > 200) items_.resize(200);
+}
+
 void alert_feed::dismiss(uint64_t key) {
     items_.erase(std::remove_if(items_.begin(), items_.end(), [&](alert const& a) { return a.key == key; }), items_.end());
 }
@@ -129,7 +141,7 @@ void alert_feed::add(journal_entry const& e, sim_runner const& sim) {
         a.title = (e.after > 0.5f ? "Rebel movement in " : e.after < -0.5f ? "Rebels defeated in " : "Settlement with rebels in ") + e.nation;
         a.t = mine ? (e.after > 0.5f ? tone::bad : tone::good) : tone::neutral;
         break;
-    case journal_disaster: a.icon = "🌪"; a.title = "Disaster in " + e.nation; a.t = mine ? tone::bad : tone::neutral; break;
+    // journal_disaster: replaced by the disaster records (hazard_feed).
     case journal_chokepoint: a.icon = "🚢"; a.title = "Shipping chokepoint blocked"; break;
     case journal_variant: a.icon = "🦠"; a.title = "New pathogen variant"; break;
     case journal_cyber: a.icon = "💻"; a.title = "Cyber attack: " + pair; a.t = mine ? tone::bad : tone::neutral; break;
@@ -297,6 +309,7 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
     const float hh = ui.px(26);
     rect header{x, y, w, hh};
     ui.panel(header, panel_kind::translucent);
+    const float h_impact = ui.px(style::alert_height + 16); // a card with a third (impact) line
     const auto visible = static_cast<std::size_t>(std::max(1.0f, std::floor((ui.height() - y - hh - gap * 2) / (h + gap))));
     const float max_scroll = static_cast<float>(items.size() > visible ? items.size() - visible : 0);
     st.alert_scroll = std::clamp(st.alert_scroll, 0.0f, max_scroll);
@@ -321,11 +334,14 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
     st.alert_scroll = std::clamp(st.alert_scroll - ui.take_wheel(column), 0.0f, max_scroll);
 
     uint64_t dismiss = 0;
+    const float bottom = ui.height() - gap;
     for(std::size_t i = first; i < items.size() && i < first + visible; ++i) {
         alert const& a = items[i];
-        rect card{x, y, w, h};
+        const float ch = a.impact.empty() ? h : h_impact;
+        if(i > first && y + ch > bottom) break;
+        rect card{x, y, w, ch};
         ui.panel(card, panel_kind::translucent);
-        ui.text_in(layer::overlay, {x + pad, y, icon, h}, a.icon, icon, style::text, align::centre);
+        ui.text_in(layer::overlay, {x + pad, y, icon, ch}, a.icon, icon, style::text, align::centre);
         const float tx = x + pad + icon + pad;
         const float asc = ui.px(14) * 0.75f;
         ui.text(layer::overlay, tx, y + ui.px(7) + asc, a.title, font, ui_context::colour(a.t), font_weight::semibold);
@@ -334,13 +350,14 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
             detail = format_long_date(core::date_from_tick(a.tick, sim.epoch_days()));
         }
         ui.text(layer::overlay, tx, y + h - ui.px(9), detail, small, style::text_dim);
+        if(!a.impact.empty()) ui.text(layer::overlay, tx, y + ch - ui.px(9), a.impact, small, ui_context::colour(a.t == tone::bad ? tone::bad : tone::neutral));
         const float bs = ui.px(24);
         char id[40];
         std::snprintf(id, sizeof(id), "alert.%llx", static_cast<unsigned long long>(a.key));
-        if(ui.button(id, layer::overlay, {card.right() - bs - ui.px(6), y + (h - bs) * 0.5f, bs, bs}, "✖", ui.px(13), false, "Dismiss")) {
+        if(ui.button(id, layer::overlay, {card.right() - bs - ui.px(6), y + (ch - bs) * 0.5f, bs, bs}, "✖", ui.px(13), false, "Dismiss")) {
             dismiss = a.key;
         }
-        y += h + gap;
+        y += ch + gap;
     }
     if(dismiss) alerts.dismiss(dismiss);
 }

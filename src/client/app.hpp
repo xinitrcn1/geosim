@@ -27,6 +27,8 @@ struct app_options {
     // Initial map view "lon,lat,width": focus in degrees and the span of the
     // window width in degrees of arc (default: the first --nation, ~75 degrees).
     std::string map_view;
+    bool clouds = true;       // cloud layer (C toggles it at run time)
+    bool hazard_demo = false; // fixed demo storms and an earthquake (visual checks before the sim feeds them)
     // Procedural music (docs/14-audio.md); M toggles it at run time.
     bool music = true;
     float music_volume = 0.6f;
