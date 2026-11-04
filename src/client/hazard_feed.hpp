@@ -7,8 +7,13 @@
 //    (cyclone swirls, red rings; a ring's animation starts when first seen);
 //  - disaster records become alerts: kind icon, title, "place · date", and an
 //    impact line with deaths, people affected and damage in USD and % of GDP
-//    ("Could cause ..." while a cyclone is only forecast). Records are updated
-//    in place as their toll grows. Disasters in a nation the player controls
+//    ("Could cause ..." while a cyclone is only forecast). One alert per
+//    record: a warning becomes the landfall's actual impact, and a drought's
+//    toll is refreshed as it accumulates (keyed by record id + kind + title;
+//    a record id that vanishes from a snapshot was erased, so its key is
+//    forgotten before the id is reused). When a forecast turns into the actual
+//    event, the forecast alert is replaced by a fresh one on top (shown even
+//    if the warning was dismissed). Disasters in a nation the player controls
 //    are always shown (red); elsewhere only notable ones (>= 50 deaths,
 //    >= 1 million affected or >= USD 1 bn damage).
 
@@ -38,6 +43,14 @@ private:
     std::vector<map_storm> storms_;
     std::vector<map_quake> quakes_;
     std::unordered_map<uint64_t, float> quake_seen_; // key -> first-seen real time
+    struct record {
+        uint8_t kind;
+        std::string title;
+        uint64_t key;
+        bool potential;
+    };
+    std::unordered_map<uint32_t, record> records_; // live disaster record id -> its alert key
+    uint64_t serial_ = 0;
 };
 
 } // namespace geosim::client

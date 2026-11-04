@@ -28,7 +28,8 @@ inline constexpr std::size_t map_max_storms = 64, map_max_quakes = 32;
 
 // One disaster record (sim `disaster` object, text from sim::describe_disaster).
 struct disaster_note {
-    uint64_t key = 0;         // stable per record and status
+    uint32_t id = 0;          // sim record index (erasable: reused after the record ends)
+    uint64_t key = 0;         // stable per record (assigned by hazard_feed)
     uint8_t kind = 0;         // sim::disaster_kind
     uint8_t status = 0;       // sim::disaster_status (0 = warning: potential impact)
     int32_t start = 0;        // tick

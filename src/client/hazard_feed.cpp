@@ -73,11 +73,24 @@ void hazard_feed::poll(sim_runner& sim, alert_feed& alerts, float seconds) {
         if(quake_seen_.size() > 512) quake_seen_.clear();
         // Oldest first so the newest ends up on top.
         std::sort(snap.disasters.begin(), snap.disasters.end(), [](auto const& a, auto const& b) { return a.start < b.start; });
-        for(auto const& n : snap.disasters) {
+        std::unordered_map<uint32_t, record> live;
+        for(auto& n : snap.disasters) {
+            auto it = records_.find(n.id);
+            if(it != records_.end() && it->second.kind == n.kind && it->second.title == n.title) {
+                n.key = it->second.key;
+                if(it->second.potential && !n.potential) { // landfall: replace the forecast
+                    alerts.dismiss(n.key);
+                    n.key = n.key ^ (0x9E3779B97F4A7C15ull * ++serial_);
+                }
+            } else {
+                n.key = n.key ^ (0x9E3779B97F4A7C15ull * ++serial_); // a new record (or a reused id)
+            }
+            live[n.id] = {n.kind, n.title, n.key, n.potential};
             const bool mine = sim.controls(n.nation);
             if(!mine && !notable(n)) continue;
             alerts.upsert(make_alert(n, mine));
         }
+        records_ = std::move(live);
     }
     const auto now = std::chrono::steady_clock::now();
     if(!pending_.valid() && now - last_request_ > std::chrono::milliseconds(250)) {

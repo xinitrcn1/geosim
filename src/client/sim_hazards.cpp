@@ -68,10 +68,8 @@ std::future<hazard_snapshot> sim_runner::request_hazards() {
             n.damage_usd = text.damage_usd;
             n.gdp_loss_pct = text.gdp_loss_pct;
             n.potential = text.potential;
-            // One alert per record and status (a cyclone warning, then its landfall).
-            uint64_t key = mix_key(mix_key(mix_key(0xD15A57E2ull, kind), n.potential ? 0u : 1u), static_cast<uint64_t>(start));
-            key = hash_string(hash_string(key, n.nation), n.title);
-            n.key = key;
+            n.id = static_cast<uint32_t>(d.id.index());
+            n.key = hash_string(mix_key(mix_key(0xD15A57E2ull, kind), static_cast<uint64_t>(start)), n.title); // hazard_feed makes it per record
             out.disasters.push_back(std::move(n));
         }
         promise->set_value(std::move(out));
