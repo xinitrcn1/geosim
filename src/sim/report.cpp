@@ -255,7 +255,7 @@ void write_daily_rows(game_state const& state, std::ostream& out) {
             << n.get_unemployment() * 100.0f << ',' << n.get_cpi() << ',' << n.get_policy_rate() << ',' << bal_pct << ','
             << n.get_consumption() / (n.get_c0() * gf) << ',' << n.get_exports() / (n.get_x0() * gf) << ',' << n.get_gini() << ','
             << oil << ',' << r_eff << ',' << oil_d << ',' << oil_s << ',' << oil_inv << ','
-            << n.get_oil_demand() / (n.get_oil_demand0() * gf);
+            << (n.get_oil_demand0() > 0.0f ? n.get_oil_demand() / (n.get_oil_demand0() * gf) : 1.0f);
         float freight = 1.0f, unrest = 0.0f, protest = 0.0f, rpop = 0.0f;
         for(auto sh : w.in_shipping) freight = sh.get_spot_rate();
         for(auto own : n.get_region_ownership()) {

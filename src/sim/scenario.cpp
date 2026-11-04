@@ -42,6 +42,8 @@ struct nation_input {
     double gov_revenue = 0.25, gov_net_lending = -0.03, gov_debt = 0.6, gini = 0.35, beds = 3.0, vulnerable = 0.2;
     double hemisphere = 1, oil_production = 0, oil_elasticity = 0, epl = 0.35, benefit_replacement = 0.3;
     double benefit_coverage = 0.15, death_reporting = 0.5, oil_take = 0.0;
+    double oil_consumption = -1.0; // mb/d from data (nations.csv); < 0 = unknown (PPP share)
+    bool oil_elasticity_set = false, oil_take_set = false;
     double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
     double birth_rate = 0.015, death_rate = 0.008, pop014 = 0.2, tertiary = 0.2;
     double lat = 0.0, lon = 0.0;
@@ -347,6 +349,9 @@ struct builder {
             in.lon = t.number_or(row, "capital_lon", 0.0);
             in.remit_in = t.number_or(row, "remittances_in_pct", 0.0) / 100.0;
             in.remit_out = t.number_or(row, "remittances_out_usd", 0.0);
+            // Energy data (generated: Energy Institute via OWID); curated values override.
+            in.oil_production = t.number_or(row, "oil_production_mbd", 0.0);
+            in.oil_consumption = t.number_or(row, "oil_consumption_mbd", -1.0);
             in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
             in.urban = t.number_or(row, "urban_pct", 50.0) / 100.0;
             order.push_back(in.iso);
@@ -362,13 +367,19 @@ struct builder {
             }
             auto& in = it->second;
             in.hemisphere = c.number_or(row, "hemisphere", 1.0);
-            in.oil_production = c.number_or(row, "oil_production_mbd", 0.0);
-            in.oil_elasticity = c.number_or(row, "oil_supply_elasticity", 0.0);
+            if(auto v = c.number(row, "oil_production_mbd")) in.oil_production = *v;
+            if(auto v = c.number(row, "oil_supply_elasticity")) {
+                in.oil_elasticity = *v;
+                in.oil_elasticity_set = true;
+            }
             in.epl = c.number_or(row, "epl", 0.35);
             in.benefit_replacement = c.number_or(row, "benefit_replacement", 0.3);
             in.benefit_coverage = c.number_or(row, "benefit_coverage", 0.15);
             in.death_reporting = c.number_or(row, "death_reporting", 0.5);
-            in.oil_take = c.number_or(row, "oil_gov_take", 0.0);
+            if(auto v = c.number(row, "oil_gov_take")) {
+                in.oil_take = *v;
+                in.oil_take_set = true;
+            }
         }
 
         const auto s = core::csv_table::load(dir + "/sectors.csv", diag);
@@ -1814,30 +1825,76 @@ struct builder {
         w.commodity_set_supply(oil, static_cast<float>(P.oil_demand0));
     }
 
+    // World oil demand by consumption data where known (else PPP GDP shares of what is left);
+    // production from data. With a rest-of-world nation (slices) it takes the residual;
+    // otherwise producers are scaled so that supply equals demand at the start (stocks and
+    // statistical differences make the data's world totals differ by a few per cent).
+    // Producers without curated values get defaults: a short-run supply elasticity of 0.03
+    // and a state take that is high for net exporters (NOC-dominated sectors; Ross 2012).
     void distribute_oil() {
         auto& w = state.world;
         auto const& P = state.params;
-        double ppp_total = 0.0, listed = 0.0;
+        double ppp_rest = 0.0, cons_known = 0.0, prod_known = 0.0;
         dcon::nation_id row;
         for(auto const& iso : order) {
-            ppp_total += inputs[iso].gdp_ppp;
+            auto const& in = inputs[iso];
             if(iso == "ROW") {
                 row = find_nation(state, iso);
-            } else {
-                listed += inputs[iso].oil_production;
+                continue;
             }
+            if(in.oil_consumption >= 0.0) cons_known += in.oil_consumption;
+            else ppp_rest += in.gdp_ppp;
+            prod_known += in.oil_production;
         }
+        double ppp_all = 0.0;
+        for(auto const& iso : order) ppp_all += inputs[iso].gdp_ppp;
+        const bool have_cons = cons_known > 0.0;
+        // Demand in the data's units, then scaled to the world total oil_demand0.
+        std::map<std::string, double> demand;
+        double total = 0.0;
+        for(auto const& iso : order) {
+            auto const& in = inputs[iso];
+            double d;
+            if(!have_cons) d = P.oil_demand0 * in.gdp_ppp / std::max(1.0, ppp_all);
+            else if(in.oil_consumption >= 0.0) d = in.oil_consumption;
+            else d = 0.0; // unknown: the rest of world (slices) consumes the remainder
+            demand[iso] = d;
+            total += d;
+        }
+        if(have_cons && row) {
+            // The slice's rest of world consumes what the listed nations do not.
+            demand["ROW"] = std::max(0.0, P.oil_demand0 - total);
+            total = P.oil_demand0;
+        }
+        const double scale = total > 0.0 ? P.oil_demand0 / total : 1.0;
         for(auto const& iso : order) {
             const auto n = find_nation(state, iso);
-            w.nation_set_oil_demand0(n, static_cast<float>(P.oil_demand0 * inputs[iso].gdp_ppp / ppp_total));
+            w.nation_set_oil_demand0(n, static_cast<float>(demand[iso] * scale));
             w.nation_set_oil_demand(n, w.nation_get_oil_demand0(n));
         }
         if(row) {
-            const float residual = static_cast<float>(std::max(0.0, P.oil_demand0 - listed));
+            const float residual = static_cast<float>(std::max(0.0, P.oil_demand0 - prod_known));
             w.nation_set_oil_production0(row, residual);
             w.nation_set_oil_production(row, residual);
             w.nation_set_oil_target(row, residual);
             inputs["ROW"].oil_production = residual;
+        } else if(prod_known > 0.0) {
+            const double pscale = P.oil_demand0 / prod_known;
+            for(auto const& iso : order) {
+                auto& in = inputs[iso];
+                if(in.oil_production <= 0.0) continue;
+                in.oil_production *= pscale;
+                const auto n = find_nation(state, iso);
+                w.nation_set_oil_production0(n, static_cast<float>(in.oil_production));
+                w.nation_set_oil_production(n, static_cast<float>(in.oil_production));
+                w.nation_set_oil_target(n, static_cast<float>(in.oil_production));
+            }
+        }
+        for(auto const& iso : order) {
+            auto& in = inputs[iso];
+            if(in.oil_production <= 0.0) continue;
+            if(!in.oil_elasticity_set) in.oil_elasticity = 0.03;
+            if(!in.oil_take_set) in.oil_take = in.oil_production > demand[iso] * scale ? 0.5 : 0.15;
         }
     }
 

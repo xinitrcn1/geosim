@@ -71,6 +71,7 @@ SOURCES = [
     ("geoBoundaries gbOpen ADM1 (simplified)", "https://www.geoboundaries.org", "CC BY 4.0 / ODbL / public domain per country (see metadata)"),
     ("Natural Earth 10m populated places", "https://www.naturalearthdata.com", "Public domain"),
     ("Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)", "https://github.com/datasets/oil-prices", "Public domain (EIA) / PDDL"),
+    ("Our World in Data energy dataset (Energy Institute Statistical Review of World Energy; EIA)", "https://github.com/owid/energy-data", "CC BY 4.0"),
 ]
 
 
@@ -165,6 +166,9 @@ def main() -> int:
     print("Brent (EIA RBRTE)")
     get("https://raw.githubusercontent.com/datasets/oil-prices/main/data/brent-daily.csv",
         raw / "brent.csv", args.force)
+
+    print("Energy (OWID: oil, gas and coal production and consumption by country)")
+    get("https://raw.githubusercontent.com/owid/energy-data/master/owid-energy-data.csv", raw / "owid_energy.csv", args.force)
 
     # The 2008 calibration slice (build_slice2008.py): 2007 state, 2008-09 outcomes.
     print("2008 slice: World Bank WDI 2000-2010, WGI 2003-2007, BIS policy rates 2007-12..2009-12")

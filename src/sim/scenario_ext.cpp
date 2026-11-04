@@ -425,8 +425,10 @@ void load_trade_tables(game_state& state, std::string const& dir, core::diagnost
     w.nation_resize_commodity_cons(C);
     w.nation_resize_commodity_take(C);
     w.nation_resize_commodity_demand(C);
-    if(exists(dir + "/commodities_curated.csv")) {
-        const auto t = core::csv_table::load(dir + "/commodities_curated.csv", diag);
+    // Generated shares (world dataset: energy data) first, curated values override them.
+    for(char const* file : {"/commodities.csv", "/commodities_curated.csv"}) {
+    if(exists(dir + file)) {
+        const auto t = core::csv_table::load(dir + file, diag);
         for(std::size_t row = 0; row < t.rows(); ++row) {
             const auto n = find_nation(state, t.get(row, "iso3"));
             if(!n) continue;
@@ -436,9 +438,10 @@ void load_trade_tables(game_state& state, std::string const& dir, core::diagnost
                 const auto ci = static_cast<uint8_t>(c.id.index());
                 w.nation_set_commodity_prod(n, ci, static_cast<float>(t.number_or(row, "production_share", 0.0)));
                 w.nation_set_commodity_cons(n, ci, static_cast<float>(t.number_or(row, "consumption_share", 0.0)));
-                w.nation_set_commodity_take(n, ci, static_cast<float>(t.number_or(row, "gov_take", 0.0)));
+                if(auto v = t.number(row, "gov_take")) w.nation_set_commodity_take(n, ci, static_cast<float>(*v));
             }
         }
+    }
     }
     const auto row_nation = find_nation(state, "ROW");
     for(auto c : w.in_commodity) {
