@@ -580,7 +580,7 @@ int run_app(app_options const& opt) {
                     if(key_pan_x != 0 || key_pan_y != 0) view.pan(key_pan_x, key_pan_y);
                     if(key_zoom != 1.0) view.zoom_at(key_zoom, 0, 0);
                     // Hover: the region (or electoral tile) under the pointer gets a compact
-                    // tooltip; keeping the pointer still (within a few pixels) for 2 s of real
+                    // tooltip; keeping the pointer still (within a few pixels) for 0.75 s of real
                     // time expands it into the detail panel, which stays open while the pointer
                     // is on it. Another region collapses it and restarts the timer.
                     int candidate = -1;
@@ -609,7 +609,7 @@ int run_app(app_options const& opt) {
                             hover_since = hover_now;
                         }
                         if(!hud.tooltip_expanded) {
-                            hud.tooltip_progress = static_cast<float>(std::chrono::duration<double>(hover_now - hover_since).count() / 2.0);
+                            hud.tooltip_progress = static_cast<float>(std::chrono::duration<double>(hover_now - hover_since).count() / 0.75); // expands after 0.75 s
                             if(hud.tooltip_progress >= 1.0f) hud.tooltip_expanded = true;
                         }
                     } else {
