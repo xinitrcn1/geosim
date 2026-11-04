@@ -1,0 +1,58 @@
+# Copied from the 2020 slice (curated for its 20 nations); world-only rows below where added.
+# Bilateral relations at the start of 2020 (hand-written; status quo anchors for the AI).
+#  alliance: 1 = formal defence alliance (NATO; US treaty allies), symmetric
+#  sanction: trade-restriction level the first nation imposes on the second (0..1)
+# Sources: NATO membership; US mutual defence treaties (Japan 1960, Korea 1953, ANZUS 1951);
+# US-China tariffs after the 2018-19 trade war (~19% average on about half of bilateral trade:
+# level 0.2, rounded); EU/US/allied sanctions on Russia since 2014 and Russian counter-sanctions.
+from,to,alliance,sanction
+USA,CAN,1,0
+USA,GBR,1,0
+USA,FRA,1,0
+USA,DEU,1,0
+USA,ITA,1,0
+USA,ESP,1,0
+USA,TUR,1,0
+USA,JPN,1,0
+USA,KOR,1,0
+USA,AUS,1,0
+GBR,FRA,1,0
+GBR,DEU,1,0
+GBR,ITA,1,0
+GBR,ESP,1,0
+GBR,CAN,1,0
+GBR,TUR,1,0
+FRA,DEU,1,0
+FRA,ITA,1,0
+FRA,ESP,1,0
+FRA,CAN,1,0
+FRA,TUR,1,0
+DEU,ITA,1,0
+DEU,ESP,1,0
+DEU,CAN,1,0
+DEU,TUR,1,0
+ITA,ESP,1,0
+ITA,CAN,1,0
+ITA,TUR,1,0
+ESP,CAN,1,0
+ESP,TUR,1,0
+CAN,TUR,1,0
+USA,CHN,0,0.2
+CHN,USA,0,0.2
+USA,RUS,0,0.15
+GBR,RUS,0,0.1
+FRA,RUS,0,0.1
+DEU,RUS,0,0.1
+ITA,RUS,0,0.1
+ESP,RUS,0,0.1
+CAN,RUS,0,0.1
+JPN,RUS,0,0.05
+AUS,RUS,0,0.1
+RUS,USA,0,0.1
+RUS,GBR,0,0.1
+RUS,FRA,0,0.1
+RUS,DEU,0,0.1
+RUS,ITA,0,0.1
+RUS,ESP,0,0.1
+RUS,CAN,0,0.1
+RUS,AUS,0,0.1

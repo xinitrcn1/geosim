@@ -7,6 +7,7 @@
 #include "sim/simulation.hpp"
 #include "sim/systems.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -50,6 +51,13 @@ int main() {
     auto& w = s->world;
     const auto usa = sim::find_nation(*s, "USA"), rus = sim::find_nation(*s, "RUS"), ind = sim::find_nation(*s, "IND"), can = sim::find_nation(*s, "CAN");
     const auto exec = w.nation_get_agent_from_executive_seat(usa);
+    // Party valence is calibrated so the start reproduces observed vote shares.
+    for(auto m : w.nation_get_party_membership(usa)) {
+        const auto key = core::unpack_key(m.get_party().get_key());
+        const float v = m.get_party().get_vote_share();
+        if(key == "DEM") CHECK(std::abs(v - 0.534f) < 0.01f);
+        if(key == "REP") CHECK(std::abs(v - 0.448f) < 0.01f);
+    }
     CHECK(w.agent_get_home(exec) == usa);
     CHECK(w.nation_get_sanction_set(usa, ix(rus)) < 0.0f);
 

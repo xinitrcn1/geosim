@@ -200,7 +200,8 @@ void vote_intention(game_state& state, dcon::nation_id n, std::vector<dcon::part
                     d2 += (a == static_cast<uint8_t>(value_axis::economic_right) ? econ_w : values_w) * d * d;
                 }
                 const float out = outside_window(state, n, party_pos(state, parties[j]));
-                u[j] = -static_cast<float>(P.vote_distance_weight) * d2 - static_cast<float>(P.window_stigma) * out * out
+                u[j] = w.party_get_valence(parties[j]) // non-policy appeal: identification, leaders, organisation
+                       - static_cast<float>(P.vote_distance_weight) * d2 - static_cast<float>(P.window_stigma) * out * out
                        + (parties[j] == incumbent ? static_cast<float>(P.vote_retrospective) * performance : 0.0f);
                 umax = std::max(umax, u[j]);
             }
@@ -493,6 +494,7 @@ bool entry_and_exit(game_state& state, dcon::nation_id n, std::vector<dcon::part
     }
     if(total <= 0.0 || unrep / total < P.party_entry_share) return false;
     const auto p = w.create_party();
+    w.party_set_valence(p, 0.0f); // a new party: policy appeal only
     w.party_set_key(p, core::pack_key("NEW"));
     w.party_set_family(p, static_cast<uint8_t>(party_family::challenger));
     w.party_set_strategy(p, static_cast<uint8_t>(party_strategy::hunter));
@@ -529,6 +531,31 @@ void init_politics(game_state& state) {
         update_window(state, n.id, 0.0f, true);
         update_policy_position(state, n.id, true);
         if(parties.empty()) continue;
+        // Party valence (non-policy appeal: identification, leadership, organisation; Stokes
+        // 1963; Adams, Merrill & Grofman 2005) calibrated so that the spatial model
+        // reproduces the observed vote shares at the start, the alternative-specific
+        // constants of a conditional logit. Shares then move only with voters' values,
+        // salience and performance. Without it a centrist minor party (US "others") took
+        // the median voter and 70% of the vote.
+        {
+            std::array<float, max_parties> target{};
+            float total = 0.0f;
+            for(std::size_t j = 0; j < parties.size() && j < max_parties; ++j) {
+                target[j] = w.party_get_vote_share(parties[j]);
+                total += target[j];
+                w.party_set_valence(parties[j], 0.0f);
+            }
+            if(total > 0.05f) {
+                const float temp = static_cast<float>(state.params.vote_temperature);
+                for(int it = 0; it < 40; ++it) {
+                    vote_intention(state, n.id, parties, 0.0f);
+                    for(std::size_t j = 0; j < parties.size() && j < max_parties; ++j) {
+                        const float want = std::max(1e-3f, target[j] / total), got = std::max(1e-4f, w.party_get_vote_share(parties[j]));
+                        w.party_set_valence(parties[j], w.party_get_valence(parties[j]) + temp * std::log(want / got));
+                    }
+                }
+            }
+        }
         vote_intention(state, n.id, parties, 0.0f);
         const auto inc = n.get_incumbent();
         n.set_approval0(inc ? std::max(0.05f, w.party_get_vote_share(inc)) : 0.5f);

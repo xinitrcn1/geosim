@@ -481,19 +481,24 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
 
 } // namespace
 
-float apply_override(game_state const& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi) {
-    auto const& w = state.world;
+float apply_override(game_state& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi) {
+    auto& w = state.world;
     const float v = w.agent_get_override_value(a, lev);
+    float out = choice;
     switch(static_cast<override_mode>(w.agent_get_override_mode(a, lev))) {
-    case override_mode::none: return choice;
+    case override_mode::none: break;
     case override_mode::advise: {
         const float k = static_cast<float>(state.params.advise_weight);
-        return std::clamp((choice + k * v) / (1.0f + k), lo, hi);
+        out = std::clamp((choice + k * v) / (1.0f + k), lo, hi);
+        break;
     }
-    case override_mode::direct: return std::clamp(v, lo, hi);
-    case override_mode::force: return v;
+    case override_mode::direct: out = std::clamp(v, lo, hi); break;
+    case override_mode::force: out = v; break;
     }
-    return choice;
+    // What the agent would do alone and what it does (the client compares them).
+    w.agent_set_last_ai_choice(a, lev, choice);
+    w.agent_set_last_choice(a, lev, out);
+    return out;
 }
 
 

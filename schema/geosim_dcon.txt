@@ -951,6 +951,7 @@ object{
 	property{ name{strategy} type{uint8_t} }
 	property{ name{family} type{uint8_t} }
 	property{ name{last_vote} type{float} }
+	property{ name{valence} type{float} }
 	property{ name{low_vote_months} type{float} }
 	property{ name{heading} type{array{uint16_t}{float}} }
 }

@@ -552,3 +552,6 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 
 - Fearon, J. (1994). Domestic political audiences and the escalation of international disputes. *American Political Science Review* 88(3).
 - Grossman, G. & Helpman, E. (1994). Protection for sale. *American Economic Review* 84(4). — Lobbying weight.
+- Stokes, D. (1963). Spatial models of party competition. *American Political Science Review* 57(2). — Valence.
+- Adams, J., Merrill, S. & Grofman, B. (2005). *A Unified Theory of Party Competition.* Cambridge UP.
+- Thompson, W. & Dreyer, D. (2012). *Handbook of International Rivalries, 1494–2010.* CQ Press.

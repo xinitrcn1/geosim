@@ -258,3 +258,21 @@ behave unlike the slice without failing a target directly.
   against the slice's loader inputs (`scenario.cpp` reads with defaults, so missing columns
   fail silently). A loader warning for absent expected columns would have caught all
   three issues.
+
+## Party valence (found through the client's Politics tab)
+
+From the first day, the spatial vote model replaced the curated vote shares with its own.
+A centrist minor party ("other parties and independents", at 1.8% in the US data) sat at
+the median voter and took 70% of the US vote and 55% of the UK's. Party valence is now
+calibrated at the start: the non-policy appeal of party identification, leaders and
+organisation (Stokes 1963; Adams, Merrill & Grofman 2005), the alternative-specific
+constants of the conditional logit. It is iterated so that the model reproduces the
+observed shares (US: Democrats 53.4%, Republicans 44.8%) and is then held fixed. Shares
+then move with values, salience and performance; the incumbent Republicans slip to 41%
+by May 2020.
+
+World 2020 also gained the slice's curated nuclear arsenals, alliances and rivalries,
+plus SIPRI 2020 warheads for Pakistan (160), Israel (90) and North Korea (30). It adds
+strategic rivalries outside the slice (Thompson & Dreyer 2012): India–Pakistan,
+Israel–Iran, the two Koreas, US–North Korea, Saudi Arabia–Iran, Armenia–Azerbaijan and
+Greece–Turkey.

@@ -1704,6 +1704,7 @@ struct builder {
         for(std::size_t j = 0; j < list.size(); ++j) {
             auto const& in = list[j];
             const auto p = w.create_party();
+            w.party_set_valence(p, 0.0f);
             w.party_set_key(p, core::pack_key(in.key));
             w.party_set_local_index(p, static_cast<uint8_t>(j));
             w.party_set_family(p, static_cast<uint8_t>(in.family));
@@ -1858,6 +1859,8 @@ struct builder {
             // No party data: three generic parties L / C / R.
             for(uint8_t j = 0; j < 3; ++j) {
                 const auto p = w.create_party();
+                w.party_set_valence(p, 0.0f);
+            w.party_set_valence(p, 0.0f);
                 w.party_set_key(p, core::pack_key(sides[j]));
                 w.party_set_local_index(p, j);
                 w.party_set_strategy(p, static_cast<uint8_t>(party_strategy::aggregator));

@@ -1,0 +1,18 @@
+# Copied from the 2020 slice (curated for its 20 nations); world-only rows below where added.
+# Strategic rivalries active at the start of 2020 among slice nations (Thompson & Dreyer 2012,
+# Handbook of International Rivalries 1494-2010; Colaresi, Rasler & Thompson 2007). Strength 0..1
+# (1 = positional and spatial rivalry with recent militarised disputes). USA-RUS: listed as ended
+# in 1989 by Thompson & Dreyer; entered as renewed (post-2008 MIDs, Correlates of War MID 5.0).
+a,b,rivalry
+USA,CHN,0.8
+USA,RUS,0.7
+CHN,IND,0.8
+CHN,JPN,0.6
+ARG,GBR,0.3
+IND,PAK,0.9
+ISR,IRN,0.8
+KOR,PRK,0.9
+USA,PRK,0.7
+SAU,IRN,0.7
+ARM,AZE,0.8
+GRC,TUR,0.5
