@@ -548,8 +548,22 @@ normally. Both cases were checked: `SDL_AUDIO_DRIVER=nonexistent`, and this
 machine's missing ALSA device. `SDL_AUDIO_DRIVER=dummy` exercises the full
 path without sound.
 
-Keys and options: **M** mutes / unmutes; `--music 0`,
-`--music-volume 0..1` (default 0.6), `--music-seed N` (default random).
+Keys and options:
+- **M** mutes / unmutes.
+- **B** skips to the next song. The jukebox fades the output out over
+  1.2 s, stops the song and every effect tail (`player::hard_stop`, no
+  allocation), and starts the queue's next song after 0.3 s: the same seed
+  chain the queue would have used.
+- **N** cycles the mood: auto → calm → tense → crisis → triumph → wartime →
+  auto. A chosen mood is a manual override with its default intensity. It
+  holds until N reaches *auto* again, which hands the mood back to
+  `derive_music_mood` (indicators, alerts, `sim_runner::player_at_war`).
+  Every press also skips to a song of the new mood (the worker has
+  recomposed the queued song well within the 1.2 s fade). Each press logs
+  `music: mood override: tense` or `music: mood auto: calm` and shows a
+  toast.
+- `--music 0`, `--music-volume 0..1` (default 0.6), `--music-seed N`
+  (default random).
 
 ## Offline rendering
 
@@ -805,6 +819,82 @@ instrument manages to ruin it").
   energy below 150 Hz (sample-and-hold junk); the new one has 0 %. Peaks
   and RMS are unchanged: 2327 −0.86 dBFS and −12.9 dBFS, 2847 −0.83 dBFS
   and −13.1 dBFS.
+
+### The arp, after the third reference
+
+The user pointed to a 2:37 track for "how to wield the arpeggio and
+progressions (yes the arpeggio can have its solo section and still be
+awesome)". It was analysed only; it is not in the repository. Tools:
+ffmpeg decode, an FFT tool for the bar grid, band levels, chroma chords
+and a per-16th pitch track, and the per-bar centroid.
+
+- **Tempo and key:** 129.8 BPM, C# minor, −14.0 LUFS, LRA 5.5 LU.
+- **Structure** (8-bar blocks): bars 1–8 pads and bass only; 9–16 hats
+  enter and the arp starts, dark; 17–24 the main section with a lead line;
+  25 a one-bar breath; 26–32 the **arp-led stretch** (the same cell
+  dominates the mid and high bands, 16 clean onsets per bar, the upper
+  band brightening 3199 → 3577 Hz across it); 33–40 thinner, with
+  tension; 41–50 main; 51–65 relative major; 66–72 the return, VII held
+  three bars with the bass cut on the last; 73–84 the final section.
+- **The arp:**
+  - a wide 4-note cell per beat: the fifth an octave up, the third low,
+    the root an octave up, the fifth (G#–E5–C#6–G#5 over C#m), about 1.5
+    octaves across;
+  - top-octave jumps on accents;
+  - over a chord held 4 bars, a pedal: the high fifth on every other step
+    while the other notes move (E6 over A);
+  - an added ninth over VII (C#6 over B);
+  - the leading tone (B#) in the major V;
+  - brightness arcs over 8 bars.
+- **Harmony:**
+  - dorian colour in minor: ii = D#m, IV = F# major;
+  - a tension chain: ii → B#° (the leading-tone chord) → VI → V major;
+  - a relative-major area: III–VII–VI, with VI held 4 bars;
+  - VII held before the return.
+
+What the composer took from it:
+
+- **Arp solo** (`section_kind::arp_solo`, "arp-solo" in the form). It runs
+  8 bars (16 in wartime and long songs) after the first chorus or drop:
+  in 20 % of calm, 40 % of tense, 35 % of crisis and 45 % of triumph and
+  wartime songs, never in intermissions or into a key change. The
+  section:
+  - opens on a one-bar breath (hats only), then four-on-the-floor kick,
+    off-beat bass roots (calm: held roots) and hats, and a backbeat from
+    bar 3;
+  - holds its chords quietly on the pads; there is no lead and no
+    counter voice;
+  - has the arp as the lead: 8ths for two bars (calm: throughout), then
+    the wide 16th cells with the pedal on held chords and octave jumps, a
+    crescendo of 74 → 114 velocity (the filter opens with velocity), and
+    an octave jump on every beat of the last bar, with a 16th snare pickup
+    and a crash out;
+  - uses a progression in the reference's spirit: i–i–VI–VII, i–ii–VI–V
+    (dorian ii, major V), III–VII–VI–VI, i–ii–VII–VII, i–VI–III–VII; in
+    major I–I–IV–V, vi–IV–I–V, I–bVI–bVII–I; 2 bars a chord in 16-bar
+    solos.
+- **The arp's new figure:** after a solo, in 45 % of those songs, every
+  later arp uses the wide cells, pedals, ninths and octave jumps.
+- **Seeds keep their songs.** The solo and the figure draw from their own
+  generator. The solo is planned after the arrangement and renders with
+  its own velocity jitter, and the voice leading is restored after it.
+  The section before it renders as if its old successor followed. So
+  every song is its previous version, plus at most the inserted solo
+  (shifting what follows) and, after it, the arp figure. In wartime seed
+  2327 the solo comes after the chorus (16 bars). Every other event of
+  that song is unchanged, apart from the intro fixes above and a crash at
+  the solo's end. Seed 2847 gets no solo and is unchanged.
+- **Verification** (score: 300 seeds × 5 moods; render: seed 2327;
+  nothing was checked by listening):
+  - songs with a solo: calm 45, tense 89, crisis 80, triumph 98, wartime
+    128 of 300;
+  - 2327 renders 195.0 s, peak −0.87 dBFS, no clipping. Full-mix RMS
+    over the solo: the breath bar −26 dBFS, then −13 like the sections
+    around it. The arp's own RMS climbs −29 → −23 dBFS across the 16
+    bars (−32 to −36 in the sections before);
+  - the arp's centroid follows the chords and peaks at 2.6 kHz near the
+    end; at most 4 arp onsets per beat (16ths), the shortest gap 101 ms
+    at 140 BPM.
 
 ## Limitations and next steps
 

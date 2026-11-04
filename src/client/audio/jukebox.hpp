@@ -25,6 +25,11 @@ public:
     // Desired mood and intensity; may be called between render() calls.
     void set_mood(mood m, float intensity) noexcept;
     void set_volume(float v) noexcept { player_.set_volume(v); }
+    // Skip to the next song: the output fades out over `skip_fade_seconds`,
+    // the song stops, and the next one (the queue's, same seed chain)
+    // starts after a short gap.
+    void skip() noexcept;
+    float skip_fade_seconds = 1.2f;
     void render(float* out, int frames) noexcept;
 
     [[nodiscard]] song const* current() const noexcept { return current_; }
@@ -44,6 +49,8 @@ private:
     double mood_held_ = 0;          // seconds the desired mood differs from the song's
     mood mood_ = mood::calm;
     uint64_t started_ = 0;
+    bool skipping_ = false;
+    float fade_ = 1.0f;             // output gain while skipping
     float sr_;
 };
 

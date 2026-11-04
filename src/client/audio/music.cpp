@@ -96,6 +96,7 @@ void music_system::audio_callback(void* user, SDL_AudioStream* stream, int addit
     jukebox& box = *self->box_;
     box.set_mood(static_cast<mood>(self->mood_.load(std::memory_order_relaxed)), self->intensity_.load(std::memory_order_relaxed));
     box.set_volume(self->muted_.load(std::memory_order_relaxed) ? 0.0f : self->volume_.load(std::memory_order_relaxed));
+    if(self->skip_.exchange(false, std::memory_order_relaxed)) box.skip();
     int frames = additional / static_cast<int>(2 * sizeof(float));
     while(frames > 0) {
         const int n = std::min(frames, block_frames);

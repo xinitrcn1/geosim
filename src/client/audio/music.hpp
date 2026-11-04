@@ -45,6 +45,8 @@ public:
     void set_volume(float v) noexcept { volume_.store(v, std::memory_order_relaxed); }
     void set_muted(bool m) noexcept { muted_.store(m, std::memory_order_relaxed); }
     [[nodiscard]] bool muted() const noexcept { return muted_.load(std::memory_order_relaxed); }
+    // Skip to the next song (a quick fade-out; the queue's next song, same seed chain).
+    void skip() noexcept { skip_.store(true, std::memory_order_relaxed); }
 
 private:
     static void audio_callback(void* user, SDL_AudioStream* stream, int additional, int total);
@@ -67,6 +69,7 @@ private:
     std::atomic<float> intensity_{0.3f};
     std::atomic<float> volume_{0.7f};
     std::atomic<bool> muted_{false};
+    std::atomic<bool> skip_{false};
 
     // worker only
     uint64_t seed_ = 0;

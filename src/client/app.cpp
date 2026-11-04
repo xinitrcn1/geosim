@@ -1,5 +1,6 @@
 #include "app.hpp"
 
+#include "audio/jukebox.hpp"
 #include "audio/music.hpp"
 #include "hazard_feed.hpp"
 #include "map_data.hpp"
@@ -236,6 +237,7 @@ int run_app(app_options const& opt) {
         audio::music_system music;
         if(opt.music) music.start(opt.music_seed, opt.music_volume);
         music_mood last_mood{};
+        int music_override = -1; // N: -1 = the game's mood, else a mood index (docs/14-audio.md#mood-mapping)
         steady::time_point last_mood_check{};
 
         sim.start(opt.assets, opt.scenario, opt.nation);
@@ -330,6 +332,19 @@ int run_app(app_options const& opt) {
                     } else if(k == SDLK_M && music.running()) {
                         music.set_muted(!music.muted());
                         SDL_Log("music %s", music.muted() ? "muted" : "on");
+                    } else if(k == SDLK_B && music.running()) {
+                        music.skip();
+                        SDL_Log("music: skip");
+                        alerts.push_local("♪", "Music: next song", "", tone::neutral);
+                    } else if(k == SDLK_N && music.running()) {
+                        // cycle: auto (the game's mood) -> calm -> ... -> wartime -> auto; a change skips to a new song
+                        music_override = music_override + 1 >= audio::mood_count ? -1 : music_override + 1;
+                        const music_mood mm = music_override < 0 ? derive_music_mood(sim, alerts) : music_mood{static_cast<audio::mood>(music_override), audio::default_intensity(static_cast<audio::mood>(music_override))};
+                        music.set_mood(mm.m, mm.intensity);
+                        music.skip();
+                        last_mood = mm;
+                        SDL_Log("music: mood %s%s", music_override < 0 ? "auto: " : "override: ", audio::mood_name(mm.m));
+                        alerts.push_local("♪", std::string("Music: ") + (music_override < 0 ? "auto (" + std::string(audio::mood_name(mm.m)) + ")" : audio::mood_name(mm.m)), "N cycles the mood, B skips", tone::neutral);
                     }
                     break;
                 }
@@ -391,7 +406,7 @@ int run_app(app_options const& opt) {
                 }
             }
             if(map.ready() && political.update(sim, hazards, hud.filter)) map.set_table(political.table());
-            if(music.running() && steady::now() - last_mood_check > std::chrono::seconds(2)) {
+            if(music.running() && music_override < 0 && steady::now() - last_mood_check > std::chrono::seconds(2)) {
                 last_mood_check = steady::now();
                 const music_mood mm = derive_music_mood(sim, alerts);
                 if(mm.m != last_mood.m) SDL_Log("music mood: %s (intensity %.2f)", audio::mood_name(mm.m), static_cast<double>(mm.intensity));

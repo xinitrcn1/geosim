@@ -6,6 +6,7 @@
 // output is finite and below 0 dBFS.
 
 #include "client/audio/composer.hpp"
+#include "client/audio/jukebox.hpp"
 #include "client/audio/synth.hpp"
 
 #include <algorithm>
@@ -146,6 +147,34 @@ int main() {
     for(uint64_t seed = 1; seed <= 200; ++seed) chip += compose(seed, static_cast<mood>(seed % 4)).style == "chip";
     check(chip <= 20, "chip family rare", 0, mood::calm);
     check(lead_hi - lead_lo >= 12, "song lead registers span an octave or more", 0, mood::calm);
+    // B (skip): the song fades out within ~1.2 s and the next queued song starts
+    {
+        struct queue {
+            std::vector<std::unique_ptr<song>> songs;
+            std::size_t next = 0;
+        } q;
+        for(uint64_t sd : {11ull, 12ull, 13ull}) q.songs.push_back(std::make_unique<song>(compose(sd, mood::tense)));
+        auto take = [](void* u) -> song* {
+            auto* qq = static_cast<queue*>(u);
+            return qq->next < qq->songs.size() ? qq->songs[qq->next++].get() : nullptr;
+        };
+        auto retire = [](void*, song*) {};
+        auto box = std::make_unique<jukebox>(48000.0f, take, retire, &q);
+        box->set_mood(mood::tense, 0.5f);
+        bool finite = true;
+        auto run = [&](double seconds) {
+            for(int blk = 0; blk < static_cast<int>(seconds * 48000 / 512); ++blk) {
+                box->render(buf.data(), 512);
+                for(float x : buf) finite = finite && std::isfinite(x);
+            }
+        };
+        run(10.0);
+        check(box->songs_started() == 1 && box->current() == q.songs[0].get(), "first song playing", 11, mood::tense);
+        box->skip();
+        run(2.0);
+        check(box->songs_started() == 2 && box->current() == q.songs[1].get(), "skip starts the next song within 2 s", 11, mood::tense);
+        check(finite, "skip output finite", 11, mood::tense);
+    }
     if(failures == 0) std::puts("test_music: ok");
     return failures == 0 ? 0 : 1;
 }

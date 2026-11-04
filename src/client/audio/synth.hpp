@@ -35,6 +35,9 @@ public:
     void set_volume(float v) noexcept { volume_target_ = v; }                   // master, smoothed
     // Jump to the outro at the next 8-bar boundary (mood changed mid-song).
     void request_outro() noexcept { outro_requested_ = true; }
+    // Stop the song and silence every voice and effect tail at once (after
+    // the jukebox has faded the output out for a skip). No allocation.
+    void hard_stop() noexcept;
 
     // Interleaved stereo float frames.
     void render(float* out, int frames) noexcept;

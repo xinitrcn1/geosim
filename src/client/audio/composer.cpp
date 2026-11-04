@@ -66,6 +66,7 @@ char const* section_name(section_kind k) noexcept {
     case section_kind::drop: return "drop";
     case section_kind::outro: return "outro";
     case section_kind::groove: return "groove";
+    case section_kind::arp_solo: return "arp-solo";
     }
     return "?";
 }
@@ -272,7 +273,7 @@ struct bass_pat {
 
 class composer {
 public:
-    composer(uint64_t seed, mood m) : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), s_() {
+    composer(uint64_t seed, mood m) : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), sr_(seed ^ 0x510E527FADE682D1ull), s_() {
         s_.seed = seed;
         s_.m = m;
     }
@@ -284,8 +285,12 @@ public:
         choose_groove();
         choose_form();
         choose_arrangement();
+        insert_arp_solo();
         plan_bars();
-        for(std::size_t i = 0; i < plan_.size(); ++i) render_section(i);
+        for(std::size_t i = 0; i < plan_.size(); ++i) {
+            if(plan_[i].sec.kind == section_kind::arp_solo) render_arp_solo(i);
+            else render_section(i);
+        }
         apply_mutes();
         s_.events.insert(s_.events.end(), post_.begin(), post_.end());
         std::stable_sort(s_.events.begin(), s_.events.end(), [](note_event const& a, note_event const& b) { return a.tick < b.tick; });
@@ -313,6 +318,7 @@ private:
         uint8_t forced_out = 255; // the epic form's fixed hand-overs (255: choose)
         bool quiet = false;     // intro of pads and arps only (no drums or bass)
         bool build_up = false;  // drums and bass enter, layers build (kick + bass, hats, backbeat, melody)
+        uint8_t orig_next = 255; // the next section's kind before an arp solo was inserted (renders as before)
     };
     // The harmony of one bar of the song, for snapping coloured chords.
     struct bar_info {
@@ -322,6 +328,10 @@ private:
 
     rng r_;
     rng tr_; // arrangement choices (transitions, development); separate so the basics stay the same per seed
+    // arp devices (the arp solo, the wide arp shapes): their own generator, so
+    // a seed keeps every other choice it made before they existed
+    rng sr_;
+    rng* jit_ = &r_; // the generator of add()'s velocity jitter (the solo's own while it renders)
     song s_;
     bool war_ = false;
     style_id style_ = st_techno;
@@ -364,6 +374,8 @@ private:
     bool counter_pulse_ = false;
     int last_ctr_ = -1;
     // key change
+    bool arp_wide_ = false;   // after an arp solo, the arp keeps its wide cells, pedals and octave jumps
+    uint32_t solo_bar_ = ~0u; // the arp solo's first bar (none: ~0)
     bool no_jitter_ = false;  // add() without velocity jitter (events that must not draw random numbers)
     bool epic_ = false;       // the long form after the reference module
     int mod_shift_ = 0;
@@ -505,7 +517,7 @@ private:
         e.tick = bar * ticks_per_bar + static_cast<uint32_t>(tick_in_bar);
         e.len = static_cast<uint16_t>(std::max(1, len_rows * ticks_per_row + len_ticks_extra - ((row & 1) ? swing_ : 0)));
         e.ch = ch;
-        e.vel = u8(std::clamp(vel + (no_jitter_ ? 0 : r_.range(-5, 5)), 1, 127));
+        e.vel = u8(std::clamp(vel + (no_jitter_ ? 0 : jit_->range(-5, 5)), 1, 127));
         e.layer = lay;
         e.fx = fx;
         e.count = 0;
@@ -1356,6 +1368,7 @@ private:
             case K::intro:
             case K::verse:
             case K::groove:
+            case K::arp_solo:
             case K::outro: p.prog = prog_a_, p.bars_per_chord = bpc_a_; break;
             case K::chorus:
             case K::drop: p.prog = prog_b_, p.bars_per_chord = bpc_b_; break;
@@ -1722,6 +1735,145 @@ private:
         s_.events.resize(mark);
     }
 
+    // --- the arp solo -------------------------------------------------------
+    // After the reference track (analysed for docs/14): an
+    // 8-bar stretch (16 in wartime and long songs) after the first chorus or
+    // drop where the arpeggio carries the melody. A one-bar breath (no kick,
+    // no bass) introduces it; kick, off-beat bass, hats and a backbeat come
+    // back under it; the pads hold the chords quietly; no lead, no counter.
+    // The arp starts in 8ths, runs wide 16th cells from bar 3 with a
+    // crescendo (the filter opens with velocity), and its last bar jumps an
+    // octave on every beat. It is planned after the arrangement and drawn
+    // from its own generator, and the sections around it render exactly as
+    // before, so a seed keeps the rest of its song.
+    void insert_arp_solo() {
+        using K = section_kind;
+        static constexpr float p_solo[mood_count] = {0.2f, 0.4f, 0.35f, 0.45f, 0.45f};
+        arp_wide_ = sr_.chance(0.45f);
+        const bool want = sr_.chance(p_solo[static_cast<int>(s_.m)]);
+        const float pick = sr_.uniform();
+        const bool two = sr_.chance(0.5f);
+        if(!want || s_.total_bars < 40) return; // not in intermissions
+        std::size_t j = 0;
+        for(std::size_t i = 1; i + 1 < plan_.size(); ++i) {
+            if(big(plan_[i].sec.kind)) {
+                j = i + 1;
+                break;
+            }
+        }
+        if(j == 0 || plan_[j].sec.kind == K::outro) return;
+        plan_item& prev = plan_[j - 1];
+        if(prev.pivot_deg >= 0 || plan_[j].shift != prev.shift) return; // not into the key change
+        const int bars = war_ || s_.duration_seconds() > 300.0 ? 16 : 8;
+        if((s_.total_bars + static_cast<uint32_t>(bars)) * 240.0 / static_cast<double>(s_.bpm) > 598.0) return;
+        // progressions in the reference's spirit: held chords, the relative
+        // major, dorian ii, a major V, VII held before the return
+        static const progression solo_progs[] = {
+            {minorish, {0, 0, 5, 6}},                                                   // i i VI VII
+            {bit(m_aeolian) | bit(m_dorian), {0, 1, 5, 4}, {c_home, c_dorian, c_home, c_harm}}, // i ii VI V
+            {bit(m_aeolian) | bit(m_dorian) | bit(m_harmonic), {2, 6, 5, 5}},           // III VII VI VI (relative major)
+            {bit(m_aeolian) | bit(m_dorian), {0, 1, 6, 6}, {c_home, c_dorian, c_home, c_home}}, // i ii VII VII
+            {bit(m_aeolian) | bit(m_phrygian), {0, 5, 2, 6}},                           // i VI III VII
+            {majorish, {0, 0, 3, 4}},                                                   // I I IV V
+            {bit(m_ionian) | bit(m_mixolydian), {5, 3, 0, 4}},                          // vi IV I V
+            {bit(m_ionian) | bit(m_mixolydian) | bit(m_lydian), {0, 5, 6, 0}, {c_home, c_minor, c_minor, c_home}}, // I bVI bVII I
+        };
+        std::vector<progression const*> fit;
+        for(auto const& pr : solo_progs) {
+            if(pr.mode_mask & bit(s_.mode)) fit.push_back(&pr);
+        }
+        plan_item solo;
+        solo.sec = {K::arp_solo, prev.sec.start_bar + prev.sec.bars, static_cast<uint32_t>(bars)};
+        solo.prog = fit.empty() ? prog_b_ : fit[std::min(fit.size() - 1, static_cast<std::size_t>(pick * static_cast<float>(fit.size())))];
+        solo.bars_per_chord = bars >= 16 || two ? 2 : 1;
+        solo.shift = prev.shift;
+        solo.downlift = prev.downlift; // the section after the solo keeps its entry
+        solo.impact = prev.impact;
+        solo.out = tr_plain;
+        const int idx = ((bars - 1) / solo.bars_per_chord) % 4;
+        const int last = solo.prog->deg[idx];
+        solo.end_tonic = solo.prog->col[idx] != c_home || (!is_chord_tone(0, last) && !is_chord_tone(4, last) && !is_chord_tone(2, last));
+        prev.orig_next = static_cast<uint8_t>(plan_[j].sec.kind);
+        const std::string after = section_name(prev.sec.kind);
+        plan_.insert(plan_.begin() + static_cast<std::ptrdiff_t>(j), solo);
+        solo_bar_ = solo.sec.start_bar;
+        for(std::size_t i = j + 1; i < plan_.size(); ++i) plan_[i].sec.start_bar += static_cast<uint32_t>(bars);
+        if(mod_shift_ && mod_bar_ >= plan_[j].sec.start_bar) mod_bar_ += static_cast<uint32_t>(bars);
+        s_.sections.clear();
+        for(plan_item const& it : plan_) s_.sections.push_back(it.sec);
+        s_.total_bars += static_cast<uint32_t>(bars);
+        transitions_ += (transitions_.empty() ? "" : "; ") + std::string("arp solo after ") + after;
+    }
+
+    void render_arp_solo(std::size_t index) {
+        plan_item const& p = plan_[index];
+        rng* const keep_jit = jit_;
+        jit_ = &sr_; // no draw from the main generators
+        int keep_voicing[4];
+        std::copy(last_voicing_, last_voicing_ + 4, keep_voicing);
+        const int keep_n = voicing_n_;
+        swing_ = song_swing_;
+        const bool calm = s_.m == mood::calm;
+        const int bars = static_cast<int>(p.sec.bars);
+        const uint32_t b0 = p.sec.start_bar;
+        add(b0, 0, ch_fx, {dr_crash}, 16, 84);
+        for(int bi = 0; bi < bars; ++bi) {
+            const uint32_t bar = b0 + static_cast<uint32_t>(bi);
+            const int root = chord_at(p, bi);
+            const bool breath = bi == 0;
+            const bool last_bar = bi == bars - 1;
+            // drums: the breath, then four-on-the-floor, hats, a backbeat from bar 3
+            if(!breath && !(calm && bi < 2)) {
+                for(int row = 0; row < 16; row += 4) add(bar, row, ch_kick, {dr_kick}, 2, 116);
+            }
+            for(int row = 0; row < 16; row += 2) {
+                if(row % 4 == 2 && !breath) add(bar, row, ch_hats, {dr_hat_open}, 2, 78);
+                else add(bar, row, ch_hats, {dr_hat_closed}, 1, row % 4 == 0 ? 58 : 68);
+            }
+            if(bi >= 2 && !(last_bar && bars > 1)) {
+                for(int row : {4, 12}) add(bar, row, ch_snare, {backbeat_}, 2, calm ? 84 : 100);
+            }
+            if(last_bar) {
+                add(bar, 4, ch_snare, {backbeat_}, 2, 100);
+                for(int row = 12; row < 16; ++row) add(bar, row, ch_snare, {dr_snare}, 1, 70 + 10 * (row - 12)); // a 16th pickup
+            }
+            // bass: off-beat roots (calm: the root held)
+            if(!breath) {
+                if(calm) add(bar, 0, ch_bass, {pitch(key_ - 12, root)}, 14, 96);
+                else {
+                    for(int row = 2; row < 16; row += 4) add(bar, row, ch_bass, {pitch(key_ - 12, root)}, 2, 104);
+                }
+            }
+            // pads: the chords held, quietly
+            const bool new_chord = bi == 0 || chord_id(p, bi - 1) != chord_id(p, bi);
+            if(new_chord) {
+                int span = 1;
+                while(bi + span < bars && chord_id(p, bi + span) == chord_id(p, bi)) ++span;
+                emit_chord(bar, 0, root, span * 16 - 1, 54, layer_always);
+            }
+        }
+        // the arp as the lead: 8ths for two bars (calm: throughout), then wide
+        // 16th cells, crescendo, the last bar jumping an octave every beat
+        const int base = key_ + 12;
+        int step = 0;
+        for(int pos = 0; pos < bars * 16;) {
+            const int b = pos / 16, row = pos % 16;
+            const int rate = calm || b < 2 ? 2 : 1;
+            int deg = wide_deg(p, b, step, b);
+            if(b == bars - 1 && step % 4 == 0) deg += 7;
+            int n = pitch(base, deg);
+            while(n > 90) n -= 12;
+            const int vel = 74 + 40 * pos / (bars * 16) + (row % 4 == 0 ? 8 : 0);
+            add(b0 + static_cast<uint32_t>(b), row, ch_arp, {n}, rate == 2 ? 2 : 1, std::min(127, vel));
+            ++step;
+            pos += rate;
+        }
+        add(b0 + static_cast<uint32_t>(bars), 0, ch_fx, {dr_crash}, 16, 100);
+        std::copy(keep_voicing, keep_voicing + 4, last_voicing_);
+        voicing_n_ = keep_n;
+        jit_ = keep_jit;
+    }
+
     // --- section rendering --------------------------------------------------
     [[nodiscard]] static bool big(section_kind k) { return k == section_kind::chorus || k == section_kind::drop; }
 
@@ -1729,7 +1881,7 @@ private:
         using K = section_kind;
         plan_item const& p = plan_[index];
         const K k = p.sec.kind;
-        const K next = index + 1 < plan_.size() ? plan_[index + 1].sec.kind : K::outro;
+        const K next = p.orig_next != 255 ? static_cast<K>(p.orig_next) : index + 1 < plan_.size() ? plan_[index + 1].sec.kind : K::outro;
         const bool last_section = index + 1 == plan_.size();
         const int bars = static_cast<int>(p.sec.bars);
         const uint32_t b0 = p.sec.start_bar;
@@ -2224,14 +2376,36 @@ private:
             const int root = chord_at(p, b);
             int tone = arp_order_[static_cast<std::size_t>((idx + (evolve ? k / 2 : 0)) % len)];
             if(evolve && k % 4 >= 2) tone = std::min(4, tone + 1);
+            const int step = idx;
             ++idx;
-            const int deg = root + (tone == 3 ? 7 : tone == 4 ? 9 : tone * 2);
+            int deg = root + (tone == 3 ? 7 : tone == 4 ? 9 : tone * 2);
+            if(arp_wide_ && p.sec.start_bar > solo_bar_) deg = wide_deg(p, b, step, b - bi); // after the solo, the arp keeps its new figure
             int n = pitch(arp_base_ + base_shift, deg);
             while(n > 88) n -= 12;
             const int accent = row % 4 == 0 ? 12 : row % 2 == 0 ? 4 : 0;
             const int arc = evolve ? 4 * (k % 4) : 0;
             add(p.sec.start_bar + static_cast<uint32_t>(b), row, ch_arp, {n}, arp_len_, vel + accent + arc, lay);
         }
+    }
+
+    // The reference track's arp: a wide 4-note cell per beat (the fifth an
+    // octave up, the third low, the root an octave up, the fifth), about
+    // 1.5 octaves across; over a chord held into the next bar a pedal (the
+    // high fifth on every other step); an added ninth on major chords now
+    // and then; and the cell's first note jumps an octave on every other
+    // bar's downbeat. `step` counts the arp's notes, `k` its bars.
+    [[nodiscard]] int wide_deg(plan_item const& p, int b, int step, int k) const {
+        const int root = chord_at(p, b);
+        const bool held = b + 1 < static_cast<int>(p.sec.bars) && chord_id(p, b + 1) == chord_id(p, b) && chord_id(p, std::max(0, b - 1)) == chord_id(p, b);
+        const bool major = pitch(key_, root + 2) - pitch(key_, root) == 4;
+        const int s = step % 4;
+        static constexpr int cell[4] = {11, 2, 7, 4};
+        int deg = root + cell[s];
+        if(held && s % 2 == 0) deg = root + 11;                                     // the pedal
+        if(held && s == 3) deg = root + ((step / 4) % 2 ? 9 : 4);                     // the moving voice under it
+        if(major && s == 3 && (step / 4) % 4 == 3) deg = root + 8;                    // the ninth (an octave up)
+        if(s == 0 && (step / 4) % 4 == 0 && k % 2 == 1) deg += 7;                     // octave jump
+        return deg;
     }
 
     // Phrase plans. A 4-cell (8-bar) phrase is statement, sequence,
@@ -2250,6 +2424,7 @@ private:
         const int under = arp_base_ >= key_ + 24 ? -12 : 0; // chorus arps sit under the lead
         switch(p.sec.kind) {
         case K::groove: break; // drums, bass and percussion only
+        case K::arp_solo: break; // rendered by render_arp_solo
         case K::intro:
             if(p.quiet) {
                 place_arp(p, 0, bars, 0, 52, layer_always, 0, true); // pads and a long arp, no drums

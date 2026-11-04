@@ -123,6 +123,21 @@ void player::set_song(song const* s) noexcept {
     to_next_tick_ = samples_per_tick_;
 }
 
+void player::hard_stop() noexcept {
+    song_ = nullptr;
+    finished_ = false;
+    sweep_dir_ = 0;
+    for(auto& pool : voices_) {
+        for(voice& v : pool) v.active = false;
+    }
+    std::fill(delay_l_.begin(), delay_l_.end(), 0.0f);
+    std::fill(delay_r_.begin(), delay_r_.end(), 0.0f);
+    std::fill(chorus_buf_.begin(), chorus_buf_.end(), 0.0f);
+    for(comb& c : combs_) c.buf.fill(0.0f), c.store = 0.0f;
+    for(allpass& a : allpasses_) a.buf.fill(0.0f);
+    delay_lp_l_ = delay_lp_r_ = 0.0f;
+}
+
 bool player::layer_on(uint8_t layer) const noexcept {
     switch(layer) {
     case layer_min_mid: return intensity_ >= layer_mid;

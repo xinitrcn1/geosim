@@ -119,7 +119,8 @@ struct note_event {
 };
 
 // groove: a percussion-heavy section (drums, bass, percussion; no chords or melody)
-enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro, groove };
+// arp_solo: the arpeggio carries the melody (after the reference track's arp-led stretch)
+enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro, groove, arp_solo };
 [[nodiscard]] char const* section_name(section_kind k) noexcept;
 
 struct section {
