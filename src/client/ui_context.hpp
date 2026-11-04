@@ -60,6 +60,10 @@ public:
     // optional blue title strip of `header` pixels. Text on it should be drawn
     // with set_text_backing(false).
     void flat_panel(rect r, float header = 0);
+    // A sector of the disc inscribed in `r` (overlay): angles in turns counter-clockwise
+    // from +x, `inner` = inner radius as a fraction of the outer, `gap` = pixels cut
+    // from each straight edge (a spacer between neighbouring slices).
+    void arc(rect r, float a0, float a1, float inner, rgba c, float gap = 0);
     // The faint dark backing under overlay text (on by default; off on flat panels).
     void set_text_backing(bool on) noexcept { backing_ = on; }
     float text(layer l, float x, float baseline, std::string_view s, float size_px, rgba c, font_weight w = font_weight::regular);

@@ -3,6 +3,7 @@
 #include "core/csv.hpp"
 #include "core/diagnostics.hpp"
 #include "core/keys.hpp"
+#include "sim/commands.hpp"
 #include "sim/model.hpp"
 #include "sim/report.hpp"
 #include "sim/save.hpp"
@@ -15,7 +16,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <deque>
 #include <map>
+#include <unordered_map>
 
 namespace geosim::client {
 
@@ -72,6 +76,8 @@ bool is_alert_code(uint8_t c) {
         return false;
     }
 }
+
+} // namespace
 
 // Every controllable agent with its nation and a label. Executives and central
 // banks come from their seats, unions / militaries / rebels from their nation,
@@ -132,9 +138,72 @@ std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::str
     return out;
 }
 
-} // namespace
+// The player -> sim command stream and its results (sim/commands.hpp).
+struct sim_runner::command_io {
+    sim::command_queue in;                  // UI thread pushes, sim thread drains
+    sim::result_queue out;                  // sim thread pushes, UI thread pops
+    std::deque<sim::command> backlog;       // UI thread: not yet accepted by a full queue
+    std::unordered_map<uint32_t, action_outcome> results; // UI thread: action results by seq
+};
 
-sim_runner::sim_runner() = default;
+sim_runner::sim_runner() : io_(std::make_unique<command_io>()) {}
+
+uint32_t sim_runner::push_command(sim::command c) {
+    c.seq = ++seq_;
+    c.tick = tick(); // applies before the next tick (lockstep will add an input delay)
+    if(!io_->backlog.empty() || !io_->in.push(c)) io_->backlog.push_back(c);
+    {
+        std::lock_guard lock(mutex_); // wakes a paused sim without a lost notification
+    }
+    wake_.notify_all();
+    return c.seq;
+}
+
+void sim_runner::pump() {
+    bool pushed = false;
+    while(!io_->backlog.empty() && io_->in.push(io_->backlog.front())) {
+        io_->backlog.pop_front();
+        pushed = true;
+    }
+    if(pushed) {
+        {
+            std::lock_guard lock(mutex_);
+        }
+        wake_.notify_all();
+    }
+    while(auto r = io_->out.pop()) {
+        if(r->tag == sim::command_tag::action) {
+            io_->results[r->seq] = {r->accepted != 0, std::string(r->message, strnlen(r->message, sizeof(r->message)))};
+        } else if(!r->accepted) {
+            SDL_Log("command %u rejected: %s", r->seq, r->message);
+        }
+    }
+}
+
+bool sim_runner::take_result(uint32_t seq, action_outcome& out) {
+    auto it = io_->results.find(seq);
+    if(it == io_->results.end()) return false;
+    out = std::move(it->second);
+    io_->results.erase(it);
+    return true;
+}
+
+uint32_t sim_runner::set_override(uint32_t agent, uint8_t lever, uint8_t mode, float value) {
+    return push_command(sim::make_set_override(dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, lever,
+                                               static_cast<sim::override_mode>(mode), value, 0, 0));
+}
+
+uint32_t sim_runner::perform(action_order o) {
+    sim::action_request q;
+    q.kind = static_cast<sim::action_kind>(o.kind);
+    q.actor = dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(o.agent)};
+    if(o.nation != 0xFFFFFFFFu) q.target = dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(o.nation)};
+    if(o.organisation != 0xFFFFFFFFu) q.organisation = dcon::organisation_id{static_cast<dcon::organisation_id::value_base_t>(o.organisation)};
+    q.treaty = o.treaty < static_cast<uint8_t>(sim::treaty_kind::count) ? static_cast<sim::treaty_kind>(o.treaty) : sim::treaty_kind::count;
+    q.lever = o.lever;
+    q.value = o.value;
+    return push_command(sim::make_action(q, 0, 0));
+}
 
 std::future<std::vector<agent_info>> sim_runner::request_agents() {
     auto promise = std::make_shared<std::promise<std::vector<agent_info>>>();
@@ -202,22 +271,9 @@ void sim_runner::set_ai(uint32_t agent, bool on) {
     for(std::size_t i = 0; i < agents_.size(); ++i) {
         if(agents_[i].agent == agent) ai_[i] = on ? 1 : 0;
     }
-    post([agent, on](game_state& s) {
-        auto& w = s.world;
-        if(agent >= w.agent_size()) return;
-        const dcon::agent_id a{static_cast<dcon::agent_id::value_base_t>(agent)};
-        // AI off: every lever directed at its current choice, so nothing moves until the
-        // player changes it. AI on: overrides cleared (the AI decides; the player may
-        // still advise or force single levers).
-        for(uint8_t l = 0; l < s.derived.lever_count; ++l) {
-            if(on) {
-                w.agent_set_override_mode(a, l, static_cast<uint8_t>(sim::override_mode::none));
-            } else {
-                w.agent_set_override_mode(a, l, static_cast<uint8_t>(sim::override_mode::direct));
-                w.agent_set_override_value(a, l, w.agent_get_last_choice(a, l));
-            }
-        }
-    });
+    // The sim applies it: AI off directs every lever at its current choice, AI on clears
+    // the overrides (sim/commands.cpp).
+    push_command(sim::make_set_ai(dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, on, 0, 0));
     SDL_Log("agent %u: AI %s", agent, on ? "on" : "off (full control)");
 }
 
@@ -473,13 +529,15 @@ void sim_runner::run() {
         }
         for(auto& job : jobs) job(s);
         jobs.clear();
+        // The player's commands due now (also while paused: they apply without unpausing).
+        sim::drain_commands(s, io_->in, io_->out);
 
         const int sp = speed_.load();
         const auto now = clock::now();
         if(sp == 0) {
             measured_rate_.store(0.0);
             std::unique_lock lock(mutex_);
-            wake_.wait(lock, [&] { return quit_ || !jobs_.empty() || speed_.load() != 0; });
+            wake_.wait(lock, [&] { return quit_ || !jobs_.empty() || !io_->in.empty() || speed_.load() != 0; });
             last_day = clock::now();
             rate_start = last_day;
             rate_days = 0;
@@ -490,7 +548,7 @@ void sim_runner::run() {
             const auto due = last_day + period;
             if(now < due) {
                 std::unique_lock lock(mutex_);
-                wake_.wait_until(lock, due, [&] { return quit_ || !jobs_.empty() || speed_.load() != sp; });
+                wake_.wait_until(lock, due, [&] { return quit_ || !jobs_.empty() || !io_->in.empty() || speed_.load() != sp; });
                 continue;
             }
             // No catch-up bursts after a stall: at most one period behind.
@@ -653,7 +711,7 @@ void sim_runner::read_agent(agent_info const& info, bool ai, controlled& c, std:
     case agent_kind::military:
         p.icon = "\U0001F396"; // military medal
         p.items.push_back({"Loyalty", valued(w.nation_get_military_loyalty(n), "%.2f"), tone::neutral, "Military loyalty to the government (0..1)"});
-        p.items.push_back({"Defence", valued(w.nation_get_defense_share(n) * 100.0, "%.1f%%"), tone::neutral, "Defence spending, % of GDP"});
+        p.items.push_back({"Defence", valued(w.nation_get_defense_share(n), "%.1f%%"), tone::neutral, "Defence spending, % of GDP"});
         break;
     case agent_kind::board:
         p.icon = "\U0001F3ED"; // factory

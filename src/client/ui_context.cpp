@@ -59,6 +59,10 @@ void ui_context::fill(layer l, rect r, rgba c, material m) {
     (l == layer::scene ? scene : overlay).push(m, make_quad(r, c, quad_mode::solid));
 }
 
+void ui_context::arc(rect r, float a0, float a1, float inner, rgba c, float gap) {
+    overlay.push(material::ui, {r.x, r.y, r.w, r.h, a0, a1, inner, gap, pack(c), 0, 0, static_cast<uint32_t>(quad_mode::arc)});
+}
+
 void ui_context::panel(rect r, panel_kind kind) {
     // Snap to whole pixels so borders stay crisp.
     r = {std::round(r.x), std::round(r.y), std::round(r.w), std::round(r.h)};

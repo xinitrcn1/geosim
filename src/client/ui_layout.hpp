@@ -6,6 +6,7 @@
 //     coloured green / red when good / bad for the player;
 //   the alert feed (translucent, dismissable), fed by the decision journal.
 
+#include "action_tabs.hpp"
 #include "client_files.hpp"
 #include "sim_runner.hpp"
 #include "ui_context.hpp"
@@ -63,7 +64,8 @@ private:
     std::size_t unread_ = 0;
 };
 
-enum class hud_action : uint8_t { none, policy, budget, diplomacy, military, politics, control };
+// Top-bar windows, in button order (control = the '+' picker).
+enum class hud_action : uint8_t { none, policy, budget, trade, diplomacy, military, politics, control };
 // Map views (top-bar filter buttons; docs/07-map-and-filters.md#views).
 enum class map_filter : uint8_t { political, climate, economy, trade, energy, epidemic, unrest, count };
 
@@ -148,7 +150,12 @@ struct hud_state {
     int control_kind = 0;        // sim::agent_kind shown
     float control_scroll = 0;
     std::string search;          // typed into the Control window
+    tabs_state tabs;             // the action tabs: acting agent, data, diplomacy picks
 };
+
+// A window (Politics, Policies, Diplomacy...): flat white with a blue title strip and a
+// close button, filling `win`. Returns the body rect.
+rect window_frame(ui_context& ui, hud_state& st, rect win, std::string_view title, std::string_view subtitle);
 
 // `tab` (may be null): the map mode's legend (bottom right; the alert column
 // ends above it). `politics` (may be null): the Politics window's content. An

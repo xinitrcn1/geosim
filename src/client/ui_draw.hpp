@@ -40,7 +40,7 @@ struct rect {
 };
 
 // ui.frag modes (flags bits 0..7). Keep in sync with shaders/common.glsl.
-enum class quad_mode : uint32_t { solid = 0, frosted = 1, glyph = 2, scene = 3 };
+enum class quad_mode : uint32_t { solid = 0, frosted = 1, glyph = 2, scene = 3, arc = 4 };
 
 // Vertex-rate-instance layout (48 bytes). Keep in sync with shaders/quad.vert
 // and ui_renderer.cpp (vertex attribute descriptions).

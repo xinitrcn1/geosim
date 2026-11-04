@@ -15,6 +15,7 @@
 
 #include "core/calendar.hpp"
 #include "map_hazards.hpp"
+#include "tab_data.hpp"
 #include "ui_context.hpp"
 
 #include <atomic>
@@ -30,6 +31,9 @@
 
 namespace geosim {
 struct game_state;
+}
+namespace geosim::sim {
+struct command;
 }
 
 namespace geosim::client {
@@ -88,6 +92,11 @@ struct journal_batch {
     std::vector<journal_entry> entries;
 };
 
+// Every controllable agent with its nation and a label (sim thread; sim_runner.cpp).
+// Names by nation / region index (empty strings fall back to codes).
+std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::string> const& nation_names,
+                                       std::vector<std::string> const& region_names);
+
 class sim_runner {
 public:
     sim_runner();
@@ -107,6 +116,7 @@ public:
     std::future<std::vector<agent_info>> request_agents();
     // The player's agents (UI thread). Adding one gives it an agent bar; its AI
     // stays on (the player advises or forces) until set_ai(agent, false), which
+    // (a sim::command_tag::set_ai command, applied by the sim before its next tick)
     // directs every lever at its current value (override_mode::direct) through a
     // job at the sync point; set_ai(agent, true) clears the overrides.
     void add_control(agent_info const& a);
@@ -162,6 +172,23 @@ public:
     // x turnout) or regime-support inputs, for the Politics tab (sim_hazards.cpp).
     std::future<politics_snapshot> request_politics(uint32_t nation_index);
 
+    // Action tabs (sim_tabs.cpp; docs/08-ui.md#action-tabs): the acting agent's levers
+    // and the tab's data, gathered at the next sync point (read-only).
+    std::future<tab_snapshot> request_tab(tab_request r);
+
+    // Player -> sim writes are commands (sim/commands.hpp): the UI thread pushes them into
+    // an SPSC queue, stamped with the sim's current tick and an increasing seq; the sim
+    // thread drains the due ones before each tick (and while paused) and answers through
+    // a result queue. A full queue keeps the command in a backlog retried by pump().
+    // The player's override on one lever (mode: sim::override_mode). Returns its seq.
+    uint32_t set_override(uint32_t agent, uint8_t lever, uint8_t mode, float value);
+    // A diplomatic / political move (sim::perform_action). Returns its seq.
+    uint32_t perform(action_order o);
+    // Call once per frame (UI thread): retries the backlog, collects results.
+    void pump();
+    // The result of command `seq`, once the sim has applied it (taken: true once).
+    bool take_result(uint32_t seq, action_outcome& out);
+
     // Indicator panels for the agents the player controls (racy direct reads;
     // call from the UI thread once status() == running).
     std::vector<agent_panel> read_agents();
@@ -169,6 +196,10 @@ public:
 private:
     void run();
     void post(std::function<void(game_state&)> job);
+    uint32_t push_command(sim::command c); // stamps tick and seq; UI thread
+    struct command_io;                      // the queues (sim_runner.cpp)
+    std::unique_ptr<command_io> io_;
+    uint32_t seq_ = 0;
 
     // UI-thread history for trailing-year growth / inflation.
     struct sample {

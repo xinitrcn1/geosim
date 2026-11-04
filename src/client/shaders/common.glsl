@@ -13,3 +13,4 @@ const uint mode_solid = 0u;   // flat colour
 const uint mode_frosted = 1u; // blurred backdrop under the rect, tinted by colour (alpha = tint strength)
 const uint mode_glyph = 2u;   // colour * atlas coverage (text and monochrome emoji)
 const uint mode_scene = 3u;   // copy of the scene image (the swapchain pass starts with it)
+const uint mode_arc = 4u;     // a ring / pie sector: params = start, end (turns, ccw from +x), inner radius (fraction), gap (px)

@@ -49,13 +49,13 @@ struct icon_button {
     char const* tip;
 };
 const icon_button action_buttons[] = {
-    {"🏛", "Government policy"}, {"💰", "Budget and taxes"}, {"🤝", "Diplomacy"}, {"⚔", "Military"}, {"🗳", "Politics and elections"},
+    {"🏛", "Policies"}, {"💰", "Fiscal policy"}, {"📦", "Trade"}, {"🤝", "Diplomacy"}, {"⚔", "Military"}, {"🗳", "Politics and elections"},
 };
 const icon_button filter_buttons[] = {
     {"🗺", "Map: political"}, {"🌦", "Map: climate and hazards"}, {"📈", "Map: economy"}, {"🚢", "Map: trade"},
     {"🛢", "Map: energy"},    {"🦠", "Map: epidemic"},           {"🔥", "Map: unrest and insurgencies"},
 };
-static_assert(std::size(action_buttons) == 5 && std::size(filter_buttons) == static_cast<std::size_t>(map_filter::count));
+static_assert(std::size(action_buttons) == static_cast<std::size_t>(hud_action::control) - 1 && std::size(filter_buttons) == static_cast<std::size_t>(map_filter::count));
 
 } // namespace
 
@@ -329,7 +329,13 @@ float agent_bars(ui_context& ui, sim_runner& sim, hud_state& st, float y, float 
     const float small = ui.px(style::font_small);
     const float icon = ui.px(style::icon_size);
     std::size_t shown = 0;
-    for(auto const& panel : sim.read_agents()) {
+    // The acting agent (the tabs act for it): clicking a bar selects it; while a window
+    // is open only its bar shows.
+    agent_info const* acting = acting_agent(sim, st.tabs);
+    const auto panels = sim.read_agents();
+    for(auto const& panel : panels) {
+        const bool selected = acting && acting->agent == panel.agent;
+        if(max_bars == 1 && acting && !selected) continue;
         if(shown++ >= max_bars) break;
         // Measure.
         // flag of the agent's nation, the agent's icon, "<Nation> <agent>"
@@ -343,6 +349,10 @@ float agent_bars(ui_context& ui, sim_runner& sim, hud_state& st, float y, float 
         rect bar{0, y, std::round(w), std::round(h)};
         ui.panel(bar, panel_kind::glass_flush);
         ui.fill(layer::overlay, {0, y, std::min(above_w, bar.w), strip}, style::glass_separator);
+        if(selected && panels.size() > 1) ui.fill(layer::overlay, {0, y, std::round(ui.px(3)), bar.h}, style::button_active); // the acting agent
+        const rect body{0, y, bar.w - pad - ui.px(28) - ai_w - ui.px(4), h};
+        if(ui.hovered(body) && ui.input().released) st.tabs.agent = panel.agent;
+        if(ui.hovered(body) && panels.size() > 1 && !selected) ui.tooltip("Click to act as this agent in the tabs");
         above_w = bar.w;
         float x = bar.x + pad;
         x += ui.text_in(layer::overlay, {x, bar.y, w, h}, panel.flag, icon, style::text);
@@ -502,13 +512,14 @@ rect window_frame(ui_context& ui, hud_state& st, rect win, std::string_view titl
 }
 
 // The Politics tab: the electoral tile map of one nation, its mode buttons and
-// the national result (or regime indicators), flat white like the view tabs.
-void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st, rect win) {
+// the national result (or regime indicators) in the left `map_frac` of the window,
+// flat white like the view tabs; the composition of power fills the rest.
+void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st, rect win, float map_frac) {
     const float pad = ui.px(style::pad);
     const float hh = ui.px(style::tab_header);
     const float small = ui.px(style::font_small);
     const float line = ui.px(18);
-    const float w = win.w;
+    const float w = std::round(win.w * map_frac);
     const float x = win.x, y = win.y;
     // Mode buttons, wrapped into rows.
     const float bh = ui.px(22);
@@ -708,6 +719,7 @@ void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& s
                electoral_view_info const* politics, std::vector<agent_info> const* agents) {
     st.requested_speed = -1;
     st.politics_step = 0;
+    if(sim.status() == sim_status::running) sim.pump(); // command backlog and results
     const rect bar = top_bar(ui, sim, st, alerts);
     const float gap = ui.px(style::gap);
     const bool window_open = st.open != hud_action::none;
@@ -738,15 +750,17 @@ void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& s
         const float right = ui.width() - ui.px(style::alert_width) - gap * 2;
         const rect win{gap, bars_bottom + gap, std::max(ui.px(200), right - gap), std::max(ui.px(120), ui.height() - bars_bottom - gap * 2)};
         if(st.open == hud_action::politics && politics) {
-            politics_tab(ui, *politics, st, win);
+            // Left half: the electoral map; right half: who holds power.
+            politics_tab(ui, *politics, st, win, 0.5f);
+            const float hh = ui.px(style::tab_header);
+            const float half = std::round(win.w * 0.5f);
+            const float rule = std::max(1.0f, std::round(ui.px(1)));
+            ui.fill(layer::overlay, {win.x + half, win.y + hh + gap, rule, win.h - hh - gap * 2}, style::flat_rule);
+            power_panel(ui, sim, st, st.politics_nation, politics->democracy, {win.x + half + rule, win.y + hh, win.w - half - rule, win.h - hh});
         } else if(st.open == hud_action::control) {
             control_window(ui, sim, agents, st, win);
         } else {
-            const auto i = std::min(static_cast<std::size_t>(st.open) - 1, std::size(action_buttons) - 1);
-            const rect body = window_frame(ui, st, win, action_buttons[i].tip, "");
-            ui.set_text_backing(false);
-            ui.text_in(layer::overlay, {body.x, body.y, body.w, body.h}, "Not available yet", ui.px(14), style::flat_dim, align::centre);
-            ui.set_text_backing(true);
+            action_tab(ui, sim, alerts, st, win);
         }
     }
 }

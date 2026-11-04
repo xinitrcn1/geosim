@@ -42,6 +42,24 @@ void main() {
     } else if(mode == mode_glyph) {
         float coverage = texture(u_atlas, v_uv).r;
         c = vec4(v_color.rgb, v_color.a * coverage);
+    } else if(mode == mode_arc) {
+        // A sector of the disc inscribed in the rect (pie slices, hemicycle arcs): angles in
+        // turns counter-clockwise from +x (screen y up), an inner radius for rings and a gap
+        // in pixels on both straight edges; antialiased over one pixel.
+        vec2 halfsz = v_rect.zw * 0.5;
+        vec2 p = v_local - halfsz;
+        p.y = -p.y;
+        float R = min(halfsz.x, halfsz.y);
+        float r = length(p);
+        float cov = clamp(R - r + 0.5, 0.0, 1.0) * clamp(r - v_params.z * R + 0.5, 0.0, 1.0);
+        float span = v_params.y - v_params.x;
+        if(span < 0.9999) {
+            float t = atan(p.y, p.x) / 6.2831853;
+            float d0 = fract(t - v_params.x);
+            float ang = d0 <= span ? min(d0, span - d0) : -min(d0 - span, 1.0 - d0);
+            cov *= clamp(ang * 6.2831853 * r - v_params.w + 0.5, 0.0, 1.0);
+        }
+        c = vec4(v_color.rgb, v_color.a * cov);
     } else if(mode == mode_scene) {
         c = vec4(texture(u_scene, screen_uv).rgb, 1.0);
     } else {
