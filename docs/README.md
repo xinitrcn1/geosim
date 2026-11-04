@@ -30,6 +30,7 @@ published literature in [references.md](references.md).
 | 11 | [Data & calibration](11-data-calibration.md) | Source datasets, 2020 initial state, back-testing |
 | 12 | [2020 simulation slice](12-simulation-slice-2020.md) | **What is implemented now**, mechanisms, back-test results |
 | 13 | [Calibration notes](13-calibration-notes.md) | Calibration findings and mistakes, troubleshooting for new data and slices |
+| 14 | [Audio](14-audio.md) | Procedural dynamic music: synth, mixer, composer, mood mapping, real-time design, offline rendering |
 | — | [References](references.md) | Bibliography |
 
 ## Conventions used in these docs

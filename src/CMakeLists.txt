@@ -97,6 +97,12 @@ if(GEOSIM_BUILD_CLIENT)
     target_link_libraries(geosim_audio PUBLIC geosim_core)
     geosim_target_defaults(geosim_audio)
     target_compile_options(geosim_audio PRIVATE -O2)
+    if(GEOSIM_BUILD_TESTS)
+        add_executable(test_music ${PROJECT_SOURCE_DIR}/tests/test_music.cpp)
+        target_link_libraries(test_music PRIVATE geosim_audio)
+        geosim_target_defaults(test_music)
+        add_test(NAME test_music COMMAND test_music)
+    endif()
 
     add_executable(geosim
         client/main.cpp
