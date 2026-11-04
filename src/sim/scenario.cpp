@@ -41,6 +41,7 @@ struct nation_input {
     double gov_revenue = 0.25, gov_net_lending = -0.03, gov_debt = 0.6, gini = 0.35, beds = 3.0, vulnerable = 0.2;
     double hemisphere = 1, oil_production = 0, oil_elasticity = 0, epl = 0.35, benefit_replacement = 0.3;
     double benefit_coverage = 0.15, death_reporting = 0.5, oil_take = 0.0;
+    double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
     std::array<double, max_sectors> va_share{};
     std::array<double, max_sectors> emp_share{};
 };
@@ -194,6 +195,8 @@ struct builder {
             in.gini = pct(row, "gini", 0.35, in);
             in.vulnerable = pct(row, "vulnerable_emp_pct", 0.2, in);
             in.beds = t.number(row, "hospital_beds_per_1000").value_or(3.0);
+            in.voice = t.number_or(row, "voice_est", 0.0);
+            in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
             order.push_back(in.iso);
             inputs[in.iso] = in;
         }
@@ -617,6 +620,110 @@ struct builder {
         }
     }
 
+    // ------------------------------------------------------------ agents and polity links
+    // One executive per nation; one central bank per currency area (own currency = own bank).
+    // Traits are priors from governance data: less voice -> stronger preference for order
+    // (stricter measures), higher income -> higher weight on health, effectiveness -> state capacity.
+    void create_agents() {
+        auto& w = state.world;
+        auto const& D = state.derived;
+        w.agent_resize_override_mode(D.lever_count);
+        w.agent_resize_override_value(D.lever_count);
+        w.agent_resize_last_pragmatic(D.lever_count);
+        w.agent_resize_last_ideological(D.lever_count);
+        w.agent_resize_last_prior(D.lever_count);
+        w.agent_resize_last_choice(D.lever_count);
+        w.agent_resize_last_ai_choice(D.lever_count);
+
+        const std::string dir = assets + "/scenario/" + scenario;
+        std::map<std::string, std::string> union_of;
+        std::map<std::string, std::string> peg_of;
+        if(fs::exists(dir + "/monetary_curated.csv")) {
+            const auto m = core::csv_table::load(dir + "/monetary_curated.csv");
+            for(std::size_t row = 0; row < m.rows(); ++row) {
+                const std::string iso(m.get(row, "iso3"));
+                const std::string regime(m.get(row, "regime"));
+                if(!find_nation(state, iso)) {
+                    continue;
+                }
+                if(regime == "union") {
+                    union_of[iso] = std::string(m.get(row, "area"));
+                } else if(regime == "peg") {
+                    peg_of[iso] = std::string(m.get(row, "anchor"));
+                } else if(regime != "own") {
+                    throw std::runtime_error(dir + "/monetary_curated.csv: unknown regime '" + regime + "'");
+                }
+            }
+        }
+
+        std::map<std::string, dcon::agent_id> banks;
+        for(auto const& iso : order) {
+            auto const& in = inputs[iso];
+            const auto n = find_nation(state, iso);
+            const double gdp_pc = in.gdp / in.population;
+            const float health = gdp_pc >= 12500 ? 1.5f : gdp_pc >= 4000 ? 1.0f : gdp_pc >= 1000 ? 0.7f : 0.5f;
+
+            const auto exec = w.create_agent();
+            w.agent_set_kind(exec, static_cast<uint8_t>(agent_kind::executive));
+            w.agent_set_rho_base(exec, static_cast<float>(std::clamp(0.3 - 0.08 * in.voice, 0.1, 0.6)));
+            w.agent_set_rho(exec, w.agent_get_rho_base(exec));
+            w.agent_set_health_weight(exec, health);
+            w.agent_set_econ_weight(exec, 1.0f);
+            w.agent_set_order_ideal(exec, static_cast<float>(std::clamp(0.2 - 0.12 * in.voice, 0.0, 0.6)));
+            w.agent_set_fiscal_hawk(exec, 0.3f);
+            w.force_create_executive_seat(exec, n);
+
+            const std::string area = union_of.count(iso) ? union_of[iso] : iso;
+            auto it = banks.find(area);
+            if(it == banks.end()) {
+                const auto bank = w.create_agent();
+                w.agent_set_kind(bank, static_cast<uint8_t>(agent_kind::central_bank));
+                w.agent_set_rho_base(bank, 0.1f); // technocratic
+                w.agent_set_rho(bank, 0.1f);
+                it = banks.emplace(area, bank).first;
+            }
+            w.force_create_monetary_authority(n, it->second);
+            w.nation_set_voice(n, static_cast<float>(in.voice));
+            w.nation_set_state_capacity(n, static_cast<float>(std::clamp(0.5 + 0.25 * in.effectiveness, 0.0, 1.0)));
+        }
+        for(auto const& [iso, anchor] : peg_of) {
+            const auto a = find_nation(state, anchor);
+            if(!a) {
+                throw std::runtime_error(dir + "/monetary_curated.csv: unknown anchor '" + anchor + "'");
+            }
+            w.force_create_currency_peg(find_nation(state, iso), a);
+        }
+
+        // Sovereignty (dependent jurisdictions) and territorial claims (optional tables).
+        if(fs::exists(dir + "/jurisdictions_curated.csv")) {
+            const auto j = core::csv_table::load(dir + "/jurisdictions_curated.csv");
+            for(std::size_t row = 0; row < j.rows(); ++row) {
+                const auto sub = find_nation(state, j.get(row, "iso3"));
+                const auto sov = find_nation(state, j.get(row, "sovereign"));
+                if(!sub || !sov) {
+                    continue; // jurisdiction not in this scenario
+                }
+                const auto rel = w.force_create_sovereignty(sub, sov);
+                w.sovereignty_set_autonomy(rel, static_cast<float>(j.number_or(row, "autonomy", 0.5)));
+            }
+        }
+        if(fs::exists(dir + "/claims.csv")) {
+            const auto c = core::csv_table::load(dir + "/claims.csv");
+            for(std::size_t row = 0; row < c.rows(); ++row) {
+                const auto claimant = find_nation(state, c.get(row, "claimant"));
+                const auto holder = find_nation(state, c.get(row, "holder"));
+                if(!claimant || !holder) {
+                    continue;
+                }
+                // Region-level claims need region ids; a nation-level claim covers all its regions.
+                for(auto own : w.nation_get_region_ownership(holder)) {
+                    const auto rel = w.force_create_region_claim(own.get_region(), claimant);
+                    w.region_claim_set_strength(rel, static_cast<float>(c.number_or(row, "strength", 1.0)));
+                }
+            }
+        }
+    }
+
     void setup_oil() {
         auto& w = state.world;
         auto const& P = state.params;
@@ -677,6 +784,8 @@ struct builder {
         w.nation_resize_comp_x(S);
         w.nation_resize_npi(K);
         w.nation_resize_npi_targeted(K);
+        w.nation_resize_prior_npi(K);
+        w.nation_resize_prior_npi_targeted(K);
         w.nation_resize_flows(static_cast<uint32_t>(flow::count));
         w.region_resize_ep_s(age_groups);
         w.region_resize_ep_e(age_groups);
@@ -700,6 +809,7 @@ struct builder {
         for(auto const& iso : order) {
             calibrate(find_nation(state, iso), inputs[iso]);
         }
+        create_agents();
     }
 };
 
@@ -721,6 +831,8 @@ void rebuild_derived(game_state& state) {
     d = derived_indices{};
     d.sector_count = static_cast<uint8_t>(w.sector_size());
     d.npi_count = static_cast<uint8_t>(w.npi_indicator_size());
+    d.lever_base = d.npi_count;
+    d.lever_count = static_cast<uint8_t>(d.npi_count + static_cast<uint8_t>(lever::count));
     for(auto s : w.in_sector) {
         switch(static_cast<sector_role>(s.get_role())) {
         case sector_role::government: d.gov_sector = s.id; break;

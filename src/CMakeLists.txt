@@ -18,6 +18,7 @@ if(GEOSIM_USE_DCON)
         sim/save.cpp
         sim/scenario.cpp
         sim/simulation.cpp
+        sim/systems/ai.cpp
         sim/systems/economy.cpp
         sim/systems/epidemic.cpp
         sim/systems/events.cpp

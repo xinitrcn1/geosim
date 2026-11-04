@@ -20,8 +20,9 @@ void update_economy(game_state& state, dcon::nation_id n, float dt, economy_mode
 // Daily: world crude market (docs/03-economy.md#prices).
 void update_oil_market(game_state& state);
 
-// Daily: policy rates (anchored by events, else Taylor rule on a monthly shard).
-void update_monetary(game_state& state);
+// Daily: AI agents choose policy levers from pragmatic targets, ideology and
+// historical anchors (priors); applies player overrides.
+void update_ai(game_state& state);
 
 // Daily: annual accumulators; monthly-sharded Gini.
 void update_indicators(game_state& state);

@@ -47,6 +47,16 @@ enum class event_kind : uint8_t {
     test_trace_isolate = 8,   // value = strength 0..1 of a suppression strategy
 };
 
+// agent.kind
+enum class agent_kind : uint8_t { executive = 0, central_bank = 1 };
+
+// agent.override_mode (docs/01-gameplay-loop.md#3-act--overrides)
+enum class override_mode : uint8_t { none = 0, advise = 1, direct = 2, force = 3 };
+
+// Decision levers. NPI levers come first (one per npi_indicator, index = indicator
+// index); the fixed levers follow at derived_indices::lever_base + offset.
+enum class lever : uint8_t { fiscal = 0, stw_coverage, stw_replacement, tti, policy_rate, oil_target, count };
+
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
     consumption = 0,

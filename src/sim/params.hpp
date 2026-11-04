@@ -8,7 +8,21 @@
 
 #define GEOSIM_PARAMS(X)                                                                                   \
     /* ---- mode ---- */                                                                                    \
-    X(historical_anchors, 1.0, "1 = apply dated real-world policy events; 0 = AI decides (not yet)")      \
+    X(historical_anchors, 1.0, "1 = dated real-world decisions are priors for the AI; 0 = AI alone")      \
+    X(anchor_prior_weight, 10.0, "weight of the historical anchor vs pragmatic+ideological targets (=1)") \
+    X(advise_weight, 3.0, "weight of player advice relative to the agent's own choice")                  \
+    /* ---- AI agents ---- */                                                                               \
+    X(ai_horizon_days, 14.0, "epidemic projection horizon of executives (days)")                          \
+    X(ai_case_tolerance, 5.0, "detected cases/million/day tolerated at health weight 1")                 \
+    X(ai_threat_slope, 0.3, "pragmatic stringency per log-unit of projected cases over tolerance")        \
+    X(ai_econ_brake, 0.15, "pragmatic stringency removed per unit economic weight")                        \
+    X(ai_unemployment_alarm, 0.05, "unemployment rise that triggers full income support")                 \
+    X(ai_order_gain, 3.0, "how much an order-minded ideology amplifies the response to a threat")         \
+    X(ai_default_targeted, 0.3, "targeted share of NPIs chosen without an anchor")                        \
+    X(ai_tti_window, 20.0, "projected cases/million/day below which suppression is still feasible")       \
+    X(ai_debt_limit, 1.5, "debt/GDP at which fiscal space is exhausted")                                   \
+    X(ai_fiscal_response, 0.5, "pragmatic cumulative package (% GDP) per point of slack")                 \
+    X(ai_fiscal_min_package, 0.1, "smallest new package announced (% GDP)")                              \
     /* ---- epidemic (SEIR) ---- */                                                                         \
     X(r0, 3.0, "basic reproduction number of the wild-type virus (Flaxman et al. 2020: ~3.3)")                                         \
     X(incubation_days, 4.0, "mean latent period E->I (days)")                                              \

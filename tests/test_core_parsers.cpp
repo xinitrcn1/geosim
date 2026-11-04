@@ -4,7 +4,9 @@
 #include "core/csv.hpp"
 #include "core/defs.hpp"
 #include "core/keys.hpp"
+#include "core/rng.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
@@ -69,6 +71,19 @@ int main() {
     CHECK(throws([] { (void)parse_defs("a{ b{1} ", "bad.txt"); }));
     CHECK(throws([] { (void)parse_defs("a{1} }", "bad.txt"); }));
     CHECK(throws([] { (void)parse_number("nan", "t", 1); }));
+
+    // Counter-based RNG: pure function of its inputs, uniform in [0, 1).
+    CHECK(uniform01(42, 1, 10, 7) == uniform01(42, 1, 10, 7));
+    CHECK(uniform01(42, 1, 10, 7) != uniform01(42, 1, 10, 8));
+    double sum = 0.0;
+    bool in_range = true;
+    for(uint32_t i = 0; i < 100000; ++i) {
+        const float u = uniform01(7, 2, i / 1000, i % 1000);
+        in_range = in_range && u >= 0.0f && u < 1.0f;
+        sum += u;
+    }
+    CHECK(in_range);
+    CHECK(std::abs(sum / 100000.0 - 0.5) < 0.005);
 
     if(failures == 0) {
         std::puts("test_core_parsers: OK");

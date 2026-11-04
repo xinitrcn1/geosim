@@ -1,4 +1,4 @@
-// World crude oil market and central-bank policy rates.
+// World crude oil market.
 
 #include "sim/model.hpp"
 #include "sim/systems.hpp"
@@ -57,11 +57,12 @@ void update_oil_market(game_state& state) {
         if(prod0 <= 0.0f) {
             continue;
         }
-        float target = n.get_oil_target();
+        // Target chosen by the producer's executive (systems/ai.cpp); quota-bound producers
+        // adjust fast, market-driven ones over months.
+        const float target = n.get_oil_target();
         float speed = static_cast<float>(P.oil_production_speed);
         if(!n.get_oil_target_set()) {
-            target = prod0 * std::pow(std::max(0.05f, price / price0), n.get_oil_supply_elasticity());
-            speed *= 0.2f; // market-driven producers adjust over months
+            speed *= 0.2f;
         }
         float prod = n.get_oil_production();
         prod += (target - prod) * speed;
@@ -82,30 +83,6 @@ void update_oil_market(game_state& state) {
     w.commodity_set_price(oil, static_cast<float>(std::max(1.0, next)));
     w.commodity_set_acc_price(oil, w.commodity_get_acc_price(oil) + next);
     w.commodity_set_acc_days(oil, w.commodity_get_acc_days(oil) + 1.0);
-}
-
-// Policy rates: anchored nations follow events; others use a Taylor (1993)
-// rule on a 28-day cadence sharded by nation index, with the neutral rate implied
-// by the starting (2019) policy rate and trend inflation.
-void update_monetary(game_state& state) {
-    auto& w = state.world;
-    auto const& P = state.params;
-    for(auto n : w.in_nation) {
-        if(n.get_rate_anchored() && P.historical_anchors != 0.0) {
-            continue;
-        }
-        if(state.current_tick % 28 != n.id.index() % 28) {
-            continue;
-        }
-        const float pi = n.get_inflation_expect() * 100.0f;
-        const float target_pi = n.get_inflation_trend() * 100.0f;
-        const float gap = n.get_gap_smoothed() * 100.0f;
-        // Neutral real rate implied by the 2019 setting, so the rule reproduces it in steady state.
-        const float neutral = n.get_policy_rate0() - target_pi;
-        const float taylor = neutral + pi + 0.5f * (pi - target_pi) + 0.5f * gap;
-        const float goal = std::max(static_cast<float>(P.effective_lower_bound), taylor);
-        n.set_policy_rate(n.get_policy_rate() + (goal - n.get_policy_rate()) * 0.5f);
-    }
 }
 
 } // namespace geosim::sim

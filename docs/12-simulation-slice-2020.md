@@ -24,14 +24,49 @@ Code: `src/sim/` (systems in `src/sim/systems/`), data: `assets/`
 | Trade | **Simplified.** Exports follow partners' import demand; no bilateral gravity matrix yet |
 | Oil market | **Yes.** World crude with inventories, OPEC+ events, price-elastic producers |
 | Exchange rates, credit, housing | No (all values in USD; see open issues) |
-| Politics, AI agents, overrides | No. `historical_anchors{1}` replays real decisions; `0` disables them (AI not yet built) |
+| AI agents | **Yes.** Executive + central bank per nation (one bank per currency union); anchors are priors (below) |
+| Overrides | **Yes (engine side).** advise / direct / force per agent and lever; AI choice still logged |
+| Sovereignty, pegs, claims | **Yes (data model + AI).** Subjects blend with their sovereign by autonomy; pegged banks follow the anchor |
+| Politics (parties, elections, legitimacy) | No |
 
 ## Day loop (`src/sim/simulation.cpp`)
 
 ```
-apply_events -> update_epidemic -> update_economy (nations whose weekly shard is due)
-             -> update_oil_market -> update_monetary -> update_indicators -> ++tick
+apply_events (anchors -> priors) -> update_ai -> update_epidemic
+  -> update_economy (nations whose weekly shard is due) -> update_oil_market -> update_indicators -> ++tick
 ```
+
+## AI agents and historical anchors (`systems/ai.cpp`)
+
+Dated real-world decisions (OxCGRT NPIs, BIS rates, fiscal packages, job retention,
+suppression strategies, OPEC+ quotas) are **not** applied to the world. They set
+the deciding agent's *prior* for that lever. Each lever x is then chosen by
+maximising
+
+```
+U(x) = -(1 - rho) (x - P)^2 - rho (x - I)^2 - kappa (x - A)^2
+```
+
+whose optimum is the precision-weighted mean of the **pragmatic** target P
+(projected detected cases vs the agent's tolerance; Taylor rule or the anchor
+currency's rate; counter-cyclical fiscal support limited by debt; market-driven
+oil output), the **ideological** target I (order-minded leaders answer threats
+harder; fiscal hawks spend less), and the **anchor** A (`anchor_prior_weight`,
+10 by default; `historical_anchors{0}` removes it). Rigidity rho falls with the
+threat (pragmatism under pressure). Traits come from WGI governance data: less
+voice -> more order-minded and more rigid; effectiveness -> state capacity
+(testing, tracing, suppression, job retention).
+
+- Subjects of a sovereign (`jurisdictions_curated.csv`) blend NPI and suppression
+  choices with the sovereign's: `x = autonomy x_own + (1 - autonomy) x_sovereign`.
+- Pegged currencies (`monetary_curated.csv`) take the anchor's rate as their pragmatic target.
+- Player overrides per agent and lever: advise (an extra prior), direct (within legal
+  bounds), force (unbounded; political costs come with the politics system).
+- Every material change is logged as a `decision` (before/after, P, I, A, mode): the
+  decision journal behind the "Why?" panel.
+
+With anchors on the back-test still passes (the 2020 slice is reproduced through the
+priors); with anchors off the agents produce an emergent 2020 (`--set historical_anchors=0`).
 
 ## Calibration of the starting state (`src/sim/scenario.cpp`)
 

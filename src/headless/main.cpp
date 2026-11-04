@@ -2,7 +2,7 @@
 //
 //   geosim_headless build    --assets DIR --scenario 2020 --out FILE.bin
 //   geosim_headless run      (--assets DIR --scenario 2020 | --load FILE.bin) [--days N]
-//                            [--daily OUT.csv] [--save FILE.bin] [--flows ISO3]
+//                            [--daily OUT.csv] [--save FILE.bin] [--flows ISO3] [--set name=value,...]
 //   geosim_headless backtest --assets DIR --scenario 2020 [--daily OUT.csv]
 //   geosim_headless params                     (prints every parameter as assets/defs/parameters.txt)
 
@@ -78,6 +78,21 @@ int main(int argc, char** argv) {
             geosim::sim::load_game(*state, opt["load"]);
         } else if(cmd == "build" || cmd == "run" || cmd == "backtest") {
             auto report = geosim::sim::build_scenario(*state, assets, scenario);
+            // --set name=value[,name=value...] overrides parameters after the scenario is built.
+            if(opt.count("set")) {
+                std::string list = opt["set"];
+                std::size_t pos = 0;
+                while(pos <= list.size()) {
+                    const auto end = std::min(list.find(',', pos), list.size());
+                    const auto item = list.substr(pos, end - pos);
+                    const auto eq = item.find('=');
+                    if(eq == std::string::npos || !geosim::sim::set_param(state->params, item.substr(0, eq), std::stod(item.substr(eq + 1)))) {
+                        std::fprintf(stderr, "bad --set item '%s'\n", item.c_str());
+                        return 2;
+                    }
+                    pos = end + 1;
+                }
+            }
             std::fprintf(stderr, "scenario %s: %zu events, %zu warnings\n", scenario.c_str(), report.events, report.warnings.size());
             for(auto const& w : report.warnings) {
                 std::fprintf(stderr, "  warning: %s\n", w.c_str());

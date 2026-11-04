@@ -1,0 +1,10 @@
+# Monetary regimes (hand-written). regime: own | union | peg.
+#   union: area = name of the currency union; one central-bank agent sets the rate for all members.
+#   peg:   anchor = ISO3 of the anchor currency's nation; the central bank follows its rate.
+# Sources: ECB (euro area membership 2020); SAMA (riyal pegged to USD since 1986).
+iso3,regime,area,anchor
+DEU,union,EUR,
+FRA,union,EUR,
+ITA,union,EUR,
+ESP,union,EUR,
+SAU,peg,,USA

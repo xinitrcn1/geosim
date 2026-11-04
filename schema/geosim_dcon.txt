@@ -18,6 +18,25 @@ object{
 	property{ name{benefit_coverage} type{float} }
 	property{ name{death_reporting} type{float} }
 	property{ name{gini0} type{float} }
+	property{ name{voice} type{float} }
+	property{ name{state_capacity} type{float} }
+
+	property{ name{prior_npi} type{array{uint8_t}{float}} }
+	property{ name{prior_npi_targeted} type{array{uint8_t}{float}} }
+	property{ name{prior_npi_set} type{uint8_t} }
+	property{ name{prior_rate} type{float} }
+	property{ name{prior_rate_set} type{uint8_t} }
+	property{ name{prior_fiscal_cum} type{float} }
+	property{ name{prior_fiscal_set} type{uint8_t} }
+	property{ name{fiscal_announced_cum} type{float} }
+	property{ name{prior_stw_coverage} type{float} }
+	property{ name{prior_stw_replacement} type{float} }
+	property{ name{prior_stw_set} type{uint8_t} }
+	property{ name{prior_tti} type{float} }
+	property{ name{prior_tti_set} type{uint8_t} }
+	property{ name{prior_oil} type{float} }
+	property{ name{prior_oil_set} type{uint8_t} }
+	property{ name{threat} type{float} }
 
 	property{ name{va0} type{array{uint8_t}{float}} }
 	property{ name{emp0} type{array{uint8_t}{float}} }
@@ -59,7 +78,6 @@ object{
 	property{ name{firm_support_rate} type{float} }
 	property{ name{policy_rate} type{float} }
 	property{ name{policy_rate0} type{float} }
-	property{ name{rate_anchored} type{uint8_t} }
 
 	property{ name{tax_hh} type{float} }
 	property{ name{tax_indirect} type{float} }
@@ -204,6 +222,47 @@ object{
 }
 
 object{
+	name{agent}
+	storage_type{erasable}
+	size{2048}
+	tag{scenario}
+
+	property{ name{kind} type{uint8_t} }
+	property{ name{rho_base} type{float} }
+	property{ name{rho} type{float} }
+	property{ name{health_weight} type{float} }
+	property{ name{econ_weight} type{float} }
+	property{ name{order_ideal} type{float} }
+	property{ name{fiscal_hawk} type{float} }
+	property{ name{override_mode} type{array{uint8_t}{uint8_t}} }
+	property{ name{override_value} type{array{uint8_t}{float}} }
+	property{ name{last_pragmatic} type{array{uint8_t}{float}} }
+	property{ name{last_ideological} type{array{uint8_t}{float}} }
+	property{ name{last_prior} type{array{uint8_t}{float}} }
+	property{ name{last_choice} type{array{uint8_t}{float}} }
+	property{ name{last_ai_choice} type{array{uint8_t}{float}} }
+}
+
+object{
+	name{decision}
+	storage_type{erasable}
+	size{65536}
+	tag{scenario}
+
+	property{ name{agent} type{agent_id} }
+	property{ name{target} type{nation_id} }
+	property{ name{tick} type{int32_t} }
+	property{ name{lever} type{uint8_t} }
+	property{ name{before} type{float} }
+	property{ name{after} type{float} }
+	property{ name{pragmatic} type{float} }
+	property{ name{ideological} type{float} }
+	property{ name{prior} type{float} }
+	property{ name{mode} type{uint8_t} }
+	property{ name{disbursed} type{double} }
+}
+
+object{
 	name{event}
 	storage_type{erasable}
 	size{16384}
@@ -256,4 +315,105 @@ relationship{
 		index_storage{list}
 	}
 	primary_key{pop}
+}
+
+relationship{
+	name{executive_seat}
+	storage_type{erasable}
+	size{512}
+	tag{scenario}
+
+	link{
+		object{agent}
+		name{agent}
+		type{unique}
+	}
+	link{
+		object{nation}
+		name{nation}
+		type{unique}
+	}
+	primary_key{agent}
+}
+
+relationship{
+	name{monetary_authority}
+	storage_type{erasable}
+	size{512}
+	tag{scenario}
+
+	link{
+		object{nation}
+		name{member}
+		type{unique}
+	}
+	link{
+		object{agent}
+		name{bank}
+		type{many}
+		index_storage{list}
+	}
+	primary_key{member}
+}
+
+relationship{
+	name{sovereignty}
+	storage_type{erasable}
+	size{256}
+	tag{scenario}
+
+	link{
+		object{nation}
+		name{subject}
+		type{unique}
+	}
+	link{
+		object{nation}
+		name{sovereign}
+		type{many}
+		index_storage{list}
+	}
+	primary_key{subject}
+	property{ name{autonomy} type{float} }
+}
+
+relationship{
+	name{currency_peg}
+	storage_type{erasable}
+	size{256}
+	tag{scenario}
+
+	link{
+		object{nation}
+		name{pegged}
+		type{unique}
+	}
+	link{
+		object{nation}
+		name{anchor}
+		type{many}
+		index_storage{list}
+	}
+	primary_key{pegged}
+}
+
+relationship{
+	name{region_claim}
+	storage_type{erasable}
+	size{4096}
+	tag{scenario}
+
+	link{
+		object{region}
+		name{claimed}
+		type{many}
+		index_storage{list}
+	}
+	link{
+		object{nation}
+		name{claimant}
+		type{many}
+		index_storage{list}
+	}
+	property{ name{strength} type{float} }
 }

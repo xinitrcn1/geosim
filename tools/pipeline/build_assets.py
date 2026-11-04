@@ -88,6 +88,21 @@ def load_wdi(raw: pathlib.Path, sub: str = "wdi"):
     return out
 
 
+def load_wgi(raw: pathlib.Path):
+    """-> {"voice": {iso: v}, "effectiveness": {iso: v}}: latest 2015-2019 WGI estimates."""
+    out = {}
+    for code, field in (("GOV_WGI_VA.EST", "voice"), ("GOV_WGI_GE.EST", "effectiveness")):
+        path = raw / "wdi_all" / f"WGI_{code}.json"
+        vals = {}
+        if path.exists():
+            rows = json.loads(path.read_text())[1] or []
+            for r in sorted(rows, key=lambda r: r["date"]):
+                if r["value"] is not None:
+                    vals[r["countryiso3code"]] = float(r["value"])
+        out[field] = vals
+    return out
+
+
 def latest(wdi, field, iso, year=2019, back=9):
     s = wdi[field].get(iso, {})
     for y in range(year, year - back - 1, -1):
@@ -457,15 +472,24 @@ def main() -> int:
     wdi = load_wdi(raw)
     curated = read_curated(scen / "nations_curated.csv")
     nations = build_nations(wdi, curated)
+    wgi = load_wgi(raw)
+    pops = {i: nations[i]["population"] for i in nations if i != ROW}
+    for field, col in (("voice", "voice_est"), ("effectiveness", "gov_effectiveness_est")):
+        for iso in nations:
+            nations[iso][col] = wgi[field].get(iso)
+        # ROW: population-weighted mean of every non-slice WGI country.
+        rest = [(v, 1.0) for k, v in wgi[field].items() if k not in pops]
+        nations[ROW][col] = sum(v for v, _ in rest) / len(rest) if rest else 0.0
 
     cols = ["iso3", "name", "population", "pop_0_14_pct", "pop_65up_pct", "labor_force",
             "unemployment_pct", "lfp_rate_pct", "gdp_usd", "gdp_ppp", "trend_growth_pct",
             "inflation_trend_pct", "hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct",
             "imports_pct", "gov_revenue_pct", "gov_net_lending_pct", "gov_debt_pct", "gini",
-            "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct", "vulnerable_emp_pct"]
+            "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct", "vulnerable_emp_pct",
+            "voice_est", "gov_effectiveness_est"]
     order = SLICE + [ROW]
     write_csv(scen / "nations.csv", cols, [[nations[i].get(c) for c in cols] for i in order],
-              f"{GEN}. Source: World Bank WDI, latest year <= 2019. Empty = missing (loader uses defaults).")
+              f"{GEN}. Source: World Bank WDI, latest year <= 2019; WGI voice/effectiveness (ROW: unweighted mean of the rest). Empty = missing (loader uses defaults).")
 
     srows = []
     for iso in order:
