@@ -68,21 +68,33 @@ void log_event(game_state& state, dcon::nation_id n, dcon::nation_id other, uint
 
 } // namespace
 
-// Gravity trade shares (exports of a to b ~ GDP_b / distance) and starting
-// relations; called once by the scenario builder after curated relations.
+// Effective trade distance: sea route for seaborne trade, roads for overland trade
+// (logistics.cpp), or the great circle when there is no shipping network.
+static float effective_distance(game_state const& state, dcon::nation_id a, dcon::nation_id b) {
+    const float d = state.world.nation_get_trade_distance(a, static_cast<uint8_t>(b.index()));
+    return std::max(500.0f, d > 0.0f ? d : distance_km(state, a, b));
+}
+
+// Gravity weight (Tinbergen 1962; Head & Mayer 2014): destination GDP over distance
+// (elasticity ~1), with a shared land border roughly doubling trade (contiguity).
+static double gravity(game_state const& state, dcon::nation_id a, dcon::nation_id b) {
+    const float land = state.world.nation_get_land_share(a, static_cast<uint8_t>(b.index()));
+    return state.world.nation_get_gdp0(b) / effective_distance(state, a, b) * (1.0 + 0.9 * land);
+}
+
+// Gravity trade shares (exports of a to b) and starting relations; called once by
+// the scenario builder after curated relations.
 void init_geopolitics(game_state& state) {
     auto& w = state.world;
     for(auto a : w.in_nation) {
         double total = 0.0;
         for(auto b : w.in_nation) {
             if(a.id == b.id) continue;
-            total += b.get_gdp0() / std::max(500.0f, distance_km(state, a.id, b.id));
+            total += gravity(state, a.id, b.id);
         }
         for(auto b : w.in_nation) {
             const auto k = static_cast<uint8_t>(b.id.index());
-            const float share = a.id == b.id || total <= 0.0
-                                    ? 0.0f
-                                    : static_cast<float>(b.get_gdp0() / std::max(500.0f, distance_km(state, a.id, b.id)) / total);
+            const float share = a.id == b.id || total <= 0.0 ? 0.0f : static_cast<float>(gravity(state, a.id, b.id) / total);
             a.set_trade_share(k, share);
             a.set_trust(k, a.id == b.id ? 1.0f
                                         : std::clamp(0.5f + 0.25f * a.get_alliance(k) - 0.4f * regime_distance(state, a.id, b.id)
@@ -119,7 +131,8 @@ float trade_access(game_state const& state, dcon::nation_id n) {
         const float war = std::max(w.nation_get_at_war(n, k), w.nation_get_at_war(m.id, kn));
         const double base = static_cast<double>(m.get_m0()) * m.get_gf();
         const double demand = base > 0.0 ? m.get_imports() / base : 1.0;
-        access += w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war);
+        // Persistent shipping delays on the route also cut the pair's trade (logistics.cpp).
+        access += w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war) * w.nation_get_pair_cost(n, k);
     }
     return static_cast<float>(access);
 }

@@ -47,6 +47,28 @@ void update_longrun(game_state& state);
 [[nodiscard]] float payer_income_index(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float world_oil_demand(game_state const& state);
 
+// Daily: logistics (docs/03-economy.md#logistics-and-transport). The two init
+// functions run once at scenario build: routes before gravity trade shares exist,
+// flows after.
+void init_logistics_routes(game_state& state);
+void init_logistics_flows(game_state& state);
+void update_logistics(game_state& state);
+
+// Daily: non-oil commodity markets; CPI factor from food and gas prices.
+void update_commodity_markets(game_state& state);
+[[nodiscard]] float commodity_cpi_factor(game_state const& state, dcon::nation_id n);
+
+// Every 28 days (sharded): bank credit and bonds (docs/03-economy.md).
+void update_credit(game_state& state);
+void update_bonds(game_state& state);
+[[nodiscard]] float lending_rate(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float expected_short_rate(game_state const& state, dcon::nation_id n);
+
+// Every 28 days (sharded): identity groups - horizontal inequality, network
+// insurance (docs/04-society.md#identity-groups). Daily: protest cascades.
+void update_groups(game_state& state);
+void update_protest(game_state& state);
+
 // Daily: annual accumulators; monthly-sharded Gini.
 void update_indicators(game_state& state);
 

@@ -3,6 +3,7 @@
 // and calibrate the 2019 baseline. The result is usually saved straight away
 // as a binary (sim/save.hpp) so later starts skip parsing.
 
+#include "core/diagnostics.hpp"
 #include "sim/game_state.hpp"
 
 #include <string>
@@ -25,5 +26,12 @@ scenario_report build_scenario(game_state& state, std::string const& assets_dir,
 void rebuild_derived(game_state& state);
 
 [[nodiscard]] dcon::nation_id find_nation(game_state const& state, std::string_view iso3) noexcept;
+
+// Extension loaders (src/sim/scenario_ext.cpp): the shipping network and commodity
+// definitions (assets/defs, after nations exist), and per-nation ports, overland
+// shares, logistics and commodity tables (after calibration).
+void load_sea_network(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
+void load_commodity_defs(game_state& state, std::string const& assets_dir, core::diagnostics& diag);
+void load_trade_tables(game_state& state, std::string const& scenario_dir, core::diagnostics& diag);
 
 } // namespace geosim::sim

@@ -145,6 +145,11 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    // --no-events 1: a no-shock baseline (no virus, no policy, no oil decisions) to
+    // check that the calibrated start is a steady state.
+    if(opt.count("no-events") && opt["no-events"] != "0") {
+        for(auto e : state->world.in_event) e.set_done(1);
+    }
     int days = 366;
     if(opt.count("days") && !parse_value(opt["days"], days)) {
         return usage();

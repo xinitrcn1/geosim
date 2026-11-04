@@ -230,6 +230,66 @@ void decide_fiscal(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     }
 }
 
+// Directed credit through state-owned banks (% of GDP per year; credit.cpp).
+// Pragmatic: lend into slack in proportion to the state-bank share, less when the
+// currency is already falling (the import and capital-flight leak). Ideological:
+// growth-first executives (credit_bias: large state banks x a dependent central
+// bank; Sapienza 2004, Dinc 2005) amplify it - until a currency crisis makes them
+// turn orthodox (rigidity falls with the threat, and the bias with depreciation).
+// No historical anchor: the level is the agent's own.
+void decide_directed_credit(game_state& state, dcon::agent_id a, dcon::nation_id n) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    auto const& D = state.derived;
+    // Reach: state banks fully, private banks through guarantee schemes (KfW, PGE, PPP, ECLGS).
+    const float sb = w.nation_get_state_bank_share(n)
+                     + static_cast<float>(P.guarantee_reach) * (1.0f - w.nation_get_state_bank_share(n)) * w.nation_get_state_capacity(n);
+    const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::directed_credit));
+    const float slack = std::max(0.0f, -w.nation_get_gap_smoothed(n)) * 100.0f
+                        + 0.5f * std::max(0.0f, w.nation_get_unemployment(n) - w.nation_get_unemployment0(n)) * 100.0f;
+    const float depreciation = std::max(0.0f, -w.nation_get_fx_change(n));
+    // State banks lend from their balance sheets: capacity scales with banking depth.
+    const double gdp = std::max(1.0, w.nation_get_gdp0(n) * w.nation_get_core_price(n) * w.nation_get_gf(n));
+    const float depth = std::clamp(static_cast<float>((w.nation_get_loans_hh(n) + w.nation_get_loans_firm(n)) / gdp / P.credit_depth_ref), 0.05f, 1.0f);
+    const float reach = sb * depth;
+    const float pragmatic = std::max(0.0f, static_cast<float>(P.directed_slack) * slack * reach - static_cast<float>(P.directed_fx_brake) * depreciation * reach);
+    const float crisis = std::clamp(depreciation / static_cast<float>(P.fx_crisis_depreciation), 0.0f, 1.0f);
+    const float bias = w.agent_get_credit_bias(a) * (1.0f - crisis);
+    const float ideal = pragmatic * (1.0f + static_cast<float>(P.directed_bias_gain) * bias);
+    // Economic ideology is not suspended by an epidemic: base rigidity.
+    auto r = blend(pragmatic, ideal, w.agent_get_rho_base(a), false, 0.0f, 0.0f, 0.0f, 20.0f * reach);
+    const float before = w.nation_get_directed_credit(n);
+    const float after = settle(state, a, lev, r, 0.0f, 20.0f * reach);
+    w.nation_set_directed_credit(n, after);
+    journal(state, a, n, lev, before, after, r, 0.5f);
+}
+
+// Information control (0..1): restrictions on social media and messaging.
+// Pragmatic: none until unrest passes a trigger, then rising with it; the legal
+// ceiling is set by media freedom (direct overrides stay below it, force goes
+// beyond). Ideological: order-minded rulers restrict earlier and harder.
+void decide_info_control(game_state& state, dcon::agent_id a, dcon::nation_id n) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    auto const& D = state.derived;
+    const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::info_control));
+    float unrest = 0.0f, pop = 0.0f;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        unrest += own.get_region().get_unrest() * own.get_region().get_population();
+        pop += own.get_region().get_population();
+    }
+    unrest = pop > 0.0f ? unrest / pop : 0.0f;
+    const float ceiling = std::clamp(1.0f - w.nation_get_media_freedom(n), 0.0f, 1.0f);
+    const float pressure = std::clamp((unrest - static_cast<float>(P.censor_trigger)) / 2.0f, 0.0f, 1.0f);
+    const float pragmatic = 0.3f * pressure * ceiling;
+    const float ideal = std::clamp(pressure * (0.5f + 2.0f * w.agent_get_order_ideal(a)) + 0.5f * w.agent_get_order_ideal(a) * ceiling, 0.0f, 1.0f) * ceiling;
+    auto r = blend(pragmatic, ideal, w.agent_get_rho(a), false, 0.0f, 0.0f, 0.0f, ceiling);
+    const float before = w.nation_get_info_control(n);
+    const float after = std::clamp(settle(state, a, lev, r, 0.0f, ceiling), 0.0f, 1.0f);
+    w.nation_set_info_control(n, after);
+    journal(state, a, n, lev, before, after, r, 0.1f);
+}
+
 void decide_job_retention(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     auto& w = state.world;
     auto const& P = state.params;
@@ -313,6 +373,26 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
     if(const auto anchor = peg_anchor(state, first)) {
         pragmatic = w.nation_get_policy_rate(anchor);
     }
+    const float taylor = pragmatic;
+    // A dependent central bank leans toward the rate a growth-first executive wants
+    // (Alesina & Summers 1993; Binder 2021 on political pressure). The executive's
+    // bias fades in a currency crisis.
+    {
+        double cbi = 0.0, bias = 0.0, dep = 0.0;
+        for(auto m : w.agent_get_monetary_authority(bank)) {
+            const auto n = m.get_member();
+            const double g = w.nation_get_gdp0(n);
+            cbi += g * w.nation_get_cb_independence(n);
+            dep += g * std::max(0.0f, -w.nation_get_fx_change(n));
+            if(auto e = w.nation_get_agent_from_executive_seat(n)) bias += g * w.agent_get_credit_bias(e);
+        }
+        cbi /= weight;
+        bias /= weight;
+        dep /= weight;
+        const float crisis = std::clamp(static_cast<float>(dep) / static_cast<float>(P.fx_crisis_depreciation), 0.0f, 1.0f);
+        const float wanted = pragmatic - static_cast<float>(bias) * (1.0f - crisis) * static_cast<float>(P.cb_pressure_pp + 0.5 * std::max(0.0, -gap));
+        pragmatic = static_cast<float>(cbi) * pragmatic + static_cast<float>(1.0 - cbi) * wanted;
+    }
     pragmatic = std::max(static_cast<float>(P.effective_lower_bound), pragmatic);
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::policy_rate));
     auto r = blend(pragmatic, static_cast<float>(rate0), w.agent_get_rho(bank), anchored && P.historical_anchors != 0.0, prior,
@@ -323,6 +403,29 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
         w.nation_set_policy_rate(m.get_member(), after);
     }
     journal(state, bank, first, lev, before, after, r, 0.1f);
+
+    // Asset purchases (QE, % of GDP per year): when the Taylor rate is below the lower
+    // bound, and against a sovereign-spread blowout (fragmentation). Pegged currencies
+    // follow their anchor's rate and do not buy.
+    const uint8_t lq = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::asset_purchases));
+    double spread_rise = 0.0;
+    for(auto m : w.agent_get_monetary_authority(bank)) {
+        const auto n = m.get_member();
+        spread_rise += w.nation_get_gdp0(n) * std::max(0.0f, w.nation_get_spread(n) - w.nation_get_spread0(n) - 1.0f);
+    }
+    spread_rise /= weight;
+    const float shortfall = std::max(0.0f, static_cast<float>(P.effective_lower_bound) + 0.25f - taylor);
+    // Purchases saturate (balance-sheet and free-float limits): qe_max (1 - e^(-shortfall / qe_gap)).
+    const float qe_target = peg_anchor(state, first) ? 0.0f
+                                                     : static_cast<float>(P.qe_max) * (1.0f - std::exp(-shortfall / static_cast<float>(P.qe_gap)))
+                                                           + static_cast<float>(P.qe_spread) * static_cast<float>(spread_rise);
+    auto rq = blend(qe_target, 0.0f, w.agent_get_rho(bank), false, 0.0f, 0.0f, 0.0f, 30.0f);
+    const float q_before = w.nation_get_qe_rate(first);
+    const float q_after = settle(state, bank, lq, rq, 0.0f, 30.0f);
+    for(auto m : w.agent_get_monetary_authority(bank)) {
+        w.nation_set_qe_rate(m.get_member(), q_after);
+    }
+    journal(state, bank, first, lq, q_before, q_after, rq, 2.0f);
 }
 
 } // namespace
@@ -363,9 +466,11 @@ void update_ai(game_state& state) {
         w.nation_set_threat(n, s.threat);
         decide_npis(state, a, n, s);
         decide_oil(state, a, n);
+        decide_info_control(state, a, n);
         if(is_due(n.index(), tick, weekly)) {
             decide_fiscal(state, a, n);
             decide_job_retention(state, a, n);
+            decide_directed_credit(state, a, n);
         }
     }
     for(auto bank : w.in_agent) {

@@ -5,9 +5,14 @@
 //   US (uncovered interest parity), and depreciate with rising sovereign risk
 //   (capital flight). Pegs follow their anchor; currency unions share one rate.
 //   The economy uses the rate for trade volumes and import-price inflation.
+//   Two capital-account channels add depreciation pressure: currency substitution
+//   in dollarised economies when real rates fall (households move deposits into
+//   foreign currency; Ize & Levy Yeyati 2003), and credit-financed purchases of
+//   foreign assets (gold, FX; credit.cpp). Commodity terms of trade enter the
+//   current account (commodities.cpp).
 // - Sovereign spreads from debt, deficits, state capacity, legitimacy and
-//   reserve-currency status (Reinhart & Rogoff 2009); they reach the effective
-//   rate on government debt as debt rolls over.
+//   reserve-currency status (Reinhart & Rogoff 2009); they feed the term premium
+//   and so the yields at which debt rolls over (bonds.cpp).
 // - Default when the spread explodes: a haircut posted through the ledger
 //   (creditors in the finance sector lose), a legitimacy hit, a risk premium.
 // - Remittances: the payer-weighted income index of migrant workers' host
@@ -43,7 +48,9 @@ float worker_income_index(game_state const& state, dcon::nation_id n) {
 float current_account_shift(game_state const& state, dcon::nation_id n) {
     auto const& w = state.world;
     const float y = std::max(1.0f, w.nation_get_gdp_real(n));
-    return (w.nation_get_exports(n) - w.nation_get_imports(n)) / y - w.nation_get_ca0(n);
+    const float p = std::max(0.01f, w.nation_get_core_price(n));
+    // Commodity terms of trade (nominal, daily) in real terms.
+    return (w.nation_get_exports(n) - w.nation_get_imports(n) + w.nation_get_commodity_tot(n) / p) / y - w.nation_get_ca0(n);
 }
 
 } // namespace
@@ -80,21 +87,29 @@ void update_finance(game_state& state) {
         const auto lead = (*members.begin()).get_member().id;
         if(!is_due(static_cast<uint32_t>(lead.index()), tick, monthly_cadence)) continue;
         if(peg_anchor(state, lead)) continue; // pegs follow their anchor below
-        double ca = 0.0, weight = 0.0, spread_change = 0.0;
+        double ca = 0.0, weight = 0.0, spread_change = 0.0, substitution = 0.0, flight = 0.0;
         for(auto m : members) {
             const auto n = m.get_member().id;
             const double g = w.nation_get_gdp0(n);
             ca += g * current_account_shift(state, n);
             spread_change += g * (w.nation_get_spread(n) - w.nation_get_spread0(n));
+            // Currency substitution: deposit dollarisation x fall of the real policy rate (pp / 100).
+            const float real_fall = w.nation_get_real_rate0(n) - (w.nation_get_policy_rate(n) - 100.0f * w.nation_get_inflation_expect(n));
+            substitution += g * w.nation_get_fx_deposit_share(n) * std::max(0.0f, real_fall) / 100.0f;
+            flight += g * w.nation_get_capital_flight(n);
             weight += g;
         }
         ca /= weight;
         spread_change /= weight;
+        substitution /= weight;
+        flight /= weight;
         const float r_diff = (w.nation_get_policy_rate(lead) - w.nation_get_policy_rate0(lead)) - r_us;
         const float dlog = lead == usa ? 0.0f
                                        : years * (static_cast<float>(P.fx_current_account) * static_cast<float>(ca)
                                                   + static_cast<float>(P.fx_interest) * r_diff / 100.0f
-                                                  - static_cast<float>(P.fx_risk) * static_cast<float>(spread_change) / 100.0f);
+                                                  - static_cast<float>(P.fx_risk) * static_cast<float>(spread_change) / 100.0f
+                                                  - static_cast<float>(P.fx_dollarisation) * static_cast<float>(substitution)
+                                                  - static_cast<float>(P.fx_flight) * static_cast<float>(flight));
         for(auto m : members) {
             const auto n = m.get_member().id;
             w.nation_set_exchange_rate(n, std::clamp(w.nation_get_exchange_rate(n) * std::exp(dlog), 0.2f, 5.0f));
@@ -109,15 +124,11 @@ void update_finance(game_state& state) {
         w.nation_set_exchange_rate(n, w.nation_get_exchange_rate(anchor));
     }
 
-    // Spreads, effective debt cost, default.
+    // Spreads and default (the effective debt cost follows yields in bonds.cpp).
     for(auto n : w.in_nation) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
         const float s = compute_spread(state, n.id);
         n.set_spread(s);
-        const float target = static_cast<float>(P.gov_effective_rate) + (s - n.get_spread0()) / 100.0f;
-        float rate = n.get_gov_rate();
-        rate += (target - rate) * std::min(1.0f, years / static_cast<float>(P.debt_rollover_years));
-        n.set_gov_rate(std::max(0.0f, rate));
         if(!n.get_defaulted() && s - n.get_spread0() > static_cast<float>(P.default_spread)) {
             const double debt = std::max(0.0, -n.get_bal_gov());
             transfer(state, account::finance(n.id), account::government(n.id), debt * P.default_haircut, flow::sovereign_default);

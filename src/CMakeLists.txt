@@ -17,13 +17,18 @@ if(GEOSIM_USE_DCON)
         sim/report.cpp
         sim/save.cpp
         sim/scenario.cpp
+        sim/scenario_ext.cpp
         sim/simulation.cpp
         sim/systems/ai.cpp
+        sim/systems/bonds.cpp
+        sim/systems/commodities.cpp
+        sim/systems/credit.cpp
         sim/systems/economy.cpp
         sim/systems/epidemic.cpp
         sim/systems/events.cpp
         sim/systems/finance.cpp
         sim/systems/geopolitics.cpp
+        sim/systems/logistics.cpp
         sim/systems/longrun.cpp
         sim/systems/indicators.cpp
         sim/systems/markets.cpp

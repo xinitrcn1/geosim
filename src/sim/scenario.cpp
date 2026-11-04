@@ -48,6 +48,19 @@ struct nation_input {
     double remit_in = 0.0, remit_out = 0.0; // % of GDP received; USD paid per year
     std::array<double, max_sectors> va_share{};
     std::array<double, max_sectors> emp_share{};
+    double urban = 0.5;
+    // finance_curated.csv (defaults when the nation has no row)
+    double private_credit = 0.5, hh_credit_share = 0.4, state_bank_share = 0.2, cb_independence = 0.6;
+    double fx_loan_share = 0.1, fx_deposit_share = 0.1, npl = 0.03, capital_ratio = 0.16, lending_spread = 3.0;
+    double yield10 = NAN, effective_rate = NAN, avg_maturity = 7.0, foreign_debt_share = 0.3, fx_debt_share = 0.1, food_cpi = 0.25;
+    // society_curated.csv
+    double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03;
+    struct group {
+        std::string key;
+        double share = 1, edu_rel = 1, informal_rel = 1, wage_gap = 0, unemp_rel = 1, wealth_rel = 1, excluded = 0, network = 0.3;
+        bool immigrant = false;
+    };
+    std::vector<group> groups; // empty = one group
 };
 
 struct region_input {
@@ -206,15 +219,15 @@ struct builder {
             w.sector_set_import_intensity(id, static_cast<float>(node.num_or("import_intensity", 1.0, path, diag)));
             w.sector_set_voluntary_distancing(id, static_cast<float>(node.num_or("voluntary_distancing", 0.0, path, diag)));
             if(auto d = node.find("demand")) {
-                w.sector_set_demand_hh(id, static_cast<float>(d->num_or("hh", 0.0, path)));
-                w.sector_set_demand_gov(id, static_cast<float>(d->num_or("gov", 0.0, path)));
-                w.sector_set_demand_inv(id, static_cast<float>(d->num_or("inv", 0.0, path)));
-                w.sector_set_demand_exp(id, static_cast<float>(d->num_or("exp", 0.0, path)));
+                w.sector_set_demand_hh(id, static_cast<float>(d->num_or("hh", 0.0, path, diag)));
+                w.sector_set_demand_gov(id, static_cast<float>(d->num_or("gov", 0.0, path, diag)));
+                w.sector_set_demand_inv(id, static_cast<float>(d->num_or("inv", 0.0, path, diag)));
+                w.sector_set_demand_exp(id, static_cast<float>(d->num_or("exp", 0.0, path, diag)));
             }
             if(auto sk = node.find("skills")) {
-                const float lo = static_cast<float>(sk->num_or("low", 0.33, path));
-                const float mi = static_cast<float>(sk->num_or("mid", 0.34, path));
-                const float hi = static_cast<float>(sk->num_or("high", 0.33, path));
+                const float lo = static_cast<float>(sk->num_or("low", 0.33, path, diag));
+                const float mi = static_cast<float>(sk->num_or("mid", 0.34, path, diag));
+                const float hi = static_cast<float>(sk->num_or("high", 0.33, path, diag));
                 const float tot = lo + mi + hi;
                 w.sector_set_skill(id, 0, lo / tot);
                 w.sector_set_skill(id, 1, mi / tot);
@@ -229,7 +242,35 @@ struct builder {
                     w.sector_set_npi_capacity(id, it->second, static_cast<float>(core::parse_number(c.text, path, c.line, diag).value_or(0.0)));
                 }
             }
+            w.sector_set_shipped(id, static_cast<float>(node.num_or("shipped", 0.0, path, diag)));
+            w.sector_set_critical_input(id, static_cast<float>(node.num_or("critical_input", 0.0, path, diag)));
+            w.sector_set_inventory_days(id, static_cast<float>(std::max(7.0, node.num_or("inventory_days", 14.0, path, diag))));
             sector_by_key[key] = static_cast<uint8_t>(id.index());
+        }
+        // Input-output coefficients (need every sector key).
+        w.sector_resize_io_coeff(static_cast<uint32_t>(sector_by_key.size()));
+        for(auto const& node : nodes) {
+            auto it = sector_by_key.find(std::string(node.req("key", path, diag)));
+            if(it == sector_by_key.end()) continue;
+            const dcon::sector_id id{it->second};
+            double used = 0.0;
+            if(auto inp = node.find("inputs")) {
+                for(auto const& c : inp->children) {
+                    auto src = sector_by_key.find(c.key);
+                    if(src == sector_by_key.end()) {
+                        diag.fail(path, c.line, "unknown input sector '" + c.key + "'");
+                        return;
+                    }
+                    const double a = core::parse_number(c.text, path, c.line, diag).value_or(0.0);
+                    w.sector_set_io_coeff(id, src->second, static_cast<float>(a));
+                    used += a;
+                }
+            }
+            if(used >= 0.9) {
+                diag.fail(path, node.line, "input coefficients of '" + std::string(node.req("key", path, diag)) + "' sum to 0.9 or more");
+                return;
+            }
+            w.sector_set_value_added_share(id, static_cast<float>(1.0 - used));
         }
     }
 
@@ -280,6 +321,7 @@ struct builder {
             in.remit_in = t.number_or(row, "remittances_in_pct", 0.0) / 100.0;
             in.remit_out = t.number_or(row, "remittances_out_usd", 0.0);
             in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
+            in.urban = t.number_or(row, "urban_pct", 50.0) / 100.0;
             order.push_back(in.iso);
             inputs[in.iso] = in;
         }
@@ -313,6 +355,77 @@ struct builder {
             }
             it->second.va_share[sk->second] = s.number_or(row, "va_share", 0.0);
             it->second.emp_share[sk->second] = s.number_or(row, "emp_share", 0.0);
+        }
+        load_nation_extras(dir);
+    }
+
+    // Optional per-nation tables: banking / bonds / prices, society, identity groups.
+    // Nations without rows keep the defaults in nation_input (the full-world data
+    // comes later; every mechanism must work with defaults).
+    void load_nation_extras(std::string const& dir) {
+        auto rows = [&](std::string const& file, auto&& fn) {
+            if(!exists(dir + "/" + file)) return;
+            const auto t = core::csv_table::load(dir + "/" + file, diag);
+            for(std::size_t row = 0; row < t.rows(); ++row) {
+                auto it = inputs.find(std::string(t.get(row, "iso3")));
+                if(it == inputs.end()) continue; // nation not in this scenario
+                fn(t, row, it->second);
+            }
+        };
+        rows("finance_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+            in.private_credit = t.number_or(row, "private_credit_pct", in.private_credit * 100.0) / 100.0;
+            in.hh_credit_share = t.number_or(row, "hh_credit_share", in.hh_credit_share);
+            in.state_bank_share = t.number_or(row, "state_bank_share", in.state_bank_share);
+            in.cb_independence = t.number_or(row, "cb_independence", in.cb_independence);
+            in.fx_loan_share = t.number_or(row, "fx_loan_share", in.fx_loan_share);
+            in.fx_deposit_share = t.number_or(row, "fx_deposit_share", in.fx_deposit_share);
+            in.npl = t.number_or(row, "npl_pct", in.npl * 100.0) / 100.0;
+            in.capital_ratio = t.number_or(row, "capital_ratio_pct", in.capital_ratio * 100.0) / 100.0;
+            in.lending_spread = t.number_or(row, "lending_spread_pp", in.lending_spread);
+            if(auto v = t.number(row, "yield10_pct")) in.yield10 = *v;
+            if(auto v = t.number(row, "effective_rate_pct")) in.effective_rate = *v;
+            in.avg_maturity = t.number_or(row, "avg_maturity_years", in.avg_maturity);
+            in.foreign_debt_share = t.number_or(row, "foreign_debt_share", in.foreign_debt_share);
+            in.fx_debt_share = t.number_or(row, "fx_debt_share", in.fx_debt_share);
+            in.food_cpi = t.number_or(row, "food_cpi_share", in.food_cpi);
+        });
+        rows("society_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+            in.youth_share = t.number_or(row, "youth_share", in.youth_share);
+            in.youth_unemp_rel = t.number_or(row, "youth_unemp_rel", in.youth_unemp_rel);
+            in.social_media = t.number_or(row, "social_media_pct", in.social_media * 100.0) / 100.0;
+            in.corruption_cpi = t.number_or(row, "corruption_cpi", in.corruption_cpi);
+            in.emigrant_stock = t.number_or(row, "emigrant_stock_pct", in.emigrant_stock * 100.0) / 100.0;
+        });
+        rows("groups_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+            nation_input::group g;
+            g.key = std::string(t.get(row, "group"));
+            g.share = t.number_or(row, "pop_share", 0.0);
+            g.edu_rel = std::max(0.05, t.number_or(row, "edu_rel", 1.0));
+            g.informal_rel = std::max(0.0, t.number_or(row, "informal_rel", 1.0));
+            g.wage_gap = t.number_or(row, "wage_gap", 0.0);
+            g.unemp_rel = std::max(0.0, t.number_or(row, "unemp_rel", 1.0));
+            g.wealth_rel = std::max(0.0, t.number_or(row, "wealth_rel", 1.0));
+            g.excluded = std::clamp(t.number_or(row, "excluded", 0.0), 0.0, 1.0);
+            g.network = std::clamp(t.number_or(row, "network", 0.3), 0.0, 1.0);
+            g.immigrant = t.number_or(row, "immigrant", 0.0) > 0.0;
+            if(g.key.empty() || g.key.size() > 4 || g.share <= 0.0) {
+                diag.fail(t.source() + ": " + in.iso + " group keys need 1-4 characters and a positive pop_share");
+                return;
+            }
+            in.groups.push_back(g);
+        });
+        for(auto& [iso, in] : inputs) {
+            double sum = 0.0;
+            for(auto const& g : in.groups) sum += g.share;
+            if(!in.groups.empty() && std::abs(sum - 1.0) > 0.02) {
+                warn(iso + ": identity-group shares sum to " + std::to_string(sum) + "; rescaled");
+            }
+            for(auto& g : in.groups) g.share /= sum;
+            if(in.groups.empty()) {
+                nation_input::group all;
+                all.key = "ALL";
+                in.groups.push_back(all);
+            }
         }
     }
 
@@ -487,6 +600,25 @@ struct builder {
         auto& w = state.world;
         const auto n = w.create_nation();
         w.nation_set_iso3(n, core::pack_key(in.iso));
+        w.nation_set_lat(n, static_cast<float>(in.lat));
+        w.nation_set_lon(n, static_cast<float>(in.lon));
+        // Identity groups (pops are split by group in every region).
+        uint8_t gi = 0;
+        for(auto const& g : in.groups) {
+            const auto id = w.create_social_group();
+            w.social_group_set_key(id, core::pack_key(g.key));
+            w.social_group_set_nation(id, n);
+            w.social_group_set_local_index(id, gi++);
+            w.social_group_set_pop_share(id, static_cast<float>(g.share));
+            w.social_group_set_edu_rel(id, static_cast<float>(g.edu_rel));
+            w.social_group_set_informal_rel(id, static_cast<float>(g.informal_rel));
+            w.social_group_set_wage_gap(id, static_cast<float>(g.wage_gap));
+            w.social_group_set_unemp_rel(id, static_cast<float>(g.unemp_rel));
+            w.social_group_set_wealth_rel(id, static_cast<float>(g.wealth_rel));
+            w.social_group_set_excluded(id, static_cast<float>(g.excluded));
+            w.social_group_set_network(id, static_cast<float>(g.network));
+            w.social_group_set_immigrant(id, g.immigrant ? 1 : 0);
+        }
         std::vector<region_input> list = regions_of.count(in.iso) ? regions_of[in.iso] : std::vector<region_input>{};
         if(list.empty()) {
             region_input whole;
@@ -529,14 +661,19 @@ struct builder {
         w.region_set_ifr_mult(r, 1.0f);
         w.region_set_children(r, static_cast<float>(pop * in.pop014));
         w.region_set_unrest_capacity(r, 1.0f);
-        for(uint8_t k = 0; k < 4; ++k) {
-            const auto p = w.create_pop();
-            w.pop_set_kind(p, k);
-            w.pop_set_is_worker(p, k < worker_kinds ? 1.0f : 0.0f);
-            w.pop_set_nation(p, n);
-            w.pop_set_home(p, r);
-            w.pop_set_shard(p, w.region_get_shard(r));
-            w.force_create_pop_location(p, r);
+        for(auto g : w.in_social_group) {
+            if(g.get_nation() != n) continue;
+            for(uint8_t k = 0; k < 4; ++k) {
+                const auto p = w.create_pop();
+                w.pop_set_kind(p, k);
+                w.pop_set_group(p, g.id);
+                w.pop_set_is_worker(p, k < worker_kinds ? 1.0f : 0.0f);
+                w.pop_set_nation(p, n);
+                w.pop_set_home(p, r);
+                w.pop_set_shard(p, w.region_get_shard(r));
+                w.pop_set_network(p, g.get_network());
+                w.force_create_pop_location(p, r);
+            }
         }
     }
 
@@ -559,6 +696,7 @@ struct builder {
         w.nation_set_gini0(n, static_cast<float>(in.gini));
         w.nation_set_core_price(n, 1.0f);
         w.nation_set_cpi(n, 1.0f);
+        w.nation_set_gf(n, 1.0f); // growth factor at tick 0 (systems read it before the first economy step)
         w.nation_set_util_smoothed(n, 1.0f);
 
         // Daily output at the start of 2020 (2019 annual level grown half a year).
@@ -656,13 +794,72 @@ struct builder {
             w.nation_set_comp_x(n, s, static_cast<float>(a[s][3] / col[3]));
         }
 
-        // Regions: value added and employment by the region's share (population share
-        // until regional tables are provided), then pops per region.
+        // Identity groups: split each skill tier's workers across groups with a RAS
+        // (rows: group population shares; columns: national skill totals; prior:
+        // group share x education odds), so national totals hold exactly.
         const double unemployed = in.labor_force * in.unemployment;
         const std::array<float, 3> u_share = {0.5f, 0.35f, 0.15f};
         const std::array<float, 4> owner = {0.02f, 0.13f, 0.55f, 0.30f};
         const std::array<float, 4> transfer = {0.20f, 0.05f, 0.0f, 0.75f};
+        std::vector<dcon::social_group_id> groups;
+        for(auto g : w.in_social_group) {
+            if(g.get_nation() == n) groups.push_back(g.id);
+        }
+        const std::size_t G = groups.size();
+        std::array<double, 3> W{};
+        for(uint8_t s = 0; s < S; ++s) {
+            for(uint8_t k = 0; k < worker_kinds; ++k) W[k] += w.nation_get_emp0(n, s) * w.sector_get_skill(dcon::sector_id{s}, k);
+        }
+        for(uint8_t k = 0; k < worker_kinds; ++k) W[k] += unemployed * u_share[k];
+        const double W_total = W[0] + W[1] + W[2];
+        std::vector<std::array<double, 3>> M(G);
+        for(std::size_t g = 0; g < G; ++g) {
+            const double edu = w.social_group_get_edu_rel(groups[g]);
+            const std::array<double, 3> odds = {1.0 / edu, 1.0, edu};
+            for(uint8_t k = 0; k < worker_kinds; ++k) M[g][k] = w.social_group_get_pop_share(groups[g]) * W[k] * odds[k];
+        }
+        for(int it = 0; it < 200; ++it) {
+            for(uint8_t k = 0; k < worker_kinds; ++k) {
+                double col = 0.0;
+                for(std::size_t g = 0; g < G; ++g) col += M[g][k];
+                for(std::size_t g = 0; g < G; ++g) M[g][k] *= col > 0.0 ? W[k] / col : 0.0;
+            }
+            for(std::size_t g = 0; g < G; ++g) {
+                const double row = M[g][0] + M[g][1] + M[g][2];
+                const double target = w.social_group_get_pop_share(groups[g]) * W_total;
+                for(uint8_t k = 0; k < worker_kinds; ++k) M[g][k] *= row > 0.0 ? target / row : 0.0;
+            }
+        }
+        w.social_group_resize_skill(worker_kinds);
+        std::vector<std::array<double, 3>> F(G), U(G), WF(G);
+        double inf_norm = 0.0;
+        for(std::size_t g = 0; g < G; ++g) inf_norm += w.social_group_get_pop_share(groups[g]) * w.social_group_get_informal_rel(groups[g]);
+        for(uint8_t k = 0; k < worker_kinds; ++k) {
+            double u_norm = 0.0, w_norm = 0.0;
+            for(std::size_t g = 0; g < G; ++g) {
+                F[g][k] = W[k] > 0.0 ? M[g][k] / W[k] : 1.0 / static_cast<double>(G);
+                u_norm += F[g][k] * w.social_group_get_unemp_rel(groups[g]);
+                w_norm += F[g][k] * (1.0 - w.social_group_get_wage_gap(groups[g]));
+            }
+            for(std::size_t g = 0; g < G; ++g) {
+                U[g][k] = u_norm > 0.0 ? F[g][k] * w.social_group_get_unemp_rel(groups[g]) / u_norm : F[g][k];
+                WF[g][k] = w_norm > 0.0 ? (1.0 - w.social_group_get_wage_gap(groups[g])) / w_norm : 1.0;
+            }
+        }
+        for(std::size_t g = 0; g < G; ++g) {
+            const double row = M[g][0] + M[g][1] + M[g][2];
+            for(uint8_t k = 0; k < worker_kinds; ++k) w.social_group_set_skill(groups[g], k, static_cast<float>(row > 0.0 ? M[g][k] / row : 1.0 / 3.0));
+        }
+        auto group_index = [&](dcon::pop_id p) -> std::size_t {
+            const auto g = w.pop_get_group(p);
+            for(std::size_t i = 0; i < G; ++i) if(groups[i] == g) return i;
+            return 0;
+        };
+
+        // Regions: value added and employment by the region's share (population share
+        // until regional tables are provided), then pops per region and group.
         std::array<double, 4> kind_size{};
+        std::array<double, 4> kind_wealth{};
         std::size_t ridx = 0;
         auto const& rlist = regions_of.count(in.iso) ? regions_of[in.iso] : std::vector<region_input>{};
         for(auto own : w.nation_get_region_ownership(n)) {
@@ -683,12 +880,14 @@ struct builder {
             for(auto loc : reg.get_pop_location()) {
                 auto p = loc.get_pop();
                 const auto k = p.get_kind();
+                const std::size_t gi = group_index(p.id);
+                const auto grp = groups[gi];
                 double size = 0.0;
                 if(k < worker_kinds) {
                     for(uint8_t s = 0; s < S; ++s) {
                         const dcon::sector_id sid{s};
                         const float e_region = static_cast<float>(w.nation_get_emp0(n, s) * emp_sh[s]);
-                        const float e = e_region * w.sector_get_skill(sid, k);
+                        const float e = static_cast<float>(e_region * w.sector_get_skill(sid, k) * F[gi][k]);
                         double mix = 0.0;
                         for(uint8_t kk = 0; kk < worker_kinds; ++kk) {
                             mix += w.sector_get_skill(sid, kk) * (kk == 0 ? P.wage_low : kk == 1 ? P.wage_mid : P.wage_high);
@@ -698,36 +897,46 @@ struct builder {
                         p.set_emp0(s, e);
                         p.set_need_slow(s, e);
                         p.set_hours(s, 1.0f);
-                        p.set_wage0(s, static_cast<float>(w.sector_get_labor_share(sid) * va[s] * va_sh[s] / std::max(1.0f, e_region) * mult / mix));
+                        p.set_wage0(s, static_cast<float>(w.sector_get_labor_share(sid) * va[s] * va_sh[s] / std::max(1.0f, e_region) * mult / mix
+                                                          * WF[gi][k]));
                         size += e;
                     }
-                    p.set_unemployed(static_cast<float>(unemployed * share * u_share[k]));
-                    size += unemployed * share * u_share[k];
+                    const double u = unemployed * share * u_share[k] * U[gi][k];
+                    p.set_unemployed(static_cast<float>(u));
+                    size += u;
                     double wsum = 0.0, esum = 0.0;
                     for(uint8_t s = 0; s < S; ++s) {
                         wsum += static_cast<double>(p.get_emp0(s)) * p.get_wage0(s);
                         esum += p.get_emp0(s);
                     }
+                    // A group's average wage for benefits, from its own wages.
                     p.set_wage_avg0(static_cast<float>(esum > 0.0 ? wsum / esum : 0.0));
                 } else {
-                    size = reg.get_population() * in.pop65;
+                    size = reg.get_population() * in.pop65 * w.social_group_get_pop_share(grp);
                 }
+                // Informality by group, rescaled so the national mean is the data (WDI).
+                const double inf = inf_norm > 0.0 ? std::clamp(in.vulnerable * w.social_group_get_informal_rel(grp) / inf_norm, 0.0, 0.98) : in.vulnerable;
+                p.set_informal(k < worker_kinds ? static_cast<float>(inf) : 0.0f);
+                p.set_formal_rel(static_cast<float>(std::clamp((1.0 - inf) / std::max(0.02, 1.0 - in.vulnerable), 0.0, 3.0)));
                 p.set_size(static_cast<float>(size));
                 p.set_owner_share(owner[k]);
                 p.set_transfer_share(transfer[k]);
                 kind_size[k] += size;
+                kind_wealth[k] += size * w.social_group_get_wealth_rel(grp);
             }
         }
-        // Income weights: each kind's national share, split across regions by pop size.
+        // Income weights: each kind's national share, split across regions by pop size;
+        // profit and interest income (wealth) also by the group's relative wealth.
         double owner_total = 0.0, transfer_total = 0.0, size_total = 0.0;
         for(auto own : w.nation_get_region_ownership(n)) {
             for(auto loc : own.get_region().get_pop_location()) {
                 auto p = loc.get_pop();
                 const auto k = p.get_kind();
                 const double frac = kind_size[k] > 0.0 ? p.get_size() / kind_size[k] : 0.0;
-                p.set_owner_weight(static_cast<float>(owner[k] * frac));
+                const double wfrac = kind_wealth[k] > 0.0 ? p.get_size() * w.social_group_get_wealth_rel(p.get_group()) / kind_wealth[k] : frac;
+                p.set_owner_weight(static_cast<float>(owner[k] * wfrac));
                 p.set_transfer_weight(static_cast<float>(transfer[k] * frac));
-                owner_total += owner[k] * frac;
+                owner_total += owner[k] * wfrac;
                 transfer_total += transfer[k] * frac;
                 size_total += p.get_size();
             }
@@ -772,30 +981,23 @@ struct builder {
 
         const double debt0 = in.gov_debt * in.gdp;
         w.nation_set_gov_debt0(n, debt0);
-        const double interest0 = debt0 * P.gov_effective_rate / 365.0;
+        // Effective interest rate on the debt: interest bill / debt (IMF Fiscal Monitor), else the default.
+        const double eff_rate = std::isfinite(in.effective_rate) ? in.effective_rate / 100.0 : P.gov_effective_rate;
+        w.nation_set_gov_rate(n, static_cast<float>(eff_rate));
+        w.nation_set_gov_rate0(n, static_cast<float>(eff_rate));
+        const double interest0 = debt0 * eff_rate / 365.0;
         const double purchases0 = G0 * (1.0 - w.nation_get_comp_g(n, gov_s));
         const double deficit = -in.gov_net_lending * y;
 
-        // Baseline unemployment benefits (same formula as the economy step).
+        // Baseline unemployment benefits (same formula as the pop pass: each pop's own
+        // average wage, scaled by its formal-job coverage).
         double benefits0 = 0.0;
-        {
-            std::array<double, 3> num{}, den{};
-            for(uint8_t s = 0; s < S; ++s) {
-                const dcon::sector_id sid{s};
-                double mix = 0.0;
-                for(uint8_t k = 0; k < worker_kinds; ++k) {
-                    mix += w.sector_get_skill(sid, k) * (k == 0 ? P.wage_low : k == 1 ? P.wage_mid : P.wage_high);
-                }
-                const double e0 = std::max(1.0f, w.nation_get_emp0(n, s));
-                const double base = w.sector_get_labor_share(sid) * va[s] / e0 / mix;
-                for(uint8_t k = 0; k < worker_kinds; ++k) {
-                    const double weight = e0 * w.sector_get_skill(sid, k);
-                    num[k] += weight * base * (k == 0 ? P.wage_low : k == 1 ? P.wage_mid : P.wage_high);
-                    den[k] += weight;
-                }
-            }
-            for(uint8_t k = 0; k < worker_kinds; ++k) {
-                benefits0 += unemployed * u_share[k] * (num[k] / den[k]) * in.benefit_replacement * in.benefit_coverage;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                auto p = loc.get_pop();
+                if(p.get_kind() >= worker_kinds) continue;
+                benefits0 += static_cast<double>(p.get_unemployed()) * p.get_wage_avg0() * in.benefit_replacement * in.benefit_coverage
+                             * p.get_formal_rel();
             }
         }
         double pensions0 = revenue + fees + deficit - w_pub - purchases0 - interest0 - benefits0;
@@ -828,6 +1030,7 @@ struct builder {
         }
         w.nation_set_policy_rate0(n, rate0);
         w.nation_set_policy_rate(n, rate0);
+        calibrate_finance(n, in, rate0, y);
 
         // Labour state.
         w.nation_set_unemployment0(n, static_cast<float>(in.unemployment));
@@ -843,6 +1046,97 @@ struct builder {
             w.nation_set_oil_share_of_energy(n, static_cast<float>(std::min(0.9, oil_value * P.oil_value_added_share / ene)));
         }
 
+    }
+
+    // Banking, bonds, prices, society and the production network (docs/03, docs/04).
+    void calibrate_finance(dcon::nation_id n, nation_input const& in, float rate0, double y) {
+        auto& w = state.world;
+        auto const& P = state.params;
+        const uint8_t S = state.derived.sector_count;
+        // Bonds: the starting term premium reproduces the December 2019 yield.
+        const float y10 = std::isfinite(in.yield10) ? static_cast<float>(in.yield10) : rate0 + 1.5f;
+        w.nation_set_yield10(n, y10);
+        w.nation_set_yield10_0(n, y10);
+        w.nation_set_term_premium0(n, y10 - rate0); // expected short rate = policy rate at the start
+        w.nation_set_avg_maturity(n, static_cast<float>(in.avg_maturity));
+        w.nation_set_foreign_debt_share(n, static_cast<float>(in.foreign_debt_share));
+        w.nation_set_fx_debt_share(n, static_cast<float>(in.fx_debt_share));
+        w.nation_set_debt_prev(n, w.nation_get_gov_debt0(n));
+        // Credit: stocks, lending rate, banks.
+        const double loans = in.private_credit * in.gdp;
+        w.nation_set_loans_hh0(n, loans * in.hh_credit_share);
+        w.nation_set_loans_firm0(n, loans * (1.0 - in.hh_credit_share));
+        w.nation_set_loans_hh(n, loans * in.hh_credit_share);
+        w.nation_set_loans_firm(n, loans * (1.0 - in.hh_credit_share));
+        w.nation_set_loans_prev(n, 1.0);
+        w.nation_set_loans_start(n, loans);
+        w.nation_set_state_bank_share(n, static_cast<float>(in.state_bank_share));
+        w.nation_set_cb_independence(n, static_cast<float>(in.cb_independence));
+        w.nation_set_fx_loan_share(n, static_cast<float>(in.fx_loan_share));
+        w.nation_set_fx_deposit_share(n, static_cast<float>(in.fx_deposit_share));
+        w.nation_set_npl0(n, static_cast<float>(in.npl));
+        w.nation_set_npl(n, static_cast<float>(in.npl));
+        w.nation_set_capital_ratio0(n, static_cast<float>(in.capital_ratio));
+        w.nation_set_capital_ratio(n, static_cast<float>(in.capital_ratio));
+        w.nation_set_bank_capital(n, in.capital_ratio * P.rwa_density * loans);
+        w.nation_set_lending_spread(n, static_cast<float>(in.lending_spread));
+        const float iw = static_cast<float>(P.i_long_weight);
+        w.nation_set_lending_rate0(n, (1.0f - iw) * rate0 + iw * y10 + static_cast<float>(in.lending_spread));
+        w.nation_set_lending_rate(n, w.nation_get_lending_rate0(n));
+        w.nation_set_real_rate0(n, rate0 - static_cast<float>(100.0 * in.inflation_trend));
+        // Exchange-rate pass-through rises with trend inflation (Taylor 2000).
+        w.nation_set_fx_passthrough_n(n, static_cast<float>(std::clamp(P.fx_passthrough_base + P.fx_passthrough_inflation * in.inflation_trend, 0.0,
+                                                                       P.fx_passthrough_max)));
+        // Price basket.
+        w.nation_set_food_cpi_share(n, static_cast<float>(in.food_cpi));
+        w.nation_set_energy_cpi_share(n, static_cast<float>(P.gas_cpi_share));
+        w.nation_set_food_price(n, 1.0f);
+        // Society.
+        w.nation_set_youth_share(n, static_cast<float>(in.youth_share));
+        w.nation_set_youth_unemp_rel(n, static_cast<float>(in.youth_unemp_rel));
+        w.nation_set_connectivity(n, static_cast<float>(std::clamp(in.social_media, 0.0, 1.0)));
+        w.nation_set_corruption(n, static_cast<float>(std::clamp(1.0 - in.corruption_cpi / 100.0, 0.0, 1.0)));
+        w.nation_set_emigrant_stock(n, static_cast<float>(in.emigrant_stock));
+        w.nation_set_urban_share(n, static_cast<float>(in.urban));
+        // Production network: imported share of each intermediate input (import share of
+        // demand x the input's import intensity), raised where domestic output could not
+        // cover domestic intermediate use; stocks start at target.
+        double intensity = 0.0;
+        for(uint8_t r = 0; r < S; ++r) intensity += w.sector_get_import_intensity(dcon::sector_id{r}) / S;
+        std::array<double, max_sectors> x{};
+        for(uint8_t s = 0; s < S; ++s) x[s] = w.nation_get_va0(n, s) / std::max(0.05f, w.sector_get_value_added_share(dcon::sector_id{s}));
+        for(uint8_t r = 0; r < S; ++r) {
+            const dcon::sector_id rid{r};
+            double use = 0.0;
+            for(uint8_t u = 0; u < S; ++u) use += w.sector_get_io_coeff(dcon::sector_id{u}, r) * x[u];
+            double m = std::clamp(w.nation_get_import_share(n) * w.sector_get_import_intensity(rid) / std::max(1e-6, intensity), P.io_import_floor, 0.9);
+            if(use > 0.0) m = std::max(m, 1.0 - 0.85 * x[r] / use);
+            w.nation_set_io_import(n, r, static_cast<float>(std::clamp(m, 0.0, 0.95)));
+        }
+        for(uint8_t u = 0; u < S; ++u) {
+            const float days = w.sector_get_inventory_days(dcon::sector_id{u});
+            w.nation_set_gross_output(n, u, static_cast<float>(x[u]));
+            w.nation_set_io_demand(n, u, static_cast<float>(x[u]));
+            w.nation_set_io_constraint(n, u, 1.0f);
+            for(uint8_t r = 0; r < S; ++r) {
+                const float a = w.sector_get_io_coeff(dcon::sector_id{u}, r);
+                const float m = w.nation_get_io_import(n, r);
+                const auto k = static_cast<uint8_t>(r * S + u);
+                w.nation_set_io_stock(n, k, (1.0f - m) * a * static_cast<float>(x[u]) * days);
+                w.nation_set_io_stock_m(n, k, m * a * static_cast<float>(x[u]) * days);
+            }
+        }
+        // Goods share of exports (shipped sectors) for the logistics system.
+        double goods = 0.0;
+        for(uint8_t s = 0; s < S; ++s) goods += w.sector_get_shipped(dcon::sector_id{s}) * w.nation_get_comp_x(n, s);
+        w.nation_set_goods_export_share(n, static_cast<float>(std::clamp(goods, 0.0, 1.0)));
+        w.nation_set_seaborne_share(n, 0.75f); // overwritten by logistics_curated.csv
+        w.nation_set_input_availability(n, 1.0f);
+        w.nation_set_import_cost_index(n, 1.0f);
+        w.nation_set_import_cost_prev(n, 1.0f);
+        w.nation_set_trade_cost_factor(n, 1.0f);
+        w.nation_set_domestic_logistics(n, 1.0f);
+        (void)y;
     }
 
     // Second calibration phase, after one probe pass of the economy has computed
@@ -912,6 +1206,30 @@ struct builder {
         w.nation_set_mass_wage0(n, mass_n > 0 ? static_cast<float>(mass_inc / mass_n) : 1.0f);
         w.nation_set_elite_unemp0(n, elite_n > 0 ? static_cast<float>(elite_u / elite_n) : 0.0f);
         w.nation_set_tertiary_share(n, static_cast<float>(in.tertiary));
+        // Identity groups: income per head relative to the national mean at the start.
+        {
+            double inc = 0.0, size = 0.0;
+            for(auto own : w.nation_get_region_ownership(n)) {
+                for(auto loc : own.get_region().get_pop_location()) {
+                    inc += std::max(0.0f, loc.get_pop().get_income());
+                    size += loc.get_pop().get_size();
+                }
+            }
+            for(auto g : w.in_social_group) {
+                if(g.get_nation() != n) continue;
+                double gi = 0.0, gs = 0.0;
+                for(auto own : w.nation_get_region_ownership(n)) {
+                    for(auto loc : own.get_region().get_pop_location()) {
+                        if(loc.get_pop().get_group() != g.id) continue;
+                        gi += std::max(0.0f, loc.get_pop().get_income());
+                        gs += loc.get_pop().get_size();
+                    }
+                }
+                const float rel = size > 0.0 && gs > 0.0 && inc > 0.0 ? static_cast<float>((gi / gs) / (inc / size)) : 1.0f;
+                g.set_income_rel(rel);
+                g.set_income_rel0(rel);
+            }
+        }
         w.nation_set_legitimacy(n, static_cast<float>(std::clamp(0.6 + 0.1 * in.voice, 0.3, 0.85)));
         w.nation_set_media_freedom(n, static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0)));
         // Finance and long-run baselines.
@@ -1000,6 +1318,10 @@ struct builder {
             w.agent_set_econ_weight(exec, 1.0f);
             w.agent_set_order_ideal(exec, static_cast<float>(std::clamp(0.2 - 0.12 * in.voice, 0.0, 0.6)));
             w.agent_set_fiscal_hawk(exec, 0.3f);
+            // Growth-first credit activism: the means (state banks) and, above all, the
+            // absence of an independent check on money and banks (Dinc 2005; Bircan & Saka 2021).
+            w.agent_set_credit_bias(exec, static_cast<float>(std::clamp(2.5 * std::sqrt(in.state_bank_share) * (1.0 - in.cb_independence)
+                                                                            * (1.0 - in.cb_independence), 0.0, 1.0)));
             w.force_create_executive_seat(exec, n);
 
             const std::string area = union_of.count(iso) ? union_of[iso] : iso;
@@ -1061,6 +1383,11 @@ struct builder {
         auto& w = state.world;
         const std::string dir = assets + "/scenario/" + scenario;
         const auto N = static_cast<uint32_t>(w.nation_size());
+        w.nation_resize_transit_days(N);
+        w.nation_resize_transit_days0(N);
+        w.nation_resize_land_share(N);
+        w.nation_resize_trade_distance(N);
+        w.nation_resize_pair_cost(N);
         w.nation_resize_trust(N);
         w.nation_resize_threat_to(N);
         w.nation_resize_trade_share(N);
@@ -1101,8 +1428,6 @@ struct builder {
             if(auto d = core::parse_date(s.next)) {
                 w.nation_set_next_election(n, core::tick_from_date(*d));
             }
-            w.nation_set_lat(n, static_cast<float>(in.lat));
-            w.nation_set_lon(n, static_cast<float>(in.lon));
             const float electoral = static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0));
             w.nation_set_electoral(n, electoral);
             w.nation_set_liberal(n, 0.5f * electoral + 0.5f * w.nation_get_state_capacity(n));
@@ -1155,7 +1480,10 @@ struct builder {
             n.set_spread0(compute_spread(state, n.id));
             n.set_spread(n.get_spread0());
         }
+        load_trade_tables(state, assets + "/scenario/" + scenario, diag);
+        init_logistics_routes(state); // sea distances feed gravity trade shares
         init_geopolitics(state);
+        init_logistics_flows(state);
         for(auto n : w.in_nation) {
             n.set_trade_access0(trade_access(state, n.id));
         }
@@ -1264,6 +1592,16 @@ struct builder {
         w.nation_resize_npi_cut(S);
         w.nation_resize_sector_factor(S);
         w.nation_resize_fill(S);
+        w.nation_resize_gross_output(S);
+        w.nation_resize_io_demand(S);
+        w.nation_resize_io_import(S);
+        w.nation_resize_io_constraint(S);
+        if(S * S > 255) {
+            diag.fail(assets + "/defs/sectors.txt: at most 15 sectors fit the input-output stock arrays");
+            return;
+        }
+        w.nation_resize_io_stock(S * S);
+        w.nation_resize_io_stock_m(S * S);
 
         load_nations();
         if(diag.failed()) return;
@@ -1273,6 +1611,9 @@ struct builder {
             create_nation(inputs[iso]);
         }
         load_adjacency();
+        if(diag.failed()) return;
+        load_sea_network(state, assets, diag);      // after nations: littoral links
+        load_commodity_defs(state, assets, diag);
         if(diag.failed()) return;
         setup_oil();
         rebuild_derived(state);

@@ -23,10 +23,19 @@ struct nation_summary {
     double net_migration_per_1000 = 0;
     double unrest_mean = 0;           // population-weighted regional unrest (0 calm .. 4 insurgency)
     double psi = 0;                   // Political Stress Index
+    double yield10_start_pct = 0;     // 10-year government yield at the start / end of the run
+    double yield10_end_pct = 0;
+    double credit_growth_pct = 0;     // bank credit to the private sector, change over the run
+    double credit_impulse_pct = 0;    // latest credit impulse, % of GDP per year
+    double npl_pct = 0;               // non-performing loans at the end
+    double exchange_rate = 1;         // real exchange rate at the end (1 = start)
 };
 
 struct world_summary {
     double oil_price_mean = 0;
+    double freight_index_mean = 0;    // container spot rate (1 = start), mean over the run
+    double freight_index_end = 0;
+    double fleet_idle_peak = 0;       // largest idle share of the container fleet
     std::vector<nation_summary> nations;
 };
 
@@ -37,6 +46,12 @@ void begin_measurement(game_state& state);
 
 // The "Why?" ledger: a nation's year-to-date flows by kind, as % of nominal GDP.
 void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out);
+
+// Identity groups of a nation: size, income relative to the national mean,
+// unemployment, informality, grievance.
+void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out);
+// Chokepoints (state, incidents, queues) and the container freight market.
+void write_logistics(game_state const& state, std::ostream& out);
 
 void write_daily_header(std::ostream& out);
 void write_daily_rows(game_state const& state, std::ostream& out);
