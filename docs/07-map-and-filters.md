@@ -84,6 +84,77 @@ snowline falling from ~5000 m at 28° to ~1600 m at 70° (+600 m in deserts,
 plateau mostly brown). The alpha channel keeps the relief code. Mips: box
 filter for the terrain, point sampling for the IDs.
 
+## Vector regions
+
+Regions are drawn from polygons, so zooming reaches micro-states (Andorra's
+parishes, Monaco, San Marino, Caribbean and Pacific islands) at ~30 px per km
+(the zoom limit is 16× deeper than with the raster). The region-ID raster
+stays as a fallback (devices without logic ops, `--vector-map 0`) and for the
+electoral insets and the coarse checks below.
+
+- **Pipeline** (`build_map.py`, `polygons.py`): the same ADM1 / Natural Earth
+  polygons the raster is painted from, per nation cut into **shared arcs**
+  (TopoJSON-style: rings split where the set of rings using a vertex
+  changes), each arc simplified once by Douglas–Peucker (tolerance 0.01°,
+  ~1.1 km; `--tolerance`) and the rings reassembled, so borders inside a nation
+  stay identical on both sides. Regions whose rings all collapse (micro-states)
+  keep their largest ring at a 20× finer tolerance; the sovereign duplicates
+  of territories (China's Hong Kong SAR, the US Puerto Rico...) are dropped.
+  Lakes (Natural Earth 50m) follow. 3.67 M source vertices → 555 k (3237
+  regions) + 12 k lake vertices; the `POLY` section is 2.9 MB compressed
+  (1e-5° delta-coded int32 rings).
+- **ID pass** (`map_ids.vert/.frag`): no triangulation. Every ring is a
+  triangle fan, vertex-pulled from storage buffers; each vertex also fetches
+  its ring's first vertex, both are projected with the oblique Mercator, and
+  the oblique longitude is unwrapped next to the first vertex's, so rings
+  crossing the projection's seam stay whole; a second instance draws all rings
+  one turn (2π) to the other side. Fragments **XOR** the ring's code (region
+  id + a 15-bit checksum; lakes set bit 31) into a screen-size R32_UINT image:
+  even-odd filling, so holes and enclaves come out right. ~1.6 M indices per
+  instance.
+- **Resolve pass** (`map_resolve.frag`): one region per pixel. The lookup is
+  displaced by a deterministic 3-octave value-noise warp in world space (up to
+  0.6 × the tolerance on screen, wavelength ~2.5 tolerances), so the simplified
+  borders gain a natural roughness when zoomed in; fill, borders and picking
+  all read this image, so they stay aligned. A pixel whose code fails the
+  checksum (two overlapping polygons from different sources) or is empty
+  (a crack between nations' polygons) takes the nearest region within 4 px when
+  there is land on both sides; otherwise the relief decides: land → the
+  raster's region (wide cracks) or land of no region (Antarctica), sea →
+  water (the polygon coast wins over the 9 km relief).
+- **Map pass**: the region is the resolved pixel; borders are drawn where a
+  neighbour differs — 1 px for regions, the line width (UI scale) for
+  nations, coasts and lake shores — constant on screen at every zoom.
+- **Picking** reads the resolved region under the pointer back to the CPU
+  (a 1-texel copy per frame, read two frames later).
+- Cost: on llvmpipe (CPU) at 1200×700 the map runs at ~10 fps in vector mode
+  (zoomed in) and ~7 fps at the world view, vs ~25–35 fps in raster mode; the
+  fan overdraw is the cost. On a GPU both passes are a fraction of a frame.
+
+## Terrain detail
+
+The flat terrain colour gains texture when zoomed in, without new data at
+higher resolution:
+
+- An **atlas** of 8 tileable 256² grayscale layers — sand (warped dune
+  ripples), grass (patchy fbm), forest (canopy clumps), tundra (mottled, lichen
+  spots), rock (ridged fbm), snow (soft drifts), wetland (pools), water (soft
+  ripples) — generated procedurally in the pipeline from periodic value-noise
+  fbm (`polygons.terrain_atlas`; no images), centred on mid-grey, with box mips
+  (`ATLS`, 0.36 MB).
+- In the fragment shader the layers are weighted from the base terrain colour,
+  relief and latitude (sandy and bright → sand; dark green → forest; high →
+  rock; bright and unsaturated → snow; > 55° → tundra; plus a little grass and
+  wetland; water by depth) and blended continuously, so climate boundaries
+  stay smooth.
+- They are tiled in world space (~14 km tiles, a second octave at ~3.3 km
+  further in) with **hash-offset tile blending**: each pixel blends the four
+  neighbouring tiles' samples, each with a random offset and 90° rotation, and
+  the blend preserves variance (Heitz & Neyret 2018), hiding repetition.
+- The detail modulates the colour by up to ±28 % on land (less on water) and
+  fades in once a terrain texel spans more than ~1.5 px, so the zoomed-out look
+  is unchanged.
+
 ## Layers
 
 Drawn by `map_renderer` as one fullscreen triangle at the start of the scene
@@ -289,7 +360,7 @@ scalar filters and legend below, hatching for no-data, vector borders for
 very close zoom (beyond ~12 px per cell the border staircase of the
 4.9 km raster becomes visible, smoothed by the bilinear contour).
 
-## Geometry pipeline (planned vector map)
+## Geometry pipeline (original plan, superseded by *Vector regions*)
 
 1. **Source:** geoBoundaries (CC-BY, admin-1/admin-2) with GADM as a fallback
    where licensing allows. We pick the level per country to target ~3,000–5,000

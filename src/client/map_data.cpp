@@ -207,7 +207,7 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         return false;
     }
 
-    std::vector<uint8_t> ids_raw, elev, clim;
+    std::vector<uint8_t> ids_raw, elev, clim, poly, atls;
     for(uint32_t s = 0; s < section_count; ++s) {
         char tag[5] = {};
         rd.take(tag, 4);
@@ -227,6 +227,12 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         } else if(std::strcmp(tag, "CLIM") == 0) {
             dst = &clim;
             want = std::size_t{t_w} * t_h;
+        } else if(std::strcmp(tag, "POLY") == 0) {
+            dst = &poly;
+            want = raw;
+        } else if(std::strcmp(tag, "ATLS") == 0) {
+            dst = &atls;
+            want = raw;
         }
         if(dst) {
             if(raw != want || !inflate_section(file, rd.at, packed, raw, *dst)) {
@@ -242,6 +248,80 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
     }
     file.clear();
     file.shrink_to_fit();
+
+    // Terrain detail atlas: layers with box-filtered mips.
+    if(atls.size() >= 8) {
+        uint32_t size = 0, layers = 0;
+        std::memcpy(&size, atls.data(), 4);
+        std::memcpy(&layers, atls.data() + 4, 4);
+        if(size >= 4 && layers > 0 && layers <= 16 && atls.size() >= 8 + std::size_t{size} * size * layers) {
+            out.atlas_size = size;
+            out.atlas_layers = layers;
+            uint32_t levels = 0;
+            for(uint32_t s2 = size; s2 >= 1; s2 >>= 1) ++levels;
+            out.atlas_levels = levels;
+            for(uint32_t l = 0; l < layers; ++l) {
+                std::vector<uint8_t> cur(atls.begin() + 8 + static_cast<std::ptrdiff_t>(std::size_t{size} * size * l),
+                                         atls.begin() + 8 + static_cast<std::ptrdiff_t>(std::size_t{size} * size * (l + 1)));
+                uint32_t s2 = size;
+                for(uint32_t k = 0; k < levels; ++k) {
+                    out.atlas.push_back(cur);
+                    if(s2 == 1) break;
+                    const uint32_t h2 = s2 / 2;
+                    std::vector<uint8_t> next(std::size_t{h2} * h2);
+                    for(uint32_t y = 0; y < h2; ++y) {
+                        for(uint32_t x = 0; x < h2; ++x) {
+                            const uint32_t sum = cur[(2 * y) * s2 + 2 * x] + cur[(2 * y) * s2 + 2 * x + 1] + cur[(2 * y + 1) * s2 + 2 * x] + cur[(2 * y + 1) * s2 + 2 * x + 1];
+                            next[std::size_t{y} * h2 + x] = static_cast<uint8_t>((sum + 2) / 4);
+                        }
+                    }
+                    cur.swap(next);
+                    s2 = h2;
+                }
+            }
+        }
+    }
+
+    // Vector regions: rings of 1e-5 degree deltas -> vertices and triangle fans.
+    if(poly.size() >= 8) {
+        std::size_t at = 0;
+        auto next = [&]() -> int32_t {
+            if(at + 4 > poly.size()) return 0;
+            int32_t v = 0;
+            std::memcpy(&v, poly.data() + at, 4);
+            at += 4;
+            return v;
+        };
+        out.poly_tolerance_deg = static_cast<float>(next()) / 1e6f;
+        const int32_t count = next();
+        auto ring = [&](uint32_t code) {
+            const int32_t n = next();
+            if(n < 3 || at + static_cast<std::size_t>(n) * 8 > poly.size()) {
+                at += static_cast<std::size_t>(std::max(0, n)) * 8;
+                return;
+            }
+            const auto first = static_cast<uint32_t>(out.poly_vertices.size() / 4);
+            int32_t x = 0, y = 0;
+            for(int32_t k = 0; k < n; ++k) {
+                x += next();
+                y += next();
+                const float lon = static_cast<float>(x) / 1e5f, lat = static_cast<float>(y) / 1e5f;
+                uint32_t bits[2];
+                std::memcpy(&bits[0], &lon, 4);
+                std::memcpy(&bits[1], &lat, 4);
+                out.poly_vertices.insert(out.poly_vertices.end(), {bits[0], bits[1], first, code});
+            }
+            for(int32_t k = 1; k + 1 < n; ++k) {
+                out.poly_indices.insert(out.poly_indices.end(), {first, first + static_cast<uint32_t>(k), first + static_cast<uint32_t>(k) + 1});
+            }
+        };
+        for(int32_t r = 0; r < count && r < static_cast<int32_t>(region_count); ++r) {
+            const int32_t rings = next();
+            for(int32_t k = 0; k < rings; ++k) ring(map_region_code(static_cast<uint32_t>(r + 1)));
+        }
+        const int32_t lakes = next();
+        for(int32_t k = 0; k < lakes; ++k) ring(map_lake_code);
+    }
 
     // Region IDs, then point-sampled mips down to ~256 wide (zoomed-out views).
     {

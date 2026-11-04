@@ -26,6 +26,8 @@
 
 layout(set = 0, binding = 0) uniform sampler2D u_terrain;
 layout(set = 0, binding = 1) uniform usampler2D u_ids;
+layout(set = 0, binding = 4) uniform usampler2D u_resolved; // vector mode: one region per pixel (map_resolve.frag)
+layout(set = 0, binding = 5) uniform sampler2DArray u_atlas; // terrain detail: sand, grass, forest, tundra, rock, snow, wetland, water
 // Indexed by raster ID (0 = water): x = nation key (borders), y = fill RGBA8 (a = strength).
 layout(std430, set = 0, binding = 2) readonly buffer region_table {
     uvec2 info[];
@@ -44,7 +46,7 @@ layout(push_constant) uniform map_block {
     vec4 p;         // xyz: focus unit vector, w: scale (pixels per radian)
     vec4 e;         // xyz: local east, w: line scale (UI scale)
     vec4 n;         // xyz: local north, w: unused
-    uint flags;     // bit 0: political fill
+    uint flags;     // bit 0: political fill, bit 2: vector regions (u_resolved)
     uint id_levels; // mip levels of u_ids
     uint id_w, id_h;
     vec4 anim;      // x: cloud time (days), y: real seconds, z: cloud strength (0 = off), w: day of year
@@ -81,6 +83,39 @@ vec3 ocean(float code) {
         }
     }
     return col;
+}
+
+// --- terrain detail --------------------------------------------------------------
+// The flat terrain colour gains texture when zoomed in: tileable grayscale detail
+// layers (build_map.py), tiled in world space and de-repeated by hash-offset tile
+// blending: each pixel blends the four neighbouring tiles' samples, each with its
+// own random offset and 90-degree rotation, and the blend keeps the variance
+// (Heitz & Neyret 2018), so no tile shows twice in a row.
+
+vec2 hash22(vec2 p) {
+    vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+    q += dot(q, q.yzx + 33.33);
+    return fract((q.xx + q.yz) * q.zy);
+}
+
+vec2 rot90(vec2 v, int r) {
+    return r == 0 ? v : r == 1 ? vec2(-v.y, v.x) : r == 2 ? -v : vec2(v.y, -v.x);
+}
+
+float tile_detail(float layer, vec2 w, vec2 dx, vec2 dy) {
+    vec2 c = floor(w), f = fract(w);
+    vec2 s = f * f * (3.0 - 2.0 * f);
+    float acc = 0.0, w2 = 0.0;
+    for(int k = 0; k < 4; ++k) {
+        vec2 corner = c + vec2(k & 1, k >> 1);
+        vec2 h = hash22(corner);
+        int r = int(h.x * 4.0) & 3;
+        float wk = ((k & 1) == 1 ? s.x : 1.0 - s.x) * ((k >> 1) == 1 ? s.y : 1.0 - s.y);
+        vec2 uv = rot90(w, r) + h * 7.31;
+        acc += wk * (textureGrad(u_atlas, vec3(uv, layer), rot90(dx, r), rot90(dy, r)).r - 0.5);
+        w2 += wk * wk;
+    }
+    return 0.5 + acc / sqrt(max(w2, 1e-4)); // variance-preserving
 }
 
 // --- clouds ------------------------------------------------------------------
@@ -209,42 +244,72 @@ void main() {
 
     vec4 terrain = textureGrad(u_terrain, g, gx, gy);
 
-    // Region-ID level: about one cell per pixel.
-    vec2 size0 = vec2(float(pc.id_w), float(pc.id_h));
-    float cells_per_px = max(length(gx * size0), length(gy * size0));
-    int level = int(clamp(ceil(log2(max(cells_per_px, 1e-6)) - 0.15), 0.0, float(pc.id_levels - 1u)));
-    ivec2 isz = ivec2(int(pc.id_w) >> level, int(pc.id_h) >> level);
-    vec2 sz = vec2(isz);
-    vec2 tl = g * sz - 0.5;
-    ivec2 i0 = ivec2(floor(tl));
-    vec2 f = tl - vec2(i0);
-    uint id[4];
-    for(int k = 0; k < 4; ++k) {
-        ivec2 c = i0 + ivec2(k & 1, k >> 1);
-        c.x = ((c.x % isz.x) + isz.x) % isz.x;
-        c.y = clamp(c.y, 0, isz.y - 1);
-        id[k] = texelFetch(u_ids, c, level).r;
-    }
-    vec4 w = vec4((1.0 - f.x) * (1.0 - f.y), f.x * (1.0 - f.y), (1.0 - f.x) * f.y, f.x * f.y);
-    uint key[4] = uint[](nation_key(id[0]), nation_key(id[1]), nation_key(id[2]), nation_key(id[3]));
-
-    // The region and nation with the largest bilinear weight.
-    uint me = id[0], my_key = key[0];
-    float best = -1.0, best_key = -1.0;
-    for(int k = 0; k < 4; ++k) {
-        float s = 0.0, sk = 0.0;
-        for(int j = 0; j < 4; ++j) {
-            s += id[j] == id[k] ? w[j] : 0.0;
-            sk += key[j] == key[k] ? w[j] : 0.0;
+    uint me = 0u;
+    float thick = 0.0, thin = 0.0;
+    float line_scale = max(pc.e.w, 1.0);
+    if((pc.flags & 4u) != 0u) {
+        // Vector regions: the resolved per-pixel region (map_resolve.frag); borders
+        // where a neighbour differs: 1 px for regions, the line width for nations,
+        // coasts and lake shores.
+        ivec2 px = ivec2(gl_FragCoord.xy);
+        ivec2 rsz = textureSize(u_resolved, 0) - 1;
+        me = texelFetch(u_resolved, px, 0).r;
+        uint my_key = nation_key(me);
+        uint right = texelFetch(u_resolved, min(px + ivec2(1, 0), rsz), 0).r;
+        uint down = texelFetch(u_resolved, min(px + ivec2(0, 1), rsz), 0).r;
+        thin = (right != me || down != me) ? 0.55 : 0.0;
+        int rad = max(1, int(round(line_scale)));
+        const ivec2 dirs[4] = ivec2[](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
+        for(int k = 1; k <= rad && thick == 0.0; ++k) {
+            for(int j = 0; j < 4; ++j) {
+                uint t = texelFetch(u_resolved, clamp(px + dirs[j] * k, ivec2(0), rsz), 0).r;
+                if(nation_key(t) != my_key) {
+                    thick = 1.0;
+                    break;
+                }
+            }
         }
-        if(s > best) { best = s; me = id[k]; }
-        if(sk > best_key) { best_key = sk; my_key = key[k]; }
+    } else {
+        // Region-ID level: about one cell per pixel.
+        vec2 size0 = vec2(float(pc.id_w), float(pc.id_h));
+        float cells_per_px = max(length(gx * size0), length(gy * size0));
+        int level = int(clamp(ceil(log2(max(cells_per_px, 1e-6)) - 0.15), 0.0, float(pc.id_levels - 1u)));
+        ivec2 isz = ivec2(int(pc.id_w) >> level, int(pc.id_h) >> level);
+        vec2 sz = vec2(isz);
+        vec2 tl = g * sz - 0.5;
+        ivec2 i0 = ivec2(floor(tl));
+        vec2 f = tl - vec2(i0);
+        uint id[4];
+        for(int k = 0; k < 4; ++k) {
+            ivec2 c = i0 + ivec2(k & 1, k >> 1);
+            c.x = ((c.x % isz.x) + isz.x) % isz.x;
+            c.y = clamp(c.y, 0, isz.y - 1);
+            id[k] = texelFetch(u_ids, c, level).r;
+        }
+        vec4 w = vec4((1.0 - f.x) * (1.0 - f.y), f.x * (1.0 - f.y), (1.0 - f.x) * f.y, f.x * f.y);
+        uint key[4] = uint[](nation_key(id[0]), nation_key(id[1]), nation_key(id[2]), nation_key(id[3]));
+
+        // The region and nation with the largest bilinear weight.
+        uint me_r = id[0], my_key = key[0];
+        float best = -1.0, best_key = -1.0;
+        for(int k = 0; k < 4; ++k) {
+            float s = 0.0, sk = 0.0;
+            for(int j = 0; j < 4; ++j) {
+                s += id[j] == id[k] ? w[j] : 0.0;
+                sk += key[j] == key[k] ? w[j] : 0.0;
+            }
+            if(s > best) { best = s; me_r = id[k]; }
+            if(sk > best_key) { best_key = sk; my_key = key[k]; }
+        }
+        vec4 in_region = vec4(id[0] == me_r, id[1] == me_r, id[2] == me_r, id[3] == me_r);
+        vec4 in_nation = vec4(key[0] == my_key, key[1] == my_key, key[2] == my_key, key[3] == my_key);
+        vec2 dx = gx * sz, dy = gy * sz;
+        float d_region = contour_distance(in_region, w, f, dx, dy);
+        float d_nation = contour_distance(in_nation, w, f, dx, dy);
+        thick = clamp(1.0 * line_scale + 0.5 - d_nation, 0.0, 1.0);
+        thin = clamp(0.5 * line_scale + 0.5 - d_region, 0.0, 1.0) * 0.55 * pow(0.6, float(level));
+        me = me_r;
     }
-    vec4 in_region = vec4(id[0] == me, id[1] == me, id[2] == me, id[3] == me);
-    vec4 in_nation = vec4(key[0] == my_key, key[1] == my_key, key[2] == my_key, key[3] == my_key);
-    vec2 dx = gx * sz, dy = gy * sz;
-    float d_region = contour_distance(in_region, w, f, dx, dy);
-    float d_nation = contour_distance(in_nation, w, f, dx, dy);
 
     // Colour: water by depth, land by terrain, plus the nation fill.
     vec3 col;
@@ -263,10 +328,50 @@ void main() {
         }
     }
 
+    // Terrain detail, fading in once a terrain texel spans more than ~2 px.
+    {
+        vec2 tsize = vec2(textureSize(u_terrain, 0));
+        float texel_px = 1.0 / max(max(length(gx * tsize), length(gy * tsize)), 1e-6);
+        float zoom = smoothstep(1.5, 6.0, texel_px);
+        vec2 wkm = vec2(lon * cos(lat), lat) * 6371.0 / 14.0; // 14 km tiles
+        vec2 wdx = dFdx(wkm), wdy = dFdy(wkm);
+        if(zoom > 0.0) {
+            vec3 base = terrain.rgb;
+            float luma = dot(base, vec3(0.299, 0.587, 0.114));
+            float sat = max(base.r, max(base.g, base.b)) - min(base.r, min(base.g, base.b));
+            float code = terrain.a * 255.0;
+            float hgt = code < 128.0 ? 0.0 : 8800.0 * pow((code - 128.0) / 127.0, 2.0);
+            float alat = abs(lat) * 180.0 / PI;
+            float wt[8];
+            if(me == 0u) {
+                for(int k = 0; k < 8; ++k) wt[k] = 0.0;
+                wt[7] = 1.0;
+            } else {
+                float snow = smoothstep(0.72, 0.88, luma) * (1.0 - smoothstep(0.08, 0.2, sat));
+                float rock = smoothstep(1800.0, 4200.0, hgt) * (1.0 - snow);
+                float sand = smoothstep(0.08, 0.2, base.r - base.b) * smoothstep(0.42, 0.6, luma) * (1.0 - rock);
+                float forest = smoothstep(0.01, 0.07, base.g - base.r) * (1.0 - smoothstep(0.26, 0.4, luma));
+                float tundra = smoothstep(55.0, 65.0, alat) * (1.0 - snow) * (1.0 - forest);
+                float wet = smoothstep(0.0, 0.05, base.g - base.r) * (1.0 - smoothstep(40.0, 60.0, hgt)) * 0.3;
+                float grass = 0.25;
+                wt = float[](sand, grass, forest, tundra, rock, snow, wet, 0.0);
+            }
+            float total = 0.0;
+            for(int k = 0; k < 8; ++k) total += wt[k];
+            float d1 = 0.0, d2 = 0.0;
+            float fine = smoothstep(6.0, 24.0, texel_px); // the second, finer octave further in
+            for(int k = 0; k < 8; ++k) {
+                if(wt[k] < 0.04 * total) continue;
+                d1 += wt[k] * tile_detail(float(k), wkm, wdx, wdy);
+                if(fine > 0.0) d2 += wt[k] * tile_detail(float(k), wkm * 4.3 + 11.7, wdx * 4.3, wdy * 4.3);
+            }
+            float d = mix(d1, 0.5 * (d1 + d2), fine) / max(total, 1e-4);
+            float strength = me == 0u ? 0.12 * (1.0 - smoothstep(0.0, 0.5, (127.0 - min(code, 127.0)) / 127.0)) : 0.28;
+            col *= 1.0 + (d - 0.5) * 2.0 * strength * zoom; // +-28 % on land, less on water
+        }
+    }
+
     // Borders: thick black for nations and coasts, thin for regions (fainter when zoomed out).
-    float line_scale = max(pc.e.w, 1.0);
-    float thick = clamp(1.0 * line_scale + 0.5 - d_nation, 0.0, 1.0);
-    float thin = clamp(0.5 * line_scale + 0.5 - d_region, 0.0, 1.0) * 0.55 * pow(0.6, float(level));
     float ink = max(thick * 0.9, thin);
     col = mix(col, vec3(0.0), ink);
 

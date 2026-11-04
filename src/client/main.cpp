@@ -99,6 +99,7 @@ int main(int argc, char** argv) {
         else if(key == "inject") opt.inject = v;
         else if(key == "map-view") opt.map_view = v;
         else if(key == "view") opt.view = v;
+        else if(key == "vector-map") opt.vector_map = std::strcmp(v, "0") != 0;
         else if(key == "menu") menu_flag = std::strcmp(v, "0") != 0 ? 1 : 0;
         else if(key == "politics") opt.politics = v;
         else if(key == "politics-mode") ok = parse(v, opt.politics_mode);

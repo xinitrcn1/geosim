@@ -19,6 +19,11 @@ cell-centred):
                               per-row "sub" filter (each byte minus its left neighbour, mod 256)
   CLIM  uint8  [T_H][T_W]     Koppen-Geiger class 1..30 (0 = none), spread a few cells into the sea
                               so coastal land texels always have a climate
+  POLY  int32 stream          the regions as simplified rings (shared borders simplified once per
+                              nation, polygons.simplify_group; layout in build_vector), then lakes
+  ATLS  u32 size, u32 layers, then layers x size x size bytes: procedural tileable grayscale
+                              terrain detail (polygons.terrain_atlas: sand, grass, forest, tundra,
+                              rock, snow, wetland, water; periodic value-noise fbm, no images)
 The client colours the terrain from ELEV + CLIM + latitude at load time (map_data.cpp).
 
 File layout (little-endian):
@@ -52,6 +57,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageMath
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import build_world as bw  # noqa: E402
 import geo  # noqa: E402
+import polygons as pg  # noqa: E402
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -206,11 +212,77 @@ def colour_nations(isos, adjacency):
     return colour
 
 
+QUANT = 1e5  # vector coordinates: 1e-5 degree units (~1 m)
+
+
+def build_vector(regions, region_polys, lake_rings, tol):
+    """POLY section: simplified rings per region (shared borders simplified once per
+    nation), then the lakes. Layout (int32 little-endian): tolerance x 1e6, region count,
+    then per region: ring count, per ring: vertex count, then (lon, lat) in 1e-5 degree
+    units, each the delta from the previous vertex of the ring (the first absolute); then
+    the lake ring count and the lake rings the same way."""
+    by_nation = defaultdict(list)
+    for row, polys in region_polys.items():
+        by_nation[regions[row]["iso3"]].append(row)
+    rings_of_row = defaultdict(list)
+    total_in = total_out = 0
+    for iso, rows in sorted(by_nation.items()):
+        flat, owner = [], []
+        for row in rows:
+            for poly in region_polys[row]:
+                for ring in poly:
+                    if len(ring) >= 4:
+                        flat.append(ring)
+                        owner.append(row)
+        total_in += sum(len(r) for r in flat)
+        simplified = pg.simplify_group(flat, tol)
+        for row, ring in zip(owner, simplified):
+            if len(ring) >= 3:
+                rings_of_row[row].append(ring)
+                total_out += len(ring)
+        # Regions whose every ring collapsed (micro-states, small islands: Monaco, Nauru)
+        # keep their largest ring, simplified alone at a finer tolerance.
+        for row in rows:
+            if rings_of_row.get(row):
+                continue
+            cands = [ring for ring, o in zip(flat, owner) if o == row]
+            if not cands:
+                continue
+            big = max(cands, key=lambda r: abs(pg.ring_area(r)))
+            ring = pg.simplify_group([big], tol / 20.0)[0]
+            if len(ring) >= 3:
+                rings_of_row[row].append(ring)
+                total_out += len(ring)
+    lakes = [r for r in pg.simplify_group([r for r in lake_rings if len(r) >= 4], tol) if len(r) >= 3]
+    out = array.array("i", [int(round(tol * 1e6)), len(regions)])
+
+    def put_ring(ring):
+        out.append(len(ring))
+        px = py = 0
+        for x, y in ring:
+            qx, qy = int(round(x * QUANT)), int(round(y * QUANT))
+            out.append(qx - px)
+            out.append(qy - py)
+            px, py = qx, qy
+
+    for row in range(len(regions)):
+        rings = rings_of_row.get(row, [])
+        out.append(len(rings))
+        for ring in rings:
+            put_ring(ring)
+    out.append(len(lakes))
+    for ring in lakes:
+        put_ring(ring)
+    print(f"vector: {total_in} -> {total_out} vertices ({len(rings_of_row)} regions), {sum(len(r) for r in lakes)} lake vertices")
+    return out.tobytes()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", default="data/raw")
     ap.add_argument("--assets", default="assets")
     ap.add_argument("--width", type=int, default=8192, help="region-ID raster width (height = width / 2)")
+    ap.add_argument("--tolerance", type=float, default=0.01, help="polygon simplification tolerance (degrees)")
     args = ap.parse_args()
     raw, assets = pathlib.Path(args.raw), pathlib.Path(args.assets)
     scen = assets / "scenario" / "world2020"
@@ -230,6 +302,7 @@ def main() -> int:
     bounds, total = bw.load_boundaries(raw, isos)
     raster = Raster(id_w, id_h)
     mismatched, painted = [], set()
+    region_polys = defaultdict(list)  # row -> polygons (lists of rings) for the vector map
     for iso in isos:
         k = 0
         for f, rp, box in bounds[iso]:
@@ -244,6 +317,7 @@ def main() -> int:
                 continue
             raster.paint(rp, row + 1)
             painted.add(row)
+            region_polys[row].extend(rp)
     if mismatched:
         print(f"warning: {len(mismatched)} polygons do not match regions.csv, e.g. {mismatched[:5]}")
 
@@ -259,6 +333,7 @@ def main() -> int:
                 break
     aliases = {"CHI": ["JEY", "GGY"], "XKX": ["KOS"]}
     missing = []
+    before = Counter(array.array("H", raster.img.convert("I;16").tobytes()))
     for iso in isos:
         if bounds[iso]:
             continue
@@ -269,16 +344,27 @@ def main() -> int:
             continue
         for f in feats:
             raster.paint(geo.rings_of(f["geometry"]), row + 1)
+            region_polys[row].extend(geo.rings_of(f["geometry"]))
         painted.add(row)
     if missing:
         print("warning: no geometry for", ", ".join(missing))
+    # A sovereign's duplicate of a territory (China's Hong Kong SAR region) is overpainted:
+    # it gets no polygons in the vector map either (overlapping polygons would clash).
+    after = Counter(array.array("H", raster.img.convert("I;16").tobytes()))
+    overpainted = [row for row in list(region_polys) if before.get(row + 1, 0) > 0 and after.get(row + 1, 0) < 0.3 * before[row + 1]]
+    for row in overpainted:
+        del region_polys[row]
+    print(f"{len(overpainted)} duplicate regions overpainted by territories: "
+          + ", ".join(regions[r]["region"] for r in overpainted[:12]))
 
     # Lakes are water.
     lakes = Raster(id_w, id_h)
+    lake_rings = []
     for f in json.loads((raw / "map" / "ne_50m_lakes.geojson").read_text(encoding="utf-8"))["features"]:
         rp = geo.rings_of(f["geometry"])
         raster.paint(rp, 0)
         lakes.paint(rp, 1)
+        lake_rings.extend(ring for poly in rp for ring in poly)
 
     # Regions too small for a cell (or overdrawn by a neighbour) get a dot at their centroid.
     ids = raster.img
@@ -352,10 +438,16 @@ def main() -> int:
         pts = [(float(r["lon"]), float(r["lat"]), float(r["area_km2"] or 1.0)) for r in regions if r["iso3"] == iso]
         label[iso] = circular_mean(pts)
 
+    # --- vector regions ---------------------------------------------------------------------------
+    poly_bytes = build_vector(regions, region_polys, lake_rings, args.tolerance)
+
     # --- write ------------------------------------------------------------------------------------
     out = assets / "map" / "world.gsmap"
     out.parent.mkdir(parents=True, exist_ok=True)
-    sections = [(b"IDS0", id_bytes), (b"ELEV", bytes(sub_filter(elev_codes, T_W, T_H))), (b"CLIM", clim)]
+    atlas = pg.terrain_atlas(256)
+    atlas_bytes = struct.pack("<II", 256, len(atlas)) + b"".join(atlas)
+    sections = [(b"IDS0", id_bytes), (b"ELEV", bytes(sub_filter(elev_codes, T_W, T_H))), (b"CLIM", clim), (b"POLY", poly_bytes),
+                (b"ATLS", atlas_bytes)]
     with out.open("wb") as f:
         f.write(b"GSMAP01\0")
         f.write(struct.pack("<7I", id_w, id_h, T_W, T_H, len(isos), len(regions), len(sections)))

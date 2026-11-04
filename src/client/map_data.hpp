@@ -25,6 +25,13 @@ namespace geosim::client {
 inline constexpr uint16_t map_water = 0;
 inline constexpr uint16_t map_unclaimed = 0xFFFF;
 
+// The ID-pass code of a raster region id: the id with a 15-bit checksum above it, so
+// a pixel covered by two overlapping regions (XOR of two codes) is recognisable.
+[[nodiscard]] constexpr uint32_t map_region_code(uint32_t id) noexcept {
+    return (id & 0xFFFFu) | ((((id * 2654435761u) >> 17) & 0x7FFFu) << 16);
+}
+inline constexpr uint32_t map_lake_code = 0x80000000u;
+
 struct map_nation {
     std::array<char, 4> iso3{}; // NUL-terminated
     uint8_t r = 0, g = 0, b = 0;
@@ -54,6 +61,19 @@ struct map_data {
     std::vector<map_nation> nations;
     std::vector<map_region> regions;
     std::vector<map_box> boxes;               // per region, from the ID raster
+    // Vector regions (the POLY section; empty for older assets): per vertex four
+    // words {lon, lat (float bits, degrees), index of its ring's first vertex,
+    // code}, and triangle fans per ring (indices into the vertices). code =
+    // map_region_code(raster id) for regions, map_lake_code for lakes; drawn with
+    // a XOR logic op, so even-odd filling needs no triangulation.
+    std::vector<uint32_t> poly_vertices;
+    std::vector<uint32_t> poly_indices;
+    float poly_tolerance_deg = 0;
+    // Terrain detail atlas (ATLS): `atlas_layers` tileable grayscale layers of
+    // atlas_size^2, mip chain per layer (level k is atlas_size >> k), all levels of
+    // layer 0 first. Layers: sand, grass, forest, tundra, rock, snow, wetland, water.
+    uint32_t atlas_size = 0, atlas_layers = 0, atlas_levels = 0;
+    std::vector<std::vector<uint8_t>> atlas; // [layer * atlas_levels + level]
     std::vector<map_level<uint16_t>> ids;     // level 0 = full resolution
     std::vector<map_level<uint32_t>> terrain; // RGBA8 packed little-endian (r in the low byte)
 

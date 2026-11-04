@@ -72,7 +72,7 @@ public:
     bool create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, bool host_visible, gpu_buffer& out, core::diagnostics& diag);
     void destroy_buffer(gpu_buffer& b);
     bool create_image(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, gpu_image& out,
-                      core::diagnostics& diag, uint32_t mip_levels = 1);
+                      core::diagnostics& diag, uint32_t mip_levels = 1, uint32_t layers = 1); // layers > 1: a 2D array view
     void destroy_image(gpu_image& img);
     // Records into a temporary command buffer, submits it and waits (uploads).
     VkCommandBuffer begin_immediate();
@@ -91,6 +91,7 @@ public:
     VkFormat swap_format = VK_FORMAT_UNDEFINED;
     VkExtent2D swap_extent{};
     bool swap_readable = false; // swapchain images allow TRANSFER_SRC (screenshots)
+    bool logic_op = false;      // VkPhysicalDeviceFeatures::logicOp enabled (vector map ID pass)
     std::vector<VkImage> swap_images;
     std::vector<VkImageView> swap_views;
     std::string device_name;

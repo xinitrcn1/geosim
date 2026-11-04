@@ -409,7 +409,7 @@ int run_app(app_options const& opt) {
                     SDL_WaitEventTimeout(nullptr, 100);
                     continue;
                 }
-                if(!vk.create_swapchain(static_cast<uint32_t>(metrics.pixel_w), static_cast<uint32_t>(metrics.pixel_h), diag) || !renderer.resize(diag)) {
+                if(!vk.create_swapchain(static_cast<uint32_t>(metrics.pixel_w), static_cast<uint32_t>(metrics.pixel_h), diag) || !renderer.resize(diag) || !map.resize(diag)) {
                     exit_code = fail("swapchain recreation", diag.error());
                     break;
                 }
@@ -431,10 +431,12 @@ int run_app(app_options const& opt) {
             if(!map_loaded && map_load.ready()) {
                 map_loaded = true;
                 std::unique_ptr<map_data> data = map_load.take();
+                map.allow_vector(opt.vector_map);
                 if(data && map.upload(*data, diag)) {
                     political.init(*data, opt.assets);
                     map.set_table(political.table());
                     cell_radians = 2.0 * map_pi / static_cast<double>(data->ids[0].width);
+                    if(map.vector()) cell_radians /= 16.0; // polygons: zoom on to micro-states (~30 px per km)
                     double lon = 0, lat = 0, span = 75.0;
                     if(parse_map_view(opt.map_view, lon, lat, span)) {
                         view.set_focus(lon * map_deg, lat * map_deg);
@@ -561,7 +563,7 @@ int run_app(app_options const& opt) {
                     if(input.released && dragging && politics_open && std::fabs(input.mouse_x - press_x) < 4 && std::fabs(input.mouse_y - press_y) < 4) {
                         double lon = 0, lat = 0;
                         view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
-                        const int n = political.nation_at(political.pick(lon / map_deg, lat / map_deg));
+                        const int n = political.nation_at(map.vector() ? map.picked_region() : political.pick(lon / map_deg, lat / map_deg));
                         if(n >= 0 && n != hud.politics_nation) {
                             hud.politics_nation = n;
                             hud.politics_mode = 0;
@@ -591,7 +593,7 @@ int run_app(app_options const& opt) {
                     } else if(!on_ui && !dragging && input.mouse_x >= 0) {
                         double lon = 0, lat = 0;
                         view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
-                        candidate = political.pick(lon / map_deg, lat / map_deg);
+                        candidate = map.vector() ? map.picked_region() : political.pick(lon / map_deg, lat / map_deg);
                     }
                     const auto hover_now = steady::now();
                     if(on_tooltip && hud.tooltip_region >= 0) {
@@ -714,7 +716,9 @@ int run_app(app_options const& opt) {
                 const core::civil_date today = sim.date();
                 anim.day_of_year = static_cast<float>(core::days_from_civil(today) - core::days_from_civil({today.year, 1, 1}) + 1);
             }
-            const map_pass map_draw{&map, &view, true, anim}; // every view fills regions (map_layer)
+            map_pass map_draw{&map, &view, true, anim}; // every view fills regions (map_layer)
+            map_draw.pick_x = static_cast<int>(input.mouse_x);
+            map_draw.pick_y = static_cast<int>(input.mouse_y);
             if(!renderer.record(text, ui.scene, ui.overlay, static_cast<float>(elapsed), scale, capture_next, diag, map_draw)) {
                 exit_code = fail("frame recording", diag.error());
                 vk.end_frame(diag);

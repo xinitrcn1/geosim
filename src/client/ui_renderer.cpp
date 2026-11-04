@@ -372,6 +372,11 @@ bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list co
     VkViewport viewport{0, 0, static_cast<float>(e.width), static_cast<float>(e.height), 0, 1};
     VkRect2D scissor{{0, 0}, e};
 
+    // 0. Vector map pre-passes (region IDs), before the scene pass samples them.
+    if(map.renderer && map.view && map.renderer->ready()) {
+        map.renderer->prepass(cmd, *map.view, static_cast<float>(e.width), static_cast<float>(e.height), map.pick_x, map.pick_y);
+    }
+
     // 1. Scene pass.
     image_barrier(cmd, scene_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                   0, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);

@@ -27,6 +27,7 @@ struct map_pass {
     map_view const* view = nullptr;
     bool political = true;
     map_anim anim{};
+    int pick_x = -1, pick_y = -1; // pixel whose region is read back (vector map picking)
 };
 
 class ui_renderer {

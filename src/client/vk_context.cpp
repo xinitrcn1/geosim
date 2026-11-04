@@ -157,6 +157,13 @@ bool vk_context::init(SDL_Window* window, bool validation, core::diagnostics& di
     f13.synchronization2 = VK_TRUE;
     VkPhysicalDeviceFeatures2 f2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
     f2.pNext = &f13;
+    // Logic ops (the vector map's XOR ID pass) when the device has them.
+    {
+        VkPhysicalDeviceFeatures have{};
+        vkGetPhysicalDeviceFeatures(physical, &have);
+        logic_op = have.logicOp == VK_TRUE;
+        f2.features.logicOp = have.logicOp;
+    }
     char const* dev_exts[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     dci.pNext = &f2;
@@ -474,13 +481,13 @@ void vk_context::destroy_buffer(gpu_buffer& b) {
 }
 
 bool vk_context::create_image(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, gpu_image& out,
-                              core::diagnostics& diag, uint32_t mip_levels) {
+                              core::diagnostics& diag, uint32_t mip_levels, uint32_t layers) {
     VkImageCreateInfo ici{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     ici.imageType = VK_IMAGE_TYPE_2D;
     ici.format = format;
     ici.extent = {std::max(1u, width), std::max(1u, height), 1};
     ici.mipLevels = std::max(1u, mip_levels);
-    ici.arrayLayers = 1;
+    ici.arrayLayers = std::max(1u, layers);
     ici.samples = VK_SAMPLE_COUNT_1_BIT;
     ici.tiling = VK_IMAGE_TILING_OPTIMAL;
     ici.usage = usage;
@@ -504,9 +511,9 @@ bool vk_context::create_image(uint32_t width, uint32_t height, VkFormat format, 
     vkBindImageMemory(device, out.image, out.memory, 0);
     VkImageViewCreateInfo vci{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
     vci.image = out.image;
-    vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    vci.viewType = ici.arrayLayers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
     vci.format = format;
-    vci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, ici.mipLevels, 0, 1};
+    vci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, ici.mipLevels, 0, ici.arrayLayers};
     if(!check(vkCreateImageView(device, &vci, nullptr, &out.view), "vkCreateImageView", diag)) {
         return false;
     }
