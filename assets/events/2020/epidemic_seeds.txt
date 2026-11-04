@@ -2,22 +2,22 @@
 # Source: OxCGRT ConfirmedDeaths. Seed 300 infections 30 days before cumulative
 # reported deaths reach 10 (Flaxman et al. 2020). China is seeded in curated.txt.
 
-epidemic_seed{ date{2020-02-03} nation{USA} infections{300} }
-epidemic_seed{ date{2020-02-08} nation{JPN} infections{300} }
-epidemic_seed{ date{2020-02-14} nation{DEU} infections{300} }
-epidemic_seed{ date{2020-02-07} nation{GBR} infections{300} }
-epidemic_seed{ date{2020-02-06} nation{FRA} infections{300} }
-epidemic_seed{ date{2020-01-26} nation{ITA} infections{300} }
-epidemic_seed{ date{2020-02-06} nation{ESP} infections{300} }
-epidemic_seed{ date{2020-02-17} nation{CAN} infections{300} }
-epidemic_seed{ date{2020-01-26} nation{KOR} infections{300} }
-epidemic_seed{ date{2020-02-25} nation{AUS} infections{300} }
-epidemic_seed{ date{2020-02-19} nation{BRA} infections{300} }
-epidemic_seed{ date{2020-02-26} nation{MEX} infections{300} }
-epidemic_seed{ date{2020-02-22} nation{IND} infections{300} }
-epidemic_seed{ date{2020-03-01} nation{RUS} infections{300} }
-epidemic_seed{ date{2020-02-21} nation{TUR} infections{300} }
-epidemic_seed{ date{2020-02-17} nation{IDN} infections{300} }
-epidemic_seed{ date{2020-03-01} nation{SAU} infections{300} }
-epidemic_seed{ date{2020-03-06} nation{ZAF} infections{300} }
-epidemic_seed{ date{2020-02-26} nation{ARG} infections{300} }
+epidemic_seed{ date{2020-02-03} nation{USA} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-08} nation{JPN} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-14} nation{DEU} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-07} nation{GBR} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-06} nation{FRA} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-01-26} nation{ITA} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-06} nation{ESP} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-17} nation{CAN} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-01-26} nation{KOR} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-25} nation{AUS} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-19} nation{BRA} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-26} nation{MEX} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-22} nation{IND} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-03-01} nation{RUS} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-21} nation{TUR} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-17} nation{IDN} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-03-01} nation{SAU} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-03-06} nation{ZAF} pathogen{cov} infections{300} }
+epidemic_seed{ date{2020-02-26} nation{ARG} pathogen{cov} infections{300} }

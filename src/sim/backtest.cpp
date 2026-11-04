@@ -16,9 +16,16 @@ struct tolerance {
     double rel = 0;
     double log_factor = 0; // alternatively: max(model, real) / min(model, real) <= factor
     double min_pass = 0.75;
+    std::string pathogen; // deaths_per_million: restrict to one pathogen
 };
 
-double model_value(nation_summary const& s, std::string const& metric) {
+double model_value(nation_summary const& s, std::string const& metric, std::string const& pathogen) {
+    if(metric == "deaths_per_million" && !pathogen.empty()) {
+        for(auto const& [key, v] : s.deaths_by_pathogen) {
+            if(key == pathogen) return v;
+        }
+        return NAN;
+    }
     if(metric == "gdp_growth_pct") return s.gdp_growth_pct;
     if(metric == "unemployment_pct") return s.unemployment_pct;
     if(metric == "inflation_pct") return s.inflation_pct;
@@ -50,6 +57,7 @@ backtest_result run_backtest(world_summary const& summary, std::string const& as
         t.rel = node.num_or("rel", 0.0, tol_path);
         t.log_factor = node.num_or("factor", 0.0, tol_path);
         t.min_pass = node.num_or("min_pass", 0.75, tol_path);
+        if(auto pk = node.find("pathogen")) t.pathogen = pk->text;
         const std::string metric(node.req("metric", tol_path));
         if(metric == "oil_price_mean") {
             oil_tol = t;
@@ -87,7 +95,7 @@ backtest_result run_backtest(world_summary const& summary, std::string const& as
         out << line;
         for(auto const& m : metric_order) {
             auto real = targets.number(row, m);
-            const double model = model_value(*s, m);
+            const double model = model_value(*s, m, tols[m].pathogen);
             if(!real) {
                 std::snprintf(line, sizeof(line), " | %8.1f vs %8s   ", model, "n/a");
             } else {

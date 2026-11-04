@@ -15,7 +15,8 @@ struct nation_summary {
     double unemployment_pct = 0;    // mean over the run
     double inflation_pct = 0;       // mean CPI over the run vs estimated 2019 mean CPI
     double gov_net_lending_pct = 0; // change in government balance / nominal GDP over the run
-    double deaths_per_million = 0;  // reported, cumulative
+    double deaths_per_million = 0;  // reported, cumulative, all pathogens
+    std::vector<std::pair<std::string, double>> deaths_by_pathogen; // reported per million, by pathogen key
     double gini_start = 0;
     double gini_end = 0;
     double population_change_pct = 0; // vs the scenario start

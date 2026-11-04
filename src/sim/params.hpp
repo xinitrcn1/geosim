@@ -23,15 +23,7 @@
     X(ai_debt_limit, 1.5, "debt/GDP at which fiscal space is exhausted")                                   \
     X(ai_fiscal_response, 0.5, "pragmatic cumulative package (% GDP) per point of slack")                 \
     X(ai_fiscal_min_package, 0.1, "smallest new package announced (% GDP)")                              \
-    /* ---- epidemic (SEIR) ---- */                                                                         \
-    X(r0, 3.0, "basic reproduction number of the wild-type virus (Flaxman et al. 2020: ~3.3)")                                         \
-    X(incubation_days, 4.0, "mean latent period E->I (days)")                                              \
-    X(infectious_days, 5.0, "mean infectious period (days)")                                               \
-    X(death_delay_days, 14.0, "mean delay from end of infectiousness to death (days)")                    \
-    X(ifr_young, 0.0015, "infection fatality rate, under 65")                                              \
-    X(ifr_old, 0.045, "infection fatality rate, 65 and over")                                              \
-    X(old_contact_factor, 0.6, "relative contact rate of the 65+ group")                                  \
-    X(seasonality, 0.25, "amplitude of seasonal transmission forcing (Gavenciak et al. 2022)")                                     \
+    /* ---- epidemics (pathogen-specific values: assets/defs/pathogens.txt) ---- */                         \
     X(voluntary_k, 0.08, "behavioural distancing: transmission x 1/(1 + k * daily deaths per million)")   \
     X(tracing_max, 0.3, "max transmission cut from comprehensive contact tracing (H3 at max level)")                   \
     X(tracing_capacity, 20.0, "daily detected cases per million above which tracing saturates")          \
@@ -49,10 +41,10 @@
     X(tti_isolation, 0.5, "transmission cut from centralised isolation under a full suppression strategy") \
     X(quarantine_effect, 0.98, "cut in imported infections under full arrival quarantine")              \
     X(tti_extra_effect, 0.4, "extra transmission cut from tracing under a full suppression strategy")   \
-    X(detection_ratio, 0.15, "share of infections detected, at max testing level")                        \
     X(travel_rate, 1e-3, "daily imported infections per resident per unit world prevalence")              \
-    X(hosp_share, 0.05, "share of current infectious needing a hospital bed")                             \
-    X(covid_bed_share, 0.3, "share of hospital beds available for COVID patients")                        \
+    X(epidemic_bed_share, 0.3, "share of hospital beds available for epidemic patients")                    \
+    X(tracing_reference_detection, 0.15, "detection ratio at which a pathogen is fully traceable")           \
+    X(severity_reference_ifr, 0.008, "population IFR of severity 1 (about SARS-CoV-2 wild type)")           \
     X(overload_ifr_mult, 1.0, "IFR increase per 100% hospital overload (capped at 2x)")                   \
     /* ---- production / demand ---- */                                                                     \
     X(adaptation_max, 0.5, "share of the NPI output cost removed by business adaptation")                 \

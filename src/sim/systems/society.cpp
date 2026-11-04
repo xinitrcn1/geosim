@@ -81,35 +81,44 @@ void add_seekers(game_state& state, dcon::pop_id p, float people, float u0) {
 
 // Moves a fraction of the young epidemic compartments between regions (migration)
 // or into the old group (ageing).
+// Moves a fraction of the young epidemic compartments (every pathogen) between
+// regions (migration) or into the old group (ageing).
 void move_young(game_state& state, dcon::region_id from, dcon::region_id to, uint8_t to_group, float fraction) {
     auto& w = state.world;
     fraction = std::clamp(fraction, 0.0f, 1.0f);
-    const float s = w.region_get_ep_s(from, age_young) * fraction;
-    const float e = w.region_get_ep_e(from, age_young) * fraction;
-    const float i = w.region_get_ep_i(from, age_young) * fraction;
-    const float r = w.region_get_ep_r(from, age_young) * fraction;
-    w.region_set_ep_s(from, age_young, w.region_get_ep_s(from, age_young) - s);
-    w.region_set_ep_e(from, age_young, w.region_get_ep_e(from, age_young) - e);
-    w.region_set_ep_i(from, age_young, w.region_get_ep_i(from, age_young) - i);
-    w.region_set_ep_r(from, age_young, w.region_get_ep_r(from, age_young) - r);
-    w.region_set_ep_s(to, to_group, w.region_get_ep_s(to, to_group) + s);
-    w.region_set_ep_e(to, to_group, w.region_get_ep_e(to, to_group) + e);
-    w.region_set_ep_i(to, to_group, w.region_get_ep_i(to, to_group) + i);
-    w.region_set_ep_r(to, to_group, w.region_get_ep_r(to, to_group) + r);
+    for(uint8_t p = 0; p < state.derived.pathogen_count; ++p) {
+        const uint8_t src = epi_index(p, age_young);
+        const uint8_t dst = epi_index(p, to_group);
+        const float s = w.region_get_ep_s(from, src) * fraction;
+        const float e = w.region_get_ep_e(from, src) * fraction;
+        const float i = w.region_get_ep_i(from, src) * fraction;
+        const float r = w.region_get_ep_r(from, src) * fraction;
+        w.region_set_ep_s(from, src, w.region_get_ep_s(from, src) - s);
+        w.region_set_ep_e(from, src, w.region_get_ep_e(from, src) - e);
+        w.region_set_ep_i(from, src, w.region_get_ep_i(from, src) - i);
+        w.region_set_ep_r(from, src, w.region_get_ep_r(from, src) - r);
+        w.region_set_ep_s(to, dst, w.region_get_ep_s(to, dst) + s);
+        w.region_set_ep_e(to, dst, w.region_get_ep_e(to, dst) + e);
+        w.region_set_ep_i(to, dst, w.region_get_ep_i(to, dst) + i);
+        w.region_set_ep_r(to, dst, w.region_get_ep_r(to, dst) + r);
+    }
 }
 
+// Removes people of one age group from every pathogen's compartments.
 void remove_alive(game_state& state, dcon::region_id r, uint8_t group, float people) {
     auto& w = state.world;
-    const float alive = w.region_get_ep_s(r, group) + w.region_get_ep_e(r, group) + w.region_get_ep_i(r, group)
-                        + w.region_get_ep_r(r, group);
-    if(alive <= 0.0f) {
-        return;
+    for(uint8_t p = 0; p < state.derived.pathogen_count; ++p) {
+        const uint8_t i = epi_index(p, group);
+        const float alive = w.region_get_ep_s(r, i) + w.region_get_ep_e(r, i) + w.region_get_ep_i(r, i) + w.region_get_ep_r(r, i);
+        if(alive <= 0.0f) {
+            continue;
+        }
+        const float keep = std::max(0.0f, 1.0f - people / alive);
+        w.region_set_ep_s(r, i, w.region_get_ep_s(r, i) * keep);
+        w.region_set_ep_e(r, i, w.region_get_ep_e(r, i) * keep);
+        w.region_set_ep_i(r, i, w.region_get_ep_i(r, i) * keep);
+        w.region_set_ep_r(r, i, w.region_get_ep_r(r, i) * keep);
     }
-    const float keep = std::max(0.0f, 1.0f - people / alive);
-    w.region_set_ep_s(r, group, w.region_get_ep_s(r, group) * keep);
-    w.region_set_ep_e(r, group, w.region_get_ep_e(r, group) * keep);
-    w.region_set_ep_i(r, group, w.region_get_ep_i(r, group) * keep);
-    w.region_set_ep_r(r, group, w.region_get_ep_r(r, group) * keep);
 }
 
 void move_money(game_state& state, dcon::pop_id from, dcon::pop_id to, double fraction) {
@@ -126,7 +135,7 @@ void move_money(game_state& state, dcon::pop_id from, dcon::pop_id to, double fr
 
 // ---------------------------------------------------------------- demography
 // Cohort flows per region every 28 days: births, children entering the labour
-// force by skill, retirement, baseline mortality, and COVID deaths by age
+// force by skill, retirement, baseline mortality, and epidemic deaths by age
 // (docs/04-society.md#demography).
 void update_demography(game_state& state) {
     auto& w = state.world;
@@ -145,7 +154,9 @@ void update_demography(game_state& state) {
         // Births and childhood (children are part of the young epidemic group).
         const float births = n.get_birth_rate() * population * years;
         r.set_children(r.get_children() + births);
-        r.set_ep_s(age_young, r.get_ep_s(age_young) + births);
+        for(uint8_t p = 0; p < state.derived.pathogen_count; ++p) {
+            r.set_ep_s(epi_index(p, age_young), r.get_ep_s(epi_index(p, age_young)) + births);
+        }
         population += births;
         const float entrants = r.get_children() * years / static_cast<float>(P.childhood_years);
         r.set_children(r.get_children() - entrants);
@@ -161,8 +172,9 @@ void update_demography(game_state& state) {
         const float retire = years / static_cast<float>(P.working_years);
         float retiring = 0.0f;
         float young_alive = 0.0f;
-        for(uint8_t g = 0; g < 1; ++g) {
-            young_alive = r.get_ep_s(g) + r.get_ep_e(g) + r.get_ep_i(g) + r.get_ep_r(g);
+        {
+            const uint8_t y0 = epi_index(0, age_young);
+            young_alive = r.get_ep_s(y0) + r.get_ep_e(y0) + r.get_ep_i(y0) + r.get_ep_r(y0);
         }
         for(uint8_t k = 0; k < worker_kinds; ++k) {
             const auto p = pops.by_kind[k];
@@ -181,31 +193,31 @@ void update_demography(game_state& state) {
             move_young(state, r.id, r.id, age_old, retiring / young_alive);
         }
 
-        // Baseline (non-COVID) mortality, then COVID deaths by age.
+        // Baseline (non-COVID) mortality, then epidemic deaths by age.
         const float old_deaths = retired ? w.pop_get_size(retired) * n.get_death_rate_old() * years : 0.0f;
         const float young_deaths = (population - (retired ? w.pop_get_size(retired) : 0.0f))
                                    * static_cast<float>(P.young_mortality) * years;
         remove_alive(state, r.id, age_old, old_deaths);
         remove_alive(state, r.id, age_young, young_deaths);
-        const float covid_old = r.get_covid_deaths_old();
-        const float covid_young = r.get_covid_deaths_young();
-        r.set_covid_deaths_old(0.0f);
-        r.set_covid_deaths_young(0.0f);
+        const float epi_old = r.get_epi_deaths_old();
+        const float epi_young = r.get_epi_deaths_young();
+        r.set_epi_deaths_old(0.0f);
+        r.set_epi_deaths_young(0.0f);
         if(retired) {
-            w.pop_set_size(retired, std::max(0.0f, w.pop_get_size(retired) - old_deaths - covid_old));
+            w.pop_set_size(retired, std::max(0.0f, w.pop_get_size(retired) - old_deaths - epi_old));
         }
         float workers = 0.0f;
         for(uint8_t k = 0; k < worker_kinds; ++k) {
             if(pops.by_kind[k]) workers += workforce(state, pops.by_kind[k]);
         }
-        const float worker_deaths = workers > 0.0f ? (covid_young + young_deaths * workers / std::max(1.0f, population)) : 0.0f;
+        const float worker_deaths = workers > 0.0f ? (epi_young + young_deaths * workers / std::max(1.0f, population)) : 0.0f;
         for(uint8_t k = 0; k < worker_kinds; ++k) {
             const auto p = pops.by_kind[k];
             if(p && workers > 0.0f) {
                 scale_workers(state, p, std::max(0.0f, 1.0f - worker_deaths / workers), false);
             }
         }
-        r.set_population(std::max(0.0f, population - old_deaths - young_deaths - covid_old - covid_young));
+        r.set_population(std::max(0.0f, population - old_deaths - young_deaths - epi_old - epi_young));
     }
 }
 
@@ -310,8 +322,8 @@ void update_migration(game_state& state) {
         add_seekers(state, mv.to, people, w.nation_get_unemployment0(to_nation));
         const auto ra = w.pop_get_home(mv.from);
         const auto rb = w.pop_get_home(mv.to);
-        const float young = w.region_get_ep_s(ra, age_young) + w.region_get_ep_e(ra, age_young) + w.region_get_ep_i(ra, age_young)
-                            + w.region_get_ep_r(ra, age_young);
+        const uint8_t y0 = epi_index(0, age_young);
+        const float young = w.region_get_ep_s(ra, y0) + w.region_get_ep_e(ra, y0) + w.region_get_ep_i(ra, y0) + w.region_get_ep_r(ra, y0);
         if(young > 0.0f) {
             move_young(state, ra, rb, age_young, people / young); // migrants carry infection
         }

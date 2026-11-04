@@ -50,6 +50,11 @@ world_summary summarize(game_state const& state) {
             deaths += own.get_region().get_deaths_reported();
         }
         s.deaths_per_million = deaths / n.get_population() * 1e6;
+        for(uint8_t p = 0; p < state.derived.pathogen_count; ++p) {
+            double dp = 0.0;
+            for(auto own : n.get_region_ownership()) dp += own.get_region().get_deaths_reported_p(p);
+            s.deaths_by_pathogen.emplace_back(core::unpack_key(w.pathogen_get_key(dcon::pathogen_id{p})), dp / n.get_population() * 1e6);
+        }
         s.gini_start = n.get_gini0();
         s.gini_end = n.get_gini();
         double pop_now = 0.0, unrest = 0.0;
@@ -110,11 +115,13 @@ void write_daily_rows(game_state const& state, std::ostream& out) {
         for(auto own : n.get_region_ownership()) {
             auto r = own.get_region();
             double alive = 0.0, susceptible = 0.0;
-            for(uint8_t a = 0; a < 2; ++a) {
-                susceptible += r.get_ep_s(a);
-                alive += r.get_ep_s(a) + r.get_ep_e(a) + r.get_ep_i(a) + r.get_ep_r(a);
+            // R_eff of the first pathogen (the scenario's main epidemic).
+            for(uint8_t a = 0; a < age_groups; ++a) {
+                susceptible += r.get_ep_s(epi_index(0, a));
+                alive += r.get_ep_s(epi_index(0, a)) + r.get_ep_e(epi_index(0, a)) + r.get_ep_i(epi_index(0, a)) + r.get_ep_r(epi_index(0, a));
             }
-            r_eff = alive > 0.0 ? r.get_beta() * state.params.infectious_days * susceptible / alive : 0.0;
+            r_eff = alive > 0.0 && state.derived.pathogen_count > 0
+                        ? r.get_beta(0) * w.pathogen_get_infectious_days(dcon::pathogen_id{0}) * susceptible / alive : 0.0;
             infections += r.get_new_infections();
             deaths += r.get_new_deaths() * n.get_death_reporting();
             cum += r.get_deaths_reported();

@@ -39,11 +39,12 @@ void apply_events(game_state& state) {
             break;
         case event_kind::epidemic_seed: {
             const auto r = capital_region(state, n);
-            if(r) {
-                const float s = w.region_get_ep_s(r, 0);
+            if(r && e.get_param() < state.derived.pathogen_count) {
+                const uint8_t i = epi_index(e.get_param(), age_young);
+                const float s = w.region_get_ep_s(r, i);
                 const float x = std::min(s, e.get_value());
-                w.region_set_ep_s(r, 0, s - x);
-                w.region_set_ep_e(r, 0, w.region_get_ep_e(r, 0) + x);
+                w.region_set_ep_s(r, i, s - x);
+                w.region_set_ep_e(r, i, w.region_get_ep_e(r, i) + x);
             }
             break;
         }

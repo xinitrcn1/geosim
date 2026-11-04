@@ -36,6 +36,7 @@ struct derived_indices {
     dcon::commodity_id oil;
     uint8_t sector_count = 0;
     uint8_t npi_count = 0;
+    uint8_t pathogen_count = 0;
     // Levers: [0, npi_count) are NPIs, then lever_base + sim::lever::*.
     uint8_t lever_base = 0;
     uint8_t lever_count = 0;

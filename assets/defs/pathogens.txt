@@ -1,0 +1,63 @@
+# Pathogens (hand-written; moddable). Every pathogen runs its own two-age-group
+# SEIR on the same population; they interact through shared hospital capacity,
+# cross-immunity, deaths, and the behavioural / policy response to the combined
+# burden. Scenario events seed them: epidemic_seed{ ... pathogen{key} ... }.
+#
+# key               up to 4 characters
+# r0                basic reproduction number
+# incubation_days   mean latent period;  infectious_days: mean infectious period
+# death_delay_days  end of infectiousness to death
+# ifr_young/old     infection fatality rate under / over 65
+# old_contact_factor relative contact rate of the 65+ group
+# seasonality       amplitude of seasonal forcing (sign by hemisphere)
+# waning_days       mean duration of immunity (0 = lifelong for the scenario)
+# hosp_share        share of infectious needing a hospital bed
+# detection_ratio   share of infections detected at maximum testing
+# npi_sensitivity   how much NPIs cut transmission (1 = respiratory; ~0.2 vector-borne)
+# initial_immunity  share of the population immune at the scenario start
+# cross_immunity    susceptibility removed by having recovered from another pathogen{ key{share} }
+
+# SARS-CoV-2, wild type. Flaxman et al. 2020 (R0); Levin et al. 2020 (IFR by age, rounded to two groups).
+pathogen{
+	key{cov}
+	name{SARS-CoV-2 (wild type)}
+	r0{3.0} incubation_days{4} infectious_days{5} death_delay_days{14}
+	ifr_young{0.0015} ifr_old{0.045} old_contact_factor{0.6}
+	seasonality{0.25} waning_days{0} hosp_share{0.05} detection_ratio{0.15}
+	npi_sensitivity{1.0} initial_immunity{0.0}
+}
+
+# Seasonal influenza: R0 ~1.3 (Biggerstaff et al. 2014), IFR ~0.01-0.05% overall, strong
+# seasonality, a third of the population immune at the start of a season. Nearly vanished
+# after March 2020 under COVID measures (WHO FluNet), which the back-test can check.
+pathogen{
+	key{flu}
+	name{Seasonal influenza}
+	r0{1.4} incubation_days{2} infectious_days{3} death_delay_days{10}
+	ifr_young{0.00005} ifr_old{0.002} old_contact_factor{0.8}
+	seasonality{0.4} waning_days{365} hosp_share{0.01} detection_ratio{0.05}
+	npi_sensitivity{1.0} initial_immunity{0.35}
+	cross_immunity{ cov{0.0} }
+}
+
+# Templates, not seeded in 2020 (use them in scenarios / mods).
+# Pandemic influenza, 2009-like (R0 ~1.5, low IFR, older people partly protected).
+pathogen{
+	key{h1n1}
+	name{Pandemic influenza (2009-like)}
+	r0{1.5} incubation_days{2} infectious_days{3} death_delay_days{10}
+	ifr_young{0.0002} ifr_old{0.0005} old_contact_factor{0.8}
+	seasonality{0.4} waning_days{0} hosp_share{0.01} detection_ratio{0.05}
+	npi_sensitivity{1.0} initial_immunity{0.0}
+	cross_immunity{ flu{0.2} }
+}
+
+# Severe pandemic influenza, 1918-like (R0 ~2, IFR 2-3% with high young-adult mortality).
+pathogen{
+	key{pan}
+	name{Severe pandemic influenza (1918-like)}
+	r0{2.0} incubation_days{2} infectious_days{3} death_delay_days{9}
+	ifr_young{0.02} ifr_old{0.03} old_contact_factor{0.8}
+	seasonality{0.3} waning_days{0} hosp_share{0.08} detection_ratio{0.1}
+	npi_sensitivity{1.0} initial_immunity{0.0}
+}

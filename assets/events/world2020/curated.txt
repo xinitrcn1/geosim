@@ -2,7 +2,11 @@
 # Format and event kinds: assets/README.md.
 
 # --------------------------------------------------------------- from the 2020 slice (sources there)
-epidemic_seed{ date{2020-01-01} nation{CHN} infections{3000} }
+epidemic_seed{ date{2020-01-01} nation{CHN} pathogen{cov} infections{3000} }
+
+# Seasonal influenza circulates everywhere on 2020-01-01 (northern-hemisphere season
+# under way; ~0.03% of people newly infectious, WHO FluNet orders of magnitude).
+epidemic_seed{ date{2020-01-01} nation{ALL} pathogen{flu} infections_per_million{300} }
 stw{ date{2020-03-13} nation{DEU} coverage{0.85} replacement{0.65} source{Kurzarbeit fast-track law, 60/67% of net pay} }
 stw{ date{2020-03-16} nation{FRA} coverage{0.85} replacement{0.84} source{activite partielle, 84% of net pay} }
 stw{ date{2020-03-17} nation{ITA} coverage{0.85} replacement{0.80} source{Cura Italia decree: CIG + layoff ban} }

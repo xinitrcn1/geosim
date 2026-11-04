@@ -2,15 +2,20 @@
 # the values below are the defaults in src/sim/params.hpp. Edit a value to
 # override it; delete a line to fall back to the default. Format: name{value}
 
-historical_anchors{1}                    # 1 = apply dated real-world policy events; 0 = AI decides (not yet)
-r0{3}                                    # basic reproduction number of the wild-type virus (Flaxman et al. 2020: ~3.3)
-incubation_days{4}                       # mean latent period E->I (days)
-infectious_days{5}                       # mean infectious period (days)
-death_delay_days{14}                     # mean delay from end of infectiousness to death (days)
-ifr_young{0.0015}                        # infection fatality rate, under 65
-ifr_old{0.045}                           # infection fatality rate, 65 and over
-old_contact_factor{0.6}                  # relative contact rate of the 65+ group
-seasonality{0.25}                        # amplitude of seasonal transmission forcing (Gavenciak et al. 2022)
+historical_anchors{1}                    # 1 = dated real-world decisions are priors for the AI; 0 = AI alone
+anchor_prior_weight{10}                  # weight of the historical anchor vs pragmatic+ideological targets (=1)
+advise_weight{3}                         # weight of player advice relative to the agent's own choice
+ai_horizon_days{14}                      # epidemic projection horizon of executives (days)
+ai_case_tolerance{5}                     # detected cases/million/day tolerated at health weight 1
+ai_threat_slope{0.3}                     # pragmatic stringency per log-unit of projected cases over tolerance
+ai_econ_brake{0.15}                      # pragmatic stringency removed per unit economic weight
+ai_unemployment_alarm{0.05}              # unemployment rise that triggers full income support
+ai_order_gain{3}                         # how much an order-minded ideology amplifies the response to a threat
+ai_default_targeted{0.3}                 # targeted share of NPIs chosen without an anchor
+ai_tti_window{20}                        # projected cases/million/day below which suppression is still feasible
+ai_debt_limit{1.5}                       # debt/GDP at which fiscal space is exhausted
+ai_fiscal_response{0.5}                  # pragmatic cumulative package (% GDP) per point of slack
+ai_fiscal_min_package{0.1}               # smallest new package announced (% GDP)
 voluntary_k{0.08}                        # behavioural distancing: transmission x 1/(1 + k * daily deaths per million)
 tracing_max{0.3}                         # max transmission cut from comprehensive contact tracing (H3 at max level)
 tracing_capacity{20}                     # daily detected cases per million above which tracing saturates
@@ -28,10 +33,10 @@ tti_capacity_mult{9}                     # extra tracing capacity (x) under a fu
 tti_isolation{0.5}                       # transmission cut from centralised isolation under a full suppression strategy
 quarantine_effect{0.98}                  # cut in imported infections under full arrival quarantine
 tti_extra_effect{0.4}                    # extra transmission cut from tracing under a full suppression strategy
-detection_ratio{0.15}                    # share of infections detected, at max testing level
 travel_rate{0.001}                       # daily imported infections per resident per unit world prevalence
-hosp_share{0.05}                         # share of current infectious needing a hospital bed
-covid_bed_share{0.3}                     # share of hospital beds available for COVID patients
+epidemic_bed_share{0.3}                  # share of hospital beds available for epidemic patients
+tracing_reference_detection{0.15}        # detection ratio at which a pathogen is fully traceable
+severity_reference_ifr{0.008}            # population IFR of severity 1 (about SARS-CoV-2 wild type)
 overload_ifr_mult{1}                     # IFR increase per 100% hospital overload (capped at 2x)
 adaptation_max{0.5}                      # share of the NPI output cost removed by business adaptation
 adaptation_days{120}                     # days at full containment until adaptation is complete
@@ -65,6 +70,24 @@ wage_high{1.9}                           # relative wage of high-skill workers
 e1_replacement_boost{0.3}                # extra benefit replacement at OxCGRT E1 max level
 e1_coverage_boost{0.4}                   # extra benefit coverage at OxCGRT E1 max level
 firm_support_effect{1}                   # layoff-speed cut per unit (firm support / private wage bill)
+childhood_years{15}                      # years from birth to labour-force entry
+working_years{50}                        # years in the working-age group (15-64)
+young_mortality{0.0015}                  # annual non-COVID mortality under 65
+migration_rate_internal{0.02}            # annual internal migration per log-unit of expected-income gap
+migration_rate_international{0.002}      # annual international migration per log-unit of gap
+migration_cost_internal{0.1}             # log expected-income gap needed before people move internally
+migration_cost_international{1}          # log expected-income gap needed before people emigrate
+migration_cap{0.01}                      # largest share of a pop that can move in one 28-day step
+values_insecurity_pull{0.05}             # survival-values shift per year at full insecurity
+values_loss_left{0.1}                    # leftward economic shift per year at full grievance
+opinion_eps_base{0.3}                    # bounded-confidence radius at zero media freedom
+opinion_eps_media{0.4}                   # extra confidence radius at full media freedom
+opinion_speed{0.5}                       # annual convergence speed toward confidant opinions
+expectations_income_days{365}            # adaptation time of income expectations (relative deprivation)
+unrest_grievance{1}                      # unrest target per unit grievance x (1 - legitimacy)
+unrest_psi{0.3}                          # unrest target per unit Political Stress Index
+unrest_days{60}                          # adjustment time of regional unrest (days)
+riot_capital_loss{0.002}                 # share of regional capital destroyed per 28 days per unrest level above 3
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

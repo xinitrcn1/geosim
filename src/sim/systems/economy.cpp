@@ -394,10 +394,14 @@ void update_economy(game_state& state, economy_mode mode) {
     w.execute_parallel_over_region([&](auto ids) {
         const auto nat = w.region_get_owner(ids);
         const auto mask = lane_due(w.region_get_shard(ids));
-        const auto young_inf = w.region_get_ep_i(ids, age_young);
-        const auto young_n = w.region_get_ep_s(ids, age_young) + w.region_get_ep_e(ids, age_young) + young_inf
-                             + w.region_get_ep_r(ids, age_young);
-        const auto absent = sick * young_inf / ve::max(young_n, ve::fp_vector(1.0f));
+        // Sickness absence: infectious working-age people, all pathogens.
+        ve::fp_vector young_inf(0.0f);
+        for(uint8_t p = 0; p < D.pathogen_count; ++p) {
+            young_inf = young_inf + w.region_get_ep_i(ids, epi_index(p, age_young));
+        }
+        const uint8_t y0 = epi_index(0, age_young);
+        const auto young_n = w.region_get_ep_s(ids, y0) + w.region_get_ep_e(ids, y0) + w.region_get_ep_i(ids, y0) + w.region_get_ep_r(ids, y0);
+        const auto absent = ve::min(ve::fp_vector(0.5f), sick * young_inf / ve::max(young_n, ve::fp_vector(1.0f)));
         const auto gf = w.nation_get_gf(nat);
         for(uint8_t s = 0; s < S; ++s) {
             const auto cap = w.region_get_va0(ids, s) * gf * (ve::fp_vector(1.0f) - w.nation_get_npi_cut(nat, s))

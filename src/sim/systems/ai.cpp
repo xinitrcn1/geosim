@@ -116,28 +116,33 @@ situation assess(game_state const& state, dcon::nation_id n, double world_cases_
     auto const& w = state.world;
     auto const& P = state.params;
     auto const& D = state.derived;
-    double infections = 0, pop = 0, r_num = 0;
+    // Severity-weighted detected cases over all pathogens, and their growth.
+    const float testing = D.npi_testing != 0xFF ? npi_fraction(state, n, D.npi_testing) : 0.0f;
+    const float detected_share = 0.2f + 0.8f * testing;
+    double cases = 0, growth_num = 0, pop = 0;
     for(auto own : w.nation_get_region_ownership(n)) {
         auto r = own.get_region();
-        double alive = 0, susceptible = 0;
-        for(uint8_t g = 0; g < age_groups; ++g) {
-            susceptible += r.get_ep_s(g);
-            alive += r.get_ep_s(g) + r.get_ep_e(g) + r.get_ep_i(g) + r.get_ep_r(g);
-        }
-        const double reff = alive > 0 ? r.get_beta() * P.infectious_days * susceptible / alive : 0.0;
-        infections += r.get_new_infections();
-        r_num += reff * r.get_population();
         pop += r.get_population();
+        for(uint8_t p = 0; p < D.pathogen_count; ++p) {
+            const dcon::pathogen_id pid{p};
+            double alive = 0, susceptible = 0;
+            for(uint8_t g = 0; g < age_groups; ++g) {
+                const uint8_t i = epi_index(p, g);
+                susceptible += r.get_ep_s(i);
+                alive += r.get_ep_s(i) + r.get_ep_e(i) + r.get_ep_i(i) + r.get_ep_r(i);
+            }
+            const double reff = alive > 0 ? r.get_beta(p) * w.pathogen_get_infectious_days(pid) * susceptible / alive : 0.0;
+            const double c = r.get_infections_p(p) * w.pathogen_get_detection_ratio(pid) * detected_share * w.pathogen_get_severity(pid);
+            cases += c;
+            growth_num += c * (reff - 1.0) / (w.pathogen_get_infectious_days(pid) + w.pathogen_get_incubation_days(pid));
+        }
     }
     situation s;
     if(pop <= 0) {
         return s;
     }
-    const float testing = D.npi_testing != 0xFF ? npi_fraction(state, n, D.npi_testing) : 0.0f;
-    const float detect = static_cast<float>(P.detection_ratio) * (0.2f + 0.8f * testing);
-    const float cases_pm = static_cast<float>(infections / pop * 1e6) * detect;
-    const float reff = static_cast<float>(r_num / pop);
-    const float growth = (reff - 1.0f) / static_cast<float>(P.infectious_days + P.incubation_days);
+    const float cases_pm = static_cast<float>(cases / pop * 1e6);
+    const float growth = cases > 0 ? static_cast<float>(growth_num / cases) : 0.0f;
     s.cases_pm = cases_pm * std::exp(std::clamp(growth * static_cast<float>(P.ai_horizon_days), -5.0f, 5.0f));
     const float tolerance = static_cast<float>(P.ai_case_tolerance) / std::max(0.1f, w.agent_get_health_weight(a));
     const float econ = static_cast<float>(P.ai_econ_brake) * w.agent_get_econ_weight(a);
@@ -332,16 +337,18 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
 
 void update_ai(game_state& state) {
     auto& w = state.world;
-    auto const& P = state.params;
     const auto tick = static_cast<tick_t>(state.current_tick);
 
-    // World detected-case prevalence (per million per day), serial in index order.
-    double world_inf = 0, world_pop = 0;
+    // World severity-weighted detected cases (per million per day), serial in index order.
+    double world_cases = 0, world_pop = 0;
     for(auto r : w.in_region) {
-        world_inf += r.get_new_infections();
+        for(uint8_t p = 0; p < state.derived.pathogen_count; ++p) {
+            const dcon::pathogen_id pid{p};
+            world_cases += r.get_infections_p(p) * w.pathogen_get_detection_ratio(pid) * w.pathogen_get_severity(pid) * 0.5;
+        }
         world_pop += r.get_population();
     }
-    const double world_cases_pm = world_pop > 0 ? world_inf / world_pop * 1e6 * P.detection_ratio * 0.5 : 0.0;
+    const double world_cases_pm = world_pop > 0 ? world_cases / world_pop * 1e6 : 0.0;
 
     // Sovereigns decide before their subjects so subjects can follow them.
     std::vector<dcon::nation_id> order;

@@ -391,7 +391,7 @@ def epidemic_seeds(ox, isos=SLICE):
             if deaths >= SEED_DEATHS:
                 d = dt.date.fromisoformat(ymd(r["Date"])) - dt.timedelta(days=SEED_LEAD_DAYS)
                 d = max(d, dt.date(2020, 1, 1))
-                out.append(f"epidemic_seed{{ date{{{d.isoformat()}}} nation{{{iso}}} infections{{{SEED_INFECTIONS}}} }}")
+                out.append(f"epidemic_seed{{ date{{{d.isoformat()}}} nation{{{iso}}} pathogen{{cov}} infections{{{SEED_INFECTIONS}}} }}")
                 break
     return "\n".join(out) + "\n"
 

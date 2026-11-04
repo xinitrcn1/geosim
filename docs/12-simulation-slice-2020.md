@@ -20,7 +20,7 @@ Code: `src/sim/` (systems in `src/sim/systems/`), data: `assets/`
 | Determinism, saves | **Yes.** DCON serialisation; save -> load -> continue is bit-identical (tested) |
 | Production / prices / labour / fiscal / money | **Yes**, simplified (below) |
 | Pops (strata) | **Partial.** 4 per region: low/mid/high-skill workers, retirees; lognormal within groups; no values/identity yet |
-| Epidemic | **Yes.** Two-age-group metapopulation SEIR with hospital overload |
+| Epidemics | **Yes.** Any number of simultaneous pathogens (data-defined), two-age-group SEIR each, interacting |
 | Trade | **Simplified.** Exports follow partners' import demand; no bilateral gravity matrix yet |
 | Oil market | **Yes.** World crude with inventories, OPEC+ events, price-elastic producers |
 | Exchange rates, credit, housing | No (all values in USD; see open issues) |
@@ -84,7 +84,18 @@ The 2019 data are turned into a consistent steady state, checked by
 
 ## Mechanisms and their sources
 
-**Epidemic** (`systems/epidemic.cpp`, daily, SIMD over regions with DCON `execute_parallel_over_region`)
+**Epidemics** (`systems/epidemic.cpp`, daily, SIMD over regions with DCON `execute_parallel_over_region`)
+
+- Pathogens are data (`assets/defs/pathogens.txt`): SARS-CoV-2 and seasonal influenza are
+  seeded in 2020; 2009-like and 1918-like pandemic influenzas ship as templates. Each runs
+  its own two-age-group SEIR on the same population (arrays indexed `epi_index(pathogen, age)`)
+  with waning immunity and initial immunity. They interact through shared hospital capacity,
+  cross-immunity, deaths (removed from every pathogen's compartments) and the policy and
+  behavioural response to the combined, severity-weighted burden.
+  `tests/test_epidemics.cpp`: influenza falls ~99% after March 2020 under the COVID measures
+  (as WHO FluNet recorded); a concurrent severe pandemic raises COVID deaths through hospital
+  overload; full cross-immunity stops spread among the recovered.
+- The parameters below are those of the `cov` pathogen.
 
 - SEIR + dying compartment, R0 = 3.0 (Flaxman et al. 2020), IFR 0.15% / 4.5% for under/over 65, doubled at 100% hospital overload.
 - NPI effects multiply transmission by (1 - compliance x effect x level); effects from Brauner et al. (2021). Regional (targeted) measures reach 50% of transmission.

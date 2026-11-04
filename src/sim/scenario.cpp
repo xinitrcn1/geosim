@@ -123,6 +123,57 @@ struct builder {
         }
     }
 
+    std::map<std::string, uint8_t> pathogen_by_key;
+
+    void load_pathogens() {
+        const std::string path = assets + "/defs/pathogens.txt";
+        auto& w = state.world;
+        if(!fs::exists(path)) {
+            return;
+        }
+        auto nodes = core::load_defs(path);
+        std::vector<std::pair<dcon::pathogen_id, core::def_node const*>> made;
+        for(auto const& node : nodes) {
+            if(node.key != "pathogen") {
+                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": expected pathogen{...}");
+            }
+            const std::string key(node.req("key", path));
+            if(key.size() > 4 || pathogen_by_key.count(key)) {
+                throw std::runtime_error(path + ":" + std::to_string(node.line) + ": pathogen key must be unique and at most 4 characters");
+            }
+            const auto id = w.create_pathogen();
+            auto num = [&](char const* k, double d) { return static_cast<float>(node.num_or(k, d, path)); };
+            w.pathogen_set_key(id, core::pack_key(key));
+            w.pathogen_set_r0(id, num("r0", 2.0));
+            w.pathogen_set_incubation_days(id, num("incubation_days", 4.0));
+            w.pathogen_set_infectious_days(id, num("infectious_days", 5.0));
+            w.pathogen_set_death_delay_days(id, num("death_delay_days", 14.0));
+            w.pathogen_set_ifr_young(id, num("ifr_young", 0.001));
+            w.pathogen_set_ifr_old(id, num("ifr_old", 0.01));
+            w.pathogen_set_old_contact_factor(id, num("old_contact_factor", 0.6));
+            w.pathogen_set_seasonality(id, num("seasonality", 0.2));
+            w.pathogen_set_waning_days(id, num("waning_days", 0.0));
+            w.pathogen_set_hosp_share(id, num("hosp_share", 0.03));
+            w.pathogen_set_detection_ratio(id, num("detection_ratio", 0.1));
+            w.pathogen_set_npi_sensitivity(id, num("npi_sensitivity", 1.0));
+            w.pathogen_set_initial_immunity(id, num("initial_immunity", 0.0));
+            pathogen_by_key[key] = static_cast<uint8_t>(id.index());
+            made.emplace_back(id, &node);
+        }
+        w.pathogen_resize_cross_immunity(static_cast<uint32_t>(made.size()));
+        for(auto const& [id, node] : made) {
+            if(auto c = node->find("cross_immunity")) {
+                for(auto const& q : c->children) {
+                    auto it = pathogen_by_key.find(q.key);
+                    if(it == pathogen_by_key.end()) {
+                        throw std::runtime_error(path + ":" + std::to_string(q.line) + ": unknown pathogen '" + q.key + "'");
+                    }
+                    w.pathogen_set_cross_immunity(id, it->second, static_cast<float>(core::parse_number(q.text, path, q.line)));
+                }
+            }
+        }
+    }
+
     void load_sectors() {
         const std::string path = assets + "/defs/sectors.txt";
         auto& w = state.world;
@@ -337,10 +388,19 @@ struct builder {
                 if(!date) {
                     throw std::runtime_error(where + ": bad date");
                 }
-                const auto nation = find_nation(state, node.req("nation", path));
-                if(!nation) {
-                    throw std::runtime_error(where + ": unknown nation '" + std::string(node.req("nation", path)) + "'");
+                const std::string nation_key(node.req("nation", path));
+                // nation{ALL} expands to one event per nation (useful for global seeds).
+                std::vector<dcon::nation_id> targets;
+                if(nation_key == "ALL") {
+                    for(auto n : w.in_nation) targets.push_back(n.id);
+                } else {
+                    const auto nation = find_nation(state, nation_key);
+                    if(!nation) {
+                        throw std::runtime_error(where + ": unknown nation '" + nation_key + "'");
+                    }
+                    targets.push_back(nation);
                 }
+                for(auto nation : targets) {
                 const auto e = w.create_event();
                 w.event_set_tick(e, core::tick_from_date(*date));
                 w.event_set_target(e, nation);
@@ -369,7 +429,17 @@ struct builder {
                     w.event_set_value(e, num("pct_gdp"));
                 } else if(node.key == "epidemic_seed") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::epidemic_seed));
-                    w.event_set_value(e, num("infections"));
+                    const std::string pk(node.req("pathogen", path));
+                    auto pit = pathogen_by_key.find(pk);
+                    if(pit == pathogen_by_key.end()) {
+                        throw std::runtime_error(where + ": unknown pathogen '" + pk + "'");
+                    }
+                    w.event_set_param(e, pit->second);
+                    if(auto pm = node.num("infections_per_million", path)) {
+                        w.event_set_value(e, static_cast<float>(*pm * inputs[core::unpack_key(w.nation_get_iso3(nation))].population / 1e6));
+                    } else {
+                        w.event_set_value(e, num("infections"));
+                    }
                 } else if(node.key == "stw") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::job_retention));
                     w.event_set_value(e, num("coverage"));
@@ -387,6 +457,7 @@ struct builder {
                     throw std::runtime_error(where + ": unknown event kind '" + node.key + "'");
                 }
                 ++report.events;
+                }
             }
         }
     }
@@ -426,8 +497,15 @@ struct builder {
         w.region_set_hemisphere(r, ri.lat != 0.0 ? static_cast<float>(std::clamp(ri.lat / 23.5, -1.0, 1.0))
                                                   : static_cast<float>(in.hemisphere));
         w.region_set_beds_per_1000(r, static_cast<float>(in.beds));
-        w.region_set_ep_s(r, age_young, static_cast<float>(pop * (1.0 - in.pop65)));
-        w.region_set_ep_s(r, age_old, static_cast<float>(pop * in.pop65));
+        // Every pathogen starts with the same people; some may already be immune.
+        for(auto pth : w.in_pathogen) {
+            const auto p = static_cast<uint8_t>(pth.id.index());
+            const double immune = pth.get_initial_immunity();
+            w.region_set_ep_s(r, epi_index(p, age_young), static_cast<float>(pop * (1.0 - in.pop65) * (1.0 - immune)));
+            w.region_set_ep_r(r, epi_index(p, age_young), static_cast<float>(pop * (1.0 - in.pop65) * immune));
+            w.region_set_ep_s(r, epi_index(p, age_old), static_cast<float>(pop * in.pop65 * (1.0 - immune)));
+            w.region_set_ep_r(r, epi_index(p, age_old), static_cast<float>(pop * in.pop65 * immune));
+        }
         w.region_set_ifr_mult(r, 1.0f);
         w.region_set_children(r, static_cast<float>(pop * in.pop014));
         w.region_set_unrest_capacity(r, 1.0f);
@@ -979,6 +1057,7 @@ struct builder {
         auto& w = state.world;
         load_params();
         load_npis();
+        load_pathogens();
         load_sectors();
         // Array sizes are fixed for the scenario.
         const auto S = static_cast<uint32_t>(sector_by_key.size());
@@ -999,12 +1078,19 @@ struct builder {
         w.nation_resize_prior_npi(K);
         w.nation_resize_prior_npi_targeted(K);
         w.nation_resize_flows(static_cast<uint32_t>(flow::count));
-        w.region_resize_ep_s(age_groups);
-        w.region_resize_ep_e(age_groups);
-        w.region_resize_ep_i(age_groups);
-        w.region_resize_ep_r(age_groups);
-        w.region_resize_ep_h(age_groups);
-        w.region_resize_ep_d(age_groups);
+        const auto NP = static_cast<uint32_t>(std::max<std::size_t>(1, pathogen_by_key.size()));
+        w.region_resize_ep_s(NP * age_groups);
+        w.region_resize_ep_e(NP * age_groups);
+        w.region_resize_ep_i(NP * age_groups);
+        w.region_resize_ep_r(NP * age_groups);
+        w.region_resize_ep_h(NP * age_groups);
+        w.region_resize_ep_d(NP * age_groups);
+        w.region_resize_beta(NP);
+        w.region_resize_imported(NP);
+        w.region_resize_infections_p(NP);
+        w.region_resize_deaths_p(NP);
+        w.region_resize_deaths_reported_p(NP);
+        w.region_resize_cum_infections_p(NP);
         w.region_resize_va0(S);
         w.region_resize_capacity(S);
         w.region_resize_output(S);
@@ -1062,6 +1148,12 @@ void rebuild_derived(game_state& state) {
     d = derived_indices{};
     d.sector_count = static_cast<uint8_t>(w.sector_size());
     d.npi_count = static_cast<uint8_t>(w.npi_indicator_size());
+    d.pathogen_count = static_cast<uint8_t>(w.pathogen_size());
+    // Severity: population IFR relative to the reference (about SARS-CoV-2 wild type).
+    for(auto p : w.in_pathogen) {
+        const float ifr = 0.85f * p.get_ifr_young() + 0.15f * p.get_ifr_old();
+        p.set_severity(ifr / static_cast<float>(state.params.severity_reference_ifr));
+    }
     d.lever_base = d.npi_count;
     d.lever_count = static_cast<uint8_t>(d.npi_count + static_cast<uint8_t>(lever::count));
     for(auto s : w.in_sector) {

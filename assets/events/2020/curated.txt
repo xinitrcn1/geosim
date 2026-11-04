@@ -5,7 +5,11 @@
 # Wuhan outbreak already under way on 2020-01-01. ~3,000 true infections is
 # consistent with early estimates (Imai et al., MRC/Imperial report 2, 2020-01-22:
 # ~4,000 cases by 2020-01-18; Li et al. 2020 NEJM doubling time ~7.4 days).
-epidemic_seed{ date{2020-01-01} nation{CHN} infections{3000} }
+epidemic_seed{ date{2020-01-01} nation{CHN} pathogen{cov} infections{3000} }
+
+# Seasonal influenza circulates everywhere on 2020-01-01 (northern-hemisphere season
+# under way; ~0.03% of people newly infectious, WHO FluNet orders of magnitude).
+epidemic_seed{ date{2020-01-01} nation{ALL} pathogen{flu} infections_per_million{300} }
 
 # --------------------------------------------------------------- oil supply
 # Absolute crude production targets in million barrels/day (EIA STEO / OPEC MOMR, rounded).

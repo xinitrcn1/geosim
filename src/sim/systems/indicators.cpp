@@ -21,11 +21,17 @@ float npi_fraction(game_state const& state, dcon::nation_id n, uint8_t k) noexce
     return max > 0.0f ? std::clamp(state.world.nation_get_npi(n, k) / max, 0.0f, 1.0f) : 0.0f;
 }
 
+// Most populous region: entry point for seeds and international migration.
 dcon::region_id capital_region(game_state const& state, dcon::nation_id n) noexcept {
+    dcon::region_id best;
+    float pop = -1.0f;
     for(auto own : state.world.nation_get_region_ownership(n)) {
-        return own.get_region().id;
+        if(own.get_region().get_population() > pop) {
+            pop = own.get_region().get_population();
+            best = own.get_region().id;
+        }
     }
-    return {};
+    return best;
 }
 
 float reported_deaths_per_million_daily(game_state const& state, dcon::nation_id n) noexcept {

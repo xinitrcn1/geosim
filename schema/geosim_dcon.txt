@@ -172,8 +172,8 @@ object{
 	property{ name{util} type{array{uint8_t}{float}} }
 	property{ name{old_share} type{float} }
 	property{ name{children} type{float} }
-	property{ name{covid_deaths_young} type{float} }
-	property{ name{covid_deaths_old} type{float} }
+	property{ name{epi_deaths_young} type{float} }
+	property{ name{epi_deaths_old} type{float} }
 	property{ name{grievance} type{float} }
 	property{ name{unrest} type{float} }
 	property{ name{unrest_capacity} type{float} }
@@ -188,14 +188,18 @@ object{
 	property{ name{ep_h} type{array{uint8_t}{float}} }
 	property{ name{ep_d} type{array{uint8_t}{float}} }
 
-	property{ name{beta} type{float} }
-	property{ name{imported} type{float} }
+	property{ name{beta} type{array{uint8_t}{float}} }
+	property{ name{imported} type{array{uint8_t}{float}} }
+	property{ name{infections_p} type{array{uint8_t}{float}} }
+	property{ name{deaths_p} type{array{uint8_t}{float}} }
+	property{ name{deaths_reported_p} type{array{uint8_t}{float}} }
+	property{ name{cum_infections_p} type{array{uint8_t}{float}} }
 	property{ name{ifr_mult} type{float} }
 	property{ name{new_infections} type{float} }
+	property{ name{severe_infections} type{float} }
 	property{ name{new_deaths} type{float} }
 	property{ name{deaths_reported} type{float} }
 	property{ name{deaths7} type{float} }
-	property{ name{cum_infections} type{float} }
 }
 
 object{
@@ -284,6 +288,30 @@ object{
 	property{ name{role} type{uint8_t} }
 	property{ name{max_level} type{float} }
 	property{ name{transmission_effect} type{float} }
+}
+
+object{
+	name{pathogen}
+	storage_type{contiguous}
+	size{8}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{r0} type{float} }
+	property{ name{incubation_days} type{float} }
+	property{ name{infectious_days} type{float} }
+	property{ name{death_delay_days} type{float} }
+	property{ name{ifr_young} type{float} }
+	property{ name{ifr_old} type{float} }
+	property{ name{old_contact_factor} type{float} }
+	property{ name{seasonality} type{float} }
+	property{ name{waning_days} type{float} }
+	property{ name{hosp_share} type{float} }
+	property{ name{detection_ratio} type{float} }
+	property{ name{npi_sensitivity} type{float} }
+	property{ name{severity} type{float} }
+	property{ name{initial_immunity} type{float} }
+	property{ name{cross_immunity} type{array{uint8_t}{float}} }
 }
 
 object{

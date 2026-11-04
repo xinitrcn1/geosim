@@ -8,6 +8,6 @@ band{ metric{gdp_growth_pct}      abs{3.0}              min_pass{0.75} }
 band{ metric{unemployment_pct}    abs{2.0}  rel{0.25}   min_pass{0.70} }
 band{ metric{inflation_pct}       abs{1.5}  rel{0.35}   min_pass{0.70} }
 band{ metric{gov_net_lending_pct} abs{4.0}              min_pass{0.60} }
-band{ metric{deaths_per_million}  factor{3.0}           min_pass{0.60} }
+band{ metric{deaths_per_million}  factor{3.0} pathogen{cov} min_pass{0.60} }
 # Brent 2020 mean of EIA daily spot (assets/backtest/2020_brent.csv) = 41.96 USD/bbl.
 band{ metric{oil_price_mean} real{41.96} abs{6.0} }

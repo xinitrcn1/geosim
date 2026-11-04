@@ -34,13 +34,17 @@ inline constexpr uint8_t worker_kinds = 3;
 inline constexpr uint8_t age_young = 0;
 inline constexpr uint8_t age_old = 1;
 inline constexpr uint8_t age_groups = 2;
+// Index into region epidemic arrays (ep_s, ep_e, ...): one block of age groups per pathogen.
+[[nodiscard]] constexpr uint8_t epi_index(uint8_t pathogen, uint8_t age) noexcept {
+    return static_cast<uint8_t>(pathogen * age_groups + age);
+}
 
 // event.kind
 enum class event_kind : uint8_t {
     npi_level = 1,            // param = indicator index, value = level, value2 = targeted share
     policy_rate = 2,          // value = rate (pct)
     fiscal_package = 3,       // value = size (pct of 2019 GDP)
-    epidemic_seed = 4,        // value = infections
+    epidemic_seed = 4,        // param = pathogen index, value = infections
     job_retention = 5,        // value = coverage, value2 = replacement
     oil_production = 6,       // value = absolute target (mb/d)
     oil_production_delta = 7, // value = change of target (mb/d)
