@@ -1,7 +1,7 @@
 // The map camera (src/client/map_view.hpp): oblique Mercator round trips,
 // north-up and unit scale at the focus, pan and zoom-at-cursor invariants.
 #include "map_view.hpp"
-#include "tile_pack.hpp"
+#include "inset_pack.hpp"
 
 #include <vector>
 
@@ -76,22 +76,43 @@ int main() {
         check(near(sx, 400, 0.5) && near(sy, -150, 0.5), "zoom at the cursor");
         check(near(v.scale, 1000, 1e-9), "zoom factor");
     }
-    // Tile cartogram: 60 regions crowded on a grid end up disjoint, near home.
+    // Electoral insets, USA-like: mainland (empty lower corners), Alaska, Hawaii.
     {
-        std::vector<geosim::client::tile> tiles;
-        std::vector<double> weight;
-        for(int k = 0; k < 60; ++k) {
-            geosim::client::tile t;
-            t.x = (k % 10) * 0.1 + 0.03 * (k % 3);
-            t.y = (k / 10) * 0.1;
-            tiles.push_back(t);
-            weight.push_back(1.0 + (k % 7));
+        using namespace geosim::client;
+        auto mx = [](double lon) { return lon * map_deg; };
+        auto my = [](double lat) { return std::log(std::tan(map_pi / 4.0 + lat * map_deg / 2.0)); };
+        const std::vector<merc_rect> groups = {
+            {mx(-125), my(25), mx(-67), my(49)},     // mainland
+            {mx(-188), my(51), mx(-130), my(71.5)},  // Alaska (across the antimeridian, unwrapped)
+            {mx(-160.5), my(18.9), mx(-154.8), my(22.3)}, // Hawaii
+        };
+        const std::vector<double> weight = {8.0e6, 1.7e6, 2.8e4};
+        occupancy land = make_occupancy(groups[0]);
+        for(double lon = -125; lon <= -67; lon += 0.25) {
+            for(double lat = 25; lat <= 49; lat += 0.25) {
+                const bool empty = (lon < -108 && lat < 32) || (lon > -81 && lat < 30) || (lon > -95 && lat > 46);
+                if(!empty) land.mark(mx(lon), my(lat));
+            }
         }
-        geosim::client::pack_tiles(tiles, weight, 1.0 * 0.6, 0.6);
-        check(geosim::client::tiles_disjoint(tiles), "packed tiles do not overlap");
-        double drift = 0.0;
-        for(auto const& t : tiles) drift = std::max(drift, std::hypot(t.x - t.home_x, t.y - t.home_y));
-        check(drift < 1.0, "tiles stay near home");
+        const auto placed = pack_insets(groups, weight, 0, land);
+        bool disjoint = true;
+        for(std::size_t i = 1; i < placed.size(); ++i) {
+            disjoint = disjoint && !land.hits(placed[i].placed, 0.0);
+            for(std::size_t j = i + 1; j < placed.size(); ++j) disjoint = disjoint && !placed[i].placed.overlaps(placed[j].placed);
+        }
+        check(disjoint, "insets overlap neither each other nor the mainland");
+        merc_rect raw = groups[0];
+        for(auto const& g : groups) {
+            raw.x0 = std::min(raw.x0, g.x0);
+            raw.y0 = std::min(raw.y0, g.y0);
+            raw.x1 = std::max(raw.x1, g.x1);
+            raw.y1 = std::max(raw.y1, g.y1);
+        }
+        const merc_rect packed = union_of(placed);
+        const double ratio = packed.w() * packed.h() / (raw.w() * raw.h());
+        std::printf("USA insets: packed / raw bounding area = %.2f\n", ratio);
+        check(ratio < 0.5, "packed layout much smaller than the raw bounding box");
+        check(placed[1].scale < 1.0 && placed[2].scale > 1.0, "Alaska shrinks, Hawaii grows");
     }
     if(failures == 0) std::printf("test_map_view: ok\n");
     return failures == 0 ? 0 : 1;

@@ -109,16 +109,13 @@ private:
     int politics_for_ = -1;
     std::chrono::steady_clock::time_point last_politics_{};
     std::vector<std::vector<float>> start_votes_; // nation -> national vote shares at first sight (swing)
-    struct layout_cache {
+    struct inset_cache {
         int nation = -1;
-        int32_t tick = -1;
-        std::vector<int> regions; // raster regions, in tile order
-        std::vector<electoral_tile> tiles;
+        std::shared_ptr<electoral_raster const> raster;
         float aspect = 1;
-        bool weighted = false; // sized by electorate (else by area, until the politics data arrives)
     };
-    mutable layout_cache layout_;
-    void layout_tiles(int nation) const;
+    mutable std::vector<inset_cache> insets_; // per nation, built on first use
+    [[nodiscard]] inset_cache const& build_insets(int nation) const;
     [[nodiscard]] politics_region const* politics_of(int raster) const noexcept;
     [[nodiscard]] bool democracy() const noexcept;
     map_filter last_view_ = map_filter::count;

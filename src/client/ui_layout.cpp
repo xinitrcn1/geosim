@@ -442,8 +442,27 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
     const float rows_h = info.modes.empty() ? 0.0f : by + bh;
     const float map_w = w - pad * 2;
     const float map_h = std::min(ui.px(320), std::max(ui.px(140), map_w / std::max(0.4f, info.aspect)));
+    // The national strip, word-wrapped to the tab.
+    std::vector<std::string> strip;
+    for(auto const& sline : info.strip) {
+        std::string cur;
+        std::size_t at = 0;
+        while(at < sline.size()) {
+            const std::size_t sp = std::min(sline.find(' ', at), sline.size());
+            const std::string word = sline.substr(at, sp - at);
+            const std::string next = cur.empty() ? word : cur + " " + word;
+            if(!cur.empty() && ui.text_width(next, small) > w - pad * 2) {
+                strip.push_back(cur);
+                cur = "   " + word;
+            } else {
+                cur = next;
+            }
+            at = sp + 1;
+        }
+        if(!cur.empty()) strip.push_back(cur);
+    }
     const float h = hh + pad + rows_h + pad + map_h + pad + (info.legend.empty() ? 0.0f : line) +
-                    static_cast<float>(info.strip.size()) * line + pad;
+                    static_cast<float>(strip.size()) * line + pad;
     rect r{x, y, w, h};
     ui.flat_panel(r, hh);
     float tw = ui.text_in(layer::overlay, {x + pad, y, w, hh}, "Politics", font, style::text, align::left, font_weight::semibold);
@@ -478,19 +497,29 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
     const float ox = x + pad + (map_w - lw) * 0.5f, oy = cy + (map_h - lh) * 0.5f;
     st.politics_tile = -1;
     ui.set_text_backing(false);
-    if(info.tiles.empty()) {
+    electoral_raster const* ras = info.raster.get();
+    if(!ras || ras->runs.empty()) {
         ui.text_in(layer::overlay, {x + pad, cy, map_w, map_h}, info.valid ? "No regions" : "Loading…", small, style::flat_dim, align::centre);
-    }
-    for(auto const& t : info.tiles) {
-        rect tr{std::round(ox + t.x * lw), std::round(oy + t.y * lh), std::max(1.0f, std::round(t.w * lw)), std::max(1.0f, std::round(t.h * lh))};
-        ui.fill(layer::overlay, tr, t.colour);
-        if(ui.hovered(tr)) {
-            st.politics_tile = t.region;
-            const float o = std::max(1.0f, std::round(ui.px(1)));
-            ui.fill(layer::overlay, {tr.x, tr.y, tr.w, o}, style::flat_text);
-            ui.fill(layer::overlay, {tr.x, tr.bottom() - o, tr.w, o}, style::flat_text);
-            ui.fill(layer::overlay, {tr.x, tr.y, o, tr.h}, style::flat_text);
-            ui.fill(layer::overlay, {tr.right() - o, tr.y, o, tr.h}, style::flat_text);
+    } else {
+        // The packed inset map: run-length quads scaled into the area, white region
+        // borders, grey inset frames.
+        const float sx = lw / static_cast<float>(ras->w), sy = lh / static_cast<float>(ras->h);
+        for(auto const& run : ras->runs) {
+            rgba c = style::flat_rule;
+            if(run.value >= 0) c = static_cast<std::size_t>(run.value) < info.colours.size() ? info.colours[static_cast<std::size_t>(run.value)] : style::flat_rule;
+            else if(run.value == electoral_raster::border) c = style::flat_bg;
+            else if(run.value == electoral_raster::frame) c = style::flat_dim;
+            const float x0 = std::round(ox + static_cast<float>(run.x) * sx), x1 = std::round(ox + static_cast<float>(run.x + run.len) * sx);
+            const float y0 = std::round(oy + static_cast<float>(run.row) * sy), y1 = std::round(oy + static_cast<float>(run.row + 1) * sy);
+            if(x1 > x0 && y1 > y0) ui.fill(layer::overlay, {x0, y0, x1 - x0, y1 - y0}, c);
+        }
+        // Hover: the cell under the pointer -> its region.
+        rect area{ox, oy, lw, lh};
+        if(ui.hovered(area)) {
+            const int ci = std::clamp(static_cast<int>((ui.input().mouse_x - ox) / sx), 0, ras->w - 1);
+            const int cj = std::clamp(static_cast<int>((ui.input().mouse_y - oy) / sy), 0, ras->h - 1);
+            const int32_t v = ras->cell[static_cast<std::size_t>(cj) * static_cast<std::size_t>(ras->w) + static_cast<std::size_t>(ci)];
+            if(v >= 0 && static_cast<std::size_t>(v) < ras->regions.size()) st.politics_tile = ras->regions[static_cast<std::size_t>(v)];
         }
     }
     cy += map_h + pad;
@@ -506,7 +535,7 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
         }
         cy += line;
     }
-    for(auto const& sline : info.strip) {
+    for(auto const& sline : strip) {
         ui.text_in(layer::overlay, {x + pad, cy, w - pad * 2, line}, sline, small, style::flat_text);
         cy += line;
     }

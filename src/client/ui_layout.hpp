@@ -13,6 +13,7 @@
 #include <future>
 #include <string>
 #include <unordered_set>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -72,10 +73,19 @@ struct legend_item {
 };
 
 // The Politics tab's electoral tile map (docs/07-map-and-filters.md#electoral-map).
-struct electoral_tile {
-    float x = 0, y = 0, w = 0, h = 0; // in the layout box, 0..1 (y down)
-    rgba colour;
-    int region = -1;                  // raster region (tooltip)
+// The packed inset map of one nation, rasterised at a fixed resolution
+// (map_layer::build_insets): each cell holds the nation's local region index,
+// or a code below. Drawn as run-length quads, scaled into the tab.
+struct electoral_raster {
+    static constexpr int32_t empty = -1, frame = -2, border = -3;
+    int w = 0, h = 0;
+    std::vector<int32_t> cell; // row-major, row 0 at the top
+    struct run {
+        uint16_t row = 0, x = 0, len = 0;
+        int32_t value = empty;
+    };
+    std::vector<run> runs;     // non-empty runs
+    std::vector<int> regions;  // local index -> raster region
 };
 
 struct electoral_view_info {
@@ -84,8 +94,9 @@ struct electoral_view_info {
     bool democracy = true;
     std::vector<std::string> modes; // button labels
     int mode = 0;                   // active button
-    float aspect = 1;               // layout box width / height
-    std::vector<electoral_tile> tiles;
+    float aspect = 1;               // layout width / height
+    std::shared_ptr<electoral_raster const> raster;
+    std::vector<rgba> colours;      // per local region index
     std::vector<legend_item> legend;
     std::vector<std::string> strip; // national result / regime indicators
 };

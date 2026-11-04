@@ -192,23 +192,39 @@ on the CPU (64 MB). The tooltip names the region and its controller.
 
 ## Electoral map
 
-The Politics tab (🗳 in the top bar; `--politics ISO3`) shows one nation as a
-tile cartogram in plain Mercator (north up, not the oblique view projection),
-like US electoral tile maps but for every nation. The nation defaults to the
+The Politics tab (🗳 in the top bar; `--politics ISO3`) shows one nation as an
+election map in plain Mercator (north up, not the oblique view projection),
+like a US election map with its Alaska and Hawaii insets, for every nation. The nation defaults to the
 player's first; ◀ ▶ step through the nations, and clicking a region on the
 main map while the tab is open shows its nation.
 
-- **Rectangles**: at load, `map_data` derives each region's bounding box from
-  the region-ID raster (antimeridian-aware). A tile's home is the centre of
-  that box in Mercator (`x = lon`, `y = ln tan(π/4 + φ/2)`).
-- **Packing** (`tile_pack.hpp`, cached per nation): squares with area
-  ∝ the region's electorate (the sum of its pops' sizes; area until the data
-  arrives), together covering 45 % of the nation's Mercator bounding box (at
-  least a third of the median side), then iterative overlap removal along the
-  axis of least overlap with a weak spring back home (400 passes, the last
-  quarter without the spring), leaving a small gap between tiles; then
-  scaled into the tab. In the 2020 / 2008 slices a nation's tiles share its
-  single sim region's data.
+- **Landmass groups** (built on first view, cached per nation): each of the
+  nation's regions is split into connected components on a coarse grid of
+  the region-ID raster (every 4th cell, ~20 km; x wraps around the globe),
+  longitudes are unwrapped around the largest component, and components
+  whose bounding boxes are closer than ~250 km are merged (union-find), so
+  archipelagos stay together (Indonesia is one group; Corsica joins France;
+  Bornholm joins Denmark). Groups smaller than 0.03 % of the nation's land are
+  dropped (slivers left by a territory's own polygon); at most eight insets.
+  Each group has its bounding rectangle in plain Mercator.
+- **Insets** (`inset_pack.hpp`): the largest group (mainland US) keeps its
+  place and scale. Every other group is rescaled so its long side is 12–32 %
+  of the main group's (Alaska shrinks, Hawaii grows; factor 0.15–3), then
+  placed, largest first, at the candidate position that minimises the area of
+  the whole layout (with a mild pull towards its true direction) without
+  touching the main group's land (an occupancy grid over its rectangle) or
+  another inset: usually in the main rectangle's empty corners (Hawaii lower
+  left) or beside it (Alaska). Each inset gets a thin grey frame. For the USA
+  the packed layout covers about a quarter of the raw bounding box
+  (`test_map_view`).
+- **Drawing**: the layout is rasterised once at 480 cells on its long side,
+  each cell mapped back through its inset's transform to lon/lat and the
+  full-resolution region raster, so the regions keep their real shapes; white
+  lines separate regions. The tab draws it as run-length quads coloured by the
+  current mode, and the pointer maps back through the same raster to the
+  region (tooltips). In world2020 Greenland, the Faroes and the French
+  overseas regions are separate jurisdictions or absent from France's ADM1
+  file, so they get no inset.
 - **Democracies** (electoral index ≥ 0.3, competitive, ≥ 2 parties): per
   region, the vote shares of the nation's parties from pop-level support:
   Σ `party_support[j]` × pop size × turnout (by pop kind: 0.5, 0.6, 0.75, 0.7,
@@ -220,7 +236,7 @@ main map while the tab is open shows its nation.
   democrats orange, greens green, radical right navy, radical left dark red,
   communists crimson, regionalists purple, agrarians lime, challengers
   magenta, others grey), except the US convention (Democrats blue,
-  Republicans red). The strip under the map: national vote intention, seats,
+  Republicans red; the generic L / C / R parties red / yellow / blue). The strip under the map: national vote intention, seats,
   the governing coalition, the swing in vote intention since the start of the
   run, and the next election date.
 - **Non-democracies**: no candidates. Modes: **Regime support** (labelled as

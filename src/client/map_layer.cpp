@@ -1,7 +1,7 @@
 #include "map_layer.hpp"
 
 #include "core/csv.hpp"
-#include "tile_pack.hpp"
+#include "inset_pack.hpp"
 #include "core/diagnostics.hpp"
 
 #include <SDL3/SDL_log.h>
@@ -627,6 +627,11 @@ rgba blend_white(uint32_t hex_rgb, float t) {
     return {1.0f + (c.r - 1.0f) * t, 1.0f + (c.g - 1.0f) * t, 1.0f + (c.b - 1.0f) * t, 1.0f};
 }
 
+double mercator_y(double lat_deg) {
+    const double phi = std::clamp(lat_deg, -85.0, 85.0) * 3.14159265358979 / 180.0;
+    return std::log(std::tan(3.14159265358979 / 4.0 + phi / 2.0));
+}
+
 rgba red_green(float t) { // 0 red .. 1 green
     t = std::clamp(t, 0.0f, 1.0f);
     const rgba a = client::hex(0xC9443A), m = client::hex(0xF2EBD9), b = client::hex(0x2E9E58);
@@ -696,63 +701,206 @@ bool map_layer::democracy() const noexcept {
     return politics_.electoral >= 0.3f && politics_.competitive && politics_.parties.size() >= 2;
 }
 
-void map_layer::layout_tiles(int nation) const {
-    // Positions are cached per nation; colours are recomputed by electoral().
-    const bool have_votes = politics_.nation == static_cast<uint32_t>(nation);
-    if(layout_.nation == nation && !layout_.tiles.empty() && (layout_.weighted || !have_votes)) return;
-    layout_.nation = nation;
-    layout_.tick = politics_.tick;
-    layout_.weighted = have_votes;
-    layout_.regions.clear();
-    layout_.tiles.clear();
-    // The nation's raster regions; weight = its sim region's electorate, split by raster cells.
-    std::map<int, double> cells_of_sim;
+// Landmass groups of a nation and their inset packing, rasterised (cached per nation).
+map_layer::inset_cache const& map_layer::build_insets(int nation) const {
+    for(auto const& c : insets_) {
+        if(c.nation == nation) return c;
+    }
+    inset_cache cache;
+    cache.nation = nation;
+    auto raster = std::make_shared<electoral_raster>();
+    std::vector<int> local(regions_.size(), -1);
     for(std::size_t i = 0; i < regions_.size(); ++i) {
-        if(owner_of(static_cast<int>(i)) != nation || i >= boxes_.size()) continue;
-        layout_.regions.push_back(static_cast<int>(i));
-        cells_of_sim[sim_region(static_cast<int>(i))] += std::max(1u, boxes_[i].cells);
+        if(owner_of(static_cast<int>(i)) != nation) continue;
+        local[i] = static_cast<int>(raster->regions.size());
+        raster->regions.push_back(static_cast<int>(i));
     }
-    if(layout_.regions.empty()) return;
-    std::vector<tile> tiles;
+    if(raster->regions.empty() || ids_.empty()) {
+        cache.raster = raster;
+        insets_.push_back(cache);
+        return insets_.back();
+    }
+    // 1. Connected components of each region on a coarse grid (every 4th raster cell,
+    //    ~20 km), x wrapping around the globe.
+    struct component {
+        double lon0 = 1e9, lon1 = -1e9, lat0 = 1e9, lat1 = -1e9, weight = 0;
+        std::vector<std::pair<double, double>> cells; // lon (unwrapped), lat
+    };
+    std::vector<component> comps;
+    constexpr int step = 4;
+    const double cell_deg = 360.0 / static_cast<double>(ids_w_);
+    for(int r : raster->regions) {
+        map_box const& b = boxes_[static_cast<std::size_t>(r)];
+        const auto id = static_cast<uint16_t>(r + 1);
+        const int x0 = static_cast<int>(std::floor((b.lon0 + 180.0) / cell_deg)), x1 = static_cast<int>(std::ceil((b.lon1 + 180.0) / cell_deg));
+        const int y0 = std::max(0, static_cast<int>(std::floor((90.0 - b.lat1) / cell_deg))), y1 = std::min(static_cast<int>(ids_h_) - 1, static_cast<int>(std::ceil((90.0 - b.lat0) / cell_deg)));
+        const int gw = std::max(1, (x1 - x0) / step + 1), gh = std::max(1, (y1 - y0) / step + 1);
+        std::vector<uint8_t> in(static_cast<std::size_t>(gw) * static_cast<std::size_t>(gh), 0);
+        for(int j = 0; j < gh; ++j) {
+            const int y = std::min(static_cast<int>(ids_h_) - 1, y0 + j * step);
+            for(int i = 0; i < gw; ++i) {
+                const int x = ((x0 + i * step) % static_cast<int>(ids_w_) + static_cast<int>(ids_w_)) % static_cast<int>(ids_w_);
+                in[static_cast<std::size_t>(j) * static_cast<std::size_t>(gw) + static_cast<std::size_t>(i)] = ids_[static_cast<std::size_t>(y) * ids_w_ + static_cast<std::size_t>(x)] == id;
+            }
+        }
+        bool any = false;
+        std::vector<int> stack;
+        for(std::size_t start = 0; start < in.size(); ++start) {
+            if(in[start] != 1) continue;
+            component c;
+            stack.assign(1, static_cast<int>(start));
+            in[start] = 2;
+            while(!stack.empty()) {
+                const int k = stack.back();
+                stack.pop_back();
+                const int i = k % gw, j = k / gw;
+                const double lon = -180.0 + (x0 + i * step + 0.5) * cell_deg, lat = 90.0 - (y0 + j * step + 0.5) * cell_deg;
+                c.cells.emplace_back(lon, lat);
+                c.lon0 = std::min(c.lon0, lon - step * cell_deg * 0.5);
+                c.lon1 = std::max(c.lon1, lon + step * cell_deg * 0.5);
+                c.lat0 = std::min(c.lat0, lat - step * cell_deg * 0.5);
+                c.lat1 = std::max(c.lat1, lat + step * cell_deg * 0.5);
+                c.weight += std::cos(lat * deg);
+                const int nb[4][2] = {{i + 1, j}, {i - 1, j}, {i, j + 1}, {i, j - 1}};
+                for(auto const& q : nb) {
+                    if(q[0] < 0 || q[0] >= gw || q[1] < 0 || q[1] >= gh) continue;
+                    const std::size_t qk = static_cast<std::size_t>(q[1]) * static_cast<std::size_t>(gw) + static_cast<std::size_t>(q[0]);
+                    if(in[qk] == 1) {
+                        in[qk] = 2;
+                        stack.push_back(static_cast<int>(qk));
+                    }
+                }
+            }
+            comps.push_back(std::move(c));
+            any = true;
+        }
+        if(!any && b.cells > 0) { // on the raster but smaller than a coarse cell: its centre (regions overdrawn by another nation have no cells)
+            component c;
+            const double lon = (b.lon0 + b.lon1) * 0.5, lat = (b.lat0 + b.lat1) * 0.5;
+            c.cells.emplace_back(lon, lat);
+            c = {b.lon0, b.lon1, b.lat0, b.lat1, std::cos(lat * deg) * 0.5, c.cells};
+            comps.push_back(std::move(c));
+        }
+    }
+    // 2. Unwrap longitudes around the largest component.
+    std::size_t biggest = 0;
+    for(std::size_t k = 0; k < comps.size(); ++k) {
+        if(comps[k].weight > comps[biggest].weight) biggest = k;
+    }
+    const double ref = (comps[biggest].lon0 + comps[biggest].lon1) * 0.5;
+    for(auto& c : comps) {
+        const double shift = std::remainder((c.lon0 + c.lon1) * 0.5 - ref, 360.0) + ref - (c.lon0 + c.lon1) * 0.5;
+        c.lon0 += shift;
+        c.lon1 += shift;
+        for(auto& p : c.cells) p.first += shift;
+    }
+    // 3. Group components closer than ~250 km (union-find on box gaps).
+    std::vector<std::size_t> parent(comps.size());
+    for(std::size_t k = 0; k < parent.size(); ++k) parent[k] = k;
+    auto find = [&](std::size_t k) {
+        while(parent[k] != k) k = parent[k] = parent[parent[k]];
+        return k;
+    };
+    for(std::size_t a = 0; a < comps.size(); ++a) {
+        for(std::size_t b2 = a + 1; b2 < comps.size(); ++b2) {
+            component const& p = comps[a];
+            component const& q = comps[b2];
+            const double mid = std::cos(((p.lat0 + p.lat1 + q.lat0 + q.lat1) * 0.25) * deg);
+            const double gx = std::max(0.0, std::max(p.lon0, q.lon0) - std::min(p.lon1, q.lon1)) * 111.0 * mid;
+            const double gy = std::max(0.0, std::max(p.lat0, q.lat0) - std::min(p.lat1, q.lat1)) * 111.0;
+            if(std::max(gx, gy) < 250.0) parent[find(a)] = find(b2);
+        }
+    }
+    std::map<std::size_t, component> groups_by_root;
+    for(std::size_t k = 0; k < comps.size(); ++k) {
+        component& g = groups_by_root[find(k)];
+        component const& c = comps[k];
+        g.lon0 = std::min(g.lon0, c.lon0);
+        g.lon1 = std::max(g.lon1, c.lon1);
+        g.lat0 = std::min(g.lat0, c.lat0);
+        g.lat1 = std::max(g.lat1, c.lat1);
+        g.weight += c.weight;
+        g.cells.insert(g.cells.end(), c.cells.begin(), c.cells.end());
+    }
+    std::vector<component> groups;
+    double total = 0.0;
+    for(auto& [root, g] : groups_by_root) total += g.weight;
+    for(auto& [root, g] : groups_by_root) {
+        // Drop specks (< 0.03 % of the nation's land; Puerto Rico-sized islands stay).
+        if(g.weight >= 0.0003 * total) groups.push_back(std::move(g));
+    }
+    std::stable_sort(groups.begin(), groups.end(), [](auto const& a, auto const& b) { return a.weight > b.weight; });
+    if(groups.size() > 9) groups.resize(9); // the main group and at most eight insets
+    // 4. Pack in Mercator.
+    std::vector<merc_rect> rects;
     std::vector<double> weight;
-    double x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-    // Longitudes relative to the first region (nations across the antimeridian).
-    const double ref = (boxes_[static_cast<std::size_t>(layout_.regions[0])].lon0 + boxes_[static_cast<std::size_t>(layout_.regions[0])].lon1) * 0.5;
-    for(int i : layout_.regions) {
-        map_box const& b = boxes_[static_cast<std::size_t>(i)];
-        const double lon = ref + std::remainder((b.lon0 + b.lon1) * 0.5 - ref, 360.0);
-        const double half_w = (b.lon1 - b.lon0) * 0.5;
-        tile t;
-        t.x = lon * deg;
-        t.y = (mercator_y(b.lat0) + mercator_y(b.lat1)) * 0.5;
-        x0 = std::min(x0, (lon - half_w) * deg);
-        x1 = std::max(x1, (lon + half_w) * deg);
-        y0 = std::min(y0, mercator_y(b.lat0));
-        y1 = std::max(y1, mercator_y(b.lat1));
-        tiles.push_back(t);
-        politics_region const* pr = politics_of(i);
-        const double share = std::max(1u, b.cells) / std::max(1.0, cells_of_sim[sim_region(i)]);
-        weight.push_back(pr && pr->electorate > 0.0f ? pr->electorate * share : static_cast<double>(b.cells));
+    for(auto const& g : groups) {
+        rects.push_back({g.lon0 * deg, mercator_y(g.lat0), g.lon1 * deg, mercator_y(g.lat1)});
+        weight.push_back(g.weight);
     }
-    pack_tiles(tiles, weight, std::max(1e-6, (x1 - x0) * (y1 - y0)));
-    double bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
-    for(auto const& t : tiles) {
-        bx0 = std::min(bx0, t.x - t.side / 2);
-        bx1 = std::max(bx1, t.x + t.side / 2);
-        by0 = std::min(by0, t.y - t.side / 2);
-        by1 = std::max(by1, t.y + t.side / 2);
+    occupancy land = make_occupancy(rects[0]);
+    for(auto const& [lon, lat] : groups[0].cells) land.mark(lon * deg, mercator_y(lat));
+    const std::vector<inset_placement> placed = pack_insets(rects, weight, 0, land);
+    // 5. Rasterise the layout: each cell maps back through its placement to lon/lat.
+    const merc_rect u = union_of(placed);
+    const double aspect = u.w() / std::max(1e-9, u.h());
+    constexpr int long_side = 480;
+    raster->w = aspect >= 1.0 ? long_side : std::max(16, static_cast<int>(long_side * aspect));
+    raster->h = aspect >= 1.0 ? std::max(16, static_cast<int>(long_side / aspect)) : long_side;
+    raster->cell.assign(static_cast<std::size_t>(raster->w) * static_cast<std::size_t>(raster->h), electoral_raster::empty);
+    for(int j = 0; j < raster->h; ++j) {
+        const double y = u.y1 - (j + 0.5) / raster->h * u.h();
+        for(int i = 0; i < raster->w; ++i) {
+            const double x = u.x0 + (i + 0.5) / raster->w * u.w();
+            inset_placement const* where = nullptr;
+            for(std::size_t k = placed.size(); k-- > 0;) { // insets over the main group
+                merc_rect const& r = placed[k].placed;
+                if(x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1) {
+                    where = &placed[k];
+                    break;
+                }
+            }
+            if(!where) continue;
+            int32_t& out = raster->cell[static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(i)];
+            const double ox = where->source.x0 + (x - where->placed.x0) / where->scale;
+            const double oy = where->source.y0 + (y - where->placed.y0) / where->scale;
+            const double lat = (2.0 * std::atan(std::exp(oy)) - 3.14159265358979 / 2.0) / deg;
+            const int r = pick(ox / deg, lat);
+            if(r >= 0 && local[static_cast<std::size_t>(r)] >= 0) out = local[static_cast<std::size_t>(r)];
+            if(where->inset) { // a thin frame around each inset
+                const double fx = std::min(x - where->placed.x0, where->placed.x1 - x) / u.w() * raster->w;
+                const double fy = std::min(y - where->placed.y0, where->placed.y1 - y) / u.h() * raster->h;
+                if(fx < 1.0 || fy < 1.0) out = electoral_raster::frame;
+            }
+        }
     }
-    const double bw = std::max(1e-9, bx1 - bx0), bh = std::max(1e-9, by1 - by0);
-    layout_.aspect = static_cast<float>(bw / bh);
-    for(std::size_t k = 0; k < tiles.size(); ++k) {
-        electoral_tile et;
-        et.x = static_cast<float>((tiles[k].x - tiles[k].side / 2 - bx0) / bw);
-        et.y = static_cast<float>((by1 - (tiles[k].y + tiles[k].side / 2)) / bh); // y down
-        et.w = static_cast<float>(tiles[k].side / bw);
-        et.h = static_cast<float>(tiles[k].side / bh);
-        et.region = layout_.regions[k];
-        layout_.tiles.push_back(et);
+    // White borders between regions.
+    std::vector<int32_t> borders = raster->cell;
+    for(int j = 0; j < raster->h; ++j) {
+        for(int i = 0; i < raster->w; ++i) {
+            const std::size_t k = static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(i);
+            const int32_t v = raster->cell[k];
+            if(v < 0) continue;
+            const int32_t left = i > 0 ? raster->cell[k - 1] : v, up = j > 0 ? raster->cell[k - static_cast<std::size_t>(raster->w)] : v;
+            if((left >= 0 && left != v) || (up >= 0 && up != v)) borders[k] = electoral_raster::border;
+        }
     }
+    raster->cell.swap(borders);
+    for(int j = 0; j < raster->h; ++j) {
+        int i = 0;
+        while(i < raster->w) {
+            const int32_t v = raster->cell[static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(i)];
+            int e = i + 1;
+            while(e < raster->w && raster->cell[static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(e)] == v) ++e;
+            if(v != electoral_raster::empty) raster->runs.push_back({static_cast<uint16_t>(j), static_cast<uint16_t>(i), static_cast<uint16_t>(e - i), v});
+            i = e;
+        }
+    }
+    cache.raster = raster;
+    cache.aspect = static_cast<float>(aspect);
+    SDL_Log("electoral map: %s, %zu regions, %zu groups, %zu runs", iso_of(nation).c_str(), raster->regions.size(), groups.size(), raster->runs.size());
+    insets_.push_back(cache);
+    return insets_.back();
 }
 
 electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const& sim) const {
@@ -773,31 +921,41 @@ electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const&
         out.modes = {"Regime support", "Unrest", "Insurgency", "Population"};
     }
     out.mode = std::clamp(mode, 0, static_cast<int>(out.modes.size()) - 1);
-    layout_tiles(nation);
-    out.aspect = layout_.aspect;
-    out.tiles = layout_.tiles;
+    inset_cache const& insets = build_insets(nation);
+    out.aspect = insets.aspect;
+    out.raster = insets.raster;
+    auto const& members = insets.raster->regions;
     const int party_mode = out.democracy && out.mode >= 1 && out.mode <= static_cast<int>(parties.size()) ? out.mode - 1 : -1;
     const bool population = out.modes[static_cast<std::size_t>(out.mode)] == "Population";
     const bool turnout = out.modes[static_cast<std::size_t>(out.mode)] == "Turnout";
     // Population density range for the shading.
     float dmax = 0.0f;
-    for(auto const& t : out.tiles) {
-        politics_region const* pr = politics_of(t.region);
-        const float cells = static_cast<float>(std::max(1u, boxes_[static_cast<std::size_t>(t.region)].cells));
-        if(pr) dmax = std::max(dmax, std::log10(1.0f + pr->electorate / cells));
+    // A region's share of its sim region's electorate (in the slices one sim region
+    // spans all of a nation's map regions): by raster cells.
+    std::map<int, double> cells_of_sim;
+    for(int r : members) cells_of_sim[sim_region(r)] += std::max(1u, boxes_[static_cast<std::size_t>(r)].cells);
+    auto density = [&](int r, politics_region const& pr) {
+        const double cells = std::max(1u, boxes_[static_cast<std::size_t>(r)].cells);
+        const double share = cells / std::max(1.0, cells_of_sim[sim_region(r)]);
+        return static_cast<float>(std::log10(1.0 + pr.electorate * share / cells));
+    };
+    for(int r : members) {
+        if(politics_region const* pr = politics_of(r)) dmax = std::max(dmax, density(r, *pr));
     }
-    for(auto& t : out.tiles) {
-        politics_region const* pr = politics_of(t.region);
-        t.colour = client::hex(0xD5DCE5);
+    out.colours.resize(members.size());
+    for(std::size_t li = 0; li < members.size(); ++li) {
+        const int region = members[li];
+        politics_region const* pr = politics_of(region);
+        rgba& colour = out.colours[li];
+        colour = client::hex(0xD5DCE5);
         if(!pr) continue;
         if(population) {
-            const float cells = static_cast<float>(std::max(1u, boxes_[static_cast<std::size_t>(t.region)].cells));
-            t.colour = blend_white(0x5B3F9E, 0.15f + 0.85f * (dmax > 0.0f ? std::log10(1.0f + pr->electorate / cells) / dmax : 0.0f));
+            colour = blend_white(0x5B3F9E, 0.15f + 0.85f * (dmax > 0.0f ? density(region, *pr) / dmax : 0.0f));
         } else if(out.democracy && turnout) {
             const float to = pr->electorate > 0.0f ? pr->voters / pr->electorate : 0.0f;
-            t.colour = blend_white(0x1F7A6E, 0.15f + 0.85f * std::clamp((to - 0.5f) / 0.25f, 0.0f, 1.0f));
+            colour = blend_white(0x1F7A6E, 0.15f + 0.85f * std::clamp((to - 0.5f) / 0.25f, 0.0f, 1.0f));
         } else if(party_mode >= 0) {
-            t.colour = blend_white(party_colour(parties, static_cast<std::size_t>(party_mode), iso),
+            colour = blend_white(party_colour(parties, static_cast<std::size_t>(party_mode), iso),
                                    0.1f + 0.9f * std::clamp(pr->share[party_mode] / 0.6f, 0.0f, 1.0f));
         } else if(out.democracy) { // winner, saturation by margin
             std::size_t best = 0, second = parties.size() > 1 ? 1 : 0;
@@ -810,13 +968,13 @@ electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const&
                 }
             }
             const float margin = best == second ? 1.0f : pr->share[best] - pr->share[second];
-            t.colour = blend_white(party_colour(parties, best, iso), 0.3f + 0.7f * std::clamp(margin / 0.3f, 0.0f, 1.0f));
+            colour = blend_white(party_colour(parties, best, iso), 0.3f + 0.7f * std::clamp(margin / 0.3f, 0.0f, 1.0f));
         } else if(out.mode == 0) {
-            t.colour = red_green(regime_support(*pr));
+            colour = red_green(regime_support(*pr));
         } else if(out.mode == 1) {
-            t.colour = blend_white(0xC23A30, std::clamp(pr->unrest / 3.0f, 0.05f, 1.0f));
+            colour = blend_white(0xC23A30, std::clamp(pr->unrest / 3.0f, 0.05f, 1.0f));
         } else if(out.mode == 2) {
-            t.colour = pr->insurgency > 0.0f ? client::hex(0xB8201A) : (pr->unrest > 1.5f || pr->protest > 0.2f ? client::hex(0xF0A08E) : client::hex(0xF2EBD9));
+            colour = pr->insurgency > 0.0f ? client::hex(0xB8201A) : (pr->unrest > 1.5f || pr->protest > 0.2f ? client::hex(0xF0A08E) : client::hex(0xF2EBD9));
         }
     }
     // Legend and the national strip.
