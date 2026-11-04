@@ -12,6 +12,9 @@
 namespace geosim::client::audio {
 
 [[nodiscard]] song compose(uint64_t seed, mood m);
+// The main menu's song: wartime with an arp solo (the arpeggio carries the
+// melody). Deterministic: the first song of the seed chain that has one.
+[[nodiscard]] song compose_menu(uint64_t seed);
 
 // splitmix64 step: the next song's seed from the previous one.
 [[nodiscard]] uint64_t next_seed(uint64_t seed) noexcept;

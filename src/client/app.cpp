@@ -2,6 +2,7 @@
 
 #include "audio/jukebox.hpp"
 #include "audio/music.hpp"
+#include "client_files.hpp"
 #include "hazard_feed.hpp"
 #include "map_data.hpp"
 #include "map_layer.hpp"
@@ -219,6 +220,8 @@ int run_app(app_options const& opt) {
         view.scale = static_cast<double>(metrics.pixel_w) / (75.0 * map_deg);
         bool dragging = false;
         float press_x = 0, press_y = 0;
+        double menu_lon = 0.0;   // the menu camera's longitude (degrees)
+        int saves_listed_at = -2;
         steady::time_point hover_since{};
         const std::string politics_iso = opt.politics;
         bool politics_iso_done = false;
@@ -235,14 +238,34 @@ int run_app(app_options const& opt) {
         hazard_feed hazards; // cyclones, earthquakes and disaster alerts from the sim
         bool demo_alerts = false;
 
+        // The main menu first (unless an automated / --nation run goes straight in).
+        enum class app_phase : uint8_t { menu, game };
+        app_phase phase = opt.menu ? app_phase::menu : app_phase::game;
+        menu_state menu;
+        client_settings settings = load_settings(); // the saved values (the command line only overrides this run)
+        std::vector<save_entry> saves;
+        if(settings.fullscreen) SDL_SetWindowFullscreen(window, true);
+        std::string session_name = opt.scenario;
+
         audio::music_system music;
+        if(phase == app_phase::menu) { // menu music: wartime, led by an arp solo (docs/14-audio.md#main-menu)
+            music.set_menu(true);
+            music.set_mood(audio::mood::wartime, 0.8f);
+        }
         if(opt.music) music.start(opt.music_seed, opt.music_volume);
         music_mood last_mood{};
         int music_override = -1; // N: -1 = the game's mood, else a mood index (docs/14-audio.md#mood-mapping)
         steady::time_point last_mood_check{};
 
-        sim.start(opt.assets, opt.scenario, opt.nation);
+        if(phase == app_phase::game) sim.start(opt.assets, opt.scenario, opt.nation);
         sim.set_speed(opt.speed);
+        // The Control window's list ('+'), refreshed every few seconds while open.
+        std::vector<agent_info> agent_list;
+        std::future<std::vector<agent_info>> pending_agents;
+        steady::time_point last_agents{};
+        bool text_input = false;
+        std::future<std::string> pending_save;
+        std::string pending_save_path;
         ui_context ui(text);
         alert_feed alerts;
         hud_state hud;
@@ -257,7 +280,7 @@ int run_app(app_options const& opt) {
                 if(opt.view == view_names[i]) hud.filter = static_cast<map_filter>(i);
             }
         }
-        alerts.push_local("⏳", "Loading scenario " + opt.scenario, "Building the world from assets/", tone::neutral);
+        if(phase == app_phase::game) alerts.push_local("⏳", "Loading scenario " + opt.scenario, "Building the world from assets/", tone::neutral);
         bool announced = false;
         int last_speed = opt.speed > 0 ? opt.speed : 1;
 
@@ -306,10 +329,33 @@ int run_app(app_options const& opt) {
                 case SDL_EVENT_MOUSE_WHEEL:
                     input.wheel += ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -ev.wheel.y : ev.wheel.y;
                     break;
+                case SDL_EVENT_TEXT_INPUT:
+                    if(phase == app_phase::game && hud.open == hud_action::control && hud.search.size() < 64) hud.search += ev.text.text;
+                    break;
                 case SDL_EVENT_KEY_DOWN: {
-                    if(ev.key.repeat) break;
                     const SDL_Keycode k = ev.key.key;
-                    if(k == SDLK_SPACE || k == SDLK_P || k == SDLK_0) {
+                    // Typing into the Control window's search field.
+                    if(phase == app_phase::game && hud.open == hud_action::control && !(ev.key.mod & SDL_KMOD_CTRL)) {
+                        if(k == SDLK_BACKSPACE && !hud.search.empty()) {
+                            do hud.search.pop_back();
+                            while(!hud.search.empty() && (static_cast<unsigned char>(hud.search.back()) & 0xC0) == 0x80); // whole UTF-8 characters
+                        } else if(k == SDLK_ESCAPE) {
+                            hud.open = hud_action::none;
+                        }
+                        break;
+                    }
+                    if(ev.key.repeat) break;
+                    if(phase == app_phase::menu) {
+                        if(k == SDLK_ESCAPE) menu.open = menu_state::window::none;
+                        if(k == SDLK_Q && (ev.key.mod & SDL_KMOD_CTRL)) running = false;
+                        break;
+                    }
+                    if(k == SDLK_ESCAPE) {
+                        hud.open = hud_action::none;
+                    } else if(k == SDLK_S && (ev.key.mod & SDL_KMOD_CTRL) && sim.status() == sim_status::running && !pending_save.valid()) {
+                        pending_save_path = new_save_path(sim.scenario());
+                        pending_save = sim.request_save(pending_save_path);
+                    } else if(k == SDLK_SPACE || k == SDLK_P || k == SDLK_0) {
                         const int s = sim.speed();
                         if(s > 0) last_speed = s;
                         sim.set_speed(s > 0 || k == SDLK_0 ? 0 : last_speed);
@@ -371,13 +417,14 @@ int run_app(app_options const& opt) {
             }
 
             // --- simulation status -> alerts -----------------------------------
-            if(!announced && sim.status() != sim_status::loading) {
+            if(phase == app_phase::game && !announced && sim.status() != sim_status::loading) {
                 announced = true;
                 alerts.dismiss_all();
                 if(sim.status() == sim_status::failed) {
                     alerts.push_local("⚠", "Simulation unavailable", sim.error().substr(0, 60), tone::bad);
                 } else {
-                    alerts.push_local("🌍", "Scenario " + opt.scenario + " ready", "Press Space or pick a speed to start", tone::good);
+                    alerts.push_local("🌍", "Session " + session_name + " ready",
+                                      sim.controlled_agents().empty() ? "Press + (top left) to control an agent" : "Press Space or pick a speed to start", tone::good);
                 }
             }
             alerts.poll(sim);
@@ -406,8 +453,15 @@ int run_app(app_options const& opt) {
                     if(data) diag = core::diagnostics{}; // not fatal: the placeholder stays
                 }
             }
-            if(map.ready() && political.update(sim, hazards, hud.filter)) map.set_table(political.table());
-            if(music.running() && music_override < 0 && steady::now() - last_mood_check > std::chrono::seconds(2)) {
+            if(map.ready() && political.update(sim, hazards, phase == app_phase::menu ? map_filter::political : hud.filter)) {
+                map.set_table(political.table());
+            }
+            if(pending_save.valid() && pending_save.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                const std::string err = pending_save.get();
+                if(err.empty()) alerts.push_local("💾", "Session saved", pending_save_path, tone::good);
+                else alerts.push_local("⚠", "Save failed", err.substr(0, 60), tone::bad);
+            }
+            if(phase == app_phase::game && music.running() && music_override < 0 && steady::now() - last_mood_check > std::chrono::seconds(2)) {
                 last_mood_check = steady::now();
                 const music_mood mm = derive_music_mood(sim, alerts);
                 if(mm.m != last_mood.m) SDL_Log("music mood: %s (intensity %.2f)", audio::mood_name(mm.m), static_cast<double>(mm.intensity));
@@ -415,113 +469,169 @@ int run_app(app_options const& opt) {
                 music.set_mood(mm.m, mm.intensity);
             }
 
+            const bool want_text = phase == app_phase::game && hud.open == hud_action::control;
+            if(want_text != text_input) {
+                if(want_text) SDL_StartTextInput(window);
+                else SDL_StopTextInput(window);
+                text_input = want_text;
+            }
             // --- layout ---------------------------------------------------------
             const float scale = metrics.display_scale * opt.ui_scale;
             const auto fw = static_cast<float>(vk.swap_extent.width), fh = static_cast<float>(vk.swap_extent.height);
             ui.begin(input, scale, fw, fh);
             // The map fills the window behind everything (docs/07); a placeholder until it is loaded.
             if(!map.ready()) ui.scene.push(material::map_placeholder, {0, 0, fw, fh, 0, 0, 1, 1, 0xFFFFFFFFu, 0, 0, 0});
-            map_tab_info tab_info;
-            if(map.ready() && hud.filter != map_filter::political) tab_info = political.tab(hud.filter, sim, hazards);
-            // Politics tab (🗳): the electoral tile map of one nation.
-            electoral_view_info politics_info;
-            const bool politics_open = map.ready() && hud.open == hud_action::politics && sim.status() == sim_status::running;
-            if(politics_open) {
-                if(!politics_iso_done && !politics_iso.empty() && politics_iso != "-") { // --politics ISO3
-                    const int n = political.nation_index(politics_iso);
-                    if(n >= 0) {
-                        hud.politics_nation = n;
-                        politics_iso_done = true;
+            if(phase == app_phase::menu) {
+                // The menu over the world: the camera pans east along the equator, zoomed out.
+                if(map.ready()) {
+                    view.fit_limits(fw, cell_radians);
+                    view.scale = std::max(view.min_scale, static_cast<double>(fw) / (200.0 * map_deg));
+                    view.set_focus(std::remainder(menu_lon, 360.0) * map_deg, 0.0);
+                }
+                const menu_choice choice = build_menu(ui, menu, settings, saves);
+                if(menu.open == menu_state::window::load && saves_listed_at != frames - 1) saves = list_saves();
+                saves_listed_at = frames;
+                if(choice.what == menu_choice::kind::quit) running = false;
+                if(choice.what == menu_choice::kind::settings_changed) {
+                    save_settings(settings);
+                    music.set_volume(settings.music_volume);
+                    music.set_muted(!settings.music);
+                    clouds_on = settings.clouds;
+                    SDL_SetWindowFullscreen(window, settings.fullscreen);
+                }
+                if(choice.what == menu_choice::kind::new_session || choice.what == menu_choice::kind::load) {
+                    // Into the paused game, controlling no one ('+' adds agents).
+                    session_name = choice.what == menu_choice::kind::load ? save_scenario(std::filesystem::path(choice.path).stem().string()) : std::string("world2020");
+                    sim.start(opt.assets, session_name, "", choice.what == menu_choice::kind::load ? choice.path : std::string{});
+                    sim.set_speed(0);
+                    phase = app_phase::game;
+                    announced = false;
+                    alerts.dismiss_all();
+                    alerts.push_local("⏳", choice.what == menu_choice::kind::load ? "Loading session" : "Loading scenario " + session_name,
+                                      "Building the world from assets/", tone::neutral);
+                    view.scale = static_cast<double>(fw) / (75.0 * map_deg);
+                    music.set_menu(false);
+                    if(music.running()) music.skip(); // back to the game's mood logic
+                }
+            } else {
+                map_tab_info tab_info;
+                if(map.ready() && hud.filter != map_filter::political) tab_info = political.tab(hud.filter, sim, hazards);
+                // Politics tab (🗳): the electoral tile map of one nation.
+                electoral_view_info politics_info;
+                const bool politics_open = map.ready() && hud.open == hud_action::politics && sim.status() == sim_status::running;
+                if(politics_open) {
+                    if(!politics_iso_done && !politics_iso.empty() && politics_iso != "-") { // --politics ISO3
+                        const int n = political.nation_index(politics_iso);
+                        if(n >= 0) {
+                            hud.politics_nation = n;
+                            politics_iso_done = true;
+                        }
+                    }
+                    hud.politics_nation = political.resolve_nation(hud.politics_nation, 0, sim);
+                    political.update_politics(sim, hud.politics_nation);
+                    politics_info = political.electoral(hud.politics_nation, hud.politics_mode, sim);
+                }
+                if(hud.open == hud_action::control && sim.status() == sim_status::running) {
+                    if(pending_agents.valid() && pending_agents.wait_for(std::chrono::seconds(0)) == std::future_status::ready) agent_list = pending_agents.get();
+                    if(!pending_agents.valid() && (agent_list.empty() || steady::now() - last_agents > std::chrono::seconds(3))) {
+                        pending_agents = sim.request_agents();
+                        last_agents = steady::now();
                     }
                 }
-                hud.politics_nation = political.resolve_nation(hud.politics_nation, 0, sim);
-                political.update_politics(sim, hud.politics_nation);
-                politics_info = political.electoral(hud.politics_nation, hud.politics_mode, sim);
-            }
-            build_hud(ui, sim, alerts, hud, map.ready() ? &tab_info : nullptr, politics_open ? &politics_info : nullptr);
-            if(politics_open && hud.politics_step != 0) {
-                hud.politics_nation = political.resolve_nation(hud.politics_nation, hud.politics_step, sim);
-                hud.politics_mode = 0;
-            }
-            const bool on_tooltip = hud.tooltip_rect.contains(input.mouse_x, input.mouse_y);
-            const bool on_ui = ui.wants_mouse() || on_tooltip;
-            // Map navigation: drag pans (started outside the panels), the wheel zooms
-            // at the pointer, arrows / Page Up / Page Down from the keyboard.
-            if(map.ready()) {
-                view.fit_limits(fw, cell_radians);
-                if(input.pressed && !on_ui && input.mouse_x >= 0) {
-                    dragging = true;
-                    drag_x = input.mouse_x;
-                    drag_y = input.mouse_y;
-                    press_x = input.mouse_x;
-                    press_y = input.mouse_y;
+                build_hud(ui, sim, alerts, hud, map.ready() ? &tab_info : nullptr, politics_open ? &politics_info : nullptr,
+                          agent_list.empty() ? nullptr : &agent_list);
+                if(politics_open && hud.politics_step != 0) {
+                    hud.politics_nation = political.resolve_nation(hud.politics_nation, hud.politics_step, sim);
+                    hud.politics_mode = 0;
                 }
-                // A click (no drag) on the map while the Politics tab is open shows that nation.
-                if(input.released && dragging && politics_open && std::fabs(input.mouse_x - press_x) < 4 && std::fabs(input.mouse_y - press_y) < 4) {
-                    double lon = 0, lat = 0;
-                    view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
-                    const int n = political.nation_at(political.pick(lon / map_deg, lat / map_deg));
-                    if(n >= 0 && n != hud.politics_nation) {
-                        hud.politics_nation = n;
-                        hud.politics_mode = 0;
+                const bool on_tooltip = hud.tooltip_rect.contains(input.mouse_x, input.mouse_y);
+                const bool on_ui = ui.wants_mouse() || on_tooltip;
+                // Map navigation: drag pans (started outside the panels), the wheel zooms
+                // at the pointer, arrows / Page Up / Page Down from the keyboard.
+                if(map.ready()) {
+                    view.fit_limits(fw, cell_radians);
+                    if(input.pressed && !on_ui && input.mouse_x >= 0) {
+                        dragging = true;
+                        drag_x = input.mouse_x;
+                        drag_y = input.mouse_y;
+                        press_x = input.mouse_x;
+                        press_y = input.mouse_y;
                     }
-                }
-                if(dragging && (input.mouse_x != drag_x || input.mouse_y != drag_y) && input.mouse_x >= 0) {
-                    view.pan(input.mouse_x - drag_x, input.mouse_y - drag_y);
-                    drag_x = input.mouse_x;
-                    drag_y = input.mouse_y;
-                }
-                if(!input.mouse_down) dragging = false;
-                if(!on_ui) {
-                    const float steps = ui.take_wheel({0, 0, fw, fh});
-                    if(steps != 0) view.zoom_at(std::pow(1.25, static_cast<double>(steps)), input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5);
-                }
-                if(key_pan_x != 0 || key_pan_y != 0) view.pan(key_pan_x, key_pan_y);
-                if(key_zoom != 1.0) view.zoom_at(key_zoom, 0, 0);
-                // Hover: the region (or electoral tile) under the pointer gets a compact
-                // tooltip; keeping the pointer still (within a few pixels) for 2 s of real
-                // time expands it into the detail panel, which stays open while the pointer
-                // is on it. Another region collapses it and restarts the timer.
-                int candidate = -1;
-                bool candidate_tile = false;
-                if(hud.politics_tile >= 0) {
-                    candidate = hud.politics_tile;
-                    candidate_tile = true;
-                } else if(!on_ui && !dragging && input.mouse_x >= 0) {
-                    double lon = 0, lat = 0;
-                    view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
-                    candidate = political.pick(lon / map_deg, lat / map_deg);
-                }
-                const auto hover_now = steady::now();
-                if(on_tooltip && hud.tooltip_region >= 0) {
-                    hud.tooltip_expanded = true; // reading the panel
-                    hud.tooltip_progress = 1.0f;
-                } else if(candidate >= 0) {
-                    const bool same = candidate == hud.tooltip_region && candidate_tile == hud.tooltip_tile;
-                    const bool still = std::fabs(input.mouse_x - hud.tooltip_x) < 4.0f && std::fabs(input.mouse_y - hud.tooltip_y) < 4.0f;
-                    if(!same || (!still && !hud.tooltip_expanded) || (hud.tooltip_expanded && !same)) {
-                        hud.tooltip_region = candidate;
-                        hud.tooltip_tile = candidate_tile;
-                        hud.tooltip_x = input.mouse_x;
-                        hud.tooltip_y = input.mouse_y;
+                    // A click (no drag) on the map while the Politics tab is open shows that nation.
+                    if(input.released && dragging && politics_open && std::fabs(input.mouse_x - press_x) < 4 && std::fabs(input.mouse_y - press_y) < 4) {
+                        double lon = 0, lat = 0;
+                        view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
+                        const int n = political.nation_at(political.pick(lon / map_deg, lat / map_deg));
+                        if(n >= 0 && n != hud.politics_nation) {
+                            hud.politics_nation = n;
+                            hud.politics_mode = 0;
+                        }
+                    }
+                    if(dragging && (input.mouse_x != drag_x || input.mouse_y != drag_y) && input.mouse_x >= 0) {
+                        view.pan(input.mouse_x - drag_x, input.mouse_y - drag_y);
+                        drag_x = input.mouse_x;
+                        drag_y = input.mouse_y;
+                    }
+                    if(!input.mouse_down) dragging = false;
+                    if(!on_ui) {
+                        const float steps = ui.take_wheel({0, 0, fw, fh});
+                        if(steps != 0) view.zoom_at(std::pow(1.25, static_cast<double>(steps)), input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5);
+                    }
+                    if(key_pan_x != 0 || key_pan_y != 0) view.pan(key_pan_x, key_pan_y);
+                    if(key_zoom != 1.0) view.zoom_at(key_zoom, 0, 0);
+                    // Hover: the region (or electoral tile) under the pointer gets a compact
+                    // tooltip; keeping the pointer still (within a few pixels) for 2 s of real
+                    // time expands it into the detail panel, which stays open while the pointer
+                    // is on it. Another region collapses it and restarts the timer.
+                    int candidate = -1;
+                    bool candidate_tile = false;
+                    if(hud.politics_tile >= 0) {
+                        candidate = hud.politics_tile;
+                        candidate_tile = true;
+                    } else if(!on_ui && !dragging && input.mouse_x >= 0) {
+                        double lon = 0, lat = 0;
+                        view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
+                        candidate = political.pick(lon / map_deg, lat / map_deg);
+                    }
+                    const auto hover_now = steady::now();
+                    if(on_tooltip && hud.tooltip_region >= 0) {
+                        hud.tooltip_expanded = true; // reading the panel
+                        hud.tooltip_progress = 1.0f;
+                    } else if(candidate >= 0) {
+                        const bool same = candidate == hud.tooltip_region && candidate_tile == hud.tooltip_tile;
+                        const bool still = std::fabs(input.mouse_x - hud.tooltip_x) < 4.0f && std::fabs(input.mouse_y - hud.tooltip_y) < 4.0f;
+                        if(!same || (!still && !hud.tooltip_expanded) || (hud.tooltip_expanded && !same)) {
+                            hud.tooltip_region = candidate;
+                            hud.tooltip_tile = candidate_tile;
+                            hud.tooltip_x = input.mouse_x;
+                            hud.tooltip_y = input.mouse_y;
+                            hud.tooltip_expanded = false;
+                            hover_since = hover_now;
+                        }
+                        if(!hud.tooltip_expanded) {
+                            hud.tooltip_progress = static_cast<float>(std::chrono::duration<double>(hover_now - hover_since).count() / 2.0);
+                            if(hud.tooltip_progress >= 1.0f) hud.tooltip_expanded = true;
+                        }
+                    } else {
+                        hud.tooltip_region = -1;
                         hud.tooltip_expanded = false;
-                        hover_since = hover_now;
                     }
-                    if(!hud.tooltip_expanded) {
-                        hud.tooltip_progress = static_cast<float>(std::chrono::duration<double>(hover_now - hover_since).count() / 2.0);
-                        if(hud.tooltip_progress >= 1.0f) hud.tooltip_expanded = true;
+                    if(hud.tooltip_region >= 0) {
+                        draw_map_tooltip(ui, hud.tooltip_tile ? political.describe_tile(hud.tooltip_region, hud.politics_mode, sim)
+                                                              : political.describe(hud.tooltip_region, hud.filter, sim),
+                                         hud);
+                    } else {
+                        hud.tooltip_rect = {};
                     }
-                } else {
-                    hud.tooltip_region = -1;
-                    hud.tooltip_expanded = false;
                 }
-                if(hud.tooltip_region >= 0) {
-                    draw_map_tooltip(ui, hud.tooltip_tile ? political.describe_tile(hud.tooltip_region, hud.politics_mode, sim)
-                                                          : political.describe(hud.tooltip_region, hud.filter, sim),
-                                     hud);
-                } else {
-                    hud.tooltip_rect = {};
+                // Agent bars and the Control window.
+                if(hud.toggle_ai >= 0) {
+                    const auto agent = static_cast<uint32_t>(hud.toggle_ai);
+                    sim.set_ai(agent, !sim.ai_on(agent));
                 }
+                if(hud.remove_agent >= 0) sim.remove_control(static_cast<uint32_t>(hud.remove_agent));
+                if(hud.add_agent >= 0 && static_cast<std::size_t>(hud.add_agent) < agent_list.size()) sim.add_control(agent_list[static_cast<std::size_t>(hud.add_agent)]);
+                if(sim.status() == sim_status::loading && sim.started()) draw_notice(ui, "Loading", "Building the world… (a few seconds)");
             }
             key_pan_x = key_pan_y = 0;
             key_zoom = 1.0;
@@ -534,7 +644,8 @@ int run_app(app_options const& opt) {
 
             // --- automated runs ------------------------------------------------
             const double elapsed = std::chrono::duration<double>(steady::now() - start).count();
-            const bool sim_settled = sim.status() != sim_status::loading && (sim.status() == sim_status::failed || sim.tick() >= opt.until_day);
+            const bool sim_settled = phase == app_phase::menu
+                                     || (sim.status() != sim_status::loading && (sim.status() == sim_status::failed || sim.tick() >= opt.until_day));
             const bool done = opt.frames > 0 && frames >= opt.frames && ((sim_settled && map_loaded) || elapsed > 120.0);
             if(done && !opt.screenshot.empty() && !captured && !capture_next) {
                 capture_next = true; // capture this frame, exit after it
@@ -593,7 +704,12 @@ int run_app(app_options const& opt) {
             map_anim anim;
             anim.cloud_days = static_cast<float>(std::fmod(cloud_days, 3000.0));
             anim.seconds = static_cast<float>(elapsed);
-            anim.cloud_strength = clouds_on && hud.filter == map_filter::climate ? 0.5f : 0.0f; // clouds and cyclones: climate view only
+            // Clouds and cyclones: the climate view only (and behind the main menu).
+            anim.cloud_strength = clouds_on && (phase == app_phase::menu || hud.filter == map_filter::climate) ? 0.5f : 0.0f;
+            if(phase == app_phase::menu) {
+                menu_lon += frame_dt * 4.0; // degrees per second
+                cloud_days += frame_dt * 0.5;
+            }
             if(sim.status() == sim_status::running) {
                 const core::civil_date today = sim.date();
                 anim.day_of_year = static_cast<float>(core::days_from_civil(today) - core::days_from_civil({today.year, 1, 1}) + 1);

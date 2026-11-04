@@ -6,6 +6,7 @@
 //     coloured green / red when good / bad for the player;
 //   the alert feed (translucent, dismissable), fed by the decision journal.
 
+#include "client_files.hpp"
 #include "sim_runner.hpp"
 #include "ui_context.hpp"
 
@@ -62,7 +63,7 @@ private:
     std::size_t unread_ = 0;
 };
 
-enum class hud_action : uint8_t { none, policy, budget, diplomacy, military, politics };
+enum class hud_action : uint8_t { none, policy, budget, diplomacy, military, politics, control };
 // Map views (top-bar filter buttons; docs/07-map-and-filters.md#views).
 enum class map_filter : uint8_t { political, climate, economy, trade, energy, epidemic, unrest, count };
 
@@ -140,14 +141,41 @@ struct hud_state {
     int politics_tile = -1;
     int politics_step = 0; // -1 / +1 when the nation arrows are clicked
     bool tooltip_tile = false; // the tooltip describes an electoral tile, not the main map
+    // Agent bars and the Control window ('+').
+    int64_t toggle_ai = -1;      // agent whose AI switch was clicked this frame
+    int64_t remove_agent = -1;   // agent whose ✖ was clicked
+    int add_agent = -1;          // index into the Control window's list
+    int control_kind = 0;        // sim::agent_kind shown
+    float control_scroll = 0;
+    std::string search;          // typed into the Control window
 };
 
 // `tab` (may be null): the map mode's legend (bottom right; the alert column
 // ends above it). `politics` (may be null): the Politics window's content. An
 // open window (st.open) fills the space left of the alerts, below the first
 // agent bar; while it is open only that agent bar shows.
+// `agents`: the controllable agents for the Control window (may be null while loading).
 void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab = nullptr,
-               electoral_view_info const* politics = nullptr);
+               electoral_view_info const* politics = nullptr, std::vector<agent_info> const* agents = nullptr);
+
+// --- main menu (docs/08-ui.md#main-menu) ---------------------------------------
+
+struct menu_state {
+    enum class window : uint8_t { none, load, multiplayer, settings } open = window::none;
+    float scroll = 0;
+};
+
+struct menu_choice {
+    enum class kind : uint8_t { none, new_session, load, quit, settings_changed } what = kind::none;
+    std::string path; // load
+};
+
+// The menu over the panning world: the title and a column of flat blue buttons
+// on the left, and the Load / Multiplayer / Settings windows beside it.
+menu_choice build_menu(ui_context& ui, menu_state& st, client_settings& settings, std::vector<save_entry> const& saves);
+
+// A centred flat box with a message (scenario loading).
+void draw_notice(ui_context& ui, std::string_view title, std::string_view text);
 // The map tooltip (call after build_hud, with the region under the pointer).
 void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& st);
 

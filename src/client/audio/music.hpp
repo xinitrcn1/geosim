@@ -42,6 +42,8 @@ public:
     // song (layers, brightness); a lasting mood change wraps the song up and
     // the next song is composed for the new mood.
     void set_mood(mood m, float intensity) noexcept;
+    // The main menu: wartime songs with an arp solo (compose_menu) while on.
+    void set_menu(bool on) noexcept { menu_.store(on, std::memory_order_relaxed); }
     void set_volume(float v) noexcept { volume_.store(v, std::memory_order_relaxed); }
     void set_muted(bool m) noexcept { muted_.store(m, std::memory_order_relaxed); }
     [[nodiscard]] bool muted() const noexcept { return muted_.load(std::memory_order_relaxed); }
@@ -70,11 +72,13 @@ private:
     std::atomic<float> volume_{0.7f};
     std::atomic<bool> muted_{false};
     std::atomic<bool> skip_{false};
+    std::atomic<bool> menu_{false};
 
     // worker only
     uint64_t seed_ = 0;
     song* queued_ = nullptr;
     int queued_mood_ = -1;
+    bool queued_menu_ = false;
 
     static constexpr int block_frames = 512;
     float scratch_[block_frames * 2] = {};

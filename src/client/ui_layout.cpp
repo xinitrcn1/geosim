@@ -3,7 +3,10 @@
 #include "sim/model.hpp"
 #include "style.hpp"
 
+#include <SDL3/SDL_timer.h>
+
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
@@ -318,7 +321,7 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st, alert_feed& alerts)
 // The agent bars: one continuous pane of glass under the top bar, flush at
 // x = 0 and stacked without gaps; a thin white strip marks each shared edge
 // (top bar / first bar, bar / bar). Returns the bottom of the last bar.
-float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w, std::size_t max_bars) {
+float agent_bars(ui_context& ui, sim_runner& sim, hud_state& st, float y, float above_w, std::size_t max_bars) {
     const float strip = std::max(1.0f, std::round(ui.px(style::separator_strip)));
     const float h = ui.px(style::bar_height);
     const float pad = ui.px(style::pad);
@@ -335,6 +338,8 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w, std::s
         for(auto const& it : panel.items) {
             w += ui.text_width(it.label, small) + ui.px(5) + ui.text_width(it.value, font, font_weight::semibold) + pad * 2;
         }
+        const float ai_w = ui.text_width("AI ✓", small, font_weight::semibold) + pad * 2, bs = ui.px(24);
+        w += ai_w + ui.px(4) + bs + pad;
         rect bar{0, y, std::round(w), std::round(h)};
         ui.panel(bar, panel_kind::glass_flush);
         ui.fill(layer::overlay, {0, y, std::min(above_w, bar.w), strip}, style::glass_separator);
@@ -353,6 +358,20 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w, std::s
             x += ui.text_in(layer::overlay, {x, bar.y, w, h}, it.value, font, ui_context::colour(it.t), align::left, font_weight::semibold);
             if(ui.hovered({x0, bar.y, x - x0, h})) ui.tooltip(it.tip);
             x += pad * 2;
+        }
+        // AI switch (on: the agent's AI decides, the player advises / forces; off:
+        // full control) and removal.
+        char id[48];
+        std::snprintf(id, sizeof(id), "agent.ai.%u", panel.agent);
+        const rect ai{bar.right() - pad - bs - ui.px(4) - ai_w, bar.y + (h - bs) * 0.5f, ai_w, bs};
+        if(ui.button(id, layer::overlay, ai, panel.ai ? "AI ✓" : "AI ✗", small, panel.ai,
+                     panel.ai ? "AI on: the agent decides; you advise or force levers. Click for full control"
+                              : "AI off: you have full control (levers held where they are). Click to hand back to the AI")) {
+            st.toggle_ai = panel.agent;
+        }
+        std::snprintf(id, sizeof(id), "agent.remove.%u", panel.agent);
+        if(ui.button(id, layer::overlay, {bar.right() - pad - bs, bar.y + (h - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false, "Stop controlling")) {
+            st.remove_agent = panel.agent;
         }
         y = bar.bottom();
     }
@@ -602,14 +621,113 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
     ui.set_text_backing(true);
 }
 
+// The Control window ('+'): every controllable agent, one list per kind, with a
+// search field (typing filters by name); click to control.
+void control_window(ui_context& ui, sim_runner& sim, std::vector<agent_info> const* agents, hud_state& st, rect win) {
+    static constexpr char const* kind_name[] = {"Governments", "Central banks", "Boards", "Unions", "Militaries", "Governors", "Rebels"};
+    static constexpr int kind_order[] = {0, 1, 3, 4, 2, 5, 6}; // sim::agent_kind values, in display order
+    const float pad = ui.px(style::pad);
+    const float small = ui.px(style::font_small);
+    const float line = ui.px(24);
+    const rect body = window_frame(ui, st, win, "Control", "pick the agents you play");
+    ui.set_text_backing(false);
+    float y = body.y + pad;
+    // Kind buttons with counts.
+    float x = body.x + pad;
+    const float bh = ui.px(24);
+    for(int k : kind_order) {
+        std::size_t n = 0;
+        if(agents) {
+            for(auto const& a : *agents) n += a.kind == k;
+        }
+        const std::string label = std::string(kind_name[k]) + " (" + std::to_string(n) + ")";
+        const float bw = ui.text_width(label, small) + pad * 2;
+        if(x + bw > body.right() - pad) {
+            x = body.x + pad;
+            y += bh + ui.px(4);
+        }
+        char id[32];
+        std::snprintf(id, sizeof(id), "control.kind.%d", k);
+        if(ui.flat_button(id, {x, y, bw, bh}, label, small, st.control_kind == k)) {
+            st.control_kind = k;
+            st.control_scroll = 0;
+        }
+        x += bw + ui.px(4);
+    }
+    y += bh + pad;
+    // Search field (keyboard input goes here while the window is open).
+    const rect field{body.x + pad, y, std::min(ui.px(360), body.w - pad * 2), bh};
+    ui.fill(layer::overlay, field, hex(0xEEF2F7));
+    ui.fill(layer::overlay, {field.x, field.bottom() - std::max(1.0f, std::round(ui.px(1))), field.w, std::max(1.0f, std::round(ui.px(1)))}, style::flat_header);
+    const bool blink = (SDL_GetTicks() / 500) % 2 == 0;
+    ui.text_in(layer::overlay, {field.x + pad, field.y, field.w, field.h}, st.search.empty() ? (blink ? "Search…|" : "Search…") : st.search + (blink ? "|" : ""),
+               small, st.search.empty() ? style::flat_dim : style::flat_text);
+    y += bh + pad;
+    // The list.
+    std::string needle = st.search;
+    for(char& c : needle) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    std::vector<int> rows;
+    if(agents) {
+        for(std::size_t i = 0; i < agents->size(); ++i) {
+            auto const& a = (*agents)[i];
+            if(a.kind != st.control_kind) continue;
+            if(!needle.empty()) {
+                std::string hay = a.label + " " + a.iso3;
+                for(char& c : hay) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if(hay.find(needle) == std::string::npos) continue;
+            }
+            rows.push_back(static_cast<int>(i));
+        }
+    }
+    const rect list{body.x + pad, y, body.w - pad * 2, body.bottom() - y - pad};
+    const auto visible = static_cast<std::size_t>(std::max(1.0f, std::floor(list.h / line)));
+    const float max_scroll = static_cast<float>(rows.size() > visible ? rows.size() - visible : 0);
+    st.control_scroll = std::clamp(st.control_scroll - ui.take_wheel(list) * 3.0f, 0.0f, max_scroll);
+    const auto first = static_cast<std::size_t>(st.control_scroll);
+    if(!agents) ui.text_in(layer::overlay, list, "Loading…", small, style::flat_dim, align::centre);
+    else if(rows.empty()) ui.text_in(layer::overlay, list, "No match", small, style::flat_dim, align::centre);
+    for(std::size_t r = first; r < rows.size() && r < first + visible; ++r) {
+        auto const& a = (*agents)[static_cast<std::size_t>(rows[r])];
+        const rect row{list.x, list.y + static_cast<float>(r - first) * line, list.w, line - ui.px(2)};
+        const bool mine = sim.controls_agent(a.agent);
+        char id[40];
+        std::snprintf(id, sizeof(id), "control.row.%u", a.agent);
+        if(ui.flat_button(id, row, "", small, mine) && !mine) st.add_agent = rows[r];
+        ui.text_in(layer::overlay, {row.x + pad, row.y, row.w, row.h}, a.label, small, mine ? style::text : style::flat_text);
+        ui.text_in(layer::overlay, {row.x, row.y, row.w - pad, row.h}, mine ? "controlled ✓" : a.iso3, small, mine ? style::text : style::flat_dim, align::right);
+    }
+    if(rows.size() > visible) {
+        char where[48];
+        std::snprintf(where, sizeof(where), "%zu–%zu of %zu (wheel scrolls)", first + 1, std::min(rows.size(), first + visible), rows.size());
+        ui.text_in(layer::overlay, {list.x, body.bottom() - pad - ui.px(14), list.w, ui.px(14)}, where, small, style::flat_dim, align::right);
+    }
+    ui.set_text_backing(true);
+}
+
 void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab,
-               electoral_view_info const* politics) {
+               electoral_view_info const* politics, std::vector<agent_info> const* agents) {
     st.requested_speed = -1;
     st.politics_step = 0;
     const rect bar = top_bar(ui, sim, st, alerts);
     const float gap = ui.px(style::gap);
     const bool window_open = st.open != hud_action::none;
-    const float bars_bottom = agent_bars(ui, sim, bar.bottom(), bar.w, window_open ? 1 : static_cast<std::size_t>(-1));
+    st.toggle_ai = st.remove_agent = -1;
+    st.add_agent = -1;
+    float bars_bottom = agent_bars(ui, sim, st, bar.bottom(), bar.w, window_open ? 1 : static_cast<std::size_t>(-1));
+    // '+': control another agent (top left, under the top bar and the agent bars).
+    if(sim.status() == sim_status::running) {
+        const float ps = ui.px(28);
+        const rect plus{0, bars_bottom, ps, ps};
+        ui.panel(plus, panel_kind::glass_flush);
+        ui.fill(layer::overlay, {0, bars_bottom, ps, std::max(1.0f, std::round(ui.px(style::separator_strip)))}, style::glass_separator);
+        if(ui.button("agents.add", layer::overlay, plus, "+", ui.px(18), st.open == hud_action::control,
+                     "Control an agent: governments, central banks, unions, militaries, boards, governors, rebels")) {
+            st.open = st.open == hud_action::control ? hud_action::none : hud_action::control;
+            st.search.clear();
+            st.control_scroll = 0;
+        }
+        bars_bottom += ps; // windows start below it
+    }
     // Bottom-right: the map mode's legend; the alert column ends above it.
     float alerts_bottom = ui.height() - gap;
     if(tab && st.filter != map_filter::political) alerts_bottom = legend_box(ui, *tab) - gap;
@@ -621,8 +739,10 @@ void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& s
         const rect win{gap, bars_bottom + gap, std::max(ui.px(200), right - gap), std::max(ui.px(120), ui.height() - bars_bottom - gap * 2)};
         if(st.open == hud_action::politics && politics) {
             politics_tab(ui, *politics, st, win);
+        } else if(st.open == hud_action::control) {
+            control_window(ui, sim, agents, st, win);
         } else {
-            const auto i = static_cast<std::size_t>(st.open) - 1;
+            const auto i = std::min(static_cast<std::size_t>(st.open) - 1, std::size(action_buttons) - 1);
             const rect body = window_frame(ui, st, win, action_buttons[i].tip, "");
             ui.set_text_backing(false);
             ui.text_in(layer::overlay, {body.x, body.y, body.w, body.h}, "Not available yet", ui.px(14), style::flat_dim, align::centre);
@@ -681,6 +801,124 @@ void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& s
         const float bar = std::max(1.0f, std::round(ui.px(2)));
         ui.fill(layer::overlay, {r.x, r.y + hh, std::round(r.w * std::min(1.0f, st.tooltip_progress)), bar}, hex(0x8FB4E3));
     }
+    ui.set_text_backing(true);
+}
+
+// --- main menu ----------------------------------------------------------------
+
+namespace {
+
+// A flat blue menu button with white text (lighter when hovered).
+bool menu_button(ui_context& ui, rect r, std::string_view label) {
+    const bool hot = ui.hovered(r);
+    ui.fill(layer::overlay, r, hot ? hex(0x3F80C8) : style::flat_header);
+    ui.text_in(layer::overlay, {r.x + ui.px(16), r.y, r.w, r.h}, label, ui.px(18), style::text, align::left, font_weight::semibold);
+    return hot && ui.input().released;
+}
+
+} // namespace
+
+menu_choice build_menu(ui_context& ui, menu_state& st, client_settings& settings, std::vector<save_entry> const& saves) {
+    menu_choice out;
+    const float x = ui.px(56);
+    const float title_size = ui.px(84);
+    const float top = std::max(ui.px(40), ui.height() * 0.16f);
+    ui.text(layer::overlay, x, top + title_size * 0.8f, "geosim", title_size, style::text, font_weight{900});
+    const float bw = ui.px(280), bh = ui.px(48), gap = ui.px(10);
+    float y = top + title_size + ui.px(36);
+    static constexpr char const* labels[] = {"New session", "Load session", "Multiplayer", "Settings", "Quit"};
+    for(int k = 0; k < 5; ++k) {
+        const rect r{x, y, bw, bh};
+        if(menu_button(ui, r, labels[k])) {
+            switch(k) {
+            case 0: out.what = menu_choice::kind::new_session; break;
+            case 1: st.open = st.open == menu_state::window::load ? menu_state::window::none : menu_state::window::load; break;
+            case 2: st.open = st.open == menu_state::window::multiplayer ? menu_state::window::none : menu_state::window::multiplayer; break;
+            case 3: st.open = st.open == menu_state::window::settings ? menu_state::window::none : menu_state::window::settings; break;
+            default: out.what = menu_choice::kind::quit; break;
+            }
+        }
+        y += bh + gap;
+    }
+    if(st.open == menu_state::window::none) return out;
+    // The window beside the column.
+    const float pad = ui.px(style::pad);
+    const float hh = ui.px(style::tab_header);
+    const float small = ui.px(style::font_small);
+    const float font = ui.px(14);
+    const float wx = x + bw + ui.px(32);
+    const rect win{wx, top + title_size + ui.px(36), std::min(ui.px(560), ui.width() - wx - ui.px(32)), 5 * bh + 4 * gap};
+    char const* title = st.open == menu_state::window::load ? "Load session" : st.open == menu_state::window::settings ? "Settings" : "Multiplayer";
+    ui.flat_panel(win, hh);
+    ui.text_in(layer::overlay, {win.x + pad, win.y, win.w, hh}, title, font, style::text, align::left, font_weight::semibold);
+    const float bs = ui.px(22);
+    if(ui.button("menu.close", layer::overlay, {win.right() - bs - ui.px(3), win.y + (hh - bs) * 0.5f, bs, bs}, "✖", ui.px(12))) st.open = menu_state::window::none;
+    ui.set_text_backing(false);
+    const rect body{win.x + pad, win.y + hh + pad, win.w - pad * 2, win.h - hh - pad * 2};
+    if(st.open == menu_state::window::multiplayer) {
+        ui.text_in(layer::overlay, body, "Not available yet", font, style::flat_dim, align::centre);
+    } else if(st.open == menu_state::window::load) {
+        if(saves.empty()) {
+            ui.text_in(layer::overlay, body, "No saved sessions yet (Ctrl+S saves during a session)", small, style::flat_dim, align::centre);
+        }
+        const float line = ui.px(30);
+        const auto visible = static_cast<std::size_t>(std::max(1.0f, std::floor(body.h / line)));
+        const float max_scroll = static_cast<float>(saves.size() > visible ? saves.size() - visible : 0);
+        st.scroll = std::clamp(st.scroll - ui.take_wheel(body), 0.0f, max_scroll);
+        for(std::size_t i = static_cast<std::size_t>(st.scroll), r = 0; i < saves.size() && r < visible; ++i, ++r) {
+            const rect row{body.x, body.y + static_cast<float>(r) * line, body.w, line - ui.px(3)};
+            char id[32];
+            std::snprintf(id, sizeof(id), "menu.save.%zu", i);
+            if(ui.flat_button(id, row, "", small)) {
+                out.what = menu_choice::kind::load;
+                out.path = saves[i].path;
+            }
+            ui.text_in(layer::overlay, {row.x + pad, row.y, row.w, row.h}, saves[i].name, font, style::flat_text);
+        }
+    } else { // settings
+        const float line = ui.px(34);
+        float cy = body.y;
+        auto row_label = [&](char const* label) { ui.text_in(layer::overlay, {body.x, cy, body.w, line}, label, font, style::flat_text); };
+        const float vx = body.right() - ui.px(200);
+        row_label("Music volume");
+        char v[16];
+        std::snprintf(v, sizeof(v), "%.0f%%", static_cast<double>(settings.music_volume) * 100.0);
+        if(ui.flat_button("menu.vol.down", {vx, cy + ui.px(5), ui.px(32), line - ui.px(10)}, "−", font)) {
+            settings.music_volume = std::max(0.0f, settings.music_volume - 0.1f);
+            out.what = menu_choice::kind::settings_changed;
+        }
+        ui.text_in(layer::overlay, {vx + ui.px(36), cy, ui.px(60), line}, v, font, style::flat_text, align::centre);
+        if(ui.flat_button("menu.vol.up", {vx + ui.px(100), cy + ui.px(5), ui.px(32), line - ui.px(10)}, "+", font)) {
+            settings.music_volume = std::min(1.0f, settings.music_volume + 0.1f);
+            out.what = menu_choice::kind::settings_changed;
+        }
+        cy += line;
+        auto toggle = [&](char const* label, char const* id, bool& value) {
+            row_label(label);
+            if(ui.flat_button(id, {vx, cy + ui.px(5), ui.px(132), line - ui.px(10)}, value ? "On" : "Off", font, value)) {
+                value = !value;
+                out.what = menu_choice::kind::settings_changed;
+            }
+            cy += line;
+        };
+        toggle("Music", "menu.music", settings.music);
+        toggle("Clouds (climate view)", "menu.clouds", settings.clouds);
+        toggle("Fullscreen", "menu.fullscreen", settings.fullscreen);
+        ui.text_in(layer::overlay, {body.x, body.bottom() - ui.px(16), body.w, ui.px(16)}, settings_path().string(), small, style::flat_dim);
+    }
+    ui.set_text_backing(true);
+    return out;
+}
+
+void draw_notice(ui_context& ui, std::string_view title, std::string_view text) {
+    const float pad = ui.px(style::pad);
+    const float hh = ui.px(style::tab_header);
+    const float w = std::max(ui.px(320), ui.text_width(text, ui.px(14)) + pad * 4);
+    const rect r{std::round((ui.width() - w) * 0.5f), std::round(ui.height() * 0.45f), std::round(w), std::round(hh + ui.px(44))};
+    ui.flat_panel(r, hh);
+    ui.text_in(layer::overlay, {r.x + pad, r.y, r.w, hh}, title, ui.px(14), style::text, align::left, font_weight::semibold);
+    ui.set_text_backing(false);
+    ui.text_in(layer::overlay, {r.x + pad, r.y + hh, r.w - pad * 2, r.h - hh}, text, ui.px(14), style::flat_text);
     ui.set_text_backing(true);
 }
 

@@ -274,7 +274,8 @@ struct bass_pat {
 
 class composer {
 public:
-    composer(uint64_t seed, mood m) : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), sr_(seed ^ 0x510E527FADE682D1ull), s_() {
+    composer(uint64_t seed, mood m, bool force_solo = false)
+        : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), sr_(seed ^ 0x510E527FADE682D1ull), s_(), force_solo_(force_solo) {
         s_.seed = seed;
         s_.m = m;
     }
@@ -337,6 +338,7 @@ private:
     rng* jit_ = &r_; // the generator of add()'s velocity jitter (the solo's own while it renders)
     song s_;
     bool war_ = false;
+    bool force_solo_ = false; // the main menu: always an arp solo (the draws stay the same)
     style_id style_ = st_techno;
     int key_ = 57;
     mode_def const* mode_ = &modes[0];
@@ -1766,15 +1768,21 @@ private:
         using K = section_kind;
         static constexpr float p_solo[mood_count] = {0.2f, 0.4f, 0.35f, 0.45f, 0.45f};
         arp_wide_ = sr_.chance(0.45f);
-        const bool want = sr_.chance(p_solo[static_cast<int>(s_.m)]);
+        const bool want = sr_.chance(p_solo[static_cast<int>(s_.m)]) || force_solo_;
         const float pick = sr_.uniform();
         const bool two = sr_.chance(0.5f);
         if(!want || s_.total_bars < 40) return; // not in intermissions
         std::size_t j = 0;
-        for(std::size_t i = 1; i + 1 < plan_.size(); ++i) {
-            if(big(plan_[i].sec.kind)) {
-                j = i + 1;
-                break;
+        if(force_solo_) { // the menu: the solo early, after the first section that allows it
+            for(std::size_t i = 1; i + 1 < plan_.size() && j == 0; ++i) {
+                if(plan_[i].sec.kind != K::outro && plan_[i - 1].pivot_deg < 0 && plan_[i].shift == plan_[i - 1].shift) j = i;
+            }
+        } else {
+            for(std::size_t i = 1; i + 1 < plan_.size(); ++i) {
+                if(big(plan_[i].sec.kind)) {
+                    j = i + 1;
+                    break;
+                }
             }
         }
         if(j == 0 || plan_[j].sec.kind == K::outro) return;
@@ -2803,5 +2811,18 @@ private:
 } // namespace
 
 song compose(uint64_t seed, mood m) { return composer(seed, m).run(); }
+
+song compose_menu(uint64_t seed) {
+    // A wartime song with an arp solo; songs whose form leaves no room for one
+    // (intermissions, a key change at the spot) pass to the next seed.
+    for(int k = 0; k < 32; ++k) {
+        song s = composer(seed, mood::wartime, true).run();
+        for(auto const& sec : s.sections) {
+            if(sec.kind == section_kind::arp_solo) return s;
+        }
+        seed = next_seed(seed);
+    }
+    return composer(seed, mood::wartime, true).run();
+}
 
 } // namespace geosim::client::audio

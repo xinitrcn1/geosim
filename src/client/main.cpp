@@ -15,6 +15,7 @@
 // Headless check (no display): SDL_VIDEODRIVER=offscreen geosim --frames 120 --screenshot out.ppm
 
 #include "app.hpp"
+#include "client_files.hpp"
 #include "audio/render.hpp"
 
 #include <SDL3/SDL.h>
@@ -33,7 +34,7 @@ int usage() {
                "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
                "              [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]\n"
                "              [--clouds 0|1] [--hazard-demo 0|1] [--view political|climate|economy|trade|energy|epidemic|unrest]\n"
-               "              [--politics ISO3|- [--politics-mode N]]\n"
+               "              [--politics ISO3|- [--politics-mode N]] [--menu 0|1]\n"
                "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
                "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx|counter|choir]\n",
                stderr);
@@ -74,6 +75,15 @@ int main(int argc, char** argv) {
     geosim::client::app_options opt;
     geosim::client::audio::render_options render;
     bool assets_given = false;
+    // Saved settings first; the command line overrides them (docs/08-ui.md#settings-and-saves).
+    {
+        const geosim::client::client_settings saved = geosim::client::load_settings();
+        opt.music = saved.music;
+        opt.music_volume = saved.music_volume;
+        opt.clouds = saved.clouds;
+        opt.fullscreen = saved.fullscreen;
+    }
+    int menu_flag = -1; // --menu 0|1 (default: on, off for --frames / --nation runs)
     for(int i = 1; i < argc; i += 2) {
         if(i + 1 >= argc || std::strncmp(argv[i], "--", 2) != 0) return usage();
         const std::string key = argv[i] + 2;
@@ -89,6 +99,7 @@ int main(int argc, char** argv) {
         else if(key == "inject") opt.inject = v;
         else if(key == "map-view") opt.map_view = v;
         else if(key == "view") opt.view = v;
+        else if(key == "menu") menu_flag = std::strcmp(v, "0") != 0 ? 1 : 0;
         else if(key == "politics") opt.politics = v;
         else if(key == "politics-mode") ok = parse(v, opt.politics_mode);
         else if(key == "clouds") opt.clouds = std::strcmp(v, "0") != 0;
@@ -122,6 +133,7 @@ int main(int argc, char** argv) {
         else ok = false;
         if(!ok) return usage();
     }
+    opt.menu = menu_flag >= 0 ? menu_flag == 1 : (opt.frames == 0 && opt.nation.empty() && opt.politics.empty());
     if(!render.path.empty()) {
         geosim::core::diagnostics diag;
         geosim::client::audio::render_report report;

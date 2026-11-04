@@ -5,6 +5,7 @@
 #include "core/keys.hpp"
 #include "sim/model.hpp"
 #include "sim/report.hpp"
+#include "sim/save.hpp"
 #include "sim/scenario.hpp"
 #include "sim/simulation.hpp"
 
@@ -72,14 +73,170 @@ bool is_alert_code(uint8_t c) {
     }
 }
 
+// Every controllable agent with its nation and a label. Executives and central
+// banks come from their seats, unions / militaries / rebels from their nation,
+// governors from their region, boards from their firm (nation + sector).
+std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::string> const& nation_names,
+                                       std::vector<std::string> const& region_names) {
+    using sim::agent_kind;
+    auto const& w = s.world;
+    std::vector<agent_info> out;
+    auto name_of = [&](uint32_t n) { return n < nation_names.size() ? nation_names[n] : std::string{}; };
+    auto add = [&](dcon::agent_id a, agent_kind k, uint32_t n, std::string label) {
+        if(!a) return;
+        agent_info i;
+        i.agent = static_cast<uint32_t>(a.index());
+        i.kind = static_cast<uint8_t>(k);
+        i.nation = n;
+        if(n < w.nation_size()) i.iso3 = core::unpack_key(w.nation_get_iso3(dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(n)}));
+        i.label = std::move(label);
+        out.push_back(std::move(i));
+    };
+    std::vector<uint8_t> bank_seen(w.agent_size(), 0);
+    for(auto n : w.in_nation) {
+        const auto ni = static_cast<uint32_t>(n.id.index());
+        const std::string name = name_of(ni);
+        if(auto seat = n.get_executive_seat()) add(seat.get_agent().id, agent_kind::executive, ni, name + " Government");
+        if(auto ma = n.get_monetary_authority()) {
+            const auto bank = ma.get_bank();
+            if(bank && !bank_seen[bank.id.index()]) {
+                bank_seen[bank.id.index()] = 1;
+                int members = 0;
+                for(auto m : bank.get_monetary_authority()) {
+                    (void)m;
+                    ++members;
+                }
+                add(bank.id, agent_kind::central_bank, ni,
+                    members > 1 ? "Central Bank of " + name + " and " + std::to_string(members - 1) + " more" : name + " Central Bank");
+            }
+        }
+        add(n.get_union_agent().id, agent_kind::union_federation, ni, name + " Unions");
+        add(n.get_military_agent().id, agent_kind::military, ni, name + " Military");
+        add(n.get_rebel_agent().id, agent_kind::rebel, ni, name + " Rebels");
+    }
+    for(auto r : w.in_region) {
+        if(!r.get_governor()) continue;
+        const auto owner = r.get_owner();
+        const auto ni = owner ? static_cast<uint32_t>(owner.id.index()) : 0xFFFFFFFFu;
+        const std::string region = static_cast<std::size_t>(r.id.index()) < region_names.size() ? region_names[static_cast<std::size_t>(r.id.index())] : std::string{};
+        add(r.get_governor().id, agent_kind::governor, ni, (region.empty() ? name_of(ni) + " region" : region) + " Governor");
+        out.back().region = static_cast<uint32_t>(r.id.index());
+    }
+    for(auto f : w.in_firm) {
+        if(!f.get_board()) continue;
+        const auto ni = f.get_nation() ? static_cast<uint32_t>(f.get_nation().id.index()) : 0xFFFFFFFFu;
+        const std::string sector = f.get_sector() ? core::unpack_key(f.get_sector().get_key()) : std::string("firm");
+        add(f.get_board().id, agent_kind::board, ni, name_of(ni) + " " + sector + " board");
+        out.back().firm = static_cast<uint32_t>(f.id.index());
+    }
+    return out;
+}
+
 } // namespace
 
 sim_runner::sim_runner() = default;
+
+std::future<std::vector<agent_info>> sim_runner::request_agents() {
+    auto promise = std::make_shared<std::promise<std::vector<agent_info>>>();
+    auto future = promise->get_future();
+    post([this, promise](game_state& s) { promise->set_value(collect_agents(s, nation_names_, region_names_)); });
+    return future;
+}
+
+sim_runner::controlled& sim_runner::track(uint32_t nation) {
+    for(auto& c : controlled_) {
+        if(c.index == nation) return c;
+    }
+    controlled c;
+    c.index = nation;
+    auto const& w = state_->world;
+    const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(nation)};
+    c.iso3 = core::unpack_key(w.nation_get_iso3(n));
+    c.flag = flag_for(c.iso3);
+    c.name = nation < nation_names_.size() && !nation_names_[nation].empty() ? nation_names_[nation] : c.iso3;
+    c.unemployment0 = w.nation_get_unemployment(n);
+    c.yield0 = w.nation_get_yield10(n);
+    controlled_.push_back(std::move(c));
+    return controlled_.back();
+}
+
+void sim_runner::refresh_nations() {
+    iso3s_.clear();
+    for(auto const& a : agents_) {
+        if(a.nation >= state_->world.nation_size()) continue;
+        track(a.nation);
+        if(std::find(iso3s_.begin(), iso3s_.end(), a.iso3) == iso3s_.end()) iso3s_.push_back(a.iso3);
+    }
+    // Forget nations without a controlled agent (player_at_war iterates controlled_).
+    controlled_.erase(std::remove_if(controlled_.begin(), controlled_.end(),
+                                     [&](controlled const& c) {
+                                         return std::none_of(agents_.begin(), agents_.end(), [&](agent_info const& a) { return a.nation == c.index; });
+                                     }),
+                      controlled_.end());
+}
+
+bool sim_runner::controls_agent(uint32_t agent) const noexcept {
+    return std::any_of(agents_.begin(), agents_.end(), [&](agent_info const& a) { return a.agent == agent; });
+}
+
+void sim_runner::add_control(agent_info const& a) {
+    if(status() != sim_status::running || controls_agent(a.agent)) return;
+    agents_.push_back(a);
+    ai_.push_back(1);
+    refresh_nations();
+    SDL_Log("control: %s", a.label.c_str());
+}
+
+void sim_runner::remove_control(uint32_t agent) {
+    for(std::size_t i = 0; i < agents_.size(); ++i) {
+        if(agents_[i].agent != agent) continue;
+        if(!ai_[i]) set_ai(agent, true); // hand the levers back to the AI
+        agents_.erase(agents_.begin() + static_cast<std::ptrdiff_t>(i));
+        ai_.erase(ai_.begin() + static_cast<std::ptrdiff_t>(i));
+        break;
+    }
+    refresh_nations();
+}
+
+void sim_runner::set_ai(uint32_t agent, bool on) {
+    for(std::size_t i = 0; i < agents_.size(); ++i) {
+        if(agents_[i].agent == agent) ai_[i] = on ? 1 : 0;
+    }
+    post([agent, on](game_state& s) {
+        auto& w = s.world;
+        if(agent >= w.agent_size()) return;
+        const dcon::agent_id a{static_cast<dcon::agent_id::value_base_t>(agent)};
+        // AI off: every lever directed at its current choice, so nothing moves until the
+        // player changes it. AI on: overrides cleared (the AI decides; the player may
+        // still advise or force single levers).
+        for(uint8_t l = 0; l < s.derived.lever_count; ++l) {
+            if(on) {
+                w.agent_set_override_mode(a, l, static_cast<uint8_t>(sim::override_mode::none));
+            } else {
+                w.agent_set_override_mode(a, l, static_cast<uint8_t>(sim::override_mode::direct));
+                w.agent_set_override_value(a, l, w.agent_get_last_choice(a, l));
+            }
+        }
+    });
+    SDL_Log("agent %u: AI %s", agent, on ? "on" : "off (full control)");
+}
+
+std::future<std::string> sim_runner::request_save(std::string path) {
+    auto promise = std::make_shared<std::promise<std::string>>();
+    auto future = promise->get_future();
+    post([promise, path = std::move(path)](game_state& s) {
+        core::diagnostics diag;
+        promise->set_value(sim::save_game(s, path, diag) ? std::string{} : diag.error());
+    });
+    return future;
+}
 sim_runner::~sim_runner() { stop(); }
 
-void sim_runner::start(std::string assets_dir, std::string scenario, std::string nations) {
+void sim_runner::start(std::string assets_dir, std::string scenario, std::string nations, std::string save_path) {
+    if(thread_.joinable()) return; // one session per sim_runner
     assets_ = std::move(assets_dir);
     scenario_ = std::move(scenario);
+    save_path_ = std::move(save_path);
     iso3s_.clear();
     std::size_t at = 0;
     while(at <= nations.size()) {
@@ -201,41 +358,31 @@ std::string sim_runner::place_name(uint32_t nation_index, uint32_t region_index)
 
 void sim_runner::run() {
     auto state = std::make_unique<game_state>();
-    const auto report = sim::build_scenario(*state, assets_, scenario_);
-    if(!report.ok()) {
-        error_ = "scenario " + scenario_ + ": " + report.error;
-        SDL_Log("%s", error_.c_str());
-        status_.store(sim_status::failed, std::memory_order_release);
-        return;
+    if(!save_path_.empty()) {
+        core::diagnostics load_diag;
+        if(!sim::load_game(*state, save_path_, load_diag)) {
+            error_ = "save " + save_path_ + ": " + load_diag.error();
+            SDL_Log("%s", error_.c_str());
+            status_.store(sim_status::failed, std::memory_order_release);
+            return;
+        }
+        SDL_Log("loaded %s (scenario %s, day %d)", save_path_.c_str(), scenario_.c_str(), state->current_tick);
+    } else {
+        const auto report = sim::build_scenario(*state, assets_, scenario_);
+        if(!report.ok()) {
+            error_ = "scenario " + scenario_ + ": " + report.error;
+            SDL_Log("%s", error_.c_str());
+            status_.store(sim_status::failed, std::memory_order_release);
+            return;
+        }
+        SDL_Log("scenario %s: %zu events, %zu warnings", scenario_.c_str(), report.events, report.warnings.size());
+        sim::begin_measurement(*state);
     }
-    SDL_Log("scenario %s: %zu events, %zu warnings", scenario_.c_str(), report.events, report.warnings.size());
-    sim::begin_measurement(*state);
     // Display names from the scenario's nations.csv ("Korea, Rep." -> "Korea").
     core::diagnostics names_diag;
     const auto names = core::csv_table::load(assets_ + "/scenario/" + scenario_ + "/nations.csv", names_diag);
     const auto iso_col = names.column("iso3"), name_col = names.column("name");
-    for(std::string const& iso : iso3s_) {
-        const auto n = sim::find_nation(*state, iso);
-        if(!n) {
-            SDL_Log("nation %s not in scenario %s; its indicators are disabled", iso.c_str(), scenario_.c_str());
-            continue;
-        }
-        controlled c;
-        c.index = n.index();
-        c.iso3 = iso;
-        c.flag = flag_for(iso);
-        c.name = iso;
-        for(std::size_t r = 0; iso_col && name_col && r < names.rows(); ++r) {
-            if(names.get(r, *iso_col) != iso) continue;
-            std::string full(names.get(r, *name_col));
-            const std::size_t comma = full.find(',');
-            if(comma != std::string::npos && comma > 0) full.resize(comma);
-            if(!full.empty()) c.name = full;
-        }
-        c.unemployment0 = state->world.nation_get_unemployment(n);
-        c.yield0 = state->world.nation_get_yield10(n);
-        controlled_.push_back(std::move(c));
-    }
+
     // Names for notifications: every nation, and each region matched to its regions.csv
     // row by owner and nearest coordinates (the sim keeps no region names).
     {
@@ -281,6 +428,31 @@ void sim_runner::run() {
                 }
             }
         }
+    }
+    // --nation: their executives and central banks start controlled.
+    {
+        const std::vector<std::string> wanted = iso3s_;
+        iso3s_.clear();
+        const std::vector<agent_info> all = collect_agents(*state, nation_names_, region_names_);
+        for(std::string const& iso : wanted) {
+            const auto n = sim::find_nation(*state, iso);
+            if(!n) {
+                SDL_Log("nation %s not in scenario %s; its indicators are disabled", iso.c_str(), scenario_.c_str());
+                continue;
+            }
+            for(uint8_t kind : {static_cast<uint8_t>(sim::agent_kind::executive), static_cast<uint8_t>(sim::agent_kind::central_bank)}) {
+                for(auto const& a : all) {
+                    if(a.kind == kind && a.nation == static_cast<uint32_t>(n.index())) {
+                        agents_.push_back(a);
+                        ai_.push_back(1);
+                        break;
+                    }
+                }
+            }
+        }
+        state_ = std::move(state); // track() reads state_
+        refresh_nations();
+        state = std::move(state_);
     }
     epoch_days_ = state->epoch_days;
     tick_.store(state->current_tick);
@@ -342,11 +514,16 @@ void sim_runner::run() {
 std::vector<agent_panel> sim_runner::read_agents() {
     std::vector<agent_panel> out;
     if(status() != sim_status::running) return out;
-    for(controlled& c : controlled_) read_nation(c, out);
+    for(std::size_t i = 0; i < agents_.size(); ++i) {
+        if(agents_[i].nation >= state_->world.nation_size()) continue;
+        read_agent(agents_[i], ai_[i] != 0, track(agents_[i].nation), out);
+    }
     return out;
 }
 
-void sim_runner::read_nation(controlled& c, std::vector<agent_panel>& out) {
+void sim_runner::read_agent(agent_info const& info, bool ai, controlled& c, std::vector<agent_panel>& out) {
+    using sim::agent_kind;
+    const auto kind = static_cast<agent_kind>(info.kind);
     auto const& w = state_->world;
     const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(c.index)};
     auto& history_ = c.history;
@@ -379,7 +556,9 @@ void sim_runner::read_nation(controlled& c, std::vector<agent_panel>& out) {
     const double cpi_2019 = std::pow(1.0 + w.nation_get_inflation_trend(n), -0.5);
     double growth = std::nan(""), inflation = std::nan("");
     const double days = std::max(1.0, acc_days);
-    if(acc_days < 365.0 || history_.size() < 2) {
+    if(acc_days < 0.5) {
+        // Day 0: nothing accumulated yet ("-").
+    } else if(acc_days < 365.0 || history_.size() < 2) {
         // First year: the run-to-date mean vs 2019, as sim::summarize computes it.
         growth = (acc_gdp / days / gdp0_daily - 1.0) * 100.0;
         inflation = (acc_cpi / days / cpi_2019 - 1.0) * 100.0;
@@ -410,6 +589,8 @@ void sim_runner::read_nation(controlled& c, std::vector<agent_panel>& out) {
     auto tone_of = [](bool good, bool bad) { return bad ? tone::bad : (good ? tone::good : tone::neutral); };
 
     agent_panel gov;
+    gov.agent = info.agent;
+    gov.ai = ai;
     gov.flag = c.flag;
     gov.icon = "\xF0\x9F\x8F\x9B"; // U+1F3DB classical building
     gov.title = c.name + " Government";
@@ -428,9 +609,15 @@ void sim_runner::read_nation(controlled& c, std::vector<agent_panel>& out) {
             gov.items.push_back({"Election", fmt("%.0f d", static_cast<double>(next - t)), tone::neutral, "Days to the next scheduled election"});
         }
     }
-    out.push_back(std::move(gov));
+    if(kind == agent_kind::executive) {
+        gov.title = info.label;
+        out.push_back(std::move(gov));
+        return;
+    }
 
     agent_panel cb;
+    cb.agent = info.agent;
+    cb.ai = ai;
     cb.flag = c.flag;
     cb.icon = "\xF0\x9F\x8F\xA6"; // U+1F3E6 bank
     cb.title = c.name + " Central Bank";
@@ -443,7 +630,57 @@ void sim_runner::read_nation(controlled& c, std::vector<agent_panel>& out) {
                         "10-year government bond yield (start: " + fmt("%.2f%%", yield0_) + ")"});
     const double fx = (w.nation_get_exchange_rate(n) - 1.0) * 100.0;
     cb.items.push_back({"FX", valued(fx, "%+.1f%%"), tone::neutral, "Real exchange rate vs the start"});
-    out.push_back(std::move(cb));
+    if(kind == agent_kind::central_bank) {
+        cb.title = info.label;
+        out.push_back(std::move(cb));
+        return;
+    }
+
+    // Other agents: a few indicators of what they act on.
+    agent_panel p;
+    p.agent = info.agent;
+    p.ai = ai;
+    p.flag = c.flag;
+    p.title = info.label;
+    const dcon::agent_id a{static_cast<dcon::agent_id::value_base_t>(info.agent)};
+    switch(kind) {
+    case agent_kind::union_federation:
+        p.icon = "\u270A"; // raised fist
+        p.items.push_back({"Unemp.", valued(unemployment, "%.1f%%"), tone::neutral, "Unemployment rate"});
+        p.items.push_back({"Real wage", valued(w.nation_get_wage_real(n), "%.3f"), tone::neutral, "Real wage index"});
+        p.items.push_back({"Density", valued(w.nation_get_union_density(n) * 100.0, "%.0f%%"), tone::neutral, "Union density"});
+        break;
+    case agent_kind::military:
+        p.icon = "\U0001F396"; // military medal
+        p.items.push_back({"Loyalty", valued(w.nation_get_military_loyalty(n), "%.2f"), tone::neutral, "Military loyalty to the government (0..1)"});
+        p.items.push_back({"Defence", valued(w.nation_get_defense_share(n) * 100.0, "%.1f%%"), tone::neutral, "Defence spending, % of GDP"});
+        break;
+    case agent_kind::board:
+        p.icon = "\U0001F3ED"; // factory
+        if(info.firm < w.firm_size()) {
+            const dcon::firm_id f{static_cast<dcon::firm_id::value_base_t>(info.firm)};
+            p.items.push_back({"Hoarding", valued(w.firm_get_hoarding(f), "%.2f"), tone::neutral, "Labour hoarding in the downturn (0..1)"});
+            p.items.push_back({"Leverage", valued(w.firm_get_leverage(f), "%.2f"), tone::neutral, "Firm leverage"});
+        }
+        p.items.push_back({"GDP", valued(growth, "%+.1f%%"), tone_of(growth > 1.0, growth < 0.0), "The nation's real GDP growth"});
+        break;
+    case agent_kind::governor:
+        p.icon = "\U0001F3E2"; // office building
+        if(info.region < w.region_size()) {
+            const dcon::region_id r{static_cast<dcon::region_id::value_base_t>(info.region)};
+            p.items.push_back({"Unrest", valued(w.region_get_unrest(r), "%.2f"), tone_of(false, w.region_get_unrest(r) > 1.5f), "Regional unrest"});
+            p.items.push_back({"Grievance", valued(w.region_get_grievance(r), "%.2f"), tone::neutral, "Regional grievance"});
+            p.items.push_back({"Trust", valued(w.region_get_trust_r(r), "%.2f"), tone::neutral, "Regional trust in institutions"});
+        }
+        break;
+    case agent_kind::rebel:
+        p.icon = "\U0001F3F4"; // black flag
+        p.items.push_back({"Strength", valued(w.agent_get_strength(a), "%.2f"), tone::neutral, "Rebel strength"});
+        p.items.push_back({"Demand", valued(w.agent_get_demand(a), "%.2f"), tone::neutral, "Rebel demand"});
+        break;
+    default: break;
+    }
+    out.push_back(std::move(p));
 }
 
 } // namespace geosim::client

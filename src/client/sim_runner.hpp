@@ -47,7 +47,20 @@ struct indicator {
     std::string tip; // definition, shown on hover
 };
 
+// An agent the player can control (sim `agent`), as listed by request_agents.
+struct agent_info {
+    uint32_t agent = 0;              // dcon::agent_id index
+    uint8_t kind = 0;                // sim::agent_kind
+    uint32_t nation = 0xFFFFFFFFu;   // its nation (the first one for a shared central bank)
+    uint32_t region = 0xFFFFFFFFu;   // governors
+    uint32_t firm = 0xFFFFFFFFu;     // boards
+    std::string iso3;                // of `nation`
+    std::string label;               // "United States Government", "Texas Governor", ...
+};
+
 struct agent_panel {
+    uint32_t agent = 0;  // the controlled agent (AI toggle, removal)
+    bool ai = true;      // its AI keeps deciding (the player advises / forces)
     std::string flag;  // the agent's nation (emoji flag): several nations may be controlled
     std::string icon;
     std::string title; // "United States Government", "United States Central Bank"
@@ -82,11 +95,33 @@ public:
     sim_runner& operator=(sim_runner const&) = delete;
     ~sim_runner();
 
-    // Starts the sim thread, which builds the scenario first (status() == loading).
-    // `nations` lists the player's nations as ISO3 codes, comma-separated
-    // ("USA" or "USA,CAN"); the executive and central bank of each are the
-    // controlled agents.
-    void start(std::string assets_dir, std::string scenario, std::string nations);
+    // Starts the sim thread, which builds the scenario first (status() == loading),
+    // or loads `save_path` when given (a sim::save_game file of that scenario).
+    // `nations` lists nations as ISO3 codes, comma-separated ("USA,CAN"): their
+    // executive and central bank start controlled ("" = none).
+    void start(std::string assets_dir, std::string scenario, std::string nations, std::string save_path = {});
+    [[nodiscard]] bool started() const noexcept { return thread_.joinable(); }
+    [[nodiscard]] std::string const& scenario() const noexcept { return scenario_; }
+
+    // Controllable agents (all kinds), at the next sync point.
+    std::future<std::vector<agent_info>> request_agents();
+    // The player's agents (UI thread). Adding one gives it an agent bar; its AI
+    // stays on (the player advises or forces) until set_ai(agent, false), which
+    // directs every lever at its current value (override_mode::direct) through a
+    // job at the sync point; set_ai(agent, true) clears the overrides.
+    void add_control(agent_info const& a);
+    void remove_control(uint32_t agent);
+    void set_ai(uint32_t agent, bool on);
+    [[nodiscard]] bool controls_agent(uint32_t agent) const noexcept;
+    [[nodiscard]] bool ai_on(uint32_t agent) const noexcept {
+        for(std::size_t i = 0; i < agents_.size(); ++i) {
+            if(agents_[i].agent == agent) return ai_[i] != 0;
+        }
+        return true;
+    }
+    [[nodiscard]] std::vector<agent_info> const& controlled_agents() const noexcept { return agents_; }
+    // Writes a save at the next sync point; the future holds "" or the error.
+    std::future<std::string> request_save(std::string path);
     void stop();
 
     [[nodiscard]] sim_status status() const noexcept { return status_.load(std::memory_order_acquire); }
@@ -99,10 +134,11 @@ public:
     [[nodiscard]] int64_t epoch_days() const noexcept { return epoch_days_; } // valid once running
     [[nodiscard]] double measured_days_per_second() const noexcept { return measured_rate_.load(std::memory_order_relaxed); }
 
-    // The player's nations (ISO3), in command-line order.
+    // The nations of the player's agents (ISO3), in the order they were added.
     [[nodiscard]] std::vector<std::string> const& nations() const noexcept { return iso3s_; }
+    // True when the player controls any agent of that nation.
     [[nodiscard]] bool controls(std::string const& iso3) const noexcept;
-    // True while any nation the player controls is at war (the sim's
+    // True while the nation of any agent the player controls is at war (the sim's
     // nation.at_war array; racy direct read like the indicators).
     [[nodiscard]] bool player_at_war() const noexcept;
 
@@ -139,22 +175,27 @@ private:
         int32_t tick;
         double acc_gdp, acc_cpi, acc_days;
     };
-    // A nation the player controls; set on the sim thread before status()
-    // becomes running, then read-only (history: UI thread only).
+    // Indicator history of a nation with a controlled agent (UI thread; the
+    // --nation ones are set up on the sim thread before status() is running).
     struct controlled {
         uint32_t index = 0; // dcon::nation_id index
         std::string iso3, flag, name;
         float unemployment0 = 0, yield0 = 0;
         std::vector<sample> history;
     };
-    void read_nation(controlled& c, std::vector<agent_panel>& out);
+    void read_agent(agent_info const& a, bool ai, controlled& c, std::vector<agent_panel>& out);
+    controlled& track(uint32_t nation);
+    void refresh_nations();
 
     std::string assets_, scenario_;
     std::vector<std::string> iso3s_;
     std::string error_;
     std::unique_ptr<game_state> state_;
     int64_t epoch_days_ = core::epoch_days_1970;
-    std::vector<controlled> controlled_;
+    std::vector<controlled> controlled_; // per nation with a controlled agent
+    std::vector<agent_info> agents_;      // the player's agents (see add_control)
+    std::vector<uint8_t> ai_;             // per agents_ entry: AI on
+    std::string save_path_;
     // Display names, set on the sim thread before status() becomes running, then
     // read-only: nations.csv names (cut at a comma) by nation index, and the
     // scenario's regions.csv names by region index (empty without regions.csv).

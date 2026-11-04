@@ -522,6 +522,19 @@ constant, which gives gentle cross-fades.
 - Between songs there are 3 s of silence while the delay and reverb tails
   ring out. The next song uses a new seed (splitmix chain).
 
+## Main menu
+
+The main menu (docs/08) plays `compose_menu(seed)`: a wartime song whose arp
+solo (`section_kind::arp_solo`, the arpeggio carrying the melody) is forced
+and placed early, right after the first section that allows it (bar 16 in
+the seeds checked). The composer's random draws are unchanged (the forced
+solo only overrides the outcome of its own coin and placement), so
+`compose(seed, mood)` gives the same songs as before; a form that leaves no
+room for a solo (intermissions, a key change at the spot) passes to the next
+seed of the chain, so the result stays deterministic.
+`music_system::set_menu(true)` (with mood wartime) makes the worker queue such
+songs; leaving the menu turns it off and skips to a song of the game's mood.
+
 ## Real-time design
 
 The audio callback (`SDL_OpenAudioDeviceStream`, F32 stereo 48 kHz) renders

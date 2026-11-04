@@ -28,7 +28,8 @@ bool music_system::start(uint64_t seed, float volume) {
     box_->set_volume(volume);
 
     // Compose the first song before the device starts pulling.
-    queued_ = new song(compose(seed_, m));
+    queued_menu_ = menu_.load();
+    queued_ = new song(queued_menu_ ? compose_menu(seed_) : compose(seed_, m));
     queued_mood_ = static_cast<int>(m);
     next_.store(queued_, std::memory_order_release);
     SDL_Log("music: queued %s", queued_->description.c_str());
@@ -122,9 +123,11 @@ void music_system::worker() {
         // thread took it (next_ empty), compose the following one.
         const int want = mood_.load(std::memory_order_relaxed);
         song* in_slot = next_.load(std::memory_order_acquire);
-        if(in_slot == nullptr || in_slot != queued_ || queued_mood_ != want) {
+        const bool menu = menu_.load(std::memory_order_relaxed);
+        if(in_slot == nullptr || in_slot != queued_ || queued_mood_ != want || queued_menu_ != menu) {
             seed_ = next_seed(seed_);
-            song* fresh = new song(compose(seed_, static_cast<mood>(want)));
+            song* fresh = new song(menu ? compose_menu(seed_) : compose(seed_, static_cast<mood>(want)));
+            queued_menu_ = menu;
             song* old = next_.exchange(fresh, std::memory_order_acq_rel);
             delete old; // nullptr if the audio thread took it
             queued_ = fresh;
