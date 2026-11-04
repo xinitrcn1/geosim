@@ -460,6 +460,24 @@ def main() -> int:
 
     wdi = ba.load_wdi(raw, "wdi_all")
     countries = wb_countries(raw)
+    places = load_places(raw)
+    places_cached = places
+    # Economies without World Bank capital coordinates (Channel Islands, Curacao, Gibraltar,
+    # St. Martin, Sint Maarten) take their largest Natural Earth populated place; the
+    # default (0, 0) would put them in the Gulf of Guinea (distances, freight, seasons).
+    for iso, c in countries.items():
+        if c.get("lat") or c.get("lon"):
+            continue
+        cands = [p for code in PLACE_ALIASES.get(iso, [iso]) for p in places.get(code, [])]
+        if cands:
+            lon, lat, _ = max(cands, key=lambda t: t[2])
+        elif iso in CAPITALS:
+            lat, lon = CAPITALS[iso]
+        else:
+            print(f"warning: no coordinates for {iso}")
+            continue
+        c["lon"], c["lat"] = lon, lat
+        print(f"coordinates for {iso}: {lat:.2f}, {lon:.2f}")
     extra = ba.read_curated(scen / "nations_extra_curated.csv")
     nations, imputed = build_nations(wdi, countries, extra)
     order = sorted(nations)
@@ -479,9 +497,46 @@ def main() -> int:
             p_, c_ = energy["oil"][iso]
             nations[iso]["oil_production_mbd"] = p_ * oil_world[0]
             nations[iso]["oil_consumption_mbd"] = c_ * oil_world[1]
+    # Institutions: WGI voice and accountability / government effectiveness (latest
+    # estimate); nations without WGI take their income group's median. Voice sets the
+    # electoral and liberal indices (scenario.cpp), so without it every nation looked like a
+    # middling democracy.
+    wgi = ba.load_wgi(raw)
+    for field, col in (("voice", "voice_est"), ("effectiveness", "gov_effectiveness_est")):
+        by_group = defaultdict(list)
+        for iso in order:
+            v = wgi[field].get(iso)
+            if v is not None:
+                by_group[nations[iso]["income"]].append(v)
+        missing = 0
+        for iso in order:
+            v = wgi[field].get(iso)
+            if v is None:
+                grp = by_group[nations[iso]["income"]]
+                v = statistics.median(grp) if grp else 0.0
+                missing += 1
+            nations[iso][col] = v
+        print(f"WGI {field}: {len(order) - missing} nations from data, {missing} imputed")
+    # Capital coordinates (World Bank metadata, Natural Earth fallback): distances for trade
+    # gravity, threat and logistics. Without them every nation sat at (0, 0) and gravity
+    # weighted partners by GDP alone (docs/13).
+    for iso in order:
+        nations[iso]["capital_lat"] = countries.get(iso, {}).get("lat", 0.0)
+        nations[iso]["capital_lon"] = countries.get(iso, {}).get("lon", 0.0)
+    # Military expenditure (SIPRI via WDI, % of GDP, latest <= 2019); income-group median otherwise.
+    by_group = defaultdict(list)
+    for iso in order:
+        v = ba.latest(wdi, "defense_pct", iso)
+        if v is not None:
+            by_group[nations[iso]["income"]].append(v)
+    for iso in order:
+        v = ba.latest(wdi, "defense_pct", iso)
+        grp = by_group[nations[iso]["income"]]
+        nations[iso]["defense_pct"] = v if v is not None else (statistics.median(grp) if grp else 1.5)
     cols = ["iso3", "name", "income"] + NUMERIC + ["epl", "benefit_replacement", "benefit_coverage",
                                                    "death_reporting", "hemisphere", "oil_production_mbd",
-                                                   "oil_consumption_mbd"]
+                                                   "oil_consumption_mbd", "voice_est", "gov_effectiveness_est", "defense_pct",
+                                                   "capital_lat", "capital_lon"]
     ba.write_csv(scen / "nations.csv", cols, [[nations[i].get(c) for c in cols] for i in order],
                  f"{GEN}. Source: World Bank WDI (latest <= 2019); gaps imputed by income-group median "
                  f"({', '.join(f'{k}:{v}' for k, v in sorted(imputed.items()))}); institutions = income-group priors.")
@@ -512,23 +567,7 @@ def main() -> int:
     ba.write_csv(scen / "sectors.csv", ["iso3", "sector", "va_share", "emp_share"], srows,
                  f"{GEN}. 7-sector split as in the 2020 slice; income-group medians where WDI has gaps.")
 
-    places = load_places(raw)
-    # Economies without World Bank capital coordinates (Channel Islands, Curacao, Gibraltar,
-    # St. Martin, Sint Maarten) take their largest Natural Earth populated place; the
-    # default (0, 0) would put them in the Gulf of Guinea (distances, freight, seasons).
-    for iso, c in countries.items():
-        if c.get("lat") or c.get("lon"):
-            continue
-        cands = [p for code in PLACE_ALIASES.get(iso, [iso]) for p in places.get(code, [])]
-        if cands:
-            lon, lat, _ = max(cands, key=lambda t: t[2])
-        elif iso in CAPITALS:
-            lat, lon = CAPITALS[iso]
-        else:
-            print(f"warning: no coordinates for {iso}")
-            continue
-        c["lon"], c["lat"] = lon, lat
-        print(f"coordinates for {iso}: {lat:.2f}, {lon:.2f}")
+    places = places_cached
     dependencies = read_pairs(scen / "jurisdictions_curated.csv", "sovereign", "iso3")
     claimed = read_pairs(scen / "claims_curated.csv", "claimant", "holder")
     allowed = defaultdict(set)

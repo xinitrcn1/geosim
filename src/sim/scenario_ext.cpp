@@ -432,11 +432,36 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
 
 void load_trade_tables(game_state& state, std::string const& dir, core::diagnostics& diag) {
     auto& w = state.world;
-    // Great-circle distances between capitals (the gravity fallback; logistics refines them).
+    // Effective distances between nations (the gravity fallback; logistics refines them):
+    // the population-weighted harmonic mean of distances between their regions (Head &
+    // Mayer 2002, theta = -1), so economic centres rather than capitals count (Washington is
+    // close to Ottawa, far from Mexico City, but the US and Mexico border each other).
+    // One-region nations reduce to the distance between their coordinates.
+    struct site {
+        float lat, lon, weight;
+    };
+    std::vector<std::vector<site>> sites(w.nation_size());
+    for(auto n : w.in_nation) {
+        float pop = 0.0f;
+        for(auto own : n.get_region_ownership()) pop += own.get_region().get_population();
+        for(auto own : n.get_region_ownership()) {
+            auto r = own.get_region();
+            if(pop > 0.0f && (r.get_lat() != 0.0f || r.get_lon() != 0.0f)) sites[n.id.index()].push_back({r.get_lat(), r.get_lon(), r.get_population() / pop});
+        }
+        if(sites[n.id.index()].empty()) sites[n.id.index()].push_back({n.get_lat(), n.get_lon(), 1.0f});
+    }
     for(auto a : w.in_nation) {
         for(auto b : w.in_nation) {
             const auto kb = static_cast<uint8_t>(b.id.index());
-            a.set_trade_distance(kb, a.id == b.id ? 0.0f : great_circle_km(a.get_lat(), a.get_lon(), b.get_lat(), b.get_lon()));
+            float d = 0.0f;
+            if(a.id != b.id) {
+                double inv = 0.0;
+                for(auto const& x : sites[a.id.index()]) {
+                    for(auto const& y : sites[b.id.index()]) inv += static_cast<double>(x.weight) * y.weight / std::max(50.0f, great_circle_km(x.lat, x.lon, y.lat, y.lon));
+                }
+                d = inv > 0.0 ? static_cast<float>(1.0 / inv) : great_circle_km(a.get_lat(), a.get_lon(), b.get_lat(), b.get_lon());
+            }
+            a.set_trade_distance(kb, d);
             a.set_land_share(kb, 0.0f);
             a.set_pair_cost(kb, 1.0f);
         }
@@ -451,6 +476,18 @@ void load_trade_tables(game_state& state, std::string const& dir, core::diagnost
             w.nation_set_land_share(a, static_cast<uint8_t>(b.index()), share);
             w.nation_set_land_share(b, static_cast<uint8_t>(a.index()), share);
         }
+    }
+    // Land borders without a curated overland share (the world dataset): nations whose
+    // regions touch trade partly by road and rail. 0.7 is the median land share of trade
+    // between contiguous partners in the curated table (US-Canada 0.85, India-Bangladesh
+    // 0.6); contiguity about doubles trade in gravity (Head & Mayer 2014).
+    for(auto adj : w.in_region_adjacency) {
+        const auto na = adj.get_a().get_owner(), nb = adj.get_b().get_owner();
+        if(!na || !nb || na == nb) continue;
+        const auto ka = static_cast<uint8_t>(nb.id.index()), kb = static_cast<uint8_t>(na.id.index());
+        if(na.get_land_share(ka) > 0.0f) continue;
+        na.set_land_share(ka, 0.7f);
+        nb.set_land_share(kb, 0.7f);
     }
     if(exists(dir + "/logistics_curated.csv")) {
         const auto t = core::csv_table::load(dir + "/logistics_curated.csv", diag);

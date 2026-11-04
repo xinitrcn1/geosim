@@ -47,6 +47,7 @@ struct nation_input {
     double travellers = -1.0;      // arrivals + departures per year (WDI); < 0 = unknown
     bool oil_elasticity_set = false, oil_take_set = false;
     double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
+    double defense_data = -1.0;               // military expenditure, % of GDP (SIPRI via WDI); < 0 = unknown
     double birth_rate = 0.015, death_rate = 0.008, pop014 = 0.2, tertiary = 0.2;
     double lat = 0.0, lon = 0.0;
     double remit_in = 0.0, remit_out = 0.0; // % of GDP received; USD paid per year
@@ -347,6 +348,7 @@ struct builder {
             in.vulnerable = pct(row, "vulnerable_emp_pct", 0.2, in);
             in.beds = t.number(row, "hospital_beds_per_1000").value_or(3.0);
             in.voice = t.number_or(row, "voice_est", 0.0);
+            in.defense_data = t.number_or(row, "defense_pct", -1.0);
             in.birth_rate = t.number_or(row, "birth_rate_per_1000", 15.0) / 1000.0;
             in.death_rate = t.number_or(row, "death_rate_per_1000", 8.0) / 1000.0;
             in.pop014 = t.number_or(row, "pop_0_14_pct", 20.0) / 100.0;
@@ -1799,7 +1801,24 @@ struct builder {
         for(auto const& iso : order) {
             const auto n = find_nation(state, iso);
             auto const& in = inputs[iso];
-            const sys s = systems.count(iso) ? systems[iso] : sys{};
+            sys s = systems.count(iso) ? systems[iso] : sys{};
+            if(!systems.count(iso)) {
+                // No curated political system (the world dataset): elections only where voice
+                // and accountability allows them (closed autocracies below WGI voice -1.4; e.g.
+                // China, Saudi Arabia), on a four-year term whose phase is fixed by the nation
+                // (no election calendar in the data yet); defence from SIPRI.
+                if(in.voice < -1.4) s.system = "none";
+                // Hybrid regimes and most new democracies are presidential (Cheibub 2007);
+                // established democracies mostly parliamentary.
+                if(in.voice < 0.3) s.presidential = 1.0;
+                if(in.defense_data >= 0.0) s.defense = in.defense_data;
+                if(s.system != "none") {
+                    uint32_t h = 2166136261u;
+                    for(char c : iso) h = (h ^ static_cast<uint8_t>(c)) * 16777619u;
+                    const int32_t offset = static_cast<int32_t>(h % static_cast<uint32_t>(s.term * 365.25));
+                    s.next = core::format_date(core::date_from_tick(offset + 30, state.epoch_days));
+                }
+            }
             const auto es = s.system == "fptp"        ? electoral_system::fptp
                             : s.system == "none"      ? electoral_system::none
                             : s.system == "mixed"     ? electoral_system::mixed
@@ -1839,7 +1858,13 @@ struct builder {
                 w.party_set_position(p, static_cast<uint8_t>(value_axis::secular), secular - 0.2f * side);
                 w.party_set_position(p, static_cast<uint8_t>(value_axis::self_expression), secular - 0.2f * side);
                 w.force_create_party_membership(p, n);
-                if(s.incumbent == sides[j]) {
+                // Seats and votes until the first election: the incumbent governs with the
+                // default 55% majority (nation gov_seat_share); without seats every bill failed
+                // and governments fell to confidence votes every few months (docs/13).
+                const bool incumbent = s.incumbent == sides[j];
+                w.party_set_seat_share(p, incumbent ? 0.55f : 0.225f);
+                w.party_set_vote_share(p, incumbent ? 0.45f : 0.275f);
+                if(incumbent) {
                     w.nation_set_incumbent(n, p);
                     w.party_set_in_government(p, 1);
                 }

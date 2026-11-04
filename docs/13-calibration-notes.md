@@ -218,3 +218,43 @@ microstates and one-off events (Guyana's first oil, Timor-Leste).
 - Every new mechanism gets a parameter (so it can be switched off with `--set`)
   and a unit test; then check the 2020 back-test and a multi-year no-shock run
   before committing.
+
+## World 2020: missing coordinates, institutions and party seats (third round)
+
+Found through the client's map views, not the backtest. Each made the world scenario
+behave unlike the slice without failing a target directly.
+
+- **Every nation at (0, 0).** `build_world.py` never wrote capital coordinates into
+  `nations.csv` (the slice pipeline does), so every great-circle distance was zero. Gravity
+  then weighted trade partners by GDP alone, and threat proximity, logistics and conflict
+  distance lost their geography. The US's top export partners were China, Japan and Germany,
+  with no Canada or Mexico. Fixes:
+  - capital coordinates are now written to `nations.csv`;
+  - nation-to-nation trade distance is the population-weighted harmonic mean over region
+    pairs (Head & Mayer 2002), so economic centres count rather than capitals;
+  - land borders without a curated overland share come from region adjacency (land share
+    0.7).
+
+  US export shares are now Canada 20% (real 18%), Mexico 10% (16%) and China 8% (6.5%).
+  Gravity with sea distances still over-weights China's neighbours (Japan 26% and Korea 19%
+  of China's exports, against real shares of about 6% and 4%).
+- **No institutions.** World `nations.csv` had no WGI columns, so every nation had voice 0:
+  an electoral index of 0.5, a middling democracy (China included). It also had no SIPRI
+  defence spending, so every nation spent 2% of GDP. WGI voice and effectiveness and WDI
+  `MS.MIL.XPND.GD.ZS` are now written (income-group medians for the few gaps).
+- **No elections, then hundreds.** Without `politics_curated.csv`, world nations had no
+  election date, so elections never happened (0 a year). Once they had dates, the generic
+  parties' seat share of 0 made every bill fail. Failed bills drove 512 confidence losses
+  and snap elections a year. Fixes:
+  - uncurated nations hold no elections below WGI voice −1.4 (closed autocracies);
+  - otherwise they are presidential below voice 0.3, with a deterministic phase in a
+    four-year term;
+  - generic parties start with seats (incumbent 55%);
+  - the slice's curated parties, systems and overland shares are copied for its 20 nations.
+
+  The result is 40 elections a year and no spurious confidence votes. World scores: GDP 107
+  → 113 of 210 within band, unemployment 143 → 153 of 187; the slices are unchanged.
+- **Lesson:** a scenario built by a different pipeline must be checked column by column
+  against the slice's loader inputs (`scenario.cpp` reads with defaults, so missing columns
+  fail silently). A loader warning for absent expected columns would have caught all
+  three issues.
