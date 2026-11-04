@@ -56,6 +56,8 @@ WDI_INDICATORS = {
     "GC.NLD.TOTL.GD.ZS": "gov_net_lending_pct",
     "GC.DOD.TOTL.GD.ZS": "gov_debt_pct",
     "SL.TLF.CACT.ZS": "lfp_rate_pct",
+    "SP.DYN.CBRT.IN": "birth_rate_per_1000",
+    "SP.DYN.CDRT.IN": "death_rate_per_1000",
 }
 
 SOURCES = [

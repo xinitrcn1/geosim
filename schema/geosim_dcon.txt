@@ -19,6 +19,16 @@ object{
 	property{ name{death_reporting} type{float} }
 	property{ name{gini0} type{float} }
 	property{ name{voice} type{float} }
+	property{ name{birth_rate} type{float} }
+	property{ name{death_rate_old} type{float} }
+	property{ name{tertiary_share} type{float} }
+	property{ name{psi} type{float} }
+	property{ name{psi_mmp} type{float} }
+	property{ name{psi_emp} type{float} }
+	property{ name{psi_sfd} type{float} }
+	property{ name{elite_unemp0} type{float} }
+	property{ name{mass_wage0} type{float} }
+	property{ name{migration_net} type{float} }
 	property{ name{state_capacity} type{float} }
 
 	property{ name{prior_npi} type{array{uint8_t}{float}} }
@@ -37,6 +47,8 @@ object{
 	property{ name{prior_oil} type{float} }
 	property{ name{prior_oil_set} type{uint8_t} }
 	property{ name{threat} type{float} }
+	property{ name{legitimacy} type{float} }
+	property{ name{media_freedom} type{float} }
 
 	property{ name{va0} type{array{uint8_t}{float}} }
 	property{ name{emp0} type{array{uint8_t}{float}} }
@@ -159,6 +171,13 @@ object{
 	property{ name{output} type{array{uint8_t}{float}} }
 	property{ name{util} type{array{uint8_t}{float}} }
 	property{ name{old_share} type{float} }
+	property{ name{children} type{float} }
+	property{ name{covid_deaths_young} type{float} }
+	property{ name{covid_deaths_old} type{float} }
+	property{ name{grievance} type{float} }
+	property{ name{unrest} type{float} }
+	property{ name{unrest_capacity} type{float} }
+	property{ name{migration_net} type{float} }
 	property{ name{hemisphere} type{float} }
 	property{ name{beds_per_1000} type{float} }
 
@@ -226,6 +245,10 @@ object{
 	property{ name{consumption} type{float} }
 	property{ name{balance} type{double} }
 	property{ name{balance_trend} type{double} }
+	property{ name{values} type{array{uint8_t}{float}} }
+	property{ name{salience} type{array{uint8_t}{float}} }
+	property{ name{income_expected} type{float} }
+	property{ name{grievance} type{float} }
 	property{ name{inc_sigma} type{float} }
 	property{ name{owner_share} type{float} }
 	property{ name{transfer_share} type{float} }

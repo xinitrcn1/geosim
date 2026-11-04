@@ -43,6 +43,7 @@ struct nation_input {
     double hemisphere = 1, oil_production = 0, oil_elasticity = 0, epl = 0.35, benefit_replacement = 0.3;
     double benefit_coverage = 0.15, death_reporting = 0.5, oil_take = 0.0;
     double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
+    double birth_rate = 0.015, death_rate = 0.008, pop014 = 0.2, tertiary = 0.2;
     std::array<double, max_sectors> va_share{};
     std::array<double, max_sectors> emp_share{};
 };
@@ -209,6 +210,10 @@ struct builder {
             in.vulnerable = pct(row, "vulnerable_emp_pct", 0.2, in);
             in.beds = t.number(row, "hospital_beds_per_1000").value_or(3.0);
             in.voice = t.number_or(row, "voice_est", 0.0);
+            in.birth_rate = t.number_or(row, "birth_rate_per_1000", 15.0) / 1000.0;
+            in.death_rate = t.number_or(row, "death_rate_per_1000", 8.0) / 1000.0;
+            in.pop014 = t.number_or(row, "pop_0_14_pct", 20.0) / 100.0;
+            in.tertiary = t.number_or(row, "tertiary_attainment_pct", 20.0) / 100.0;
             in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
             order.push_back(in.iso);
             inputs[in.iso] = in;
@@ -424,6 +429,8 @@ struct builder {
         w.region_set_ep_s(r, age_young, static_cast<float>(pop * (1.0 - in.pop65)));
         w.region_set_ep_s(r, age_old, static_cast<float>(pop * in.pop65));
         w.region_set_ifr_mult(r, 1.0f);
+        w.region_set_children(r, static_cast<float>(pop * in.pop014));
+        w.region_set_unrest_capacity(r, 1.0f);
         for(uint8_t k = 0; k < 4; ++k) {
             const auto p = w.create_pop();
             w.pop_set_kind(p, k);
@@ -764,6 +771,45 @@ struct builder {
             }
         }
         w.nation_set_c_des_total(n, C0);
+
+        // Society: demography rates, baselines for relative deprivation and stress,
+        // initial values (priors from income and voice until survey data, e.g. WVS, is loaded).
+        w.nation_set_birth_rate(n, static_cast<float>(in.birth_rate));
+        double retired = 0.0, mass_inc = 0.0, mass_n = 0.0, elite_u = 0.0, elite_n = 0.0;
+        const double gdp_pc = in.gdp / in.population;
+        const float secular = static_cast<float>(std::clamp(0.35 * std::log(gdp_pc / 12000.0), -1.0, 1.0));
+        const float selfexp = static_cast<float>(std::clamp(0.3 * std::log(gdp_pc / 12000.0) + 0.15 * in.voice, -1.0, 1.0));
+        const std::array<float, 4> econ_right = {-0.3f, 0.0f, 0.3f, 0.1f};
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                auto p = loc.get_pop();
+                const auto k = p.get_kind();
+                p.set_income_expected(p.get_income());
+                p.set_values(static_cast<uint8_t>(value_axis::secular), k == 3 ? secular - 0.2f : secular);
+                p.set_values(static_cast<uint8_t>(value_axis::self_expression), k == 3 ? selfexp - 0.2f : selfexp);
+                p.set_values(static_cast<uint8_t>(value_axis::economic_right), econ_right[k]);
+                p.set_salience(0, 0.4f);
+                p.set_salience(1, 0.1f);
+                p.set_salience(2, 0.2f);
+                p.set_salience(3, 0.3f);
+                if(k == static_cast<uint8_t>(pop_kind::retired)) {
+                    retired += p.get_size();
+                } else if(k <= static_cast<uint8_t>(pop_kind::mid_skill)) {
+                    mass_inc += p.get_income();
+                    mass_n += p.get_size();
+                } else {
+                    elite_u += p.get_unemployed();
+                    elite_n += p.get_size();
+                }
+            }
+        }
+        const double old_deaths = in.death_rate * in.population - state.params.young_mortality * (in.population - retired);
+        w.nation_set_death_rate_old(n, static_cast<float>(std::clamp(retired > 0 ? old_deaths / retired : 0.04, 0.01, 0.15)));
+        w.nation_set_mass_wage0(n, mass_n > 0 ? static_cast<float>(mass_inc / mass_n) : 1.0f);
+        w.nation_set_elite_unemp0(n, elite_n > 0 ? static_cast<float>(elite_u / elite_n) : 0.0f);
+        w.nation_set_tertiary_share(n, static_cast<float>(in.tertiary));
+        w.nation_set_legitimacy(n, static_cast<float>(std::clamp(0.6 + 0.1 * in.voice, 0.3, 0.85)));
+        w.nation_set_media_freedom(n, static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0)));
         w.nation_set_bal_gov(n, -debt0);
         w.nation_set_bal_fin(n, debt0);
         w.nation_set_bal_firms(n, 0.0);
@@ -968,6 +1014,8 @@ struct builder {
         w.pop_resize_wage0(S);
         w.pop_resize_hours(S);
         w.pop_resize_need_slow(S);
+        w.pop_resize_values(static_cast<uint32_t>(value_axis::count));
+        w.pop_resize_salience(static_cast<uint32_t>(issue::count));
         w.nation_resize_npi_cut(S);
         w.nation_resize_sector_factor(S);
         w.nation_resize_fill(S);

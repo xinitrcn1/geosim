@@ -171,6 +171,7 @@ def build_nations(wdi, curated):
             "gini": g("gini"), "hospital_beds_per_1000": g("hospital_beds_per_1000"),
             "tertiary_attainment_pct": g("tertiary_attainment_pct"), "urban_pct": g("urban_pct"),
             "vulnerable_emp_pct": g("vulnerable_emp_pct"),
+            "birth_rate_per_1000": g("birth_rate_per_1000"), "death_rate_per_1000": g("death_rate_per_1000"),
         }
         return r
 
@@ -193,7 +194,8 @@ def build_nations(wdi, curated):
     for f in ("hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct", "imports_pct",
               "gov_revenue_pct", "trend_growth_pct"):
         row[f] = residual_ratio(f, "gdp_usd") if f != "trend_growth_pct" else None
-    for f in ("pop_0_14_pct", "pop_65up_pct", "urban_pct", "hospital_beds_per_1000"):
+    for f in ("pop_0_14_pct", "pop_65up_pct", "urban_pct", "hospital_beds_per_1000",
+              "birth_rate_per_1000", "death_rate_per_1000"):
         row[f] = residual_ratio(f, "population")
     row["unemployment_pct"] = residual_ratio("unemployment_pct", "labor_force")
     row["vulnerable_emp_pct"] = residual_ratio("vulnerable_emp_pct", "labor_force")
@@ -486,7 +488,7 @@ def main() -> int:
             "inflation_trend_pct", "hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct",
             "imports_pct", "gov_revenue_pct", "gov_net_lending_pct", "gov_debt_pct", "gini",
             "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct", "vulnerable_emp_pct",
-            "voice_est", "gov_effectiveness_est"]
+            "voice_est", "gov_effectiveness_est", "birth_rate_per_1000", "death_rate_per_1000"]
     order = SLICE + [ROW]
     write_csv(scen / "nations.csv", cols, [[nations[i].get(c) for c in cols] for i in order],
               f"{GEN}. Source: World Bank WDI, latest year <= 2019; WGI voice/effectiveness (ROW: unweighted mean of the rest). Empty = missing (loader uses defaults).")

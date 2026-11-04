@@ -182,6 +182,9 @@ void update_epidemic(game_state& state) {
         w.region_set_ep_d(ids, age_old, d_o);
         w.region_set_new_infections(ids, inf_y + inf_o + imported);
         w.region_set_new_deaths(ids, die_y + die_o);
+        // Deaths by age, removed from the pops by demography.
+        w.region_set_covid_deaths_young(ids, w.region_get_covid_deaths_young(ids) + die_y);
+        w.region_set_covid_deaths_old(ids, w.region_get_covid_deaths_old(ids) + die_o);
     });
 
     // ---- 3. post-pass: reporting

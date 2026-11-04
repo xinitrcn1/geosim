@@ -23,7 +23,8 @@ if(GEOSIM_USE_DCON)
         sim/systems/epidemic.cpp
         sim/systems/events.cpp
         sim/systems/indicators.cpp
-        sim/systems/markets.cpp)
+        sim/systems/markets.cpp
+        sim/systems/society.cpp)
     target_link_libraries(geosim_sim PUBLIC geosim_core)
     geosim_dcon_generate(geosim_sim ${PROJECT_SOURCE_DIR}/schema/geosim_dcon.txt)
     geosim_set_warnings(geosim_sim)

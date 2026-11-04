@@ -18,6 +18,10 @@ struct nation_summary {
     double deaths_per_million = 0;  // reported, cumulative
     double gini_start = 0;
     double gini_end = 0;
+    double population_change_pct = 0; // vs the scenario start
+    double net_migration_per_1000 = 0;
+    double unrest_mean = 0;           // population-weighted regional unrest (0 calm .. 4 insurgency)
+    double psi = 0;                   // Political Stress Index
 };
 
 struct world_summary {

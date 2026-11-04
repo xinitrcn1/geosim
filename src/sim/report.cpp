@@ -52,6 +52,15 @@ world_summary summarize(game_state const& state) {
         s.deaths_per_million = deaths / n.get_population() * 1e6;
         s.gini_start = n.get_gini0();
         s.gini_end = n.get_gini();
+        double pop_now = 0.0, unrest = 0.0;
+        for(auto own : n.get_region_ownership()) {
+            pop_now += own.get_region().get_population();
+            unrest += own.get_region().get_unrest() * own.get_region().get_population();
+        }
+        s.population_change_pct = (pop_now / std::max(1.0, static_cast<double>(n.get_population() - n.get_migration_net())) - 1.0) * 100.0;
+        s.net_migration_per_1000 = n.get_migration_net() / std::max(1.0, static_cast<double>(n.get_population())) * 1000.0;
+        s.unrest_mean = pop_now > 0.0 ? unrest / pop_now : 0.0;
+        s.psi = n.get_psi();
         out.nations.push_back(s);
     }
     return out;
@@ -60,7 +69,7 @@ world_summary summarize(game_state const& state) {
 void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) {
     static constexpr char const* names[] = {"consumption", "gov_purchases", "exports", "imports", "wages_private",
         "wages_public", "job_retention_pay", "unemployment_benefits", "pensions", "fiscal_households", "fiscal_firms",
-        "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households"};
+        "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households", "household_transfers"};
     static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(flow::count));
     auto const& w = state.world;
     const double days = std::max(1.0, w.nation_get_acc_days(n));

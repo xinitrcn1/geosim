@@ -24,6 +24,12 @@ void update_oil_market(game_state& state);
 // historical anchors (priors); applies player overrides.
 void update_ai(game_state& state);
 
+// Every 28 days (sharded): society (docs/04-society.md).
+void update_demography(game_state& state);
+void update_migration(game_state& state);
+void update_opinion(game_state& state);
+void update_unrest(game_state& state);
+
 // Daily: annual accumulators; monthly-sharded Gini.
 void update_indicators(game_state& state);
 

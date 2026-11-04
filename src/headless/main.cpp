@@ -34,10 +34,12 @@ int usage() {
 }
 
 void print_summary(geosim::sim::world_summary const& s) {
-    std::printf("%-5s %8s %8s %8s %9s %9s %6s %6s\n", "iso3", "gdp%", "unemp%", "infl%", "gov_bal%", "deaths/M", "gini0", "gini1");
+    std::printf("%-5s %8s %8s %8s %9s %9s %6s %6s %7s %7s %6s %6s\n", "iso3", "gdp%", "unemp%", "infl%", "gov_bal%",
+                "deaths/M", "gini0", "gini1", "pop%", "mig/1k", "unrest", "psi");
     for(auto const& n : s.nations) {
-        std::printf("%-5s %8.2f %8.2f %8.2f %9.2f %9.1f %6.3f %6.3f\n", n.iso3.c_str(), n.gdp_growth_pct, n.unemployment_pct,
-                    n.inflation_pct, n.gov_net_lending_pct, n.deaths_per_million, n.gini_start, n.gini_end);
+        std::printf("%-5s %8.2f %8.2f %8.2f %9.2f %9.1f %6.3f %6.3f %7.2f %7.2f %6.2f %6.3f\n", n.iso3.c_str(), n.gdp_growth_pct,
+                    n.unemployment_pct, n.inflation_pct, n.gov_net_lending_pct, n.deaths_per_million, n.gini_start, n.gini_end,
+                    n.population_change_pct, n.net_migration_per_1000, n.unrest_mean, n.psi);
     }
     std::printf("Brent mean: %.1f USD/bbl\n", s.oil_price_mean);
 }

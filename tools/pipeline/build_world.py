@@ -51,7 +51,7 @@ NUMERIC = ["population", "pop_0_14_pct", "pop_65up_pct", "labor_force", "unemplo
            "gdp_usd", "gdp_ppp", "trend_growth_pct", "inflation_trend_pct", "hh_cons_pct", "gov_cons_pct",
            "investment_pct", "exports_pct", "imports_pct", "gov_revenue_pct", "gov_net_lending_pct",
            "gov_debt_pct", "gini", "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct",
-           "vulnerable_emp_pct"]
+           "vulnerable_emp_pct", "birth_rate_per_1000", "death_rate_per_1000"]
 # Ratios imputed from income-group medians when missing (levels are never imputed).
 IMPUTE = [c for c in NUMERIC if c not in ("population", "labor_force", "gdp_usd", "gdp_ppp")]
 

@@ -11,6 +11,10 @@ void advance_day(game_state& state) {
     update_epidemic(state);
     update_economy(state);
     update_oil_market(state);
+    update_demography(state);
+    update_migration(state);
+    update_opinion(state);
+    update_unrest(state);
     update_indicators(state);
     ++state.current_tick;
 }

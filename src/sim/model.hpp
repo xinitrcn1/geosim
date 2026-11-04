@@ -47,6 +47,11 @@ enum class event_kind : uint8_t {
     test_trace_isolate = 8,   // value = strength 0..1 of a suppression strategy
 };
 
+// pop.values axes (Inglehart-Welzel + economic left-right), each roughly -1..1
+enum class value_axis : uint8_t { secular = 0, self_expression = 1, economic_right = 2, count };
+// pop.salience issues (weights sum to 1)
+enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3, count };
+
 // agent.kind
 enum class agent_kind : uint8_t { executive = 0, central_bank = 1 };
 
@@ -77,6 +82,7 @@ enum class flow : uint8_t {
     dividends,
     interest_gov,
     interest_households,
+    household_transfers, // between pops: ageing, migration
     count
 };
 

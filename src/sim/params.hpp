@@ -88,6 +88,25 @@
     X(e1_replacement_boost, 0.3, "extra benefit replacement at OxCGRT E1 max level")                      \
     X(e1_coverage_boost, 0.4, "extra benefit coverage at OxCGRT E1 max level")                            \
     X(firm_support_effect, 1.0, "layoff-speed cut per unit (firm support / private wage bill)")          \
+    /* ---- society ---- */                                                                                 \
+    X(childhood_years, 15.0, "years from birth to labour-force entry")                                     \
+    X(working_years, 50.0, "years in the working-age group (15-64)")                                      \
+    X(young_mortality, 0.0015, "annual non-COVID mortality under 65")                                     \
+    X(migration_rate_internal, 0.02, "annual internal migration per log-unit of expected-income gap")     \
+    X(migration_rate_international, 0.002, "annual international migration per log-unit of gap")        \
+    X(migration_cost_internal, 0.1, "log expected-income gap needed before people move internally")      \
+    X(migration_cost_international, 1.0, "log expected-income gap needed before people emigrate")        \
+    X(migration_cap, 0.01, "largest share of a pop that can move in one 28-day step")                    \
+    X(values_insecurity_pull, 0.05, "survival-values shift per year at full insecurity")                  \
+    X(values_loss_left, 0.1, "leftward economic shift per year at full grievance")                       \
+    X(opinion_eps_base, 0.3, "bounded-confidence radius at zero media freedom")                           \
+    X(opinion_eps_media, 0.4, "extra confidence radius at full media freedom")                            \
+    X(opinion_speed, 0.5, "annual convergence speed toward confidant opinions")                          \
+    X(expectations_income_days, 365.0, "adaptation time of income expectations (relative deprivation)") \
+    X(unrest_grievance, 1.0, "unrest target per unit grievance x (1 - legitimacy)")                       \
+    X(unrest_psi, 0.3, "unrest target per unit Political Stress Index")                                   \
+    X(unrest_days, 60.0, "adjustment time of regional unrest (days)")                                     \
+    X(riot_capital_loss, 0.002, "share of regional capital destroyed per 28 days per unrest level above 3") \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \
