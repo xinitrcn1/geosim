@@ -21,3 +21,9 @@ ISO2 = {
 }
 
 EURO_AREA = {"DEU", "FRA", "ITA", "ESP"}
+
+# Euro area members in 2020 (ECB rate applies).
+EURO_AREA_2020 = {
+    "AUT", "BEL", "CYP", "DEU", "ESP", "EST", "FIN", "FRA", "GRC", "IRL", "ITA", "LTU", "LUX", "LVA",
+    "MLT", "NLD", "PRT", "SVK", "SVN",
+}

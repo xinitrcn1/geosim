@@ -60,10 +60,24 @@ WDI_INDICATORS = {
 
 SOURCES = [
     ("World Bank WDI", "https://data.worldbank.org", "CC BY 4.0"),
+    ("World Bank Worldwide Governance Indicators (VA.EST, GE.EST)", "https://info.worldbank.org/governance/wgi", "CC BY 4.0"),
     ("Oxford COVID-19 Government Response Tracker (OxCGRT)", "https://github.com/OxCGRT/covid-policy-dataset", "CC BY 4.0"),
     ("BIS central bank policy rates (WS_CBPOL)", "https://data.bis.org", "BIS terms: free reuse with attribution"),
+    ("geoBoundaries gbOpen ADM1 (simplified)", "https://www.geoboundaries.org", "CC BY 4.0 / ODbL / public domain per country (see metadata)"),
+    ("Natural Earth 10m populated places", "https://www.naturalearthdata.com", "Public domain"),
     ("Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)", "https://github.com/datasets/oil-prices", "Public domain (EIA) / PDDL"),
 ]
+
+
+def pick_adm1(meta):
+    """iso3 -> metadata entry. A few countries are listed twice (e.g. India with 1 and
+    36 units); keep the entry with the most units."""
+    best = {}
+    for m in meta:
+        iso = m["boundaryISO"]
+        if iso not in best or int(m.get("admUnitCount") or 0) > int(best[iso].get("admUnitCount") or 0):
+            best[iso] = m
+    return best
 
 
 def get(url: str, dest: pathlib.Path, force: bool) -> None:
@@ -115,6 +129,33 @@ def main() -> int:
     get(f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.{areas}"
         f"?startPeriod=2019-12-01&endPeriod=2020-12-31&format=csv",
         raw / "bis_cbpol.csv", args.force)
+
+    print("World Bank WDI (all economies) + country metadata")
+    (raw / "wdi_all").mkdir(parents=True, exist_ok=True)
+    for code in WDI_INDICATORS:
+        get(f"https://api.worldbank.org/v2/country/all/indicator/{code}?date=2010:2020&format=json&per_page=20000",
+            raw / "wdi_all" / f"{code}.json", args.force)
+    get("https://api.worldbank.org/v2/country?format=json&per_page=400", raw / "wb_countries.json", args.force)
+    # Worldwide Governance Indicators (source 3): regime openness and state capacity priors for AI agents.
+    for code in ("GOV_WGI_VA.EST", "GOV_WGI_GE.EST"):
+        get(f"https://api.worldbank.org/v2/country/all/indicator/{code}?date=2015:2019&format=json&per_page=20000",
+            raw / "wdi_all" / f"WGI_{code}.json", args.force)
+
+    print("BIS policy rates (all areas)")
+    get("https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.?startPeriod=2019-12-01&endPeriod=2020-12-31&format=csv",
+        raw / "bis_cbpol_all.csv", args.force)
+
+    print("geoBoundaries ADM1")
+    gb_dir = raw / "geoboundaries"
+    gb_dir.mkdir(parents=True, exist_ok=True)
+    get("https://www.geoboundaries.org/api/current/gbOpen/ALL/ADM1/", raw / "geoboundaries_adm1.json", args.force)
+    meta = json.loads((raw / "geoboundaries_adm1.json").read_text())
+    for m in pick_adm1(meta).values():
+        get(m["simplifiedGeometryGeoJSON"], gb_dir / f"{m['boundaryISO']}.geojson", args.force)
+
+    print("Natural Earth populated places")
+    get("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_populated_places_simple.geojson",
+        raw / "ne_populated_places.geojson", args.force)
 
     print("Brent (EIA RBRTE)")
     get("https://raw.githubusercontent.com/datasets/oil-prices/main/data/brent-daily.csv",

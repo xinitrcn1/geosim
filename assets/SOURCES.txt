@@ -4,12 +4,21 @@ Generated data sources:
 - World Bank WDI
   https://data.worldbank.org
   Licence: CC BY 4.0
+- World Bank Worldwide Governance Indicators (VA.EST, GE.EST)
+  https://info.worldbank.org/governance/wgi
+  Licence: CC BY 4.0
 - Oxford COVID-19 Government Response Tracker (OxCGRT)
   https://github.com/OxCGRT/covid-policy-dataset
   Licence: CC BY 4.0
 - BIS central bank policy rates (WS_CBPOL)
   https://data.bis.org
   Licence: BIS terms: free reuse with attribution
+- geoBoundaries gbOpen ADM1 (simplified)
+  https://www.geoboundaries.org
+  Licence: CC BY 4.0 / ODbL / public domain per country (see metadata)
+- Natural Earth 10m populated places
+  https://www.naturalearthdata.com
+  Licence: Public domain
 - Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)
   https://github.com/datasets/oil-prices
   Licence: Public domain (EIA) / PDDL

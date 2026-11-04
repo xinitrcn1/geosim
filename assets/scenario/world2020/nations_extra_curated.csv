@@ -1,0 +1,5 @@
+# Hand-written nations that are not World Bank economies but have ADM1 boundaries.
+# Values are approximate 2019 figures (Taiwan: DGBAS national accounts and labour force
+# survey, rounded) and should be re-checked against the primary source.
+iso3,name,income,iso2,lat,lon,population,pop_0_14_pct,pop_65up_pct,labor_force,unemployment_pct,lfp_rate_pct,gdp_usd,gdp_ppp,trend_growth_pct,inflation_trend_pct,hh_cons_pct,gov_cons_pct,investment_pct,exports_pct,imports_pct,gov_revenue_pct,gov_net_lending_pct,gov_debt_pct,gini,hospital_beds_per_1000,tertiary_attainment_pct,urban_pct,vulnerable_emp_pct
+TWN,Taiwan,HIC,TW,25.03,121.56,23600000,12.8,15.3,11950000,3.7,59.2,611000000000,1300000000000,2.6,0.8,52,14,23,64,54,17,-0.5,32,34,7.0,45,79,10

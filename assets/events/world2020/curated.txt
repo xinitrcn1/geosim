@@ -1,0 +1,103 @@
+# Hand-written historical anchors for the world 2020 scenario (not generated).
+# Format and event kinds: assets/README.md.
+
+# --------------------------------------------------------------- from the 2020 slice (sources there)
+epidemic_seed{ date{2020-01-01} nation{CHN} infections{3000} }
+stw{ date{2020-03-13} nation{DEU} coverage{0.85} replacement{0.65} source{Kurzarbeit fast-track law, 60/67% of net pay} }
+stw{ date{2020-03-16} nation{FRA} coverage{0.85} replacement{0.84} source{activite partielle, 84% of net pay} }
+stw{ date{2020-03-17} nation{ITA} coverage{0.85} replacement{0.80} source{Cura Italia decree: CIG + layoff ban} }
+stw{ date{2020-03-17} nation{ESP} coverage{0.75} replacement{0.70} source{RDL 8/2020 ERTE} }
+stw{ date{2020-03-20} nation{GBR} coverage{0.80} replacement{0.80} source{Coronavirus Job Retention Scheme, 80% of wages} }
+stw{ date{2020-03-25} nation{KOR} coverage{0.60} replacement{0.70} source{employment retention subsidy expansion} }
+stw{ date{2020-03-26} nation{TUR} coverage{0.40} replacement{0.60} source{short-time work allowance; layoff ban 2020-04-17} }
+stw{ date{2020-03-30} nation{AUS} coverage{0.75} replacement{0.70} source{JobKeeper payment} }
+stw{ date{2020-03-31} nation{ARG} coverage{0.50} replacement{0.60} source{DNU 329/2020 layoff ban; ATP wage support} }
+stw{ date{2020-04-01} nation{JPN} coverage{0.80} replacement{0.70} source{Employment Adjustment Subsidy special measures} }
+stw{ date{2020-04-01} nation{BRA} coverage{0.40} replacement{0.70} source{MP 936/2020 BEm programme} }
+stw{ date{2020-04-01} nation{ZAF} coverage{0.30} replacement{0.50} source{UIF COVID-19 TERS} }
+stw{ date{2020-04-03} nation{USA} coverage{0.30} replacement{0.60} source{Paycheck Protection Program loans} }
+stw{ date{2020-04-03} nation{SAU} coverage{0.30} replacement{0.60} source{SANED support, Saudi nationals} }
+stw{ date{2020-04-11} nation{CAN} coverage{0.60} replacement{0.75} source{Canada Emergency Wage Subsidy} }
+stw{ date{2020-02-10} nation{CHN} coverage{0.50} replacement{0.50} source{social insurance relief; guidance against layoffs} }
+stw{ date{2020-08-08} nation{USA} coverage{0.0} replacement{0.0} source{PPP application window closes} }
+fiscal_package{ date{2020-03-17} nation{ESP} pct_gdp{4.0} }
+test_trace_isolate{ date{2020-01-23} nation{CHN} strength{1.0} source{Wuhan cordon; centralised isolation (Fangcang shelter hospitals from 2020-02-05)} }
+test_trace_isolate{ date{2020-02-24} nation{KOR} strength{0.8} source{KCDC test-trace-isolate; drive-through testing from 2020-02-26} }
+test_trace_isolate{ date{2020-02-25} nation{JPN} strength{0.5} source{MHLW cluster-based countermeasures, Basic Policy 2020-02-25} }
+test_trace_isolate{ date{2020-03-28} nation{AUS} strength{0.8} source{mandatory 14-day hotel quarantine for all arrivals} }
+
+# --------------------------------------------------------------- oil supply (OPEC+)
+# April 2020 price war: Saudi Arabia, Russia and Gulf producers raise output.
+oil_production{ date{2020-04-01} nation{SAU} mbd{11.6} source{EIA: Saudi April 2020 ~11.6-12.0 mb/d} }
+oil_production{ date{2020-04-01} nation{RUS} mbd{11.4} }
+oil_production{ date{2020-04-01} nation{ARE} mbd{3.6} source{ADNOC pledged 4 mb/d} }
+oil_production{ date{2020-04-01} nation{KWT} mbd{3.1} }
+# 2020-04-12 OPEC+ agreement: members cut 23% from their October-2018 reference from 2020-05-01,
+# easing to ~18% from 2020-08-01. References from the agreement's quota table (mb/d); Iran, Libya
+# and Venezuela exempt. Saudi Arabia's extra voluntary June cut included. Mexico cut 0.1 mb/d.
+# Values here are pre-scaling crude volumes; the loader scales them with world supply.
+oil_production{ date{2020-05-01} nation{SAU} mbd{8.470} }
+oil_production{ date{2020-05-01} nation{RUS} mbd{8.470} }
+oil_production{ date{2020-05-01} nation{IRQ} mbd{3.583} }
+oil_production{ date{2020-05-01} nation{ARE} mbd{2.439} }
+oil_production{ date{2020-05-01} nation{KWT} mbd{2.163} }
+oil_production{ date{2020-05-01} nation{KAZ} mbd{1.316} }
+oil_production{ date{2020-05-01} nation{NGA} mbd{1.408} }
+oil_production{ date{2020-05-01} nation{AGO} mbd{1.177} }
+oil_production{ date{2020-05-01} nation{DZA} mbd{0.814} }
+oil_production{ date{2020-05-01} nation{OMN} mbd{0.680} }
+oil_production{ date{2020-05-01} nation{AZE} mbd{0.553} }
+oil_production{ date{2020-05-01} nation{MYS} mbd{0.458} }
+oil_production{ date{2020-05-01} nation{GNQ} mbd{0.098} }
+oil_production{ date{2020-05-01} nation{GAB} mbd{0.144} }
+oil_production{ date{2020-05-01} nation{COG} mbd{0.250} }
+oil_production{ date{2020-05-01} nation{BRN} mbd{0.079} }
+oil_production{ date{2020-05-01} nation{SDN} mbd{0.058} }
+oil_production{ date{2020-05-01} nation{SSD} mbd{0.100} }
+oil_production{ date{2020-05-01} nation{BHR} mbd{0.158} }
+oil_production{ date{2020-06-01} nation{SAU} mbd{7.5} }
+oil_production{ date{2020-07-01} nation{SAU} mbd{8.5} }
+oil_production{ date{2020-08-01} nation{SAU} mbd{9.020} }
+oil_production{ date{2020-08-01} nation{RUS} mbd{9.020} }
+oil_production{ date{2020-08-01} nation{IRQ} mbd{3.815} }
+oil_production{ date{2020-08-01} nation{ARE} mbd{2.598} }
+oil_production{ date{2020-08-01} nation{KWT} mbd{2.303} }
+oil_production{ date{2020-08-01} nation{KAZ} mbd{1.401} }
+oil_production{ date{2020-08-01} nation{NGA} mbd{1.500} }
+oil_production{ date{2020-08-01} nation{AGO} mbd{1.253} }
+oil_production{ date{2020-08-01} nation{DZA} mbd{0.867} }
+oil_production{ date{2020-08-01} nation{OMN} mbd{0.724} }
+oil_production{ date{2020-08-01} nation{AZE} mbd{0.589} }
+oil_production{ date{2020-08-01} nation{MYS} mbd{0.488} }
+oil_production{ date{2020-08-01} nation{GNQ} mbd{0.104} }
+oil_production{ date{2020-08-01} nation{GAB} mbd{0.153} }
+oil_production{ date{2020-08-01} nation{COG} mbd{0.267} }
+oil_production{ date{2020-08-01} nation{BRN} mbd{0.084} }
+oil_production{ date{2020-08-01} nation{SDN} mbd{0.061} }
+oil_production{ date{2020-08-01} nation{SSD} mbd{0.107} }
+oil_production{ date{2020-08-01} nation{BHR} mbd{0.168} }
+oil_production_delta{ date{2020-05-01} nation{MEX} mbd{-0.1} }
+
+# --------------------------------------------------------------- more job retention schemes
+# Dates from the enabling measures; coverage/replacement are model parameters informed by
+# OECD (2020) Job retention schemes policy brief (take-up and generosity), rounded.
+stw{ date{2020-03-16} nation{AUT} coverage{0.85} replacement{0.85} source{Corona-Kurzarbeit} }
+stw{ date{2020-03-14} nation{DNK} coverage{0.75} replacement{0.75} source{lonkompensation} }
+stw{ date{2020-03-17} nation{NLD} coverage{0.80} replacement{0.90} source{NOW wage subsidy} }
+stw{ date{2020-03-17} nation{NZL} coverage{0.70} replacement{0.60} source{COVID-19 Wage Subsidy} }
+stw{ date{2020-03-20} nation{BEL} coverage{0.80} replacement{0.70} source{temporary unemployment, force majeure} }
+stw{ date{2020-03-20} nation{CHE} coverage{0.85} replacement{0.80} source{Kurzarbeitsentschaedigung} }
+stw{ date{2020-03-26} nation{IRL} coverage{0.60} replacement{0.70} source{Temporary Wage Subsidy Scheme} }
+stw{ date{2020-03-26} nation{PRT} coverage{0.70} replacement{0.67} source{lay-off simplificado} }
+stw{ date{2020-03-31} nation{CZE} coverage{0.60} replacement{0.60} source{Antivirus programme} }
+stw{ date{2020-04-01} nation{POL} coverage{0.40} replacement{0.50} source{Anti-crisis Shield} }
+stw{ date{2020-04-07} nation{SWE} coverage{0.70} replacement{0.90} source{korttidspermittering} }
+
+# --------------------------------------------------------------- more suppression strategies
+# strength is a model parameter; dates and descriptions from public health authorities.
+test_trace_isolate{ date{2020-01-20} nation{TWN} strength{0.9} source{Central Epidemic Command Center activated} }
+test_trace_isolate{ date{2020-01-23} nation{VNM} strength{0.9} source{national steering committee; mass contact quarantine} }
+test_trace_isolate{ date{2020-01-25} nation{HKG} strength{0.7} source{emergency response level; arrival quarantine} }
+test_trace_isolate{ date{2020-03-26} nation{THA} strength{0.7} source{emergency decree; state quarantine for arrivals} }
+test_trace_isolate{ date{2020-04-10} nation{NZL} strength{0.9} source{managed isolation for all arrivals} }
+test_trace_isolate{ date{2020-04-07} nation{SGP} strength{0.6} source{circuit breaker; dormitory testing} }

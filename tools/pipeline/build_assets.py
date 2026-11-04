@@ -71,11 +71,11 @@ FISCAL_CAP_PCT_GDP = 8.0
 
 # ---------------------------------------------------------------- helpers
 
-def load_wdi(raw: pathlib.Path):
+def load_wdi(raw: pathlib.Path, sub: str = "wdi"):
     """-> {field: {iso3: {year: value}}}"""
     out = {}
     for code, field in WDI_INDICATORS.items():
-        payload = json.loads((raw / "wdi" / f"{code}.json").read_text())
+        payload = json.loads((raw / sub / f"{code}.json").read_text())
         series = defaultdict(dict)
         names = {}
         for row in payload[1] or []:
@@ -201,13 +201,14 @@ def build_nations(wdi, curated):
     return rows
 
 
-def sector_split(wdi, iso, nation):
-    """7-sector VA and employment shares from WDI's 3-sector data."""
-    if iso == ROW:
-        src = "WLD"
-    else:
-        src = iso
-    g = lambda f: latest(wdi, f, src)
+def sector_split(wdi, iso, nation, fallback=None):
+    """7-sector VA and employment shares from WDI's 3-sector data.
+    `fallback(field)` supplies a value when the nation has none (e.g. a group median)."""
+    src = "WLD" if iso == ROW else iso
+
+    def g(f):
+        v = latest(wdi, f, src)
+        return fallback(f) if v is None and fallback else v
     agr, ind, srv = g("va_agr_pct") or 4.0, g("va_ind_pct") or 28.0, g("va_srv_pct") or 64.0
     man = g("va_man_pct") or ind * 0.55
     rents = sum(x or 0.0 for x in (g("oil_rents_pct"), g("gas_rents_pct"), g("coal_rents_pct")))
@@ -279,11 +280,11 @@ def npi_level(r, col):
     return v, targeted
 
 
-def npi_events(ox, pop_by_iso):
+def npi_events(ox, pop_by_iso, isos=SLICE, with_row=True):
     """Emit an event whenever an NPI level changes. ROW = population-weighted
-    weekly mean over every OxCGRT country outside the slice."""
+    weekly mean over every OxCGRT country outside `isos` (slice scenario only)."""
     lines = []
-    for iso in SLICE:
+    for iso in isos:
         last = {}
         for r in ox.get(iso, []):
             for key, col in NPI_COLUMNS.items():
@@ -295,7 +296,7 @@ def npi_events(ox, pop_by_iso):
                     last[key] = (v, t)
 
     # ROW weekly population-weighted average (weights from OxCGRT coverage only).
-    others = [c for c in ox if c not in SLICE]
+    others = [c for c in ox if c not in isos] if with_row else []
     weights = {c: pop_by_iso.get(c, 0.0) for c in others}
     by_date = defaultdict(lambda: defaultdict(float))
     tgt_date = defaultdict(lambda: defaultdict(float))
@@ -330,13 +331,13 @@ def npi_events(ox, pop_by_iso):
     return "\n".join(out) + "\n", len(lines)
 
 
-def fiscal_events(ox, nations):
+def fiscal_events(ox, nations, isos=SLICE):
     out = [f"# {GEN}",
            "# Source: OxCGRT E3 (announced fiscal measures, USD). Scaled by",
            f"# above_line_fraction={FISCAL_ABOVE_LINE_FRACTION}, capped at {FISCAL_CAP_PCT_GDP}% of 2019 GDP per nation.",
            "# Override per nation in assets/scenario/2020/nations_curated.csv (fiscal_pct_gdp_override).", ""]
     n = 0
-    for iso in SLICE:
+    for iso in isos:
         gdp = nations[iso]["gdp_usd"]
         items = [(ymd(r["Date"]), num(r["E3_Fiscal measures"]) or 0.0) for r in ox.get(iso, [])]
         items = [(d, v) for d, v in items if v > 0]
@@ -361,11 +362,11 @@ SEED_LEAD_DAYS = 30
 SEED_INFECTIONS = 300  # ~ (10 deaths / 0.8% IFR) / 4: growth over the lead time supplies the rest
 
 
-def epidemic_seeds(ox):
+def epidemic_seeds(ox, isos=SLICE):
     out = [f"# {GEN}",
            f"# Source: OxCGRT ConfirmedDeaths. Seed {SEED_INFECTIONS} infections {SEED_LEAD_DAYS} days before cumulative",
            f"# reported deaths reach {SEED_DEATHS} (Flaxman et al. 2020). China is seeded in curated.txt.", ""]
-    for iso in SLICE:
+    for iso in isos:
         if iso == "CHN":
             continue
         for r in ox.get(iso, []):
@@ -380,18 +381,18 @@ def epidemic_seeds(ox):
 
 # ---------------------------------------------------------------- BIS
 
-def policy_rate_events(raw):
+def policy_rate_events(raw, filename="bis_cbpol.csv", iso2=ISO2, euro=EURO_AREA):
     series = defaultdict(list)
-    with (raw / "bis_cbpol.csv").open(newline="") as f:
+    with (raw / filename).open(newline="") as f:
         for r in csv.DictReader(f):
             v = num(r["OBS_VALUE"])
             if v is not None:
                 series[r["REF_AREA"]].append((r["TIME_PERIOD"], v))
     iso_for_area = defaultdict(list)
-    for iso, a in ISO2.items():
-        iso_for_area["XM" if iso in EURO_AREA else a].append(iso)
+    for iso, a in iso2.items():
+        iso_for_area["XM" if iso in euro else a].append(iso)
     out = [f"# {GEN}", "# Source: BIS WS_CBPOL daily policy rates. Initial 2020-01-01 value plus each change.",
-           "# Euro area (XM) rate applies to every euro member in the slice.", ""]
+           "# Euro area (XM) rate applies to every euro member.", ""]
     n = 0
     seen = set()
     for area, obs in sorted(series.items()):
@@ -418,9 +419,9 @@ def policy_rate_events(raw):
 
 # ---------------------------------------------------------------- targets
 
-def targets(wdi, ox, nations):
+def targets(wdi, ox, nations, isos=SLICE):
     rows = []
-    for iso in SLICE:
+    for iso in isos:
         g = lambda f: wdi[f].get(iso, {}).get(2020)
         deaths = None
         for r in ox.get(iso, []):
