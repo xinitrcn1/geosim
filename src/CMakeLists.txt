@@ -120,6 +120,8 @@ if(GEOSIM_BUILD_CLIENT)
         client/hazard_feed.cpp
         client/sim_hazards.cpp
         client/sim_runner.cpp
+        client/sim_tabs.cpp
+        client/action_tabs.cpp
         client/text.cpp
         client/ui_context.cpp
         client/ui_layout.cpp
