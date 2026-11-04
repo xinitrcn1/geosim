@@ -483,6 +483,38 @@ applications to clubs and regional organisations (BRICS enlargement 2024),
 the swing producer chosen by spare capacity rather than size, and co-hosted
 bids.
 
+### Player actions
+
+**Implemented** (`actions.cpp`; `available_actions` lists the options with reasons,
+`perform_action` applies them, through the command queue,
+[02](02-simulation-core.md#commands)). The player's agent can make the moves the model
+already contains. The counterpart answers with the rules the AI uses, so no outcome is
+granted that the model would not produce:
+
+- **Sanctions:** a level held until cleared. UN floors still apply, and a target's
+  concession lifts the sanction and clears the hold.
+- **Disputes:** escalation one hostility step at a time; backing down costs legitimacy
+  in proportion to electoral accountability (audience costs; Fearon 1994).
+- **War:** allies are called. Without a prior dispute, other nations' trust in the
+  aggressor falls.
+- **Peace:** accepted by a side that is losing more (occupation, war cost, weariness;
+  Fearon 1995; Reiter 2009).
+- **Aid:** a one-off grant, refused by a distrustful recipient.
+- **Treaties:** conditional aid (to poorer nations) and migration deals need trust. A
+  climate pledge is unilateral and breaking it costs credibility.
+- **Organisations:** applications are decided by the members' trust under the
+  organisation's rule; consensus organisations can be blocked by one member. Leaving is
+  unilateral and immediate.
+- **Rebels:** the government's offer of power sharing is accepted at a mutually
+  hurting stalemate or by losing rebels (Zartman 1989). Rebels can seek a settlement,
+  which a weak or stalemated government accepts.
+- **Lobbying:** a firm's board or a union presses its government on one lever. The
+  government's AI weighs it as advice in proportion to the lobby's economic weight for
+  six months (Grossman & Helpman 1994).
+
+Lever metadata for the client (name, unit, range, owner, tab, whether it is a bill) is
+in `sim/levers.hpp`.
+
 ### Coercion, aid, arms and treaties
 
 - **Sanctions bargaining**: a target concedes with a hazard that grows with its

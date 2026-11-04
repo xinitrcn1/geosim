@@ -422,6 +422,11 @@ object{
 	property{ name{tourism_share} type{float} }
 	property{ name{oil_unit_scale} type{float} }
 	property{ name{cartel_quota} type{float} }
+	property{ name{sanction_set} type{array{uint16_t}{float}} }
+	property{ name{lobby_lever} type{uint8_t} }
+	property{ name{lobby_value} type{float} }
+	property{ name{lobby_weight} type{float} }
+	property{ name{lobby_until} type{int32_t} }
 	property{ name{coordinated_stimulus} type{float} }
 	property{ name{mega_investment} type{float} }
 	property{ name{mega_exports} type{float} }

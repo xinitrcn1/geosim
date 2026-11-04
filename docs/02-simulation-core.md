@@ -198,3 +198,27 @@ Target scale: ~4,000 regions, ~200 nations, ~120,000 pops (30 per region),
 The hard requirement from the vision is 1 year in ≤ 10 s (≈ 37 ticks/s).
 The ~3× gap up to this budget is reserved for long-campaign detail growth
 and for running forks.
+
+## Commands
+
+Everything a player does to the simulation is a **command** (`sim/commands.hpp`). A
+command carries a tag (`set_override`, `set_ai`, `action`), the issuing player, a
+per-player sequence number, the tick it applies to, and a payload union of plain values:
+raw entity indices, enums and floats, with no pointers or strings, so it is trivially
+copyable. The client pushes commands into a lock-free single-producer single-consumer
+queue (`core/spsc.hpp`). Before simulating each tick (and while paused), the sim thread
+drains the commands due (`drain_commands`) and applies them in order (`apply_command`).
+Results (accepted, message) return through a second SPSC queue, matched by sequence
+number.
+
+Commands are plain data applied at a known tick, so a deterministic lockstep peer that
+applies the same stream at the same ticks stays bit-identical, and a recorded stream
+replays a session. The client never writes sim state except through commands. Read-only
+snapshots for the UI are separate.
+
+- `set_override`: one lever of an agent, with mode (none, advise, direct, force) and value
+  (`ai.cpp` `settle` / `apply_override`).
+- `set_ai`: the agent's AI on (the player advises or forces) or off (every lever directed
+  at its current choice until the player moves it).
+- `action`: a diplomatic or political move (`actions.cpp`,
+  [06](06-geopolitics-ai.md#player-actions)).

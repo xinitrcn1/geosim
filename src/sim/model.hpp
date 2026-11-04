@@ -214,6 +214,7 @@ inline constexpr uint8_t journal_org_join = 0xE0;      // pragmatic = organisati
 inline constexpr uint8_t journal_mega_event = 0xDF;    // pragmatic = organisation index, before = 0 awarded / 1 opened / 2 closed / 3 postponed, after = year
 inline constexpr uint8_t journal_cartel = 0xDE;        // before = quota, after = new quota (price war: -1)
 inline constexpr uint8_t journal_suspension = 0xDD;    // pragmatic = organisation index, after = 1 suspended / 0 readmitted
+inline constexpr uint8_t journal_player_action = 0xDB; // before = action_kind, after = 1 accepted / 0 refused
 inline constexpr uint8_t journal_summit = 0xDC;        // pragmatic = organisation index, after = 1 coordinated stimulus / 0 regular
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 

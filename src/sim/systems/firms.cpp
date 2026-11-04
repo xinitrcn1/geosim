@@ -133,6 +133,7 @@ void init_firms(game_state& state) {
                 if(large) {
                     const auto b = w.create_agent();
                     w.agent_set_kind(b, static_cast<uint8_t>(agent_kind::board));
+                    w.agent_set_home(b, n.id);
                     w.agent_set_rho_base(b, rho);
                     w.agent_set_rho(b, rho);
                     w.firm_set_board(f, b);

@@ -53,8 +53,15 @@ float settle(game_state& state, dcon::agent_id a, uint8_t lev, blend_result cons
     const auto mode = static_cast<override_mode>(w.agent_get_override_mode(a, lev));
     float choice = r.choice;
     switch(mode) {
-    case override_mode::none:
+    case override_mode::none: {
+        // Lobbying by firms or unions (actions.cpp): weak advice to the government while it lasts.
+        auto n = w.agent_get_home(a);
+        if(n && w.nation_get_lobby_until(n) > state.current_tick && w.nation_get_lobby_lever(n) == lev) {
+            const float k = w.nation_get_lobby_weight(n);
+            choice = std::clamp((r.choice + k * w.nation_get_lobby_value(n)) / (1.0f + k), lo, hi);
+        }
         break;
+    }
     case override_mode::advise: {
         // Advice is one more (strong) prior the agent weighs against its own targets.
         const float k = static_cast<float>(state.params.advise_weight);

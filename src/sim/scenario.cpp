@@ -1557,6 +1557,7 @@ struct builder {
 
             const auto exec = w.create_agent();
             w.agent_set_kind(exec, static_cast<uint8_t>(agent_kind::executive));
+            w.agent_set_home(exec, n);
             w.agent_set_rho_base(exec, static_cast<float>(std::clamp(0.3 - 0.08 * in.voice, 0.1, 0.6)));
             w.agent_set_rho(exec, w.agent_get_rho_base(exec));
             w.agent_set_health_weight(exec, health);
@@ -1574,6 +1575,7 @@ struct builder {
             if(it == banks.end()) {
                 const auto bank = w.create_agent();
                 w.agent_set_kind(bank, static_cast<uint8_t>(agent_kind::central_bank));
+                w.agent_set_home(bank, n); // a currency union's bank: its first member
                 w.agent_set_rho_base(bank, 0.1f); // technocratic
                 w.agent_set_rho(bank, 0.1f);
                 it = banks.emplace(area, bank).first;
@@ -1581,11 +1583,13 @@ struct builder {
             w.force_create_monetary_authority(n, it->second);
             // Union federation and military (docs/05 agents).
             const auto uni = w.create_agent();
+            w.agent_set_home(uni, n);
             w.agent_set_kind(uni, static_cast<uint8_t>(agent_kind::union_federation));
             w.agent_set_rho_base(uni, static_cast<float>(std::clamp(0.2 + in.union_density, 0.1, 0.6)));
             w.agent_set_rho(uni, w.agent_get_rho_base(uni));
             w.nation_set_union_agent(n, uni);
             const auto mil = w.create_agent();
+            w.agent_set_home(mil, n);
             w.agent_set_kind(mil, static_cast<uint8_t>(agent_kind::military));
             w.agent_set_order_ideal(mil, 0.6f); // militaries value order
             w.agent_set_rho_base(mil, 0.5f);
@@ -1762,6 +1766,10 @@ struct builder {
         w.nation_resize_trade_share(N);
         w.nation_resize_sanction(N);
         w.nation_resize_sanction_prior(N);
+        w.nation_resize_sanction_set(N);
+        for(auto a : w.in_nation) {
+            for(uint32_t k = 0; k < N; ++k) a.set_sanction_set(static_cast<uint16_t>(k), -1.0f); // no player-held level
+        }
         w.nation_resize_alliance(N);
         w.nation_resize_at_war(N);
         w.party_resize_position(static_cast<uint32_t>(value_axis::count));

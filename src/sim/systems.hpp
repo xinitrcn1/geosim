@@ -6,6 +6,7 @@
 #include "sim/model.hpp"
 
 #include <string>
+#include "sim/model.hpp"
 #include <vector>
 
 namespace geosim::sim {
@@ -218,6 +219,51 @@ struct disaster_text {
     bool potential = false;    // a warning: the impact is a forecast
 };
 [[nodiscard]] disaster_text describe_disaster(game_state const& state, dcon::disaster_id d);
+
+// Player actions (actions.cpp): the diplomatic and political moves the simulation models,
+// open to the agent the player controls. Each is answered by the target's own rules (the
+// same ones the AI uses) and journalled; the result says whether it was accepted and why.
+enum class action_kind : uint8_t {
+    set_sanction,       // executive -> nation: sanction level `value` (0..1), held until cleared
+    clear_sanction,     // executive -> nation: hand the sanction choice back to the AI
+    escalate_dispute,   // executive -> nation: raise hostility one step (opens a dispute at 2)
+    back_down,          // executive -> nation: concede an open dispute (audience cost)
+    declare_war,        // executive -> nation: war (allies are called; aggression costs trust)
+    offer_peace,        // executive -> nation at war: accepted by a side losing or war-weary
+    send_aid,           // executive -> nation: one-off grant of `value` % of the donor's GDP
+    propose_treaty,     // executive -> nation: treaty `treaty` (conditional aid, migration deal, debt relief)
+    climate_pledge,     // executive: pledge a 2030 carbon price of `value` USD/t (Paris-style)
+    apply_membership,   // executive -> organisation: apply (decided by its rule)
+    leave_membership,   // executive -> organisation: leave
+    offer_power_sharing,// executive -> rebels of its nation: settlement (accepted at a stalemate)
+    accept_settlement,  // rebel -> its government: seek a settlement (accepted if the state is weak or tired)
+    lobby,              // board / union -> its government: press for `value` on lever `lever` (advice to the AI)
+    count
+};
+struct action_request {
+    action_kind kind = action_kind::count;
+    dcon::agent_id actor;
+    dcon::nation_id target;
+    dcon::organisation_id organisation;
+    treaty_kind treaty = treaty_kind::count;
+    uint8_t lever = 0;
+    float value = 0.0f;
+};
+struct action_option {
+    action_kind kind;
+    char const* label;
+    bool available;      // allowed now for this actor and target
+    std::string reason;  // why not (or what it would do)
+};
+struct action_result {
+    bool accepted = false;
+    std::string message;
+};
+// What `actor` can do toward `target` / `organisation` (either may be empty).
+[[nodiscard]] std::vector<action_option> available_actions(game_state const& state, dcon::agent_id actor, dcon::nation_id target,
+                                                           dcon::organisation_id organisation);
+// Performs it (call on the sim thread, between ticks).
+action_result perform_action(game_state& state, action_request const& request);
 void update_mega_events(game_state& state);
 // Votes a draft by `sponsor` against `target` (shift: extra support); journals under
 // `code` (0 = silent). Returns 1 adopted, 0 vetoed or blocked, -1 too few votes.

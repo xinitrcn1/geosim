@@ -50,6 +50,8 @@ add_library(geosim_sim STATIC
     sim/systems/geo_orgs.cpp
     sim/systems/megaevents.cpp
     sim/systems/disasters.cpp
+    sim/systems/actions.cpp
+    sim/commands.cpp
     sim/systems/reforms.cpp
     sim/systems/politics_ext.cpp
     sim/systems/agreements.cpp
@@ -71,7 +73,7 @@ if(GEOSIM_BUILD_CLIENT)
     set(geosim_shader_out ${CMAKE_CURRENT_BINARY_DIR}/client_shaders)
     file(MAKE_DIRECTORY ${geosim_shader_out})
     set(geosim_shader_headers)
-    foreach(shader quad.vert ui.frag map.frag world_map.frag fullscreen.vert blur.frag)
+    foreach(shader quad.vert ui.frag map.frag world_map.frag map_ids.vert map_ids.frag map_resolve.frag fullscreen.vert blur.frag)
         string(REPLACE "." "_" var "spv_${shader}")
         set(out ${geosim_shader_out}/${shader}.h)
         add_custom_command(

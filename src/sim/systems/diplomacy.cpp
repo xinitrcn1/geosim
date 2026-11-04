@@ -220,6 +220,7 @@ void update_diplomacy(game_state& state) {
                 const float p = static_cast<float>(P.concede_rate) * years * cost * (0.5f + m.get_trust(kn)) * (0.5f + 0.5f * m.get_electoral());
                 if(core::uniform01(state.rng_seed, stream, static_cast<uint32_t>(state.current_tick), 0x78000000u + kn * 1024u + km) < p) {
                     n.set_sanction(km, 0.0f);
+                    n.set_sanction_set(km, -1.0f); // a player's held level has achieved its aim
                     n.set_trust(km, std::min(1.0f, n.get_trust(km) + 0.2f));
                     log_pair(state, m.id, n.id, journal_concession, sanction, 0.0f);
                 }

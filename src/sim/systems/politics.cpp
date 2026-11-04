@@ -554,6 +554,7 @@ void init_politics(game_state& state) {
             const auto win = static_cast<std::size_t>(std::max_element(regional.begin(), regional.begin() + static_cast<std::ptrdiff_t>(np)) - regional.begin());
             const auto g = w.create_agent();
             w.agent_set_kind(g, static_cast<uint8_t>(agent_kind::governor));
+            w.agent_set_home(g, n.id);
             const float secular = w.party_get_position(parties[win], static_cast<uint8_t>(value_axis::secular));
             w.agent_set_order_ideal(g, std::clamp(0.2f - 0.12f * n.get_voice() - 0.2f * secular, 0.0f, 0.8f));
             w.agent_set_rho_base(g, 0.3f);

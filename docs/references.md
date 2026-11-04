@@ -547,3 +547,8 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Koshimura, S., Oie, T., Yanagisawa, H. & Imamura, F. (2009). Developing fragility functions for tsunami damage estimation using numerical model and post-tsunami data from Banda Aceh. *Coastal Engineering Journal* 51(3).
 - Sawai, Y. et al. (2012); Goldfinger, C. et al. (2012); Sieh, K. et al. (2008); Cochran, U. et al. (2017); Bilham, R. (2019) — paleoseismic recurrence (see `assets/defs/faults.csv`).
 - EM-DAT, CRED / UCLouvain — disaster outcomes for comparison.
+
+## Player actions ([06](06-geopolitics-ai.md#player-actions))
+
+- Fearon, J. (1994). Domestic political audiences and the escalation of international disputes. *American Political Science Review* 88(3).
+- Grossman, G. & Helpman, E. (1994). Protection for sale. *American Economic Review* 84(4). — Lobbying weight.
