@@ -13,6 +13,7 @@
 // Compartment arrays are indexed epi_index(pathogen, age).
 
 #include "core/calendar.hpp"
+#include "core/rng.hpp"
 #include "sim/model.hpp"
 #include "sim/systems.hpp"
 
@@ -77,7 +78,11 @@ void update_epidemic(game_state& state) {
         const float fatigue = static_cast<float>(P.fatigue_max)
                               * std::min(1.0f, w.nation_get_npi_exposure(n) / static_cast<float>(P.fatigue_days));
         const float tti = w.nation_get_tti_strength(n);
-        const float compliance = std::max(tti, static_cast<float>(P.npi_compliance)
+        // Trusting societies comply more (Bargain & Aminjonov 2020); relative to the start.
+        const float trust = w.nation_get_social_trust0(n) > 0.0f
+                                ? std::pow(std::max(0.01f, w.nation_get_social_trust(n) / w.nation_get_social_trust0(n)), static_cast<float>(P.trust_compliance))
+                                : 1.0f;
+        const float compliance = std::max(tti, static_cast<float>(P.npi_compliance) * trust
                                                    * (1.0f - static_cast<float>(P.informality_compliance_loss) * w.nation_get_informality(n))
                                                    * (1.0f - fatigue));
         const float deaths_pm = r.get_deaths7() / pop * 1e6f;
@@ -276,6 +281,101 @@ void update_epidemic(game_state& state) {
         }
         r.set_deaths_reported(r.get_deaths_reported() + reported);
         r.set_deaths7(r.get_deaths7() + (reported - r.get_deaths7()) / 7.0f);
+    }
+}
+
+// Vaccines and novel epidemics (docs/04-society.md#health-and-epidemics), daily.
+// - A pathogen with vaccine_days > 0 gets a vaccine that many days after it is
+//   first seen (SARS-CoV-2: first EUA ~11 months after the outbreak). World
+//   production ramps up over vaccine_ramp_days; doses go to nations by
+//   population weighted by income per head (advance purchases: rich nations
+//   vaccinated first; Wouters et al. 2021); within nations the old first. A dose
+//   moves a susceptible person to immune with the vaccine's efficacy.
+// - Novel epidemics emerge at random (about 2% a year for a COVID-scale event;
+//   Marani et al. 2021): an unseeded `emergent` template pathogen starts in a
+//   nation drawn by population.
+void update_vaccination(game_state& state) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    const auto tick = static_cast<uint32_t>(state.current_tick);
+    // First sightings.
+    for(auto pth : w.in_pathogen) {
+        if(pth.get_first_seen() >= 0) continue;
+        const auto p = static_cast<uint8_t>(pth.id.index());
+        for(auto r : w.in_region) {
+            if(r.get_ep_e(epi_index(p, age_young)) + r.get_ep_i(epi_index(p, age_young)) > 1.0f && pth.get_initial_immunity() <= 0.0f) {
+                pth.set_first_seen(state.current_tick);
+                break;
+            }
+        }
+    }
+    // Emergence of a novel epidemic.
+    if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), tick, 0x70000000u) < static_cast<float>(P.pandemic_rate) / 365.0f) {
+        dcon::pathogen_id pick;
+        for(auto pth : w.in_pathogen) {
+            if(pth.get_emergent() && pth.get_first_seen() < 0) {
+                pick = pth.id;
+                break;
+            }
+        }
+        if(pick) {
+            double total = 0.0;
+            for(auto n : w.in_nation) total += n.get_population();
+            const double target = core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), tick, 0x70000001u) * total;
+            double cum = 0.0;
+            for(auto n : w.in_nation) {
+                cum += n.get_population();
+                if(cum >= target) {
+                    if(auto r = capital_region(state, n.id)) {
+                        const uint8_t i = epi_index(static_cast<uint8_t>(pick.index()), age_young);
+                        const float x = std::min(w.region_get_ep_s(r, i), 1000.0f);
+                        w.region_set_ep_s(r, i, w.region_get_ep_s(r, i) - x);
+                        w.region_set_ep_e(r, i, w.region_get_ep_e(r, i) + x);
+                        w.pathogen_set_first_seen(pick, state.current_tick);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    // Vaccination.
+    double world_pop = 0.0;
+    for(auto n : w.in_nation) world_pop += n.get_population();
+    for(auto pth : w.in_pathogen) {
+        if(pth.get_vaccine_days() <= 0.0f || pth.get_first_seen() < 0) continue;
+        const float since = static_cast<float>(state.current_tick - pth.get_first_seen()) - pth.get_vaccine_days();
+        if(since < 0.0f) continue;
+        const float ramp = std::min(1.0f, since / std::max(1.0f, pth.get_vaccine_ramp_days()));
+        const double doses = P.vaccine_world_capacity * ramp * world_pop;
+        pth.set_vaccine_capacity(static_cast<float>(doses));
+        double weight_total = 0.0;
+        for(auto n : w.in_nation) {
+            const double pc = n.get_gdp0() / std::max(1.0f, n.get_population());
+            weight_total += n.get_population() * std::pow(pc / 10000.0, P.vaccine_income_priority);
+        }
+        const auto p = static_cast<uint8_t>(pth.id.index());
+        for(auto n : w.in_nation) {
+            const double pc = n.get_gdp0() / std::max(1.0f, n.get_population());
+            const double share = weight_total > 0.0 ? n.get_population() * std::pow(pc / 10000.0, P.vaccine_income_priority) / weight_total : 0.0;
+            double left = doses * share;
+            for(auto own : n.get_region_ownership()) {
+                auto r = own.get_region();
+                const double regional = left * r.get_population() / std::max(1.0f, n.get_population());
+                double remaining = regional;
+                for(uint8_t g : {age_old, age_young}) {
+                    const uint8_t i = epi_index(p, g);
+                    const float s = r.get_ep_s(i);
+                    const float alive = s + r.get_ep_e(i) + r.get_ep_i(i) + r.get_ep_r(i);
+                    if(alive <= 0.0f || remaining <= 0.0) continue;
+                    const float given = static_cast<float>(std::min(remaining, static_cast<double>(alive) * 0.02)); // at most 2% of a group a day
+                    const float immune = given * (s / alive) * pth.get_vaccine_efficacy();
+                    r.set_ep_s(i, s - immune);
+                    r.set_ep_r(i, r.get_ep_r(i) + immune);
+                    remaining -= given;
+                }
+                n.set_vaccinated(n.get_vaccinated() + static_cast<float>(regional - remaining));
+            }
+        }
     }
 }
 

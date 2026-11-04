@@ -64,7 +64,8 @@ float compute_spread(game_state const& state, dcon::nation_id n) {
     const float s = static_cast<float>(P.spread_debt) * std::max(0.0f, debt - 0.6f) + static_cast<float>(P.spread_deficit) * deficit
                     + static_cast<float>(P.spread_capacity) * (1.0f - w.nation_get_state_capacity(n))
                     + static_cast<float>(P.spread_legitimacy) * (1.0f - w.nation_get_legitimacy(n))
-                    - static_cast<float>(P.spread_reserve) * w.nation_get_reserve_currency(n) + (w.nation_get_defaulted(n) ? 3.0f : 0.0f);
+                    - static_cast<float>(P.spread_reserve) * w.nation_get_reserve_currency(n) + (w.nation_get_defaulted(n) ? 3.0f : 0.0f)
+                    - (w.nation_get_imf_program(n) > 0.0f ? static_cast<float>(P.imf_catalytic) : 0.0f);
     return std::max(0.0f, s);
 }
 

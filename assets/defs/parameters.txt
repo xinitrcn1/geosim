@@ -97,6 +97,20 @@ legitimacy_years{1}                      # adjustment time of legitimacy (years)
 force_legitimacy_cost{0.1}               # legitimacy lost per year per forced lever
 force_liberal_cost{0.05}                 # liberal-index loss per year per forced lever
 coup_rate{0.02}                          # monthly coup probability per unrest level above 2 (when conditions hold)
+party_speed{0.15}                        # distance an adaptive party moves in value space per year (Laver & Sergenti 2011)
+window_base{0.25}                        # half-width of the Overton window at zero polarisation (value-axis units)
+window_polarisation{1}                   # extra half-width per unit standard deviation of public values
+window_media{0.1}                        # extra half-width at full social-media connectivity (fragmented attention)
+window_years{3}                          # adjustment time of the window centre toward public opinion (years)
+window_normalisation{0.15}               # annual pull of the window toward the governing party's position (Bursztyn et al. 2020)
+window_stigma{3}                         # vote utility lost per squared distance of a party outside the window
+overton_legitimacy{0.3}                  # legitimacy target lost per unit of policy outside the window
+overton_backlash{0.5}                    # protest drive per unit of liberty-restricting policy outside the window
+overton_rally{0.6}                       # shift of the acceptable range toward restriction at full perceived threat (rally; Bol et al. 2021)
+thermostat{0.05}                         # annual opinion shift against the direction of economic policy (Wlezien 1995)
+party_entry_distance{0.5}                # distance to the nearest party beyond which a voter is unrepresented
+party_entry_share{0.15}                  # unrepresented share of voters at which a challenger party forms
+party_exit_months{24}                    # months below 1% of the vote after which a party dissolves
 selectorate_firm_tilt{0.3}               # extra fiscal share to firms as the winning coalition shrinks
 trust_years{2}                           # adjustment time of bilateral trust (years)
 sanction_trade_cut{0.8}                  # trade lost at full sanctions
@@ -250,6 +264,103 @@ censor_effect{0.6}                       # coordination lost at full information
 censor_backfire{0.8}                     # drive from a sudden information-control rise x connectivity x youth (Hobbs & Roberts 2018)
 censor_trigger{1.5}                      # unrest level at which an order-minded executive restricts media
 strike_capacity{0.03}                    # regional capacity lost per unrest level above 2
+net_control_scale{0.8}                   # starting domestic information control per unit (1 - net freedom)
+net_filter_threshold{0.4}                # lack of net freedom above which cross-border filtering starts
+net_diffusion{0.3}                       # annual value convergence toward coupled foreign publics (Gleditsch & Ward 2006)
+net_contagion{0.6}                       # protest drive per unit coupled foreign protest participation (share of x_max)
+net_tie_floor{0.02}                      # minimum tie between two societies (language, diaspora, media) besides trade
+net_digital_trade{0.3}                   # share of services exports and imports delivered online
+net_growth_cost{0.005}                   # trend-growth loss per unit filtering above the start (Czernich et al. 2011)
+net_filter_gain{0.8}                     # pragmatic filtering per unit foreign protest contagion
+cyber_rate{1}                            # annual cyber-operation hazard scale for a capable, threatened, distrustful pair
+cyber_damage_mean{0.01}                  # mean capacity loss of critical sectors from a cyber operation
+cyber_days{20}                           # recovery time of cyber damage (days)
+cyber_influence{0.05}                    # protest drive from an influence operation (decays with cyber_days)
+war_rents{2}                             # war-onset hazard increase per unit resource rents / GDP of the target (Collier & Hoeffler 2004)
+war_diversion{0.5}                       # hazard increase per unrest level above 1 in a non-electoral regime (Levy 1989)
+war_transition{5}                        # hazard increase per unit gap in realised growth (power transition; Organski & Kugler 1980)
+war_spending{0.05}                       # military procurement during war, share of GDP per year
+drone_strike{0.5}                        # extra destruction from precision strike (drones, missiles) per unit technology
+drone_infrastructure{0.02}               # annual energy-infrastructure destruction across the defender per unit attacker strike technology
+insurgency_days{60}                      # days at insurgency-level unrest before an insurgency can start
+insurgency_rate{0.5}                     # annual insurgency onset hazard at full exclusion and no state capacity (Fearon & Laitin 2003)
+insurgency_end_rate{0.3}                 # annual hazard that an insurgency ends at full state capacity
+sme_cash_days{27}                        # cash buffer of small firms in days of costs (JPMorgan Chase Institute 2016)
+large_cash_days{60}                      # cash buffer of large firms in days of costs
+firm_fixed_cost{0.35}                    # share of firm costs that do not fall with output in the short run (rent, debt, salaried staff)
+firm_exit_base_sme{0.08}                 # annual exit rate of small firms in normal times (OECD business demography)
+firm_exit_base_large{0.03}               # annual exit rate of large firms in normal times
+firm_fragility{6}                        # exit-rate multiple at an exhausted cash buffer (financial fragility; Delli Gatti et al. 2005)
+firm_support_cover{0.8}                  # share of a firm's shortfall covered per unit of support / private wage bill
+firm_reallocation{0.5}                   # share of an exiting firm's capacity taken up by survivors (Caballero & Hammour 1994)
+firm_entry_gain{1}                       # entry above the base rate per unit of buffer above normal (Dosi et al. 2010)
+firm_lgd{0.5}                            # loss on the loans of failed firms
+board_hoarding_gain{0.4}                 # extra labour hoarding of a fully coordinated board (Hall & Soskice 2001)
+tariff_pain{0.05}                        # pragmatic tariff (ad valorem) per unit manufacturing job loss (Bown & Crowley 2013)
+tariff_appreciation{0.05}                # pragmatic tariff per unit log real appreciation (Bown & Crowley 2013)
+tariff_inflation_brake{2}                # pragmatic tariff cut per unit inflation above trend
+tariff_nationalism{0.08}                 # ideological tariff per unit nationalist (TAN) position of the governing party
+tariff_elasticity{4}                     # import volume elasticity to tariffs (Simonovska & Waugh 2014)
+tariff_retaliation{0.5}                  # partner sanction step per unit tariff rise (reciprocity)
+bill_threshold{0.5}                      # legislative support needed to pass a bill with no veto players
+bill_veto_threshold{0.2}                 # extra support needed per unit veto-player strength (Tsebelis 2002)
+bill_discipline{0.9}                     # support of governing parties for their government's bills
+bill_rally{0.4}                          # opposition support added per unit perceived threat (crisis bills)
+no_confidence_rate{0.5}                  # annual no-confidence success hazard of a minority government at zero approval
+snap_election_days{60}                   # days from a lost confidence vote to the snap election
+court_rate{0.3}                          # monthly probability that an independent judiciary strikes down a forced lever
+military_loyalty_years{1}                # adjustment time of military loyalty (years)
+coup_loyalty{0.35}                       # loyalty below which the military may attempt a coup (Powell 2012; Svolik 2012)
+defection_participation{0.035}           # protest participation at which a disloyal military defects (Chenoweth & Stephan 2011)
+defense_threat{0.05}                     # pragmatic defence spending (% GDP) per unit external threat
+wage_curve{0.1}                          # real-wage elasticity to unemployment (Blanchflower & Oswald 1994)
+wage_rigidity{0.6}                       # share of the wage-curve response suppressed at full bargaining coverage
+wage_indexation{0.5}                     # share of an inflation surprise recovered per unit bargaining coverage
+wage_adjust_years{1}                     # adjustment time of real wages toward the bargaining outcome (years)
+labor_demand_elasticity{0.3}             # employment response to real labour costs (Lichter, Peichl & Siegloch 2015)
+min_wage_low_share{0.5}                  # share of low-skill wages tied to the minimum wage at full bite
+min_wage_job_loss{0.05}                  # low-skill job loss per unit log minimum-wage rise (Cengiz et al. 2019: small)
+union_militancy{0.02}                    # annual real-wage push per unit union density x left position
+strike_drive{0.5}                        # protest drive per unit real-wage loss x union density
+eti{0.25}                                # elasticity of taxable income to the net-of-tax rate (Saez, Slemrod & Giertz 2012)
+compliance_legitimacy{0.3}               # tax compliance per unit legitimacy (Levi 1988)
+compliance_trust{0.3}                    # tax compliance per unit social trust
+consolidation_spread{0.02}               # pragmatic household tax rise per pp spread above start
+tax_ideology{0.1}                        # ideological tax rise per unit economic-left position of the governing party
+public_investment_slack{0.1}             # pragmatic public investment (% GDP) per point of slack
+public_capital_elasticity{0.1}           # output elasticity to public capital (Bom & Ligthart 2014)
+public_capital_ratio{0.6}                # public capital stock / GDP at the start
+social_trust_years{10}                   # adjustment time of social trust (years; Putnam 1993)
+trust_inequality{1}                      # trust lost per unit Gini rise
+trust_unrest{0.1}                        # trust lost per unrest level
+trust_compliance{0.5}                    # NPI compliance elasticity to social trust (Bargain & Aminjonov 2020)
+crime_unemployment{3}                    # crime index rise per unit unemployment rise (Becker 1968; Raphael & Winter-Ebmer 2001)
+crime_investment{0.05}                   # investment lost per unit crime-index rise
+fertility_income{0.3}                    # elasticity of the birth rate to income per head (demographic transition)
+fertility_education{0.5}                 # elasticity of the birth rate to the tertiary share (Bongaarts 1978)
+fertility_years{10}                      # adjustment time of the birth rate to its long-run level (years)
+baby_bust{1}                             # birth-rate cut per unit unemployment rise (Kearney & Levine 2021)
+tertiary_drift{0.004}                    # annual rise of the tertiary share with income growth (educational expansion)
+scarring{0.5}                            # permanent wage loss of a cohort per unit unemployment rise at entry (Kahn 2010)
+engel_elasticity{0.4}                    # fall of the food budget share per unit log income (Engel's law)
+vaccine_world_capacity{0.003}            # world vaccinations per resident per day at full production
+vaccine_income_priority{1}               # allocation weight elasticity to income per head (advance purchases)
+pandemic_rate{0.02}                      # annual probability that a novel epidemic emerges (Marani et al. 2021)
+housing_wealth_gdp{2}                    # housing wealth / GDP at the start
+house_user_cost_base{0.05}               # user cost of housing at the start (real rate + depreciation + risk)
+house_price_years{3}                     # adjustment time of house prices to fundamentals (years)
+house_credit{0.5}                        # house-price response to the household credit gap (Favara & Imbs 2015)
+equity_risk_premium{0.05}                # equity risk premium
+mpc_housing{0.05}                        # consumption per unit housing-wealth change (Mian, Rao & Sufi 2013)
+mpc_equity{0.02}                         # consumption per unit equity-wealth change
+equity_wealth_gdp{1}                     # household equity wealth / GDP at the start
+alliance_threat{0.3}                     # shared threat above which allies form (balance of threat; Walt 1987)
+fta_rate{0.2}                            # annual FTA-formation hazard for a close, trusting, interdependent pair
+fta_trade_gain{0.7}                      # log trade gain of a mature FTA (Baier & Bergstrand 2007)
+fta_years{10}                            # phase-in time of an FTA's trade gain (years)
+imf_spread{6}                            # spread (pp above start) that triggers an IMF programme
+imf_loan{0.05}                           # IMF programme size (share of GDP)
+imf_catalytic{2}                         # spread relief (pp) of a programme (catalytic effect)
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

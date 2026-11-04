@@ -12,6 +12,7 @@ geosim_target_defaults(geosim_core)
 if(GEOSIM_USE_DCON)
     add_library(geosim_sim STATIC
         sim/backtest.cpp
+        sim/fork.cpp
         sim/ledger.cpp
         sim/params.cpp
         sim/report.cpp
@@ -20,6 +21,11 @@ if(GEOSIM_USE_DCON)
         sim/scenario_ext.cpp
         sim/simulation.cpp
         sim/systems/ai.cpp
+        sim/systems/assets.cpp
+        sim/systems/fiscal.cpp
+        sim/systems/institutions.cpp
+        sim/systems/labour.cpp
+        sim/systems/treaties.cpp
         sim/systems/bonds.cpp
         sim/systems/commodities.cpp
         sim/systems/credit.cpp

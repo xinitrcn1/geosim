@@ -38,7 +38,11 @@ void update_longrun(game_state& state) {
         // Investment gap -> capital stock -> potential.
         const float base = n.get_i0() * std::max(0.01f, n.get_gf());
         const float gap = base > 0.0f ? n.get_investment() / base - 1.0f : 0.0f;
-        const float grow = std::exp(static_cast<float>(P.capital_hysteresis) * gap * years);
+        // Public capital built above the baseline raises potential (Bom & Ligthart 2014).
+        const float grow = std::exp(static_cast<float>(P.capital_hysteresis) * gap * years
+                                    + static_cast<float>(P.public_capital_elasticity) * (n.get_public_investment() / 100.0f - 0.04f * n.get_public_capital())
+                                          / static_cast<float>(P.public_capital_ratio) * years);
+
         for(auto own : n.get_region_ownership()) {
             auto r = own.get_region();
             for(uint8_t s = 0; s < state.derived.sector_count; ++s) r.set_va0(s, r.get_va0(s) * grow);

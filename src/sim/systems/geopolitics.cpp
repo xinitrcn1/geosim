@@ -140,7 +140,8 @@ void update_power(game_state& state) {
             industry = base > 0.0f ? std::clamp(n.get_output(ms) / base, 0.2f, 2.0f) : 1.0f;
         }
         const float tech = std::min(1.0f, 2.0f * n.get_tertiary_share()) * n.get_state_capacity();
-        n.set_military(n.get_power() * (0.5f + 0.5f * industry) * (1.0f + tech));
+        const float budget = n.get_defense_share0() > 0.0f ? std::clamp(n.get_defense_share() / n.get_defense_share0(), 0.3f, 5.0f) : 1.0f;
+        n.set_military(n.get_power() * (0.5f + 0.5f * industry) * (1.0f + tech) * std::sqrt(budget));
         // Resource rents relative to GDP (oil, gas, coal, metals at current prices).
         double rents = 0.0;
         if(D.oil) rents += static_cast<double>(n.get_oil_production()) * 1e6 * 365.0 * w.commodity_get_price(D.oil);
@@ -168,7 +169,9 @@ float trade_access(game_state const& state, dcon::nation_id n) {
         const double base = static_cast<double>(m.get_m0()) * m.get_gf();
         const double demand = base > 0.0 ? m.get_imports() / base : 1.0;
         // Persistent shipping delays on the route also cut the pair's trade (logistics.cpp).
-        access += w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war) * w.nation_get_pair_cost(n, k);
+        // FTAs phase in a trade gain (treaties.cpp; Baier & Bergstrand 2007).
+        const double fta = std::exp(P.fta_trade_gain * w.nation_get_fta(n, k));
+        access += w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war) * w.nation_get_pair_cost(n, k) * fta;
     }
     return static_cast<float>(access);
 }

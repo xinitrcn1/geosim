@@ -499,8 +499,11 @@ void update_politics(game_state& state) {
 
         // Coups: small winning coalition, low legitimacy, widespread unrest.
         const float unrest_mean = size > 0 ? static_cast<float>(unrest / size) : 0.0f;
-        if(n.get_winning_coalition() < 0.3f && n.get_legitimacy() < 0.3f && unrest_mean > 2.0f) {
-            const float p = static_cast<float>(P.coup_rate) * (unrest_mean - 2.0f);
+        // Coups: a disloyal military with an opportunity (Powell 2012; Svolik 2012).
+        const float loyalty = n.get_military_agent() ? n.get_military_loyalty() : 1.0f;
+        if(loyalty < static_cast<float>(P.coup_loyalty) && n.get_legitimacy() < 0.4f && unrest_mean > 1.5f) {
+            const float p = static_cast<float>(P.coup_rate) * (unrest_mean - 1.5f) * (1.0f - n.get_winning_coalition())
+                            * (static_cast<float>(P.coup_loyalty) - loyalty) * 10.0f;
             if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::elections), static_cast<uint32_t>(state.current_tick),
                                static_cast<uint32_t>(n.id.index())) < p) {
                 n.set_electoral(n.get_electoral() * 0.5f);

@@ -115,6 +115,12 @@ void nation_prepass(game_state& state, dcon::nation_id n, bool apply) {
 }
 
 
+bool core_key_is(uint32_t key, char const* text) {
+    uint32_t k = 0;
+    for(int i = 0; i < 4 && text[i]; ++i) k |= static_cast<uint32_t>(static_cast<unsigned char>(text[i])) << (8 * i);
+    return key == k;
+}
+
 // ---------------------------------------------------------------- production network
 // Dynamic input-output model with input stocks (Pichler, Pangallo, del Rio-Chanona,
 // Lafond & Farmer 2022), on top of the value-added demand of the final-demand
@@ -264,7 +270,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float fear = 1.0f / (1.0f + static_cast<float>(P.voluntary_demand_k) * (1.0f - fear_fatigue) * deaths_pm);
     const float conf = std::max(0.5f, 1.0f - static_cast<float>(P.precautionary) * std::max(0.0f, u - u0));
     const float rate_c = 1.0f - static_cast<float>(P.rate_c_elasticity) * (r - r0);
-    w.nation_set_conf_rate(n, conf * rate_c);
+    // Wealth effects from house and equity prices (assets.cpp) shift spending plans.
+    w.nation_set_conf_rate(n, conf * rate_c * std::max(0.5f, 1.0f + (apply ? w.nation_get_wealth_effect(n) : 0.0f)));
 
     const double c_des_total = w.nation_get_c_des_total(n);
     // Household spending plans plus the credit impulse spent on goods (credit.cpp).
@@ -282,6 +289,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float balance_sheet = 1.0f - static_cast<float>(P.fx_balance_sheet) * w.nation_get_fx_loan_share(n) * std::max(0.0f, -log_e0);
     const float i_real = w.nation_get_i0(n) * gf * accel * (1.0f - static_cast<float>(P.rate_i_elasticity) * rate_dev) * std::max(0.3f, balance_sheet)
                          * (1.0f + (apply ? w.nation_get_board_investment(n) : 0.0f))
+                         * (1.0f - static_cast<float>(P.crime_investment) * std::max(0.0f, w.nation_get_crime(n) - 1.0f))
                          + (apply ? w.nation_get_credit_flow_firm(n) / p : 0.0f);
     // Exports follow partners' import demand through bilateral trade shares, cut by
     // sanctions and war (relative to the starting access).
@@ -320,9 +328,16 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     }
     // War: military procurement from domestic manufacturing, paid by the government.
     const float war_g = apply ? static_cast<float>(P.war_spending) * w.nation_get_war_effort(n) * w.nation_get_gdp0_daily(n) * gf : 0.0f;
+    // Public investment above baseline buys construction; defence above its 2019 share
+    // buys manufacturing (fiscal.cpp, institutions.cpp).
+    const float pub_g = apply ? w.nation_get_public_investment(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
+    const float def_g = apply ? (w.nation_get_defense_share(n) - w.nation_get_defense_share0(n)) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
+    for(auto sec : w.in_sector) {
+        if(core_key_is(sec.get_key(), "con")) dem[sec.id.index()] += pub_g * (1.0f - m_share);
+    }
     if(D.manufacturing_sector) {
         const auto ms = static_cast<uint8_t>(D.manufacturing_sector.index());
-        dem[ms] += war_g * (1.0f - m_share);
+        dem[ms] += (war_g + def_g) * (1.0f - m_share);
         const float redirect = static_cast<float>(P.substitution) * blocked_contact;
         hh[ms] += redirect;
         dem[ms] += redirect;
@@ -377,7 +392,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         float pe = w.nation_get_inflation_expect(n);
         // Depreciation passes partly into prices (import costs).
         // Pass-through rises with trend inflation (Taylor 2000; nation fx_passthrough_n).
-        const float pi = pe + static_cast<float>(P.phillips) * gs - w.nation_get_fx_passthrough_n(n) * w.nation_get_fx_change(n);
+        // Wage growth beyond productivity raises unit labour costs (labour.cpp).
+        const float pi = pe + static_cast<float>(P.phillips) * gs - w.nation_get_fx_passthrough_n(n) * w.nation_get_fx_change(n)
+                         + 0.5f * w.nation_get_wage_nominal_growth(n);
         // Freight-driven import costs reach consumer prices through the import share.
         const float ici = w.nation_get_import_cost_index(n);
         const float prev = std::max(0.5f, w.nation_get_import_cost_prev(n));
@@ -459,7 +476,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     }
     const double fees_nom = static_cast<double>(hh_gov_real) * p;
     const double c_to_firms = std::max(0.0, c_nom - fees_nom);
-    const double indirect = w.nation_get_tax_indirect(n) * c_to_firms;
+    const double comp = apply ? compliance_ratio(state, n) : 1.0;
+    const double indirect = w.nation_get_tax_indirect(n) * comp * c_to_firms;
     const double oil_value = static_cast<double>(w.nation_get_oil_production(n)) * 1e6 * oil_price;
     const double resource = w.nation_get_resource_tax(n) * oil_value;
     // Non-oil commodities: terms-of-trade gains from abroad, the state's rent share,
@@ -474,7 +492,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         ps += (profit - ps) * std::min(1.0, static_cast<double>(dt) / P.profit_smoothing_days);
         w.nation_set_profit_smoothed(n, static_cast<float>(ps));
     }
-    const double firm_tax = w.nation_get_tax_firm(n) * std::max(0.0, profit);
+    const double firm_tax = w.nation_get_tax_firm(n) * comp * std::max(0.0, profit);
     const double dividends = w.nation_get_dividend_payout(n) * std::max(0.0, ps);
     const double debt = apply ? std::max(0.0, -w.nation_get_bal_gov(n)) : w.nation_get_gov_debt0(n);
     // Effective rate on the debt: rolls over at market yields (bonds.cpp).
@@ -502,6 +520,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         transfer(state, gov, firms, gov_purchases * ddt, flow::gov_purchases);
         transfer(state, gov, firms, fiscal_firms, flow::fiscal_firms);
         transfer(state, gov, firms, static_cast<double>(war_g) * p * ddt, flow::war_spending);
+        transfer(state, gov, firms, static_cast<double>(pub_g) * p * ddt, flow::public_investment);
+        transfer(state, gov, firms, static_cast<double>(def_g) * p * ddt, flow::defense);
+        w.nation_set_defense_spend(n, def_g);
         transfer(state, firms, gov, static_cast<double>(imports) * p * (w.nation_get_tariff(n) - w.nation_get_tariff0(n)) * ddt, flow::tariffs);
         transfer(state, row, firms, static_cast<double>(x_real) * p * ddt, flow::exports);
         transfer(state, firms, row, static_cast<double>(imports) * p * ddt, flow::imports);
@@ -522,7 +543,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         }
         w.nation_set_consumption(n, c_eff);
         w.nation_set_investment(n, i_real);
-        w.nation_set_gov_spend(n, g_real + war_g);
+        w.nation_set_gov_spend(n, g_real + war_g + pub_g + def_g);
         w.nation_set_exports(n, x_real);
         w.nation_set_imports(n, imports);
         w.nation_set_gdp_real(n, gdp);
@@ -612,6 +633,9 @@ void update_economy(game_state& state, economy_mode mode) {
     const ve::fp_vector lag_epl(static_cast<float>(P.layoff_lag_epl));
     const ve::fp_vector lf_inf(static_cast<float>(P.lf_exit_informal));
     const ve::fp_vector net_drag(static_cast<float>(P.network_return_drag));
+    const ve::fp_vector lab_el(static_cast<float>(P.labor_demand_elasticity));
+    // Effective household tax (scale x compliance x behavioural base), per nation, for the pop pass.
+    for(auto n : due_nations) w.nation_set_tax_multiplier(n, apply ? household_tax_multiplier(state, n) : 1.0f);
     w.execute_parallel_over_pop([&](auto ids) {
         const auto nat = w.pop_get_nation(ids);
         const auto reg = w.pop_get_home(ids);
@@ -635,13 +659,14 @@ void update_economy(game_state& state, economy_mode mode) {
         ve::fp_vector work(0.0f), pub(0.0f), stw(0.0f), programmes(0.0f);
         for(uint8_t s = 0; s < S; ++s) {
             const auto e = w.pop_get_employed(ids, s);
-            const auto wage = w.pop_get_wage0(ids, s) * gf * p;
+            const auto wage = w.pop_get_wage0(ids, s) * gf * p * w.pop_get_wage_mult(ids);
             if(s == gov_sector) {
                 pub = pub + e * wage; // public employment is held
                 continue;
             }
             const auto base = w.pop_get_emp0(ids, s);
-            const auto need = base * w.region_get_util(reg, s);
+            // Labour demand falls with real labour costs (Lichter, Peichl & Siegloch 2015).
+            const auto need = base * w.region_get_util(reg, s) * ve::max(ve::fp_vector(0.5f), one - lab_el * (w.pop_get_wage_mult(ids) - one));
             const auto need_slow = w.pop_get_need_slow(ids, s) + (need - w.pop_get_need_slow(ids, s)) * slow;
             const auto layoff_need = ve::max(need, need_slow);
             const auto shrink = layoff_need < e;
@@ -677,7 +702,7 @@ void update_economy(game_state& state, economy_mode mode) {
         const auto dividends = w.pop_get_owner_weight(ids) * w.nation_get_rate_dividend(nat);
         const auto interest = w.pop_get_owner_weight(ids) * w.nation_get_rate_interest(nat);
         const auto gross = work + pub + stw;
-        const auto tax = w.nation_get_tax_hh(nat) * (gross + dividends + interest);
+        const auto tax = w.nation_get_tax_hh(nat) * w.nation_get_tax_multiplier(nat) * w.pop_get_tax_factor(ids) * (gross + dividends + interest);
         const auto remit_in = w.pop_get_transfer_weight(ids) * w.nation_get_rate_remit_in(nat);
         const auto remit_out = w.pop_get_size(ids) * w.nation_get_rate_remit_out(nat);
         const auto loan_interest = w.pop_get_size(ids) * w.nation_get_rate_loan_interest(nat); // above/below the credit path

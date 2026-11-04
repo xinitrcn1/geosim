@@ -60,7 +60,7 @@ enum class value_axis : uint8_t { secular = 0, self_expression = 1, economic_rig
 enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3, count };
 
 // agent.kind
-enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2 };
+enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4 };
 
 // agent.override_mode (docs/01-gameplay-loop.md#3-act--overrides)
 enum class override_mode : uint8_t { none = 0, advise = 1, direct = 2, force = 3 };
@@ -81,6 +81,11 @@ enum class lever : uint8_t {
     tariff,          // executive: average import tariff, ad valorem (systems/firms.cpp)
     hoarding,        // board: labour hoarding in a downturn, 0..1 (systems/firms.cpp)
     investment,      // board: investment drive relative to the baseline (systems/firms.cpp)
+    tax_scale,       // executive (bill): household tax rate relative to the start (systems/fiscal.cpp)
+    public_investment, // executive (bill): public investment above the baseline, % of GDP (systems/fiscal.cpp)
+    min_wage,        // executive (bill): minimum wage relative to the start (systems/labour.cpp)
+    defense,         // executive (bill): defence spending, % of GDP (systems/institutions.cpp)
+    wage_push,       // union: real-wage demand, annual log change (systems/labour.cpp)
     count
 };
 
@@ -109,6 +114,11 @@ inline constexpr uint8_t journal_party_entry = 0xF7; // after = new party's loca
 inline constexpr uint8_t journal_party_exit = 0xF8;
 inline constexpr uint8_t journal_cyber = 0xF9;      // pragmatic = target nation index, after = damage
 inline constexpr uint8_t journal_insurgency = 0xFA; // after = 1 onset, 0 end
+inline constexpr uint8_t journal_bill = 0xFB;       // pragmatic = lever, before = status quo, after = enacted, prior = support
+inline constexpr uint8_t journal_no_confidence = 0xFC;
+inline constexpr uint8_t journal_court = 0xFD;      // pragmatic = lever struck down
+inline constexpr uint8_t journal_regime_change = 0xFE;
+inline constexpr uint8_t journal_treaty = 0xEF;     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
@@ -142,6 +152,9 @@ enum class flow : uint8_t {
     network_transfers,     // kin / caste / hometown network insurance between pops
     war_spending,          // military procurement during wars
     tariffs,               // import tariff revenue (above the start)
+    public_investment,     // public investment above the baseline
+    defense,               // defence spending above the baseline
+    imf_lending,           // IMF programme disbursements (from the rest of the world)
     count
 };
 

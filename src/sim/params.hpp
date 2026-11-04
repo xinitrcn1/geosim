@@ -325,6 +325,72 @@
     X(tariff_nationalism, 0.08, "ideological tariff per unit nationalist (TAN) position of the governing party") \
     X(tariff_elasticity, 4.0, "import volume elasticity to tariffs (Simonovska & Waugh 2014)")          \
     X(tariff_retaliation, 0.5, "partner sanction step per unit tariff rise (reciprocity)")              \
+    /* ---- institutions (systems/institutions.cpp) ---- */                                                 \
+    X(bill_threshold, 0.5, "legislative support needed to pass a bill with no veto players")           \
+    X(bill_veto_threshold, 0.2, "extra support needed per unit veto-player strength (Tsebelis 2002)")   \
+    X(bill_discipline, 0.9, "support of governing parties for their government's bills")                \
+    X(bill_rally, 0.4, "opposition support added per unit perceived threat (crisis bills)")             \
+    X(no_confidence_rate, 0.5, "annual no-confidence success hazard of a minority government at zero approval") \
+    X(snap_election_days, 60.0, "days from a lost confidence vote to the snap election")                \
+    X(court_rate, 0.3, "monthly probability that an independent judiciary strikes down a forced lever") \
+    X(military_loyalty_years, 1.0, "adjustment time of military loyalty (years)")                      \
+    X(coup_loyalty, 0.35, "loyalty below which the military may attempt a coup (Powell 2012; Svolik 2012)") \
+    X(defection_participation, 0.035, "protest participation at which a disloyal military defects (Chenoweth & Stephan 2011)") \
+    X(defense_threat, 0.05, "pragmatic defence spending (% GDP) per unit external threat")               \
+    /* ---- labour (systems/labour.cpp) ---- */                                                              \
+    X(wage_curve, 0.1, "real-wage elasticity to unemployment (Blanchflower & Oswald 1994)")            \
+    X(wage_rigidity, 0.6, "share of the wage-curve response suppressed at full bargaining coverage")    \
+    X(wage_indexation, 0.5, "share of an inflation surprise recovered per unit bargaining coverage")    \
+    X(wage_adjust_years, 1.0, "adjustment time of real wages toward the bargaining outcome (years)")   \
+    X(labor_demand_elasticity, 0.3, "employment response to real labour costs (Lichter, Peichl & Siegloch 2015)") \
+    X(min_wage_low_share, 0.5, "share of low-skill wages tied to the minimum wage at full bite")       \
+    X(min_wage_job_loss, 0.05, "low-skill job loss per unit log minimum-wage rise (Cengiz et al. 2019: small)") \
+    X(union_militancy, 0.02, "annual real-wage push per unit union density x left position")          \
+    X(strike_drive, 0.5, "protest drive per unit real-wage loss x union density")                      \
+    /* ---- fiscal (systems/fiscal.cpp) ---- */                                                                \
+    X(eti, 0.25, "elasticity of taxable income to the net-of-tax rate (Saez, Slemrod & Giertz 2012)")   \
+    X(compliance_legitimacy, 0.3, "tax compliance per unit legitimacy (Levi 1988)")                    \
+    X(compliance_trust, 0.3, "tax compliance per unit social trust")                                    \
+    X(consolidation_spread, 0.02, "pragmatic household tax rise per pp spread above start")           \
+    X(tax_ideology, 0.1, "ideological tax rise per unit economic-left position of the governing party") \
+    X(public_investment_slack, 0.1, "pragmatic public investment (% GDP) per point of slack")          \
+    X(public_capital_elasticity, 0.1, "output elasticity to public capital (Bom & Ligthart 2014)")      \
+    X(public_capital_ratio, 0.6, "public capital stock / GDP at the start")                             \
+    /* ---- society extensions ---- */                                                                       \
+    X(social_trust_years, 10.0, "adjustment time of social trust (years; Putnam 1993)")                       \
+    X(trust_inequality, 1.0, "trust lost per unit Gini rise")                                           \
+    X(trust_unrest, 0.1, "trust lost per unrest level")                                                  \
+    X(trust_compliance, 0.5, "NPI compliance elasticity to social trust (Bargain & Aminjonov 2020)")     \
+    X(crime_unemployment, 3.0, "crime index rise per unit unemployment rise (Becker 1968; Raphael & Winter-Ebmer 2001)") \
+    X(crime_investment, 0.05, "investment lost per unit crime-index rise")                             \
+    X(fertility_income, 0.3, "elasticity of the birth rate to income per head (demographic transition)") \
+    X(fertility_education, 0.5, "elasticity of the birth rate to the tertiary share (Bongaarts 1978)")  \
+    X(fertility_years, 10.0, "adjustment time of the birth rate to its long-run level (years)")         \
+    X(baby_bust, 1.0, "birth-rate cut per unit unemployment rise (Kearney & Levine 2021)")             \
+    X(tertiary_drift, 0.004, "annual rise of the tertiary share with income growth (educational expansion)") \
+    X(scarring, 0.5, "permanent wage loss of a cohort per unit unemployment rise at entry (Kahn 2010)") \
+    X(engel_elasticity, 0.4, "fall of the food budget share per unit log income (Engel's law)")        \
+    /* ---- health extensions ---- */                                                                        \
+    X(vaccine_world_capacity, 0.003, "world vaccinations per resident per day at full production")      \
+    X(vaccine_income_priority, 1.0, "allocation weight elasticity to income per head (advance purchases)") \
+    X(pandemic_rate, 0.02, "annual probability that a novel epidemic emerges (Marani et al. 2021)")    \
+    /* ---- assets (systems/assets.cpp) ---- */                                                                  \
+    X(housing_wealth_gdp, 2.0, "housing wealth / GDP at the start")                                     \
+    X(house_user_cost_base, 0.05, "user cost of housing at the start (real rate + depreciation + risk)") \
+    X(house_price_years, 3.0, "adjustment time of house prices to fundamentals (years)")               \
+    X(house_credit, 0.5, "house-price response to the household credit gap (Favara & Imbs 2015)")     \
+    X(equity_risk_premium, 0.05, "equity risk premium")                                                  \
+    X(mpc_housing, 0.05, "consumption per unit housing-wealth change (Mian, Rao & Sufi 2013)")         \
+    X(mpc_equity, 0.02, "consumption per unit equity-wealth change")                                    \
+    X(equity_wealth_gdp, 1.0, "household equity wealth / GDP at the start")                             \
+    /* ---- treaties (systems/treaties.cpp) ---- */                                                             \
+    X(alliance_threat, 0.3, "shared threat above which allies form (balance of threat; Walt 1987)")    \
+    X(fta_rate, 0.2, "annual FTA-formation hazard for a close, trusting, interdependent pair")          \
+    X(fta_trade_gain, 0.7, "log trade gain of a mature FTA (Baier & Bergstrand 2007)")                  \
+    X(fta_years, 10.0, "phase-in time of an FTA's trade gain (years)")                                 \
+    X(imf_spread, 6.0, "spread (pp above start) that triggers an IMF programme")                       \
+    X(imf_loan, 0.05, "IMF programme size (share of GDP)")                                               \
+    X(imf_catalytic, 2.0, "spread relief (pp) of a programme (catalytic effect)")                      \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

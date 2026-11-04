@@ -499,6 +499,9 @@ void update_ai(game_state& state) {
             decide_directed_credit(state, a, n);
             decide_net_filtering(state, a, n);
             decide_tariff(state, a, n);
+            decide_defense(state, a, n);
+            decide_min_wage(state, a, n);
+            decide_fiscal_structure(state, a, n);
         }
     }
     for(auto bank : w.in_agent) {

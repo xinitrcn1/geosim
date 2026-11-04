@@ -54,6 +54,8 @@ struct nation_input {
     double fx_loan_share = 0.1, fx_deposit_share = 0.1, npl = 0.03, capital_ratio = 0.16, lending_spread = 3.0;
     double yield10 = NAN, effective_rate = NAN, avg_maturity = 7.0, foreign_debt_share = 0.3, fx_debt_share = 0.1, food_cpi = 0.25;
     double coordination = 0.5, tariff = 0.05;
+    double union_density = 0.12, bargaining_coverage = 0.15, min_wage_bite = 0.4, tax_progressivity = 0.08, trust = 0.25;
+    double presidential = 0, veto = 0.3, defense = 2.0;
     // society_curated.csv
     double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03, net_freedom = 60.0;
     struct group {
@@ -181,6 +183,11 @@ struct builder {
             w.pathogen_set_detection_ratio(id, num("detection_ratio", 0.1));
             w.pathogen_set_npi_sensitivity(id, num("npi_sensitivity", 1.0));
             w.pathogen_set_initial_immunity(id, num("initial_immunity", 0.0));
+            w.pathogen_set_vaccine_days(id, num("vaccine_days", 0.0));
+            w.pathogen_set_vaccine_efficacy(id, num("vaccine_efficacy", 0.0));
+            w.pathogen_set_vaccine_ramp_days(id, num("vaccine_ramp_days", 270.0));
+            w.pathogen_set_emergent(id, node.num_or("emergent", 0.0, path, diag) > 0.0 ? 1 : 0);
+            w.pathogen_set_first_seen(id, -1);
             pathogen_by_key[key] = static_cast<uint8_t>(id.index());
             made.emplace_back(id, &node);
         }
@@ -392,6 +399,10 @@ struct builder {
             in.food_cpi = t.number_or(row, "food_cpi_share", in.food_cpi);
             in.coordination = std::clamp(t.number_or(row, "coordination_index", in.coordination), 0.0, 1.0);
             in.tariff = t.number_or(row, "tariff_pct", in.tariff * 100.0) / 100.0;
+            in.union_density = t.number_or(row, "union_density", in.union_density);
+            in.bargaining_coverage = t.number_or(row, "bargaining_coverage", in.bargaining_coverage);
+            in.min_wage_bite = t.number_or(row, "min_wage_bite", in.min_wage_bite);
+            in.tax_progressivity = t.number_or(row, "tax_progressivity", in.tax_progressivity);
         });
         rows("society_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             in.youth_share = t.number_or(row, "youth_share", in.youth_share);
@@ -400,6 +411,7 @@ struct builder {
             in.corruption_cpi = t.number_or(row, "corruption_cpi", in.corruption_cpi);
             in.emigrant_stock = t.number_or(row, "emigrant_stock_pct", in.emigrant_stock * 100.0) / 100.0;
             in.net_freedom = t.number_or(row, "net_freedom", in.net_freedom);
+            in.trust = t.number_or(row, "trust_wvs", in.trust);
         });
         rows("groups_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             nation_input::group g;
@@ -677,6 +689,9 @@ struct builder {
                 w.pop_set_home(p, r);
                 w.pop_set_shard(p, w.region_get_shard(r));
                 w.pop_set_network(p, g.get_network());
+                w.pop_set_wage_mult(p, 1.0f);
+                w.pop_set_tax_factor(p, 1.0f);
+                w.pop_set_cpi_p(p, 1.0f);
                 w.force_create_pop_location(p, r);
             }
         }
@@ -983,6 +998,7 @@ struct builder {
         w.nation_set_tax_firm(n, static_cast<float>(std::clamp(r_firm / profit0, 0.0, 0.6)));
         const double firm_tax = w.nation_get_tax_firm(n) * profit0;
         w.nation_set_profit_smoothed(n, static_cast<float>(profit0));
+        w.nation_set_profit0(n, static_cast<float>(profit0));
 
         const double debt0 = in.gov_debt * in.gdp;
         w.nation_set_gov_debt0(n, debt0);
@@ -1102,6 +1118,21 @@ struct builder {
         w.nation_set_tariff(n, static_cast<float>(in.tariff));
         w.nation_set_tariff0(n, static_cast<float>(in.tariff));
         w.nation_set_tariff_prev(n, static_cast<float>(in.tariff));
+        // Labour institutions, taxes, trust, assets (docs/03, docs/04).
+        w.nation_set_union_density(n, static_cast<float>(in.union_density));
+        w.nation_set_bargaining_coverage(n, static_cast<float>(in.bargaining_coverage));
+        w.nation_set_min_wage_bite(n, static_cast<float>(in.min_wage_bite));
+        w.nation_set_min_wage(n, 1.0f);
+        w.nation_set_min_wage0(n, 1.0f);
+        w.nation_set_wage_real(n, 1.0f);
+        w.nation_set_tax_scale(n, 1.0f);
+        w.nation_set_tax_progressivity(n, static_cast<float>(in.tax_progressivity));
+        w.nation_set_social_trust(n, static_cast<float>(in.trust));
+        w.nation_set_social_trust0(n, static_cast<float>(in.trust));
+        w.nation_set_crime(n, 1.0f);
+        w.nation_set_house_price(n, 1.0f);
+        w.nation_set_equity_price(n, 1.0f);
+        w.nation_set_gdp_pc0(n, static_cast<float>(in.gdp / in.population));
         // Society.
         w.nation_set_youth_share(n, static_cast<float>(in.youth_share));
         w.nation_set_youth_unemp_rel(n, static_cast<float>(in.youth_unemp_rel));
@@ -1160,6 +1191,37 @@ struct builder {
         (void)y;
     }
 
+    // HSV progressivity: each pop's tax rate scales as (income per head / mean)^tau,
+    // revenue-neutral against the flat calibrated rate (Heathcote, Storesletten &
+    // Violante 2017).
+    void calibrate_tax_progressivity(dcon::nation_id n) {
+        auto& w = state.world;
+        const float tau = w.nation_get_tax_progressivity(n);
+        double inc = 0.0, size = 0.0;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                inc += std::max(0.0f, loc.get_pop().get_income());
+                size += loc.get_pop().get_size();
+            }
+        }
+        const double mean = size > 0.0 ? inc / size : 1.0;
+        double base = 0.0, weighted = 0.0;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                auto p = loc.get_pop();
+                const double pc = p.get_size() > 0.0f ? std::max(0.0f, p.get_income()) / p.get_size() : mean;
+                const double f = std::pow(std::max(1e-3, pc / mean), static_cast<double>(tau));
+                base += std::max(0.0f, p.get_income());
+                weighted += f * std::max(0.0f, p.get_income());
+                p.set_tax_factor(static_cast<float>(f));
+            }
+        }
+        const double norm = weighted > 0.0 ? base / weighted : 1.0;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) loc.get_pop().set_tax_factor(static_cast<float>(loc.get_pop().get_tax_factor() * norm));
+        }
+    }
+
     // Second calibration phase, after one probe pass of the economy has computed
     // every pop's baseline income: consumption and saving per pop, balances, Gini.
     void finish(dcon::nation_id n, nation_input const& in) {
@@ -1194,6 +1256,7 @@ struct builder {
         // Society: demography rates, baselines for relative deprivation and stress,
         // initial values (priors from income and voice until survey data, e.g. WVS, is loaded).
         w.nation_set_birth_rate(n, static_cast<float>(in.birth_rate));
+        w.nation_set_birth_rate0(n, static_cast<float>(in.birth_rate));
         double retired = 0.0, mass_inc = 0.0, mass_n = 0.0, elite_u = 0.0, elite_n = 0.0;
         const double gdp_pc = in.gdp / in.population;
         const float secular = static_cast<float>(std::clamp(0.35 * std::log(gdp_pc / 12000.0), -1.0, 1.0));
@@ -1253,6 +1316,9 @@ struct builder {
         }
         w.nation_set_legitimacy(n, static_cast<float>(std::clamp(0.6 + 0.1 * in.voice, 0.3, 0.85)));
         w.nation_set_media_freedom(n, static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0)));
+        // Tax compliance at the start (the reference for later changes; fiscal.cpp).
+        w.nation_set_compliance(n, compliance_target(state, n));
+        w.nation_set_compliance0(n, w.nation_get_compliance(n));
         // Finance and long-run baselines.
         w.nation_set_ca0(n, (w.nation_get_x0(n) - w.nation_get_m0(n)) / std::max(1.0f, w.nation_get_gdp0_daily(n)));
         double worker_income = 0.0;
@@ -1355,6 +1421,21 @@ struct builder {
                 it = banks.emplace(area, bank).first;
             }
             w.force_create_monetary_authority(n, it->second);
+            // Union federation and military (docs/05 agents).
+            const auto uni = w.create_agent();
+            w.agent_set_kind(uni, static_cast<uint8_t>(agent_kind::union_federation));
+            w.agent_set_rho_base(uni, static_cast<float>(std::clamp(0.2 + in.union_density, 0.1, 0.6)));
+            w.agent_set_rho(uni, w.agent_get_rho_base(uni));
+            w.nation_set_union_agent(n, uni);
+            const auto mil = w.create_agent();
+            w.agent_set_kind(mil, static_cast<uint8_t>(agent_kind::military));
+            w.agent_set_order_ideal(mil, 0.6f); // militaries value order
+            w.agent_set_rho_base(mil, 0.5f);
+            w.agent_set_rho(mil, 0.5f);
+            w.nation_set_military_agent(n, mil);
+            w.nation_set_military_loyalty(n, static_cast<float>(std::clamp(0.6 + 0.1 * in.voice, 0.3, 0.85)));
+            w.nation_set_defense_share(n, static_cast<float>(in.defense));
+            w.nation_set_defense_share0(n, static_cast<float>(in.defense));
             w.nation_set_voice(n, static_cast<float>(in.voice));
             w.nation_set_state_capacity(n, static_cast<float>(std::clamp(0.5 + 0.25 * in.effectiveness, 0.0, 1.0)));
         }
@@ -1502,6 +1583,7 @@ struct builder {
         w.nation_resize_trade_distance(N);
         w.nation_resize_pair_cost(N);
         w.nation_resize_coupling(N);
+        w.nation_resize_fta(N);
         w.nation_resize_trust(N);
         w.nation_resize_threat_to(N);
         w.nation_resize_trade_share(N);
@@ -1517,6 +1599,7 @@ struct builder {
             double term = 4;
             std::string next;
             std::string incumbent = "C";
+            double presidential = 0, veto = 0.3, defense = 2.0;
         };
         std::map<std::string, sys> systems;
         if(exists(dir + "/politics_curated.csv")) {
@@ -1527,6 +1610,9 @@ struct builder {
                 s.term = t.number_or(row, "term_years", 4.0);
                 s.next = std::string(t.get(row, "next_election"));
                 s.incumbent = std::string(t.get(row, "incumbent"));
+                s.presidential = t.number_or(row, "presidential", 0.0);
+                s.veto = t.number_or(row, "veto", 0.3);
+                s.defense = t.number_or(row, "defense_pct", 2.0);
                 systems[std::string(t.get(row, "iso3"))] = s;
             }
         }
@@ -1543,6 +1629,10 @@ struct builder {
             const sys s = systems.count(iso) ? systems[iso] : sys{};
             const auto es = s.system == "fptp" ? electoral_system::fptp : s.system == "none" ? electoral_system::none : electoral_system::pr;
             w.nation_set_electoral_system(n, static_cast<uint8_t>(es));
+            w.nation_set_presidential(n, s.presidential > 0.0 ? 1 : 0);
+            w.nation_set_veto(n, static_cast<float>(s.veto));
+            w.nation_set_defense_share(n, static_cast<float>(s.defense));
+            w.nation_set_defense_share0(n, static_cast<float>(s.defense));
             w.nation_set_competitive(n, es != electoral_system::none ? 1 : 0);
             w.nation_set_term_days(n, static_cast<int32_t>(s.term * 365.25));
             if(auto d = core::parse_date(s.next)) {
@@ -1754,6 +1844,9 @@ struct builder {
             calibrate(find_nation(state, iso), inputs[iso]);
         }
         update_economy(state, economy_mode::baseline_probe);
+        // Progressive household taxes need incomes: calibrate, then probe again.
+        for(auto const& iso : order) calibrate_tax_progressivity(find_nation(state, iso));
+        update_economy(state, economy_mode::baseline_probe);
         for(auto const& iso : order) {
             finish(find_nation(state, iso), inputs[iso]);
         }
@@ -1761,6 +1854,9 @@ struct builder {
         if(diag.failed()) return;
         create_politics();
         init_firms(state); // after politics: boards and tariffs read the governing party
+        for(auto n : w.in_nation) {
+            if(auto inc = n.get_incumbent()) n.set_gov_econ0(w.party_get_position(inc, static_cast<uint8_t>(value_axis::economic_right)));
+        }
     }
 };
 

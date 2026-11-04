@@ -18,6 +18,12 @@
 # cross_immunity    susceptibility removed by having recovered from another pathogen{ key{share} }
 
 # SARS-CoV-2, wild type. Flaxman et al. 2020 (R0); Levin et al. 2020 (IFR by age, rounded to two groups).
+#
+# vaccine_days       days from first sighting to the first vaccine (0 = none); SARS-CoV-2: the
+#                    first emergency use authorisation (2020-12-11) ~345 days after the outbreak
+# vaccine_efficacy   share of vaccinated susceptibles made immune
+# vaccine_ramp_days  days for world production to reach vaccine_world_capacity
+# emergent{1}        a template that can emerge at random (pandemic_rate); not seeded otherwise
 pathogen{
 	key{cov}
 	name{SARS-CoV-2 (wild type)}
@@ -25,6 +31,7 @@ pathogen{
 	ifr_young{0.0015} ifr_old{0.045} old_contact_factor{0.6}
 	seasonality{0.25} waning_days{0} hosp_share{0.05} detection_ratio{0.15}
 	npi_sensitivity{1.0} initial_immunity{0.0}
+	vaccine_days{345} vaccine_efficacy{0.9} vaccine_ramp_days{270}
 }
 
 # Seasonal influenza: R0 ~1.3 (Biggerstaff et al. 2014), IFR ~0.01-0.05% overall, strong
@@ -50,6 +57,7 @@ pathogen{
 	seasonality{0.4} waning_days{0} hosp_share{0.01} detection_ratio{0.05}
 	npi_sensitivity{1.0} initial_immunity{0.0}
 	cross_immunity{ flu{0.2} }
+	vaccine_days{180} vaccine_efficacy{0.7} vaccine_ramp_days{120} emergent{1}
 }
 
 # Severe pandemic influenza, 1918-like (R0 ~2, IFR 2-3% with high young-adult mortality).
@@ -60,4 +68,5 @@ pathogen{
 	ifr_young{0.02} ifr_old{0.03} old_contact_factor{0.8}
 	seasonality{0.3} waning_days{0} hosp_share{0.08} detection_ratio{0.1}
 	npi_sensitivity{1.0} initial_immunity{0.0}
+	vaccine_days{240} vaccine_efficacy{0.7} vaccine_ramp_days{180} emergent{1}
 }

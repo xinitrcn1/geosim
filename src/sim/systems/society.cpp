@@ -181,7 +181,9 @@ void update_demography(game_state& state) {
         for(auto p : pops.by_kind[retired_kind]) retired_size += w.pop_get_size(p);
 
         // Births and childhood (children are part of the young epidemic group).
-        const float births = n.get_birth_rate() * population * years;
+        // Births fall in recessions (Kearney & Levine 2021: the COVID baby bust).
+        const float bust = std::max(0.2f, 1.0f - static_cast<float>(P.baby_bust) * std::max(0.0f, n.get_unemployment() - n.get_unemployment0()));
+        const float births = n.get_birth_rate() * population * years * bust;
         r.set_children(r.get_children() + births);
         for(uint8_t p = 0; p < state.derived.pathogen_count; ++p) {
             r.set_ep_s(epi_index(p, age_young), r.get_ep_s(epi_index(p, age_young)) + births);
@@ -198,7 +200,14 @@ void update_demography(game_state& state) {
                 const auto g = w.pop_get_group(p);
                 const float gshare = g ? w.social_group_get_pop_share(g) : 1.0f / static_cast<float>(pops.by_kind[k].size());
                 const float sk = g && w.social_group_get_skill(g, k) > 0.0f ? w.social_group_get_skill(g, k) : split[k];
-                add_seekers(state, p, entrants * gshare * sk, n.get_unemployment0());
+                // Cohorts entering a slack labour market carry a lasting wage penalty (Kahn 2010).
+                const float added = entrants * gshare * sk;
+                const float size = std::max(1.0f, workforce(state, p));
+                const float scar = static_cast<float>(P.scarring) * std::max(0.0f, n.get_unemployment() - n.get_unemployment0()) * added / (size + added);
+                if(scar > 0.0f) {
+                    for(uint8_t s = 0; s < state.derived.sector_count; ++s) w.pop_set_wage0(p, s, w.pop_get_wage0(p, s) * (1.0f - scar));
+                }
+                add_seekers(state, p, added, n.get_unemployment0());
             }
         }
 
@@ -271,7 +280,7 @@ void update_migration(game_state& state) {
 
     auto expected = [&](dcon::pop_id p) {
         const float size = w.pop_get_size(p);
-        return size > 0.0f ? std::max(1e-3f, w.pop_get_income(p) / size / std::max(0.01f, w.nation_get_cpi(w.pop_get_nation(p)))) : 1e-3f;
+        return size > 0.0f ? std::max(1e-3f, w.pop_get_income(p) / size / std::max(0.01f, w.pop_get_cpi_p(p))) : 1e-3f;
     };
     auto restriction = [&](dcon::nation_id n, uint8_t k) { return k != 0xFF ? npi_fraction(state, n, k) : 0.0f; };
 
@@ -538,10 +547,72 @@ void update_unrest(game_state& state) {
         // Liberty-restricting policy beyond the Overton window (e.g. lockdowns where they
         // are unacceptable) adds a backlash.
         const float backlash = static_cast<float>(P.overton_backlash) * n.get_policy_outside();
+        // Strikes: real-wage losses where unions are strong (labour.cpp).
+        const float wage_loss = std::max(0.0f, 1.0f - n.get_wage_real() * n.get_core_price() / std::max(0.01f, n.get_cpi()));
+        const float strikes = static_cast<float>(P.strike_drive) * n.get_union_density() * wage_loss * 10.0f;
         const float drive = (static_cast<float>(P.unrest_grievance) * grievance * (1.0f - n.get_legitimacy())
                              + static_cast<float>(P.unrest_psi) * n.get_psi()) * amplifier
-                            + exit_blocked + backlash;
+                            + exit_blocked + backlash + strikes;
         r.set_drive(std::clamp(drive, 0.0f, 2.0f));
+    }
+}
+
+// ---------------------------------------------------------------- social capital and demography
+// Every 28 days per nation:
+//  - social trust (a slow stock; Putnam 1993; Knack & Keefer 1997): falls with
+//    rising inequality, unrest and corruption, recovers slowly; it raises tax and
+//    NPI compliance (Bargain & Aminjonov 2020);
+//  - crime (Becker 1968): property crime rises with unemployment and poverty
+//    (Raphael & Winter-Ebmer 2001) and deters investment;
+//  - the demographic transition: the birth rate drifts with income per head and
+//    education (Bongaarts 1978; Lee 2003); the tertiary share rises with
+//    educational expansion (mobility between skill tiers);
+//  - CPI per pop: food weighs more in poorer budgets (Engel's law), so food
+//    inflation hits the poor harder.
+void update_social_capital(game_state& state) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    const auto tick = static_cast<tick_t>(state.current_tick);
+    const float years = static_cast<float>(monthly_cadence.period_days) / 365.0f;
+    for(auto n : w.in_nation) {
+        if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
+        float unrest = 0.0f, pop = 0.0f;
+        for(auto own : n.get_region_ownership()) {
+            unrest += own.get_region().get_unrest() * own.get_region().get_population();
+            pop += own.get_region().get_population();
+        }
+        unrest = pop > 0.0f ? unrest / pop : 0.0f;
+        const float trust_target = std::clamp(n.get_social_trust0() - static_cast<float>(P.trust_inequality) * (n.get_gini() - n.get_gini0())
+                                                  - static_cast<float>(P.trust_unrest) * unrest - 0.1f * std::max(0.0f, n.get_crime() - 1.0f),
+                                              0.01f, 0.95f);
+        n.set_social_trust(n.get_social_trust() + (trust_target - n.get_social_trust()) * std::min(1.0f, years / static_cast<float>(P.social_trust_years)));
+        const float poverty_rise = std::max(0.0f, n.get_poverty() - n.get_poverty0());
+        n.set_crime(1.0f + static_cast<float>(P.crime_unemployment) * std::max(0.0f, n.get_unemployment() - n.get_unemployment0()) + 2.0f * poverty_rise);
+        // Demographic transition.
+        const float gdp_pc = static_cast<float>(n.get_gdp_real() * 365.0 / std::max(1.0f, n.get_population()));
+        const float inc_rel = n.get_gdp_pc0() > 0.0f ? std::max(0.1f, gdp_pc / n.get_gdp_pc0()) : 1.0f;
+        const float edu_rel = n.get_tertiary0() > 0.0f ? std::max(0.1f, n.get_tertiary_share() / n.get_tertiary0()) : 1.0f;
+        const float birth_target = n.get_birth_rate0() * std::pow(inc_rel, -static_cast<float>(P.fertility_income)) * std::pow(edu_rel, -static_cast<float>(P.fertility_education));
+        n.set_birth_rate(n.get_birth_rate() + (birth_target - n.get_birth_rate()) * std::min(1.0f, years / static_cast<float>(P.fertility_years)));
+        n.set_tertiary_share(std::min(0.8f, n.get_tertiary_share() + static_cast<float>(P.tertiary_drift) * years * std::min(1.0f, inc_rel)));
+        // CPI per pop (Engel).
+        double inc = 0.0, size = 0.0;
+        for(auto own : n.get_region_ownership()) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                inc += std::max(0.0f, loc.get_pop().get_income());
+                size += loc.get_pop().get_size();
+            }
+        }
+        const double mean = size > 0.0 ? inc / size : 1.0;
+        for(auto own : n.get_region_ownership()) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                auto p = loc.get_pop();
+                const double pc = p.get_size() > 0.0f ? std::max(0.0f, p.get_income()) / p.get_size() : mean;
+                const float share = std::clamp(n.get_food_cpi_share() * static_cast<float>(std::pow(std::max(1e-3, pc / mean), -P.engel_elasticity)), 0.0f, 0.8f);
+                const float f = n.get_food_price() - 1.0f;
+                p.set_cpi_p(n.get_cpi() * (1.0f + share * f) / std::max(0.1f, 1.0f + n.get_food_cpi_share() * f));
+            }
+        }
     }
 }
 

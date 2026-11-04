@@ -95,7 +95,8 @@ int main() {
             const auto exec = s->world.nation_get_agent_from_executive_seat(usa);
             const auto lev = static_cast<uint8_t>(s->derived.lever_base + static_cast<uint8_t>(sim::lever::tariff));
             if(tariff) {
-                s->world.agent_set_override_mode(exec, lev, static_cast<uint8_t>(sim::override_mode::force));
+                // Direct (within the legal range): forced levers are struck down by independent courts.
+                s->world.agent_set_override_mode(exec, lev, static_cast<uint8_t>(sim::override_mode::direct));
                 s->world.agent_set_override_value(exec, lev, s->world.nation_get_tariff0(usa) + 0.2f);
             }
             for(int d = 0; d < 180; ++d) sim::advance_day(*s);

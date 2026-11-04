@@ -4,25 +4,28 @@
 #  system: pr | fptp | none (no competitive elections; the incumbent stays)
 #  incumbent: L | C | R  (governing side in January 2020)
 #  next_election: date of the next national (presidential or legislative) election
-iso3,system,term_years,next_election,incumbent
-USA,fptp,4,2020-11-03,R
-CHN,none,5,,C
-JPN,pr,4,2021-10-31,R
-DEU,pr,4,2021-09-26,C
-GBR,fptp,5,2024-07-04,R
-FRA,fptp,5,2022-04-10,C
-ITA,pr,5,2022-09-25,L
-ESP,pr,4,2023-07-23,L
-CAN,fptp,4,2021-09-20,L
-KOR,fptp,4,2020-04-15,L
-AUS,fptp,3,2022-05-21,R
-BRA,pr,4,2022-10-02,R
-MEX,fptp,6,2024-06-02,L
-IND,fptp,5,2024-04-19,R
-RUS,none,6,,R
-TUR,pr,5,2023-05-14,R
-IDN,pr,5,2024-02-14,C
-SAU,none,0,,C
-ZAF,pr,5,2024-05-29,L
-ARG,pr,4,2023-10-22,L
-ROW,pr,5,2022-06-01,C
+#  presidential: 1 = executive not responsible to the legislature (no confidence votes)
+#  veto: veto-player strength 0..1 (Henisz POLCON-III, rounded; Tsebelis 2002)
+#  defense_pct: military expenditure, % of GDP, 2019 (SIPRI Military Expenditure Database)
+iso3,system,term_years,next_election,incumbent,presidential,veto,defense_pct
+USA,fptp,4,2020-11-03,R,1,0.85,3.4
+CHN,none,5,,C,0,0,1.9
+JPN,pr,4,2021-10-31,R,0,0.45,0.9
+DEU,pr,4,2021-09-26,C,0,0.5,1.3
+GBR,fptp,5,2024-07-04,R,0,0.4,1.7
+FRA,fptp,5,2022-04-10,C,1,0.4,1.9
+ITA,pr,5,2022-09-25,L,0,0.5,1.4
+ESP,pr,4,2023-07-23,L,0,0.45,1.2
+CAN,fptp,4,2021-09-20,L,0,0.4,1.3
+KOR,fptp,4,2020-04-15,L,1,0.4,2.7
+AUS,fptp,3,2022-05-21,R,0,0.45,1.9
+BRA,pr,4,2022-10-02,R,1,0.55,1.5
+MEX,fptp,6,2024-06-02,L,1,0.45,0.5
+IND,fptp,5,2024-04-19,R,0,0.45,2.4
+RUS,none,6,,R,1,0.15,3.9
+TUR,pr,5,2023-05-14,R,1,0.2,2.7
+IDN,pr,5,2024-02-14,C,1,0.45,0.8
+SAU,none,0,,C,0,0,8.0
+ZAF,pr,5,2024-05-29,L,0,0.35,1.0
+ARG,pr,4,2023-10-22,L,1,0.45,0.7
+ROW,pr,5,2022-06-01,C,0,0.3,2.0

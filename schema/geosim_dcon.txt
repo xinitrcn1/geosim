@@ -304,6 +304,49 @@ object{
 	property{ name{tariff} type{float} }
 	property{ name{tariff0} type{float} }
 	property{ name{tariff_prev} type{float} }
+	property{ name{veto} type{float} }
+	property{ name{military_agent} type{agent_id} }
+	property{ name{union_agent} type{agent_id} }
+	property{ name{gov_econ0} type{float} }
+	property{ name{profit0} type{float} }
+	property{ name{tax_multiplier} type{float} }
+	property{ name{poverty0} type{float} }
+	property{ name{min_wage_bite} type{float} }
+	property{ name{defense_spend} type{float} }
+	property{ name{presidential} type{uint8_t} }
+	property{ name{bills_failed} type{float} }
+	property{ name{judicial} type{float} }
+	property{ name{military_loyalty} type{float} }
+	property{ name{defense_share} type{float} }
+	property{ name{defense_share0} type{float} }
+	property{ name{union_density} type{float} }
+	property{ name{bargaining_coverage} type{float} }
+	property{ name{wage_real} type{float} }
+	property{ name{wage_nominal_growth} type{float} }
+	property{ name{min_wage} type{float} }
+	property{ name{min_wage0} type{float} }
+	property{ name{union_push} type{float} }
+	property{ name{tax_scale} type{float} }
+	property{ name{tax_progressivity} type{float} }
+	property{ name{compliance} type{float} }
+	property{ name{compliance0} type{float} }
+	property{ name{public_investment} type{float} }
+	property{ name{public_capital} type{float} }
+	property{ name{social_trust} type{float} }
+	property{ name{social_trust0} type{float} }
+	property{ name{crime} type{float} }
+	property{ name{birth_rate0} type{float} }
+	property{ name{gdp_pc0} type{float} }
+	property{ name{house_price} type{float} }
+	property{ name{house_price_trend} type{float} }
+	property{ name{housing_wealth} type{float} }
+	property{ name{equity_price} type{float} }
+	property{ name{wealth_effect} type{float} }
+	property{ name{vaccinated} type{float} }
+	property{ name{fta} type{array{uint8_t}{float}} }
+	property{ name{imf_program} type{float} }
+	property{ name{palma} type{float} }
+	property{ name{poverty} type{float} }
 	property{ name{urban_share} type{float} }
 	property{ name{window_center} type{array{uint8_t}{float}} }
 	property{ name{window_width} type{array{uint8_t}{float}} }
@@ -435,6 +478,8 @@ object{
 	property{ name{informal} type{float} }
 	property{ name{formal_rel} type{float} }
 	property{ name{network} type{float} }
+	property{ name{tax_factor} type{float} }
+	property{ name{cpi_p} type{float} }
 }
 
 object{
@@ -497,6 +542,12 @@ object{
 	property{ name{severity} type{float} }
 	property{ name{initial_immunity} type{float} }
 	property{ name{cross_immunity} type{array{uint8_t}{float}} }
+	property{ name{vaccine_days} type{float} }
+	property{ name{vaccine_efficacy} type{float} }
+	property{ name{vaccine_ramp_days} type{float} }
+	property{ name{vaccine_capacity} type{float} }
+	property{ name{first_seen} type{int32_t} }
+	property{ name{emergent} type{uint8_t} }
 }
 
 object{

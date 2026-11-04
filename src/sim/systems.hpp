@@ -3,6 +3,7 @@
 // are decided in sim/simulation.cpp (docs/02-simulation-core.md#cadence-scheduler).
 
 #include "sim/game_state.hpp"
+#include "sim/model.hpp"
 
 namespace geosim::sim {
 
@@ -74,6 +75,28 @@ void init_firms(game_state& state);
 void update_firms(game_state& state);
 void decide_tariff(game_state& state, dcon::agent_id a, dcon::nation_id n);
 
+// Institutions (docs/05): bills through legislatures with veto players; confidence,
+// courts and military (monthly). enact() returns the part of a proposed change the
+// legislature passes (or the executive can decree).
+float enact(game_state& state, dcon::nation_id n, uint8_t lev, float status_quo, float proposed, value_axis axis, float shift_per_unit, bool crisis);
+void update_institutions(game_state& state);
+void decide_defense(game_state& state, dcon::agent_id a, dcon::nation_id n);
+// Labour (monthly): unions, the wage curve, the minimum wage.
+void update_labour(game_state& state);
+void decide_min_wage(game_state& state, dcon::agent_id a, dcon::nation_id n);
+// Fiscal structure (monthly + weekly decisions): progressivity, compliance, public investment.
+void update_fiscal(game_state& state);
+void decide_fiscal_structure(game_state& state, dcon::agent_id a, dcon::nation_id n);
+[[nodiscard]] float household_tax_multiplier(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float compliance_ratio(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float compliance_target(game_state const& state, dcon::nation_id n);
+// Assets and treaties (monthly), vaccines and emergent epidemics (daily).
+void update_assets(game_state& state);
+void update_treaties(game_state& state);
+void update_vaccination(game_state& state);
+// Society extensions (monthly): trust, crime, fertility, education, scarring, CPI per pop.
+void update_social_capital(game_state& state);
+
 // Every 28 days (sharded): identity groups - horizontal inequality, network
 // insurance (docs/04-society.md#identity-groups). Daily: protest cascades.
 void update_groups(game_state& state);
@@ -86,6 +109,7 @@ void update_indicators(game_state& state);
 // within each group (employed / unemployed / inactive) with dispersion `sigma`
 // (pass a negative value to use each pop's calibrated inc_sigma).
 [[nodiscard]] float compute_gini(game_state const& state, dcon::nation_id n, float sigma = -1.0f);
+void compute_distribution(game_state const& state, dcon::nation_id n, float& palma, float& poverty);
 
 // Polity links. DCON relationships keyed on a unique primary link have a slot for
 // every primary object, so a lookup can return a relationship with an empty
