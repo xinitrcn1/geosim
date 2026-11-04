@@ -66,6 +66,16 @@ enum class override_mode : uint8_t { none = 0, advise = 1, direct = 2, force = 3
 // index); the fixed levers follow at derived_indices::lever_base + offset.
 enum class lever : uint8_t { fiscal = 0, stw_coverage, stw_replacement, tti, policy_rate, oil_target, count };
 
+// nation.electoral_system
+enum class electoral_system : uint8_t { none = 0, pr = 1, fptp = 2 };
+
+// decision.lever codes for non-lever journal entries
+inline constexpr uint8_t journal_election = 0xF0;
+inline constexpr uint8_t journal_coup = 0xF1;
+inline constexpr uint8_t journal_war = 0xF2;
+inline constexpr uint8_t journal_peace = 0xF3;
+inline constexpr uint8_t journal_sanction = 0xF4;
+
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
     consumption = 0,

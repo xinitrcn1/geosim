@@ -475,6 +475,15 @@ def main() -> int:
     curated = read_curated(scen / "nations_curated.csv")
     nations = build_nations(wdi, curated)
     wgi = load_wgi(raw)
+    # Capital coordinates (World Bank country metadata) for distances; ROW at a world centroid.
+    meta_path = raw / "wb_countries.json"
+    coords = {}
+    if meta_path.exists():
+        for c in json.loads(meta_path.read_text())[1]:
+            if c.get("latitude"):
+                coords[c["id"]] = (float(c["latitude"]), float(c["longitude"]))
+    for iso in nations:
+        nations[iso]["capital_lat"], nations[iso]["capital_lon"] = coords.get(iso, (20.0, 20.0))
     pops = {i: nations[i]["population"] for i in nations if i != ROW}
     for field, col in (("voice", "voice_est"), ("effectiveness", "gov_effectiveness_est")):
         for iso in nations:
@@ -488,7 +497,8 @@ def main() -> int:
             "inflation_trend_pct", "hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct",
             "imports_pct", "gov_revenue_pct", "gov_net_lending_pct", "gov_debt_pct", "gini",
             "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct", "vulnerable_emp_pct",
-            "voice_est", "gov_effectiveness_est", "birth_rate_per_1000", "death_rate_per_1000"]
+            "voice_est", "gov_effectiveness_est", "birth_rate_per_1000", "death_rate_per_1000",
+            "capital_lat", "capital_lon"]
     order = SLICE + [ROW]
     write_csv(scen / "nations.csv", cols, [[nations[i].get(c) for c in cols] for i in order],
               f"{GEN}. Source: World Bank WDI, latest year <= 2019; WGI voice/effectiveness (ROW: unweighted mean of the rest). Empty = missing (loader uses defaults).")

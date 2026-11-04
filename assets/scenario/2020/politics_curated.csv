@@ -1,0 +1,28 @@
+# Political systems and 2020 incumbents (hand-written; approximate, to be replaced by ParlGov /
+# Manifesto Project data). Every nation gets three generic parties L / C / R
+# (economic left-right -0.5 / 0 / +0.5; L more secular and self-expressive, R more traditional).
+#  system: pr | fptp | none (no competitive elections; the incumbent stays)
+#  incumbent: L | C | R  (governing side in January 2020)
+#  next_election: date of the next national (presidential or legislative) election
+iso3,system,term_years,next_election,incumbent
+USA,fptp,4,2020-11-03,R
+CHN,none,5,,C
+JPN,pr,4,2021-10-31,R
+DEU,pr,4,2021-09-26,C
+GBR,fptp,5,2024-07-04,R
+FRA,fptp,5,2022-04-10,C
+ITA,pr,5,2022-09-25,L
+ESP,pr,4,2023-07-23,L
+CAN,fptp,4,2021-09-20,L
+KOR,fptp,4,2020-04-15,L
+AUS,fptp,3,2022-05-21,R
+BRA,pr,4,2022-10-02,R
+MEX,fptp,6,2024-06-02,L
+IND,fptp,5,2024-04-19,R
+RUS,none,6,,R
+TUR,pr,5,2023-05-14,R
+IDN,pr,5,2024-02-14,C
+SAU,none,0,,C
+ZAF,pr,5,2024-05-29,L
+ARG,pr,4,2023-10-22,L
+ROW,pr,5,2022-06-01,C

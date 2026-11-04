@@ -200,7 +200,9 @@ void update_demography(game_state& state) {
         remove_alive(state, r.id, age_old, old_deaths);
         remove_alive(state, r.id, age_young, young_deaths);
         const float epi_old = r.get_epi_deaths_old();
-        const float epi_young = r.get_epi_deaths_young();
+        const float epi_young = r.get_epi_deaths_young() + r.get_war_deaths(); // war deaths: working age
+        if(r.get_war_deaths() > 0.0f) remove_alive(state, r.id, age_young, r.get_war_deaths());
+        r.set_war_deaths(0.0f);
         r.set_epi_deaths_old(0.0f);
         r.set_epi_deaths_young(0.0f);
         if(retired) {
@@ -302,7 +304,11 @@ void update_migration(game_state& state) {
                 const auto x = po.by_kind[k];
                 const auto y = pd.by_kind[k];
                 if(!x || !y) continue;
-                const float gap = std::log(expected(y) / expected(x)) - static_cast<float>(P.migration_cost_international);
+                // War at home pushes refugees out regardless of the income gap.
+                float at_war = 0.0f;
+                for(auto o : w.in_nation) at_war = std::max(at_war, n.get_at_war(static_cast<uint8_t>(o.id.index())));
+                const float gap = std::log(expected(y) / expected(x)) - static_cast<float>(P.migration_cost_international)
+                                  + static_cast<float>(P.refugee_push) * at_war;
                 if(gap > 0.0f) {
                     moves.push_back({x, y, static_cast<float>(P.migration_rate_international) * years * gap * workforce(state, x) * open * gravity});
                 }

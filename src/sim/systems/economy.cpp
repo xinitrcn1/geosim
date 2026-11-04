@@ -57,24 +57,6 @@ float travel_index(game_state const& state, dcon::nation_id n) {
            * (1.0f - static_cast<float>(P.tourism_world_border) * others);
 }
 
-// Partner-weighted index of foreign import demand (1 = baseline).
-float world_import_index(game_state const& state, dcon::nation_id n) {
-    auto const& w = state.world;
-    double num = 0.0;
-    double den = 0.0;
-    for(auto m : w.in_nation) {
-        if(m.id == n) {
-            continue;
-        }
-        const double base = static_cast<double>(m.get_m0()) * m.get_gf();
-        if(base > 0.0) {
-            num += m.get_imports();
-            den += base;
-        }
-    }
-    return den > 0.0 ? static_cast<float>(num / den) : 1.0f;
-}
-
 // Export-weighted manufacturing capacity of partners (1 = normal).
 float world_manufacturing_index(game_state const& state, dcon::nation_id n) {
     auto const& w = state.world;
@@ -172,7 +154,10 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float accel = std::clamp(1.0f + static_cast<float>(P.accelerator) * (w.nation_get_util_smoothed(n) - 1.0f),
                                    static_cast<float>(P.investment_floor), 1.3f);
     const float i_real = w.nation_get_i0(n) * gf * accel * (1.0f - static_cast<float>(P.rate_i_elasticity) * (r - r0));
-    const float x_real = w.nation_get_x0(n) * gf * (apply ? world_import_index(state, n) : 1.0f);
+    // Exports follow partners' import demand through bilateral trade shares, cut by
+    // sanctions and war (relative to the starting access).
+    const float access0 = std::max(1e-6f, w.nation_get_trade_access0(n));
+    const float x_real = w.nation_get_x0(n) * gf * (apply ? trade_access(state, n) / access0 : 1.0f);
     const float tourism = apply ? travel_index(state, n) : 1.0f;
 
     std::array<float, max_sectors> hh{};
@@ -287,7 +272,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         pending -= std::min(pending, w.nation_get_programmes(n));
         const double paid = pending * std::min(1.0, static_cast<double>(dt) / P.fiscal_disburse_days);
         w.nation_set_fiscal_pending(n, pending - paid);
-        fiscal_firms = paid * P.fiscal_firm_share;
+        // Small winning coalitions channel support to firms and insiders (selectorate theory).
+        const double firm_share = std::clamp(P.fiscal_firm_share + P.selectorate_firm_tilt * (0.35 - w.nation_get_winning_coalition(n)), 0.1, 0.8);
+        fiscal_firms = paid * firm_share;
         fiscal_hh = paid - fiscal_firms;
         w.nation_set_firm_support_rate(n, static_cast<float>(fiscal_firms / dt));
     }

@@ -44,6 +44,7 @@ struct nation_input {
     double benefit_coverage = 0.15, death_reporting = 0.5, oil_take = 0.0;
     double voice = 0.0, effectiveness = 0.0; // WGI estimates (about -2.5 .. 2.5)
     double birth_rate = 0.015, death_rate = 0.008, pop014 = 0.2, tertiary = 0.2;
+    double lat = 0.0, lon = 0.0;
     std::array<double, max_sectors> va_share{};
     std::array<double, max_sectors> emp_share{};
 };
@@ -265,6 +266,8 @@ struct builder {
             in.death_rate = t.number_or(row, "death_rate_per_1000", 8.0) / 1000.0;
             in.pop014 = t.number_or(row, "pop_0_14_pct", 20.0) / 100.0;
             in.tertiary = t.number_or(row, "tertiary_attainment_pct", 20.0) / 100.0;
+            in.lat = t.number_or(row, "capital_lat", 0.0);
+            in.lon = t.number_or(row, "capital_lon", 0.0);
             in.effectiveness = t.number_or(row, "gov_effectiveness_est", 0.0);
             order.push_back(in.iso);
             inputs[in.iso] = in;
@@ -1014,6 +1017,100 @@ struct builder {
         }
     }
 
+    // ------------------------------------------------------------ politics and relations
+    // Three generic parties per nation (L / C / R) until party data is loaded; systems,
+    // incumbents and election dates from politics_curated.csv; relations_curated.csv for
+    // alliances and status-quo sanctions.
+    void create_politics() {
+        auto& w = state.world;
+        const std::string dir = assets + "/scenario/" + scenario;
+        const auto N = static_cast<uint32_t>(w.nation_size());
+        w.nation_resize_trust(N);
+        w.nation_resize_threat_to(N);
+        w.nation_resize_trade_share(N);
+        w.nation_resize_sanction(N);
+        w.nation_resize_sanction_prior(N);
+        w.nation_resize_alliance(N);
+        w.nation_resize_at_war(N);
+        w.party_resize_position(static_cast<uint32_t>(value_axis::count));
+        w.pop_resize_party_support(8);
+
+        struct sys {
+            std::string system = "pr";
+            double term = 4;
+            std::string next;
+            std::string incumbent = "C";
+        };
+        std::map<std::string, sys> systems;
+        if(fs::exists(dir + "/politics_curated.csv")) {
+            const auto t = core::csv_table::load(dir + "/politics_curated.csv");
+            for(std::size_t row = 0; row < t.rows(); ++row) {
+                sys s;
+                s.system = std::string(t.get(row, "system"));
+                s.term = t.number_or(row, "term_years", 4.0);
+                s.next = std::string(t.get(row, "next_election"));
+                s.incumbent = std::string(t.get(row, "incumbent"));
+                systems[std::string(t.get(row, "iso3"))] = s;
+            }
+        }
+        const char* sides[3] = {"L", "C", "R"};
+        for(auto const& iso : order) {
+            const auto n = find_nation(state, iso);
+            auto const& in = inputs[iso];
+            const sys s = systems.count(iso) ? systems[iso] : sys{};
+            const auto es = s.system == "fptp" ? electoral_system::fptp : s.system == "none" ? electoral_system::none : electoral_system::pr;
+            w.nation_set_electoral_system(n, static_cast<uint8_t>(es));
+            w.nation_set_competitive(n, es != electoral_system::none ? 1 : 0);
+            w.nation_set_term_days(n, static_cast<int32_t>(s.term * 365.25));
+            if(auto d = core::parse_date(s.next)) {
+                w.nation_set_next_election(n, core::tick_from_date(*d));
+            }
+            w.nation_set_lat(n, static_cast<float>(in.lat));
+            w.nation_set_lon(n, static_cast<float>(in.lon));
+            const float electoral = static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0));
+            w.nation_set_electoral(n, electoral);
+            w.nation_set_liberal(n, 0.5f * electoral + 0.5f * w.nation_get_state_capacity(n));
+            w.nation_set_winning_coalition(n, 0.05f + 0.6f * electoral);
+            w.nation_set_gov_seat_share(n, 0.55f);
+            const float secular = static_cast<float>(std::clamp(0.35 * std::log(in.gdp / in.population / 12000.0), -1.0, 1.0));
+            for(uint8_t j = 0; j < 3; ++j) {
+                const auto p = w.create_party();
+                w.party_set_key(p, core::pack_key(sides[j]));
+                w.party_set_local_index(p, j);
+                const float side = static_cast<float>(j) - 1.0f; // -1, 0, +1
+                w.party_set_position(p, static_cast<uint8_t>(value_axis::economic_right), 0.5f * side);
+                w.party_set_position(p, static_cast<uint8_t>(value_axis::secular), secular - 0.2f * side);
+                w.party_set_position(p, static_cast<uint8_t>(value_axis::self_expression), secular - 0.2f * side);
+                w.force_create_party_membership(p, n);
+                if(s.incumbent == sides[j]) {
+                    w.nation_set_incumbent(n, p);
+                    w.party_set_in_government(p, 1);
+                }
+            }
+        }
+        if(fs::exists(dir + "/relations_curated.csv")) {
+            const auto t = core::csv_table::load(dir + "/relations_curated.csv");
+            for(std::size_t row = 0; row < t.rows(); ++row) {
+                const auto a = find_nation(state, t.get(row, "from"));
+                const auto b = find_nation(state, t.get(row, "to"));
+                if(!a || !b) continue;
+                const auto ka = static_cast<uint8_t>(a.index()), kb = static_cast<uint8_t>(b.index());
+                if(t.number_or(row, "alliance", 0.0) > 0.0) {
+                    w.nation_set_alliance(a, kb, 1.0f);
+                    w.nation_set_alliance(b, ka, 1.0f);
+                }
+                const float sanction = static_cast<float>(t.number_or(row, "sanction", 0.0));
+                w.nation_set_sanction(a, kb, sanction);
+                w.nation_set_sanction_prior(a, kb, sanction);
+            }
+        }
+        init_geopolitics(state);
+        for(auto n : w.in_nation) {
+            n.set_trade_access0(trade_access(state, n.id));
+        }
+        init_politics(state);
+    }
+
     void setup_oil() {
         auto& w = state.world;
         auto const& P = state.params;
@@ -1127,6 +1224,7 @@ struct builder {
             finish(find_nation(state, iso), inputs[iso]);
         }
         create_agents();
+        create_politics();
     }
 };
 

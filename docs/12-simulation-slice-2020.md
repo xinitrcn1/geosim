@@ -27,7 +27,9 @@ Code: `src/sim/` (systems in `src/sim/systems/`), data: `assets/`
 | AI agents | **Yes.** Executive + central bank per nation (one bank per currency union); anchors are priors (below) |
 | Overrides | **Yes (engine side).** advise / direct / force per agent and lever; AI choice still logged |
 | Sovereignty, pegs, claims | **Yes (data model + AI).** Subjects blend with their sovereign by autonomy; pegged banks follow the anchor |
-| Politics (parties, elections, legitimacy) | No |
+| Society | **Yes.** Demography, migration (internal + international, refugees), values and opinion, unrest / PSI |
+| Politics | **Yes.** Parties (generic L/C/R until party data), voting, elections on their dates, coalitions, legitimacy, selectorate, coups |
+| Geopolitics | **Yes.** Bilateral trust / threat / gravity trade / sanctions / alliances; two-level ratification; bargaining-model wars |
 
 ## Day loop (`src/sim/simulation.cpp`)
 
@@ -128,6 +130,26 @@ The 2019 data are turned into a consistent steady state, checked by
 - Monetary: BIS rate events; Taylor (1993) rule otherwise, with the neutral rate implied by the 2019 setting.
 
 **Oil** (`systems/markets.cpp`, daily): demand from oil-weighted activity and personal mobility (orders, fear, fatigue) with short-run price elasticity -0.07 (Hamilton 2009); OPEC+ targets from events; other producers price-elastic (shale highest); price follows flow and inventory gaps.
+
+## Society, politics, geopolitics (`systems/society.cpp`, `politics.cpp`, `geopolitics.cpp`)
+
+All on 28-day shards. Demography moves people between children, workers and
+retirees and removes epidemic and war deaths; migration follows Harris-Todaro
+expected-income gaps (adjacency internally, gravity internationally, refugees
+from wars); values drift with insecurity and converge by bounded confidence;
+unrest climbs a ladder driven by relative deprivation and the Political Stress
+Index. Pops vote by salience-weighted distance and retrospective performance;
+elections are held on their 2020 dates (USA 2020-11-03, KOR 2020-04-15) with PR or
+FPTP seats and minimal connected coalitions; legitimacy falls with forced
+overrides; the winning-coalition size (selectorate) tilts fiscal support toward
+firms in narrow regimes and weights health in broad ones. Relations hold trust,
+threat, gravity trade shares, sanctions (status quo anchored: US-China tariffs,
+Russia sanctions), alliances and war; exports follow bilateral trade access.
+`tests/test_politics.cpp` checks election dates, no 2020 war, persistent
+status-quo sanctions, the legitimacy cost of force and the trade cost of sanctions.
+
+Known gap: with three generic parties the centre wins both 2020 elections (median
+voter); real party systems (ParlGov / Manifesto) come with the data import.
 
 ## Back-test (2020, in-sample)
 

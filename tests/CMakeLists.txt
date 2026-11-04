@@ -16,6 +16,7 @@ if(GEOSIM_USE_DCON)
     geosim_add_test(test_ai geosim_sim)
     geosim_add_test(test_multiregion geosim_sim)
     geosim_add_test(test_epidemics geosim_sim)
+    geosim_add_test(test_politics geosim_sim)
 
     # Full 2020 run against real outcomes (slower; label "backtest").
     add_test(NAME backtest_2020

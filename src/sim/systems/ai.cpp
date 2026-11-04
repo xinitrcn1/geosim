@@ -144,7 +144,9 @@ situation assess(game_state const& state, dcon::nation_id n, double world_cases_
     const float cases_pm = static_cast<float>(cases / pop * 1e6);
     const float growth = cases > 0 ? static_cast<float>(growth_num / cases) : 0.0f;
     s.cases_pm = cases_pm * std::exp(std::clamp(growth * static_cast<float>(P.ai_horizon_days), -5.0f, 5.0f));
-    const float tolerance = static_cast<float>(P.ai_case_tolerance) / std::max(0.1f, w.agent_get_health_weight(a));
+    // Large winning coalitions make mass welfare (health) matter more (selectorate theory).
+    const float health = w.agent_get_health_weight(a) * (0.6f + 0.8f * w.nation_get_winning_coalition(n));
+    const float tolerance = static_cast<float>(P.ai_case_tolerance) / std::max(0.1f, health);
     const float econ = static_cast<float>(P.ai_econ_brake) * w.agent_get_econ_weight(a);
     s.threat = std::clamp(static_cast<float>(P.ai_threat_slope) * std::log(std::max(1e-3f, s.cases_pm) / tolerance) - econ, 0.0f, 1.0f);
     s.travel_threat = std::clamp(static_cast<float>(P.ai_threat_slope)

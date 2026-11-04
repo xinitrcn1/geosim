@@ -48,6 +48,30 @@ object{
 	property{ name{prior_oil_set} type{uint8_t} }
 	property{ name{threat} type{float} }
 	property{ name{legitimacy} type{float} }
+	property{ name{electoral} type{float} }
+	property{ name{liberal} type{float} }
+	property{ name{capture_index} type{float} }
+	property{ name{winning_coalition} type{float} }
+	property{ name{competitive} type{uint8_t} }
+	property{ name{electoral_system} type{uint8_t} }
+	property{ name{term_days} type{int32_t} }
+	property{ name{next_election} type{int32_t} }
+	property{ name{incumbent} type{party_id} }
+	property{ name{gov_seat_share} type{float} }
+	property{ name{approval} type{float} }
+	property{ name{approval0} type{float} }
+	property{ name{lat} type{float} }
+	property{ name{lon} type{float} }
+	property{ name{power} type{float} }
+	property{ name{trust} type{array{uint8_t}{float}} }
+	property{ name{threat_to} type{array{uint8_t}{float}} }
+	property{ name{trade_share} type{array{uint8_t}{float}} }
+	property{ name{sanction} type{array{uint8_t}{float}} }
+	property{ name{sanction_prior} type{array{uint8_t}{float}} }
+	property{ name{alliance} type{array{uint8_t}{float}} }
+	property{ name{at_war} type{array{uint8_t}{float}} }
+	property{ name{war_cost} type{float} }
+	property{ name{trade_access0} type{float} }
 	property{ name{media_freedom} type{float} }
 
 	property{ name{va0} type{array{uint8_t}{float}} }
@@ -175,6 +199,7 @@ object{
 	property{ name{epi_deaths_young} type{float} }
 	property{ name{epi_deaths_old} type{float} }
 	property{ name{grievance} type{float} }
+	property{ name{war_deaths} type{float} }
 	property{ name{unrest} type{float} }
 	property{ name{unrest_capacity} type{float} }
 	property{ name{migration_net} type{float} }
@@ -252,6 +277,7 @@ object{
 	property{ name{values} type{array{uint8_t}{float}} }
 	property{ name{salience} type{array{uint8_t}{float}} }
 	property{ name{income_expected} type{float} }
+	property{ name{party_support} type{array{uint8_t}{float}} }
 	property{ name{grievance} type{float} }
 	property{ name{inc_sigma} type{float} }
 	property{ name{owner_share} type{float} }
@@ -351,6 +377,20 @@ object{
 	property{ name{last_prior} type{array{uint8_t}{float}} }
 	property{ name{last_choice} type{array{uint8_t}{float}} }
 	property{ name{last_ai_choice} type{array{uint8_t}{float}} }
+}
+
+object{
+	name{party}
+	storage_type{erasable}
+	size{2048}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{position} type{array{uint8_t}{float}} }
+	property{ name{vote_share} type{float} }
+	property{ name{seat_share} type{float} }
+	property{ name{in_government} type{uint8_t} }
+	property{ name{local_index} type{uint8_t} }
 }
 
 object{
@@ -547,4 +587,24 @@ relationship{
 		index_storage{list}
 	}
 	property{ name{weight} type{float} }
+}
+
+relationship{
+	name{party_membership}
+	storage_type{erasable}
+	size{2048}
+	tag{scenario}
+
+	link{
+		object{party}
+		name{party}
+		type{unique}
+	}
+	link{
+		object{nation}
+		name{nation}
+		type{many}
+		index_storage{list}
+	}
+	primary_key{party}
 }

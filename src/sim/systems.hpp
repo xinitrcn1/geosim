@@ -30,6 +30,15 @@ void update_migration(game_state& state);
 void update_opinion(game_state& state);
 void update_unrest(game_state& state);
 
+// Every 28 days (sharded): politics and geopolitics (docs/05, docs/06).
+void init_politics(game_state& state);
+void update_politics(game_state& state);
+void init_geopolitics(game_state& state);
+void update_geopolitics(game_state& state);
+void update_power(game_state& state);
+// Bilateral export access (partners' import demand x trade share x sanctions/war).
+[[nodiscard]] float trade_access(game_state const& state, dcon::nation_id n);
+
 // Daily: annual accumulators; monthly-sharded Gini.
 void update_indicators(game_state& state);
 

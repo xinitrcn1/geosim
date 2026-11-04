@@ -88,6 +88,7 @@
     X(migration_rate_international, 0.002, "annual international migration per log-unit of gap")        \
     X(migration_cost_internal, 0.1, "log expected-income gap needed before people move internally")      \
     X(migration_cost_international, 1.0, "log expected-income gap needed before people emigrate")        \
+    X(refugee_push, 2.0, "extra log-gap pushing emigration from nations at war")                         \
     X(migration_cap, 0.01, "largest share of a pop that can move in one 28-day step")                    \
     X(values_insecurity_pull, 0.05, "survival-values shift per year at full insecurity")                  \
     X(values_loss_left, 0.1, "leftward economic shift per year at full grievance")                       \
@@ -99,6 +100,26 @@
     X(unrest_psi, 0.3, "unrest target per unit Political Stress Index")                                   \
     X(unrest_days, 60.0, "adjustment time of regional unrest (days)")                                     \
     X(riot_capital_loss, 0.002, "share of regional capital destroyed per 28 days per unrest level above 3") \
+    /* ---- politics ---- */                                                                                \
+    X(vote_distance_weight, 4.0, "utility loss per squared distance to a party")                          \
+    X(vote_retrospective, 1.0, "weight of the incumbent's performance in vote choice")                    \
+    X(vote_health_weight, 0.1, "performance penalty per daily death per million")                         \
+    X(vote_temperature, 0.3, "logit temperature of vote choice")                                          \
+    X(legitimacy_years, 1.0, "adjustment time of legitimacy (years)")                                     \
+    X(force_legitimacy_cost, 0.1, "legitimacy lost per year per forced lever")                            \
+    X(force_liberal_cost, 0.05, "liberal-index loss per year per forced lever")                           \
+    X(coup_rate, 0.02, "monthly coup probability per unrest level above 2 (when conditions hold)")       \
+    X(selectorate_firm_tilt, 0.3, "extra fiscal share to firms as the winning coalition shrinks")        \
+    /* ---- geopolitics ---- */                                                                             \
+    X(trust_years, 2.0, "adjustment time of bilateral trust (years)")                                     \
+    X(sanction_trade_cut, 0.8, "trade lost at full sanctions")                                            \
+    X(sanction_security_gain, 1.0, "pragmatic sanction level per unit threat above 0.2")                  \
+    X(sanction_dependence_cost, 3.0, "pragmatic sanction reduction per unit export dependence")            \
+    X(sanction_ideology_gain, 1.0, "ideological sanction level per unit regime distance above 0.3")       \
+    X(war_base_rate, 0.002, "annual war-onset hazard scale for a fully threatened, distrustful pair")      \
+    X(peace_base_rate, 0.5, "annual settlement hazard of a costless war")                                 \
+    X(war_casualty_rate, 0.001, "annual deaths per resident in front regions")                            \
+    X(war_destruction_rate, 0.05, "annual capital destroyed in front regions")                            \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \
