@@ -87,7 +87,7 @@ void decide_fiscal_structure(game_state& state, dcon::agent_id a, dcon::nation_i
         const float pragmatic = 1.0f + static_cast<float>(P.consolidation_spread) * std::max(0.0f, w.nation_get_spread(n) - w.nation_get_spread0(n) - 1.0f);
         const float ideal = pragmatic * (1.0f - static_cast<float>(P.tax_ideology) * econ_shift);
         float proposed = (1.0f - rho) * pragmatic + rho * ideal;
-        if(w.agent_get_override_mode(a, lev) != 0) proposed = w.agent_get_override_value(a, lev);
+        proposed = apply_override(state, a, lev, proposed, 0.0f, 3.0f); // tax scale (1 = start)
         const float before = w.nation_get_tax_scale(n);
         proposed = before + (proposed - before) * 0.1f; // tax reforms take time
         const float enacted = enact(state, n, lev, before, proposed, value_axis::economic_right, -0.5f, false);
@@ -108,7 +108,7 @@ void decide_fiscal_structure(game_state& state, dcon::agent_id a, dcon::nation_i
                                 * (1.0f + goal_bias(state, n, goal::restore_growth) - goal_bias(state, n, goal::consolidate));
         const float ideal = pragmatic * (1.0f - std::clamp(econ_shift, -1.0f, 1.0f));
         float proposed = (1.0f - rho) * pragmatic + rho * ideal;
-        if(w.agent_get_override_mode(a, lev) != 0) proposed = w.agent_get_override_value(a, lev);
+        proposed = apply_override(state, a, lev, proposed, -5.0f, 15.0f); // % of GDP above the start
         const float before = w.nation_get_public_investment(n);
         proposed = before + (proposed - before) * 0.2f;
         const float enacted = enact(state, n, lev, before, proposed, value_axis::economic_right, -0.03f, true);

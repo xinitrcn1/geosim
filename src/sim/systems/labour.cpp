@@ -58,7 +58,7 @@ void update_labour(game_state& state) {
             const float ideal = pragmatic + static_cast<float>(P.union_militancy) * n.get_union_density() * 10.0f * left;
             const float rho = w.agent_get_rho_base(ua);
             push = (1.0f - rho) * pragmatic + rho * ideal;
-            if(w.agent_get_override_mode(ua, lev) != 0) push = w.agent_get_override_value(ua, lev);
+            push = apply_override(state, ua, lev, push, -1e9f, 1e9f);
             w.agent_set_last_pragmatic(ua, lev, pragmatic);
             w.agent_set_last_ideological(ua, lev, ideal);
             w.agent_set_last_choice(ua, lev, push);
@@ -117,7 +117,7 @@ void decide_min_wage(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float rho = w.agent_get_rho_base(a);
     const float before = w.nation_get_min_wage(n);
     float proposed = (1.0f - rho) * pragmatic + rho * ideal;
-    if(w.agent_get_override_mode(a, lev) != 0) proposed = w.agent_get_override_value(a, lev);
+    proposed = apply_override(state, a, lev, proposed, 0.0f, 1e9f); // minimum wage
     // Minimum wages are reviewed yearly: move a twelfth of the gap per 28 days at most.
     proposed = before + (proposed - before) * 0.3f;
     const float enacted = enact(state, n, lev, before, proposed, value_axis::economic_right, -0.2f, false);

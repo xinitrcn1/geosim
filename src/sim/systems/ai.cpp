@@ -474,6 +474,22 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
 
 } // namespace
 
+float apply_override(game_state const& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi) {
+    auto const& w = state.world;
+    const float v = w.agent_get_override_value(a, lev);
+    switch(static_cast<override_mode>(w.agent_get_override_mode(a, lev))) {
+    case override_mode::none: return choice;
+    case override_mode::advise: {
+        const float k = static_cast<float>(state.params.advise_weight);
+        return std::clamp((choice + k * v) / (1.0f + k), lo, hi);
+    }
+    case override_mode::direct: return std::clamp(v, lo, hi);
+    case override_mode::force: return v;
+    }
+    return choice;
+}
+
+
 void update_ai(game_state& state) {
     if(state.params.ai_frozen != 0.0) {
         return; // reduced-detail forks: agents keep their current plans

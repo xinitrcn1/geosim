@@ -38,7 +38,7 @@ namespace {
 float lever_choice(game_state& state, dcon::agent_id a, uint8_t lev, float pragmatic, float ideal, float rho) {
     auto& w = state.world;
     float x = (1.0f - rho) * pragmatic + rho * ideal;
-    if(w.agent_get_override_mode(a, lev) != 0) x = w.agent_get_override_value(a, lev);
+    x = apply_override(state, a, lev, x, -1e9f, 1e9f);
     w.agent_set_last_pragmatic(a, lev, pragmatic);
     w.agent_set_last_ideological(a, lev, ideal);
     return x;

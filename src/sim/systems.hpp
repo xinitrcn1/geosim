@@ -193,6 +193,9 @@ void compute_un_ideals(game_state& state);
 void init_geo_organisations(game_state& state);
 void update_geo_organisations(game_state& state);
 void on_coup(game_state& state, dcon::nation_id n);
+// The player's override on a lever decided outside the AI's blend (advise: a strong prior;
+// direct: the value within [lo, hi]; force: the value as given, at a political cost).
+[[nodiscard]] float apply_override(game_state const& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi);
 [[nodiscard]] float coup_deterrence(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float alliance_burden_push(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float club_sanction_shift(game_state const& state, dcon::nation_id n, dcon::nation_id target, float choice);

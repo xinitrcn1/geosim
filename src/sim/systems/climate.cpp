@@ -65,7 +65,7 @@ void decide_carbon_price(game_state& state, dcon::agent_id a, dcon::nation_id n)
     const float rho = w.agent_get_rho_base(a);
     const float before = w.nation_get_carbon_price(n);
     float proposed = std::max(0.0f, (1.0f - rho) * pragmatic + rho * ideal);
-    if(w.agent_get_override_mode(a, lev) != 0) proposed = w.agent_get_override_value(a, lev);
+    proposed = apply_override(state, a, lev, proposed, 0.0f, 1000.0f); // USD per tonne
     proposed = before + (proposed - before) * 0.05f; // climate policy moves slowly
     const float enacted = enact(state, n, lev, before, proposed, value_axis::self_expression, 0.002f, false);
     w.agent_set_last_pragmatic(a, lev, pragmatic);
