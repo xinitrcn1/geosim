@@ -1,0 +1,32 @@
+# Political systems and incumbents at 2008-01-01 (hand-written; approximate). Columns as in
+# assets/scenario/2020/politics_curated.csv. Incumbents: USA Bush (R; election 2008-11-04), JPN Fukuda LDP (R),
+# DEU Merkel grand coalition (C), GBR Brown Labour (L), FRA Sarkozy UMP (R), ITA Prodi (L; snap election
+# 2008-04-13, Porcellum PR with majority bonus entered as pr 4%), ESP Zapatero PSOE (L), CAN Harper (R),
+# KOR Roh (L) until 2008-02-25 then Lee (R; elected 2007-12-19, entered as R; legislative 2008-04-09, MMM
+# 245/299 SMD), AUS Rudd Labor (L), BRA Lula PT (L), MEX Calderon PAN (R; midterm 2009-07-05), IND Singh
+# INC/UPA (L), RUS Putin / Medvedev (presidential election 2008-03-02; no competitive system), TUR Erdogan
+# AKP (R), IDN Yudhoyono (C), ZAF Mbeki ANC (L), ARG Fernandez de Kirchner PJ (L; midterm 2009-06-28).
+# veto: Henisz POLCON (2007, approximate); defense_pct: SIPRI military expenditure 2007, % GDP.
+# Party systems: no 2008 parties table yet - nations get three generic parties L / C / R.
+iso3,system,term_years,next_election,incumbent,presidential,veto,defense_pct,pr_threshold,smd_share
+USA,fptp,4,2008-11-04,R,1,0.85,4.0,0,1
+CHN,none,5,,C,0,0,1.3,0,0
+JPN,mixed,4,2009-08-30,R,0,0.45,0.9,0,0.62
+DEU,mixed,4,2009-09-27,C,0,0.5,1.3,0.05,0
+GBR,fptp,5,2010-05-06,L,0,0.25,2.3,0,1
+FRA,two_round,5,2012-04-22,R,1,0.4,2.3,0,1
+ITA,pr,5,2008-04-13,L,0,0.5,1.6,0.04,0
+ESP,pr,4,2008-03-09,L,0,0.35,1.2,0.03,0
+CAN,fptp,4,2008-10-14,R,0,0.3,1.3,0,1
+KOR,mixed,5,2008-04-09,R,1,0.5,2.6,0.03,0.82
+AUS,fptp,3,2010-08-21,L,0,0.4,1.8,0,1
+BRA,pr,4,2010-10-03,L,1,0.6,1.5,0,0
+MEX,mixed,6,2009-07-05,R,1,0.55,0.4,0.02,0.6
+IND,fptp,5,2009-04-16,L,0,0.4,2.3,0,1
+RUS,none,4,2008-03-02,C,1,0.1,3.4,0.07,0
+TUR,pr,4,2011-06-12,R,0,0.3,2.2,0.1,0
+IDN,pr,5,2009-04-09,C,1,0.4,0.9,0.025,0
+SAU,none,0,,C,0,0,8.5,0,0
+ZAF,pr,5,2009-04-22,L,0,0.25,1.3,0,0
+ARG,pr,4,2009-06-28,L,1,0.4,0.8,0,0
+ROW,pr,4,,C,0,0.3,2.0,0,0

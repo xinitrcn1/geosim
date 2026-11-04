@@ -1,5 +1,6 @@
 #pragma once
-// Calendar: ticks are whole days since the epoch 2020-01-01 (tick 0).
+// Calendar: ticks are whole days since the scenario's start date (tick 0); the
+// default epoch is 2020-01-01. game_state::epoch_days holds a scenario's epoch.
 
 #include <cstdint>
 #include <optional>
@@ -18,13 +19,13 @@ struct civil_date {
 [[nodiscard]] int64_t days_from_civil(civil_date d) noexcept;
 [[nodiscard]] civil_date civil_from_days(int64_t days) noexcept;
 
-inline constexpr int64_t epoch_days_1970 = 18262; // 2020-01-01
+inline constexpr int64_t epoch_days_1970 = 18262; // 2020-01-01, the default epoch
 
-[[nodiscard]] inline int32_t tick_from_date(civil_date d) noexcept {
-    return static_cast<int32_t>(days_from_civil(d) - epoch_days_1970);
+[[nodiscard]] inline int32_t tick_from_date(civil_date d, int64_t epoch = epoch_days_1970) noexcept {
+    return static_cast<int32_t>(days_from_civil(d) - epoch);
 }
-[[nodiscard]] inline civil_date date_from_tick(int32_t tick) noexcept {
-    return civil_from_days(epoch_days_1970 + tick);
+[[nodiscard]] inline civil_date date_from_tick(int32_t tick, int64_t epoch = epoch_days_1970) noexcept {
+    return civil_from_days(epoch + tick);
 }
 
 // Parses "YYYY-MM-DD". Returns nullopt on malformed input.

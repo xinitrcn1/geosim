@@ -1,0 +1,32 @@
+# Banking, credit, bond-market and price-basket data per nation, END-2007 (hand-written; rounded;
+# approximate). Columns and definitions as in assets/scenario/2020/finance_curated.csv.
+# Time-varying columns set to 2007: private_credit_pct (WDI FS.AST.PRVT.GD.ZS 2007; BIS), npl_pct and
+#   capital_ratio_pct (IMF GFSR 2009 statistical appendix / FSI 2007), yield10_pct (December 2007; OECD MEI,
+#   central banks; approximate for CHN, IND, IDN, SAU, ARG), effective_rate_pct (IMF / OECD, approximate),
+#   tariff_pct (WITS applied simple mean 2007), carbon_price_usd (EU ETS phase II forward, Jan 2008,
+#   ~22 EUR; no other schemes), union_density (OECD/AIAS ICTWSS 2007), BRA lending spread (BCB 2007).
+# All other columns are STRUCTURAL and copied from the 2020 table (state banks, CB independence, FX
+#   shares, maturities, foreign holders, CPI food weights, coordination, bargaining, minimum wage bite,
+#   tax progressivity) - known differences (e.g. KOR, TUR FX loans; ARG dollarisation) to be re-checked.
+iso3,private_credit_pct,hh_credit_share,state_bank_share,cb_independence,fx_loan_share,fx_deposit_share,npl_pct,capital_ratio_pct,lending_spread_pp,yield10_pct,effective_rate_pct,avg_maturity_years,foreign_debt_share,fx_debt_share,food_cpi_share,coordination_index,tariff_pct,union_density,bargaining_coverage,min_wage_bite,tax_progressivity,carbon_price_usd
+USA,60,0.45,0.00,0.85,0.00,0.00,1.4,12.8,3.0,4.1,5.0,5.8,0.30,0.00,0.14,0.07,3.5,0.12,0.12,0.32,0.18,0
+CHN,108,0.35,0.55,0.30,0.02,0.02,6.2,8.4,1.7,4.4,3.5,7.0,0.03,0.00,0.30,0.5,9.9,0.05,0.05,0.4,0.08,0
+JPN,100,0.30,0.15,0.75,0.00,0.00,1.5,12.3,0.8,1.5,1.3,9.0,0.12,0.00,0.26,0.74,5.1,0.18,0.17,0.44,0.13,0
+DEU,105,0.55,0.20,0.90,0.02,0.02,2.7,12.9,1.8,4.3,4.2,7.0,0.50,0.00,0.12,0.95,5.2,0.19,0.54,0.48,0.2,30
+GBR,175,0.60,0.05,0.85,0.10,0.05,0.9,12.6,2.0,4.6,4.8,15.0,0.28,0.00,0.11,0.07,5.2,0.28,0.26,0.55,0.18,30
+FRA,95,0.50,0.05,0.90,0.02,0.02,2.7,10.2,1.5,4.4,4.2,8.0,0.50,0.00,0.15,0.69,5.2,0.08,0.98,0.61,0.17,30
+ITA,95,0.45,0.05,0.90,0.01,0.01,5.8,10.4,1.8,4.6,4.7,6.9,0.30,0.00,0.16,0.87,5.2,0.34,0.99,0,0.19,30
+ESP,165,0.60,0.05,0.90,0.02,0.01,0.9,11.4,1.8,4.4,4.3,7.5,0.45,0.00,0.20,0.57,5.2,0.16,0.8,0.5,0.17,30
+CAN,120,0.60,0.00,0.85,0.05,0.05,0.4,12.1,2.0,4.0,5.5,6.5,0.25,0.01,0.16,0.13,5.5,0.27,0.3,0.48,0.17,0
+KOR,100,0.50,0.25,0.75,0.03,0.05,0.7,12.0,1.8,5.8,5.0,9.0,0.13,0.01,0.14,0.6,12.1,0.1,0.15,0.63,0.1,0
+AUS,120,0.65,0.00,0.85,0.00,0.00,0.2,10.2,2.5,6.3,5.8,7.5,0.55,0.00,0.17,0.36,3.5,0.19,0.6,0.53,0.17,0
+BRA,40,0.45,0.45,0.55,0.02,0.00,3.0,18.7,30.0,12.5,12.0,4.0,0.10,0.05,0.25,0.5,12.2,0.17,0.65,0.65,0.08,0
+MEX,21,0.40,0.05,0.75,0.15,0.10,2.7,15.9,4.0,7.6,8.0,8.0,0.30,0.20,0.27,0.5,11.5,0.15,0.1,0.35,0.08,0
+IND,47,0.30,0.60,0.55,0.01,0.01,2.4,12.3,3.5,7.8,8.0,11.0,0.03,0.03,0.46,0.4,14.5,0.1,0.05,0.3,0.08,0
+RUS,38,0.35,0.65,0.60,0.20,0.20,2.5,15.5,3.0,6.5,7.0,9.0,0.30,0.20,0.38,0.5,10.0,0.3,0.2,0.35,0.08,0
+TUR,30,0.30,0.37,0.20,0.35,0.53,3.5,18.9,4.0,16.5,14.0,5.5,0.20,0.45,0.25,0.5,9.6,0.1,0.08,0.7,0.08,0
+IDN,25,0.30,0.40,0.60,0.15,0.15,4.1,19.3,5.0,10.0,9.0,8.5,0.38,0.40,0.33,0.4,6.9,0.08,0.1,0.55,0.08,0
+SAU,40,0.45,0.10,0.40,0.05,0.05,2.1,20.6,2.0,4.5,5.0,8.0,0.45,0.50,0.19,0.5,5.0,0,0,0.3,0.05,0
+ZAF,75,0.50,0.00,0.75,0.07,0.05,1.4,12.8,3.5,8.6,9.0,13.0,0.37,0.10,0.17,0.4,7.8,0.3,0.3,0.4,0.1,0
+ARG,13,0.40,0.45,0.25,0.25,0.25,2.7,16.9,15.0,12.0,8.0,7.0,0.50,0.75,0.27,0.5,11.6,0.3,0.6,0.5,0.08,0
+ROW,45,0.40,0.25,0.55,0.15,0.15,4.0,14.0,4.0,6.0,5.5,7.0,0.30,0.30,0.30,0.5,9.0,0.15,0.15,0.4,0.08,0

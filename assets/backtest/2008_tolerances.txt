@@ -1,0 +1,8 @@
+# Back-test tolerance bands for the 2008 slice, first year (calendar 2008; hand-written; see
+# docs/11-data-calibration.md). Bands as for 2020; no epidemic deaths metric.
+band{ metric{gdp_growth_pct}      abs{3.0}              min_pass{0.75} }
+band{ metric{unemployment_pct}    abs{2.0}  rel{0.25}   min_pass{0.70} }
+band{ metric{inflation_pct}       abs{1.5}  rel{0.35}   min_pass{0.70} }
+band{ metric{gov_net_lending_pct} abs{4.0}              min_pass{0.60} }
+# Brent 2008 mean of EIA daily spot (data/raw/brent.csv) = 96.94 USD/bbl (peak 143.95 on 2008-07-03).
+band{ metric{oil_price_mean} real{96.94} abs{12.0} }

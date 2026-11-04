@@ -8,7 +8,7 @@ and the 2009 outcomes (its trough). Generated here:
   assets/scenario/2008/sectors.csv        7-sector split (as in the 2020 slice)
   assets/events/2008/policy_rates.txt     BIS policy rates: 2008-01-01 level + changes to 2009-12-31
   assets/backtest/2008_targets.csv        real 2008 outcomes (WDI)
-  assets/backtest/2008_targets_2009.csv   real 2009 outcomes (WDI)
+  assets/backtest/2008_y2_targets.csv     real 2009 outcomes (WDI; scored by backtest --years 2)
   assets/backtest/2008_brent.csv          daily Brent 2008 (EIA)
 Hand-written (never overwritten): assets/scenario/2008/*_curated.csv and
 assets/events/2008/curated.txt (the crisis shocks and policy anchors, with sources).
@@ -94,7 +94,7 @@ def main() -> int:
     header = ["iso3", "gdp_growth_pct", "unemployment_pct", "inflation_pct", "gov_net_lending_pct", "deaths_per_million"]
     ba.write_csv(assets / "backtest" / "2008_targets.csv", header, targets(wdi, 2008),
                  f"{GEN}. Real 2008 outcomes: WDI (growth, unemployment, CPI inflation, central-government net lending).")
-    ba.write_csv(assets / "backtest" / "2008_targets_2009.csv", header, targets(wdi, 2009),
+    ba.write_csv(assets / "backtest" / "2008_y2_targets.csv", header, targets(wdi, 2009),
                  f"{GEN}. Real 2009 outcomes (the GFC trough): WDI.")
     ba.write_csv(assets / "backtest" / "2008_brent.csv", ["date", "usd_per_barrel"], ba.brent(raw, 2008),
                  f"{GEN}. Brent daily spot, EIA RBRTE.")

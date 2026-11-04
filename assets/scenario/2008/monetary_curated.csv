@@ -1,0 +1,12 @@
+# Monetary regimes at 2008-01-01: identical to 2020 for slice nations (euro area DEU FRA ITA ESP; SAU peg;
+# reserve-currency weights from IMF COFER 2007 differ slightly: USD 0.64, EUR 0.26) - copied from 2020.
+iso3,regime,area,anchor,reserve
+USA,own,,,1.0
+DEU,union,EUR,,0.6
+FRA,union,EUR,,0.6
+ITA,union,EUR,,0.6
+ESP,union,EUR,,0.6
+JPN,own,,,0.4
+GBR,own,,,0.4
+CHN,own,,,0.2
+SAU,peg,,USA,0

@@ -310,8 +310,8 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
                 w.membership_set_role(m, static_cast<uint8_t>(role));
                 w.membership_set_term_end(m, -1);
                 w.membership_set_exit_tick(m, -1);
-                if(auto d = core::parse_date(t.get(row, "term_end"))) w.membership_set_term_end(m, core::tick_from_date(*d));
-                if(auto d = core::parse_date(t.get(row, "exit"))) w.membership_set_exit_tick(m, core::tick_from_date(*d));
+                if(auto d = core::parse_date(t.get(row, "term_end"))) w.membership_set_term_end(m, core::tick_from_date(*d, state.epoch_days));
+                if(auto d = core::parse_date(t.get(row, "exit"))) w.membership_set_exit_tick(m, core::tick_from_date(*d, state.epoch_days));
             };
             if(t.get(row, "iso3") == "ALL") {
                 for(auto n : w.in_nation) add(n.id);

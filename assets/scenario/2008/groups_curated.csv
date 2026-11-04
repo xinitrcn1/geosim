@@ -1,0 +1,56 @@
+# Identity groups: COPIED FROM the 2020 slice table (sources there). Group shares and gaps moved
+# little 2007-2019 except migration-driven shares (e.g. ESP, DEU immigrant groups were smaller) -
+# approximate, to be replaced with 2007-wave surveys (ACS 2007, IHDS-I 2005, PNAD 2007, QLFS 2008).
+iso3,group,name,pop_share,edu_rel,informal_rel,wage_gap,unemp_rel,wealth_rel,excluded,network,immigrant
+USA,WHT,"White, non-Hispanic",0.60,1.15,0.80,0.00,0.80,1.30,0.00,0.20,0
+USA,BLK,Black,0.13,0.70,1.30,0.15,1.90,0.15,0.30,0.30,0
+USA,HSP,Hispanic,0.18,0.50,1.60,0.12,1.20,0.20,0.20,0.40,1
+USA,ASN,Asian,0.06,1.80,0.80,0.00,0.80,1.10,0.10,0.30,0
+USA,OTH,Other / multiracial,0.03,0.80,1.30,0.10,1.50,0.40,0.30,0.40,0
+IND,FWD,Forward castes (Hindu),0.20,1.90,0.70,0.00,1.00,2.00,0.00,0.50,0
+IND,OBC,Other Backward Classes,0.40,0.90,1.02,0.10,1.00,0.80,0.10,0.70,0
+IND,SC,Scheduled Castes (Dalits),0.17,0.60,1.12,0.20,1.10,0.45,0.60,0.70,0
+IND,ST,Scheduled Tribes (Adivasis),0.09,0.50,1.15,0.25,0.80,0.35,0.60,0.80,0
+IND,MUS,Muslims,0.14,0.70,1.10,0.12,1.10,0.60,0.50,0.60,0
+CHN,UHK,Urban hukou,0.44,1.80,0.60,0.00,1.00,1.80,0.00,0.30,0
+CHN,MIG,Rural-hukou migrant workers,0.21,0.50,1.50,0.25,1.30,0.30,0.40,0.70,0
+CHN,RHK,Rural hukou (resident),0.35,0.40,1.30,0.30,0.70,0.40,0.30,0.80,0
+ZAF,BLA,Black African,0.81,0.70,1.15,0.25,1.15,0.40,0.00,0.50,1
+ZAF,COL,Coloured,0.088,0.90,0.90,0.15,0.85,0.80,0.20,0.40,0
+ZAF,IAS,Indian / Asian,0.025,1.80,0.50,0.00,0.50,2.50,0.10,0.40,0
+ZAF,WHT,White,0.077,3.00,0.30,-0.10,0.25,6.00,0.10,0.30,0
+BRA,BRC,Branco (white),0.43,1.60,0.80,0.00,0.80,1.70,0.00,0.30,0
+BRA,PAR,Pardo (mixed),0.47,0.75,1.15,0.25,1.15,0.50,0.20,0.50,1
+BRA,PRE,Preto (black),0.10,0.70,1.15,0.30,1.25,0.45,0.30,0.50,0
+SAU,NAT,Saudi nationals,0.62,1.50,0.30,-0.30,1.60,1.60,0.00,0.40,0
+SAU,EXP,Expatriate workers,0.38,0.60,1.80,0.40,0.10,0.10,1.00,0.60,1
+TUR,TRK,Turkish majority,0.776,1.10,0.90,0.00,0.95,1.15,0.00,0.40,0
+TUR,KRD,Kurds,0.18,0.60,1.30,0.15,1.20,0.60,0.60,0.70,0
+TUR,SYR,Syrian refugees,0.044,0.40,2.00,0.40,1.30,0.10,1.00,0.60,1
+RUS,RUS,Ethnic Russians,0.75,1.05,0.90,0.00,0.95,1.10,0.00,0.30,0
+RUS,MIN,Other nationalities,0.21,0.85,1.20,0.10,1.20,0.70,0.30,0.60,0
+RUS,CAS,Central Asian migrant workers,0.04,0.40,2.00,0.40,0.60,0.10,1.00,0.70,1
+MEX,MES,Non-indigenous,0.85,1.10,0.95,0.00,1.00,1.10,0.00,0.50,0
+MEX,IDG,Indigenous,0.15,0.40,1.30,0.30,0.90,0.35,0.30,0.80,0
+IDN,PRI,Pribumi majority,0.94,0.95,1.02,0.00,1.00,0.90,0.00,0.60,0
+IDN,CHI,Chinese Indonesians,0.03,2.50,0.40,-0.30,0.60,4.00,0.40,0.60,0
+IDN,PAP,Papuans,0.03,0.40,1.30,0.30,1.10,0.30,0.80,0.80,0
+AUS,NON,Non-Indigenous,0.97,1.00,1.00,0.00,0.95,1.03,0.00,0.20,1
+AUS,ABO,Aboriginal and Torres Strait Islander,0.03,0.40,1.60,0.30,2.50,0.20,0.30,0.60,0
+CAN,NON,Non-visible-minority,0.73,0.95,1.00,0.00,0.95,1.10,0.00,0.20,0
+CAN,VIS,Visible minorities,0.22,1.20,1.00,0.10,1.15,0.80,0.05,0.40,1
+CAN,IDG,Indigenous peoples,0.05,0.50,1.50,0.25,2.00,0.30,0.30,0.60,0
+GBR,WHT,White,0.86,0.95,1.00,0.00,0.90,1.10,0.00,0.20,0
+GBR,ETH,Ethnic minorities,0.14,1.15,1.10,0.10,1.70,0.50,0.10,0.40,1
+FRA,MAJ,Majority,0.88,1.05,0.95,0.00,0.90,1.07,0.00,0.20,0
+FRA,IMM,Non-EU immigrants and descendants,0.12,0.70,1.40,0.15,1.80,0.50,0.20,0.50,1
+DEU,MAJ,Majority,0.86,1.05,0.95,0.00,0.85,1.10,0.00,0.20,0
+DEU,MIG,Non-EU migration background,0.14,0.70,1.30,0.15,1.90,0.40,0.20,0.50,1
+ITA,MAJ,Majority,0.915,1.03,0.95,0.00,0.95,1.05,0.00,0.30,0
+ITA,IMM,Foreign residents,0.085,0.60,2.00,0.25,1.50,0.30,0.60,0.50,1
+ESP,MAJ,Majority,0.89,1.03,0.95,0.00,0.90,1.07,0.00,0.30,0
+ESP,IMM,Foreign residents,0.11,0.80,1.80,0.20,1.60,0.40,0.50,0.50,1
+JPN,MAJ,Majority,0.98,1.00,1.00,0.00,1.00,1.01,0.00,0.20,0
+JPN,FOR,Foreign residents,0.02,0.80,1.50,0.20,1.30,0.30,0.80,0.50,1
+KOR,MAJ,Majority,0.96,1.02,0.98,0.00,1.00,1.04,0.00,0.20,0
+KOR,FOR,Migrant workers,0.04,0.60,1.80,0.30,1.00,0.10,0.80,0.50,1

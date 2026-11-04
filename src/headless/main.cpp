@@ -34,7 +34,7 @@ int usage() {
                "  geosim_headless build    --assets DIR --scenario NAME --out FILE.bin\n"
                "  geosim_headless run      (--assets DIR --scenario NAME | --load FILE.bin) [--days N] [--daily OUT.csv] [--save FILE.bin]\n"
                "                           [--flows ISO3] [--groups ISO3] [--logistics 1] [--set name=value,...]\n"
-               "  geosim_headless backtest --assets DIR --scenario NAME [--daily OUT.csv]\n"
+               "  geosim_headless backtest --assets DIR --scenario NAME [--daily OUT.csv] [--years 2]\n"
                "  geosim_headless params\n",
                stderr);
     return 2;
@@ -187,7 +187,22 @@ int main(int argc, char** argv) {
     }
     if(cmd == "backtest") {
         const auto result = geosim::sim::run_backtest(summary, assets, scenario, std::cout);
-        return result.ok() ? 0 : 1;
+        // --years 2: score a second year (e.g. 2009 for the 2008 slice) against
+        // backtest/<scenario>_y2_targets.csv and _y2_tolerances.txt.
+        int years = 1;
+        if(opt.count("years") && !parse_value(opt["years"], years)) {
+            return usage();
+        }
+        if(years < 2) {
+            return result.ok() ? 0 : 1;
+        }
+        geosim::sim::begin_measurement(*state);
+        for(int d = 0; d < 365; ++d) {
+            geosim::sim::advance_day(*state);
+        }
+        std::cout << "\n--- second year ---\n";
+        const auto second = geosim::sim::run_backtest(geosim::sim::summarize(*state), assets, scenario + "_y2", std::cout);
+        return result.ok() && second.ok() ? 0 : 1;
     }
     print_summary(summary);
     if(opt.count("save") && !geosim::sim::save_game(*state, opt["save"], diag)) {

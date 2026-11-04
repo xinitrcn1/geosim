@@ -1,0 +1,24 @@
+# The 2008 calibration slice: settings that differ from the global parameters
+# (assets/defs/parameters.txt). Read by src/sim/scenario.cpp (load_params).
+start{2008-01-01}                # tick 0 (calendar epoch of the scenario)
+# Climate at the start of 2008: NOAA Mauna Loa annual mean 2007 (383.8 ppm); warming above
+# pre-industrial ~0.85 C (HadCRUT5 2003-2012 mean); fossil + cement CO2 2007 ~31.5 Gt
+# (Global Carbon Project 2021).
+co2_ppm0{383.8}
+temperature0{0.85}
+emissions0{31.5}
+# World liquids demand 2007 (IEA Oil Market Report: ~86 mb/d).
+oil_demand0{86}
+# Container fleet 2007 (~4,300 cellular ships; UNCTAD Review of Maritime Transport 2008) and its
+# high pre-crisis utilisation; idle fleet ~1% (Alphaliner).
+fleet_ships{4300}
+fleet_idle0{0.01}
+fleet_util0{0.93}
+# Housing and equity wealth near their 2007 peaks (US Flow of Funds 2007: household real estate
+# ~1.5x GDP, corporate equities ~1.3x; rest of the slice lower; rounded G20 averages).
+housing_wealth_gdp{2.2}
+equity_wealth_gdp{1.2}
+# The WTO Appellate Body worked in 2008 (paralysed from 2019-12-11).
+wto_appellate{1}
+# No COVID-era vaccine programmes and COVAX in 2008.
+covax_share{0}

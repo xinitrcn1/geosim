@@ -1,0 +1,8 @@
+# Strategic rivalries active at 2008-01-01 among slice nations (Thompson & Dreyer 2012). USA-RUS weaker than
+# in 2020 (entered 0.4: renewal around the August 2008 Georgia war); USA-CHN positional rivalry (from 1996).
+a,b,rivalry
+USA,CHN,0.6
+USA,RUS,0.4
+CHN,IND,0.8
+CHN,JPN,0.6
+ARG,GBR,0.3

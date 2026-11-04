@@ -1,0 +1,9 @@
+# Nuclear arsenals around 2008 (total inventories, FAS / Kristensen & Norris Nuclear Notebook 2008, rounded).
+# Only possession matters to the model (deterrence); magnitudes are informative.
+iso3,nuclear_warheads
+USA,9400
+RUS,14000
+CHN,240
+FRA,300
+GBR,185
+IND,70

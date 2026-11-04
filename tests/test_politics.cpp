@@ -41,7 +41,7 @@ int main() {
     for(auto dec : w.in_decision) {
         const auto lever = dec.get_lever();
         if(lever == sim::journal_election) {
-            const auto date = core::date_from_tick(dec.get_tick());
+            const auto date = core::date_from_tick(dec.get_tick(), s->epoch_days);
             if(dec.get_target() == usa) {
                 ++us_elections;
                 std::printf("USA election %s: governing side %d -> %d (0 L, 1 C, 2 R)\n", core::format_date(date).c_str(),

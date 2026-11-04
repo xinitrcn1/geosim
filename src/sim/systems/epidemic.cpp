@@ -64,7 +64,7 @@ void update_epidemic(game_state& state) {
         }
     }
 
-    const auto date = core::date_from_tick(state.current_tick);
+    const auto date = core::date_from_tick(state.current_tick, state.epoch_days);
     const float season_phase = std::cos(2.0f * std::numbers::pi_v<float> * static_cast<float>(core::day_of_year(date) - 15) / 365.0f);
 
     // ---- 1. pre-pass

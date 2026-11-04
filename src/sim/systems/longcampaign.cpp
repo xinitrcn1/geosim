@@ -73,8 +73,12 @@ float adoption_lag(game_state const& state, dcon::technology_id t, dcon::nation_
            - (w.technology_get_emission_cut(t) > 0.0f ? 0.5f * std::max(0.0f, w.nation_get_carbon_price(n) - w.nation_get_carbon_price0(n)) / 10.0f : 0.0f);
 }
 
+// Calendar year (fractional) of a tick; the scenario starts at its epoch.
+float start_year(game_state const& state) {
+    return 1970.0f + static_cast<float>(state.epoch_days) / 365.2425f;
+}
 float year_of(game_state const& state, int32_t tick) {
-    return 2020.0f + static_cast<float>(tick) / 365.25f;
+    return start_year(state) + static_cast<float>(tick) / 365.25f;
 }
 
 float adoption(game_state const& state, dcon::technology_id t, float year, float lag) {
@@ -99,7 +103,8 @@ void init_technologies(game_state& state, std::vector<observed_adoption> const& 
             float lag = adoption_lag(state, t.id, n.id, f);
             for(auto const& o : observed) {
                 if(o.nation == n.id && o.tech == t.id && o.share > 0.0f && o.share < 1.0f) {
-                    const float t50 = 2019.0f - std::log(o.share / (1.0f - o.share)) / t.get_speed();
+                    // Observed adoption is for the year before the start.
+                    const float t50 = start_year(state) - 1.0f - std::log(o.share / (1.0f - o.share)) / t.get_speed();
                     lag = t50 - t.get_frontier_year();
                 }
             }
@@ -113,7 +118,7 @@ void init_technologies(game_state& state, std::vector<observed_adoption> const& 
 // Adoption of technology t in nation n relative to the start (physical effects).
 float tech_progress(game_state const& state, dcon::nation_id n, uint8_t t) {
     auto const& w = state.world;
-    const float a0 = adoption(state, dcon::technology_id{t}, 2020.0f, w.nation_get_tech_lag(n, t));
+    const float a0 = adoption(state, dcon::technology_id{t}, start_year(state), w.nation_get_tech_lag(n, t));
     return w.nation_get_tech_adoption(n, t) - a0;
 }
 

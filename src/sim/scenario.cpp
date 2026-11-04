@@ -119,17 +119,34 @@ struct builder {
     }
 
     // ------------------------------------------------------------ defs
+    // Global parameters (defs/parameters.txt), then the scenario's own settings
+    // (scenario/<s>/scenario.txt): start{YYYY-MM-DD} sets the calendar epoch (tick 0),
+    // and any parameter key overrides its global value for this scenario (e.g. the
+    // WTO Appellate Body still worked in 2008).
     void load_params() {
-        const std::string path = assets + "/defs/parameters.txt";
-        if(!exists(path)) {
-            return;
-        }
-        for(auto const& node : core::load_defs(path, diag)) {
-            const double v = core::parse_number(node.text, path, node.line, diag).value_or(0.0);
-            if(!set_param(state.params, node.key, v)) {
-                { diag.fail(path + ":" + std::to_string(node.line) + ": unknown parameter '" + node.key + "'"); return; }
+        auto read = [&](std::string const& path, bool scenario_file) {
+            if(!exists(path)) {
+                return;
             }
-        }
+            for(auto const& node : core::load_defs(path, diag)) {
+                if(scenario_file && node.key == "start") {
+                    const auto d = core::parse_date(node.text);
+                    if(!d) {
+                        diag.fail(path + ":" + std::to_string(node.line) + ": start needs YYYY-MM-DD");
+                        return;
+                    }
+                    state.epoch_days = core::days_from_civil(*d);
+                    continue;
+                }
+                const double v = core::parse_number(node.text, path, node.line, diag).value_or(0.0);
+                if(!set_param(state.params, node.key, v)) {
+                    { diag.fail(path + ":" + std::to_string(node.line) + ": unknown parameter '" + node.key + "'"); return; }
+                }
+            }
+        };
+        state.epoch_days = core::epoch_days_1970;
+        read(assets + "/defs/parameters.txt", false);
+        read(assets + "/scenario/" + scenario + "/scenario.txt", true);
     }
 
     void load_npis() {
@@ -554,7 +571,7 @@ struct builder {
                 }
                 for(auto nation : targets) {
                 const auto e = w.create_event();
-                w.event_set_tick(e, core::tick_from_date(*date));
+                w.event_set_tick(e, core::tick_from_date(*date, state.epoch_days));
                 w.event_set_target(e, nation);
                 auto num = [&](std::string_view key) {
                     auto v = node.num(key, path, diag);
@@ -1705,7 +1722,7 @@ struct builder {
             w.nation_set_competitive(n, es != electoral_system::none ? 1 : 0);
             w.nation_set_term_days(n, static_cast<int32_t>(s.term * 365.25));
             if(auto d = core::parse_date(s.next)) {
-                w.nation_set_next_election(n, core::tick_from_date(*d));
+                w.nation_set_next_election(n, core::tick_from_date(*d, state.epoch_days));
             }
             const float electoral = static_cast<float>(std::clamp((in.voice + 2.5) / 5.0, 0.0, 1.0));
             w.nation_set_electoral(n, electoral);

@@ -215,7 +215,7 @@ void write_daily_header(std::ostream& out) {
 
 void write_daily_rows(game_state const& state, std::ostream& out) {
     auto const& w = state.world;
-    const auto date = core::format_date(core::date_from_tick(state.current_tick - 1));
+    const auto date = core::format_date(core::date_from_tick(state.current_tick - 1, state.epoch_days));
     const auto oil_id = state.derived.oil;
     const float oil = oil_id ? w.commodity_get_price(oil_id) : 0.0f;
     const float oil_d = oil_id ? w.commodity_get_world_demand(oil_id) : 0.0f;

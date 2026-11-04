@@ -7,6 +7,7 @@
 // or function-local statics hold game data. Systems take a `game_state&`.
 // See docs/09-engine-architecture.md#game-state.
 
+#include "core/calendar.hpp"
 #include "core/scheduler.hpp"
 #include "sim/params.hpp"
 
@@ -49,7 +50,8 @@ struct game_state {
     dcon::data_container world; // all entity data (SoA)
 
     sim::params params;           // global model parameters (assets/defs/parameters.txt)
-    int32_t current_tick = 0;     // days since 2020-01-01 (next tick to simulate)
+    int32_t current_tick = 0;     // days since the scenario start (next tick to simulate)
+    int64_t epoch_days = core::epoch_days_1970; // scenario start, days since 1970-01-01 (scenario.txt start{})
     uint64_t rng_seed = 0;        // Philox key; see docs/02-simulation-core.md#determinism
 
     derived_indices derived;      // rebuilt, never saved

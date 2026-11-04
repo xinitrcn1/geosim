@@ -1,0 +1,10 @@
+# Back-test tolerance bands for the 2008 slice, second year (calendar 2009, the GFC trough; scored by
+# `geosim_headless backtest --scenario 2008 --years 2`). Targets: assets/backtest/2008_y2_targets.csv.
+band{ metric{gdp_growth_pct}      abs{3.0}              min_pass{0.75} }
+band{ metric{unemployment_pct}    abs{2.0}  rel{0.25}   min_pass{0.70} }
+band{ metric{inflation_pct}       abs{1.5}  rel{0.35}   min_pass{0.70} }
+band{ metric{gov_net_lending_pct} abs{4.0}              min_pass{0.60} }
+# Brent 2009 mean of EIA daily spot = 61.74 USD/bbl.
+band{ metric{oil_price_mean} real{61.74} abs{10.0} }
+# Idle container fleet peaked at ~11.7% of capacity in December 2009 (Alphaliner).
+band{ metric{fleet_idle_peak}    real{0.117} abs{0.03} }

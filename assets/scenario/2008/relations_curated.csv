@@ -1,0 +1,34 @@
+# Relations at 2008-01-01: NATO and US defence treaties (as 2020); no sanctions between slice nations
+# (sanctions on Russia began 2014, US-China tariffs 2018). Derived from the 2020 table.
+from,to,alliance,sanction
+USA,CAN,1,0
+USA,GBR,1,0
+USA,FRA,1,0
+USA,DEU,1,0
+USA,ITA,1,0
+USA,ESP,1,0
+USA,TUR,1,0
+USA,JPN,1,0
+USA,KOR,1,0
+USA,AUS,1,0
+GBR,FRA,1,0
+GBR,DEU,1,0
+GBR,ITA,1,0
+GBR,ESP,1,0
+GBR,CAN,1,0
+GBR,TUR,1,0
+FRA,DEU,1,0
+FRA,ITA,1,0
+FRA,ESP,1,0
+FRA,CAN,1,0
+FRA,TUR,1,0
+DEU,ITA,1,0
+DEU,ESP,1,0
+DEU,CAN,1,0
+DEU,TUR,1,0
+ITA,ESP,1,0
+ITA,CAN,1,0
+ITA,TUR,1,0
+ESP,CAN,1,0
+ESP,TUR,1,0
+CAN,TUR,1,0

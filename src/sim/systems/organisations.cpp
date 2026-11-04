@@ -174,7 +174,7 @@ void compute_un_ideals(game_state& state) {
 void hold_assembly_session(game_state& state, dcon::organisation_id ga) {
     auto& w = state.world;
     compute_un_ideals(state);
-    const auto year = static_cast<uint32_t>(core::date_from_tick(state.current_tick).year);
+    const auto year = static_cast<uint32_t>(core::date_from_tick(state.current_tick, state.epoch_days).year);
     for(uint8_t k = 0; k < ga_resolutions; ++k) {
         const float pos = -0.9f + 1.8f * core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::elections), year, 0x6A000000u + k);
         for(auto m : w.organisation_get_membership_as_organisation(ga)) {
@@ -219,7 +219,7 @@ void update_memberships(game_state& state) {
         else if(m.get_role() == static_cast<uint8_t>(org_role::elected) && m.get_term_end() >= 0 && m.get_term_end() < state.current_tick) gone.push_back(m.id);
     }
     for(auto m : gone) w.delete_membership(m);
-    const auto date = core::date_from_tick(state.current_tick);
+    const auto date = core::date_from_tick(state.current_tick, state.epoch_days);
     if(!(date.month == 1 && date.day == 1) || state.current_tick == 0) return;
     const auto row = rest_of_world(state);
     double gdp_max = 0.0;
@@ -430,7 +430,7 @@ void trade_disputes(game_state& state, dcon::organisation_id wto) {
 void update_organisations(game_state& state) {
     auto& w = state.world;
     update_memberships(state);
-    const auto date = core::date_from_tick(state.current_tick);
+    const auto date = core::date_from_tick(state.current_tick, state.epoch_days);
     // The General Assembly's regular session opens in September.
     if(const auto ga = organisation_of(state, org_kind::assembly); ga && date.month == 9 && date.day == 15) hold_assembly_session(state, ga);
     if(const auto wto = organisation_of(state, org_kind::trade)) trade_disputes(state, wto);

@@ -13,7 +13,7 @@ namespace geosim::sim {
 namespace {
 
 constexpr char magic[8] = {'G', 'E', 'O', 'S', 'I', 'M', 'S', 'V'};
-constexpr uint32_t version = 2; // 2: logistics, commodities, credit, bonds, identity groups
+constexpr uint32_t version = 3; // 2: logistics, commodities, credit, bonds, identity groups; 3: scenario epoch
 
 template<typename T>
 void put(std::vector<std::byte>& out, T const& v) {
@@ -39,6 +39,7 @@ bool save_game(game_state const& state, std::string const& path, core::diagnosti
     out.insert(out.end(), reinterpret_cast<std::byte const*>(magic), reinterpret_cast<std::byte const*>(magic) + 8);
     put(out, version);
     put(out, state.current_tick);
+    put(out, state.epoch_days);
     put(out, state.rng_seed);
 
     uint32_t count = 0;
@@ -96,10 +97,12 @@ bool load_game(game_state& state, std::string const& path, core::diagnostics& di
         return false;
     }
     const auto tick = get<int32_t>(in, end);
+    const auto epoch = get<int64_t>(in, end);
     const auto seed = get<uint64_t>(in, end);
     const auto count = get<uint32_t>(in, end);
-    if(!tick || !seed || !count) return truncated();
+    if(!tick || !epoch || !seed || !count) return truncated();
     state.current_tick = *tick;
+    state.epoch_days = *epoch;
     state.rng_seed = *seed;
     for(uint32_t i = 0; i < *count; ++i) {
         const auto len = get<uint32_t>(in, end);
