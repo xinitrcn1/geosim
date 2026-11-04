@@ -119,6 +119,13 @@ void update_lod(game_state& state);
 // disasters (monthly).
 void decide_carbon_price(game_state& state, dcon::agent_id a, dcon::nation_id n);
 void update_climate_policy(game_state& state);
+// Policy catalogue (docs/05): repression, immigration, retirement age, education,
+// health, capital controls (weekly levers); cabinets (Gamson's law), governors and
+// lobbies (monthly).
+void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n);
+void update_policy(game_state& state);
+void allocate_portfolios(game_state& state, dcon::nation_id n);
+[[nodiscard]] float minister_position(game_state const& state, dcon::nation_id n, portfolio pf, value_axis axis);
 void init_frontier_gaps(game_state& state);
 [[nodiscard]] float carbon_cost_share(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float carbon_emission_factor(game_state const& state);

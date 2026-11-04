@@ -352,7 +352,11 @@ void update_migration(game_state& state) {
             if(!dest_region) continue;
             const auto pd = pops_in(state, dest_region);
             const float open = (1.0f - 0.9f * restriction(n.id, D.npi_travel)) * (1.0f - 0.9f * restriction(m.id, D.npi_travel));
-            const float gravity = static_cast<float>(m.get_population() / world_pop);
+            // Migrant networks lower the cost of following (Massey et al. 1993; Beine,
+            // Docquier & Ozden 2011): a diaspora from n already in m pulls more.
+            const auto ni = static_cast<uint16_t>(n.id.index());
+            const float network = 1.0f + static_cast<float>(P.diaspora_pull) * 100.0f * m.get_diaspora(ni) / std::max(1.0f, static_cast<float>(m.get_population()));
+            const float gravity = static_cast<float>(m.get_population() / world_pop) * network * m.get_immigration_openness();
             const auto dest_group = arrival_group(state, m.id);
             for(uint8_t k = 0; k < worker_kinds; ++k) {
               for(auto x : po.by_kind[k]) {
@@ -396,6 +400,8 @@ void update_migration(game_state& state) {
         if(from_nation != to_nation) {
             w.nation_set_migration_net(from_nation, w.nation_get_migration_net(from_nation) - people);
             w.nation_set_migration_net(to_nation, w.nation_get_migration_net(to_nation) + people);
+            const auto fi = static_cast<uint16_t>(from_nation.id.index());
+            w.nation_set_diaspora(to_nation, fi, w.nation_get_diaspora(to_nation, fi) + people);
             w.nation_set_population(from_nation, w.nation_get_population(from_nation) - people);
             w.nation_set_population(to_nation, w.nation_get_population(to_nation) + people);
         }
@@ -424,6 +430,8 @@ void update_opinion(game_state& state) {
         }
         // Drift.
         const float deaths_pm = reported_deaths_per_million_daily(state, n.id);
+        float warming = 0.0f;
+        for(auto c : w.in_climate) warming = c.get_temperature() - static_cast<float>(P.temperature0);
         for(auto p : pops) {
             const float size = std::max(1.0f, w.pop_get_size(p));
             const float loss = std::max(0.0f, 1.0f - w.pop_get_income(p) / std::max(1e-3f, w.pop_get_income_expected(p)));
@@ -440,10 +448,20 @@ void update_opinion(game_state& state) {
                              std::clamp(w.pop_get_values(p, er) - static_cast<float>(P.values_loss_left) * w.pop_get_grievance(p) * years
                                             + thermo * years, -1.0f, 1.0f));
             // Salience of issues.
+            const auto home = w.pop_get_home(p);
+            const float mig = 10.0f * std::abs(w.region_get_migration_net(home)) / std::max(1.0f, w.region_get_population(home));
             std::array<float, static_cast<std::size_t>(issue::count)> sal = {
-                0.4f + 3.0f * jobless + 2.0f * loss, 0.1f + 0.2f * deaths_pm, 0.1f + 0.2f * w.region_get_unrest(w.pop_get_home(p)),
-                0.2f + 10.0f * std::abs(w.region_get_migration_net(w.pop_get_home(p))) / std::max(1.0f, w.region_get_population(w.pop_get_home(p)))
-                    + 2.0f * (w.pop_get_group(p) ? w.social_group_get_mobilisation(w.pop_get_group(p)) : 0.0f)};
+                0.4f + 3.0f * jobless + 2.0f * loss,                                                   // economy
+                0.1f + 0.2f * deaths_pm,                                                               // health
+                0.1f + 0.2f * w.region_get_unrest(home),                                               // security
+                0.1f + 2.0f * (w.pop_get_group(p) ? w.social_group_get_mobilisation(w.pop_get_group(p)) : 0.0f), // identity
+                0.1f + mig,                                                                            // immigration
+                0.05f + 0.1f * std::max(0.0f, warming) * std::max(0.0f, 0.5f + w.pop_get_values(p, static_cast<uint8_t>(value_axis::self_expression))), // environment
+                0.05f + 0.3f * n.get_corruption() * n.get_connectivity() * w.pop_get_grievance(p)};      // corruption
+            // Salient immigration pulls toward traditional values (Hainmueller & Hopkins 2014).
+            w.pop_set_values(p, static_cast<uint8_t>(value_axis::self_expression),
+                             std::clamp(w.pop_get_values(p, static_cast<uint8_t>(value_axis::self_expression))
+                                            - static_cast<float>(P.immigration_tan) * mig * years, -1.0f, 1.0f));
             float total = 0.0f;
             for(float v : sal) total += v;
             for(uint8_t i = 0; i < sal.size(); ++i) w.pop_set_salience(p, i, sal[i] / total);
@@ -761,11 +779,15 @@ void update_protest(game_state& state) {
         // Cycles of contention (Tarrow 1998): mobilisation exhausts itself, so a long
         // wave raises the cost of joining until it subsides.
         const float fatigue = r.get_protest_fatigue();
-        const float mu = static_cast<float>(P.cascade_mu) + 0.3f * repression + fatigue;
+        // Active repression (policy.cpp) deters joining at once; its memory angers
+        // later (Davenport 2007; Francisco 1995), more so where people are online.
+        const float mu = static_cast<float>(P.cascade_mu) + 0.3f * repression + fatigue
+                         + static_cast<float>(P.repression_deterrence) * n.get_repression();
+        const float repression_anger = static_cast<float>(P.repression_backlash) * n.get_repression_memory() * (0.5f + n.get_connectivity());
         const float sigma = static_cast<float>(P.cascade_sigma);
         const float social = static_cast<float>(P.cascade_social) * (0.5f + conn);
         // Foreign protest through the internet, and foreign influence operations (internet.cpp).
-        const float drive = r.get_drive() + spark + backfire + n.get_net_contagion() + n.get_influence_ops();
+        const float drive = r.get_drive() + spark + backfire + n.get_net_contagion() + n.get_influence_ops() + repression_anger;
         float x = r.get_protest();
         for(int it = 0; it < 4; ++it) {
             const float z = (drive + social * x - mu) / sigma;

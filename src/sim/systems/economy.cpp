@@ -358,9 +358,12 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     // buys manufacturing (fiscal.cpp, institutions.cpp).
     const float pub_g = apply ? w.nation_get_public_investment(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     const float def_g = apply ? (w.nation_get_defense_share(n) - w.nation_get_defense_share0(n)) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
+    // Education and health above baseline (policy.cpp) buy public services.
+    const float svc_g = apply ? (w.nation_get_education_spending(n) + w.nation_get_health_spending(n)) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     for(auto sec : w.in_sector) {
         if(core_key_is(sec.get_key(), "con")) dem[sec.id.index()] += pub_g * (1.0f - m_share);
     }
+    if(D.gov_sector) dem[static_cast<uint8_t>(D.gov_sector.index())] += svc_g;
     if(D.manufacturing_sector) {
         const auto ms = static_cast<uint8_t>(D.manufacturing_sector.index());
         dem[ms] += (war_g + def_g) * (1.0f - m_share);
@@ -540,7 +543,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const double debt = apply ? std::max(0.0, -w.nation_get_bal_gov(n)) : w.nation_get_gov_debt0(n);
     // Effective rate on the debt: rolls over at market yields (bonds.cpp).
     const double gov_interest = debt * static_cast<double>(w.nation_get_gov_rate(n)) / 365.0;
-    const double pensions = static_cast<double>(w.nation_get_pensions0(n)) * p * gf;
+    // Later retirement (policy.cpp) cuts pension outlays (OECD Pensions at a Glance).
+    const double pensions = static_cast<double>(w.nation_get_pensions0(n)) * p * gf
+                            * std::max(0.5, 1.0 - state.params.retirement_pension_saving * w.nation_get_retirement_age_shift(n));
     auto per = [](double total, float weight) { return weight > 0.0f ? static_cast<float>(total / weight) : 0.0f; };
     w.nation_set_rate_transfer(n, per(pensions, w.nation_get_transfer_weight_total(n)));
     w.nation_set_rate_fiscal(n, per(fiscal_hh / dt, w.nation_get_size_total(n)));
@@ -572,6 +577,10 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         {
             cause_scope c(state, lever_cause(state, n, lever::public_investment));
             transfer(state, gov, firms, static_cast<double>(pub_g) * p * ddt, flow::public_investment);
+        }
+        {
+            cause_scope c(state, lever_cause(state, n, lever::health));
+            transfer(state, gov, firms, static_cast<double>(svc_g) * p * ddt, flow::public_services);
         }
         {
             cause_scope c(state, lever_cause(state, n, lever::defense));
@@ -610,7 +619,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         }
         w.nation_set_consumption(n, c_eff);
         w.nation_set_investment(n, i_real);
-        w.nation_set_gov_spend(n, g_real + war_g + pub_g + def_g);
+        w.nation_set_gov_spend(n, g_real + war_g + pub_g + def_g + svc_g);
         w.nation_set_exports(n, x_real);
         record_bilateral_exports(state, n, x_real);
         w.nation_set_imports(n, imports);

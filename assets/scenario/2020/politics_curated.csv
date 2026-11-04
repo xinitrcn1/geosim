@@ -7,25 +7,28 @@
 #  presidential: 1 = executive not responsible to the legislature (no confidence votes)
 #  veto: veto-player strength 0..1 (Henisz POLCON-III, rounded; Tsebelis 2002)
 #  defense_pct: military expenditure, % of GDP, 2019 (SIPRI Military Expenditure Database)
-iso3,system,term_years,next_election,incumbent,presidential,veto,defense_pct
-USA,fptp,4,2020-11-03,R,1,0.85,3.4
-CHN,none,5,,C,0,0,1.9
-JPN,pr,4,2021-10-31,R,0,0.45,0.9
-DEU,pr,4,2021-09-26,C,0,0.5,1.3
-GBR,fptp,5,2024-07-04,R,0,0.4,1.7
-FRA,fptp,5,2022-04-10,C,1,0.4,1.9
-ITA,pr,5,2022-09-25,L,0,0.5,1.4
-ESP,pr,4,2023-07-23,L,0,0.45,1.2
-CAN,fptp,4,2021-09-20,L,0,0.4,1.3
-KOR,fptp,4,2020-04-15,L,1,0.4,2.7
-AUS,fptp,3,2022-05-21,R,0,0.45,1.9
-BRA,pr,4,2022-10-02,R,1,0.55,1.5
-MEX,fptp,6,2024-06-02,L,1,0.45,0.5
-IND,fptp,5,2024-04-19,R,0,0.45,2.4
-RUS,none,6,,R,1,0.15,3.9
-TUR,pr,5,2023-05-14,R,1,0.2,2.7
-IDN,pr,5,2024-02-14,C,1,0.45,0.8
-SAU,none,0,,C,0,0,8.0
-ZAF,pr,5,2024-05-29,L,0,0.35,1.0
-ARG,pr,4,2023-10-22,L,1,0.45,0.7
-ROW,pr,5,2022-06-01,C,0,0.3,2.0
+#  pr_threshold: national legal threshold for PR seats (DEU 5%, TUR 10% in 2018, ...); smd_share:
+#  share of seats elected in single-member districts in mixed systems (JPN 62%, KOR 84%, MEX 60%,
+#  ITA 37%; DEU is compensatory, so its result is proportional). system: pr | fptp | mixed | two_round | none.
+iso3,system,term_years,next_election,incumbent,presidential,veto,defense_pct,pr_threshold,smd_share
+USA,fptp,4,2020-11-03,R,1,0.85,3.4,0,1
+CHN,none,5,,C,0,0,1.9,0,0
+JPN,mixed,4,2021-10-31,R,0,0.45,0.9,0,0.62
+DEU,mixed,4,2021-09-26,C,0,0.5,1.3,0.05,0
+GBR,fptp,5,2024-07-04,R,0,0.4,1.7,0,1
+FRA,two_round,5,2022-04-10,C,1,0.4,1.9,0,1
+ITA,mixed,5,2022-09-25,L,0,0.5,1.4,0.03,0.37
+ESP,pr,4,2023-07-23,L,0,0.45,1.2,0.03,0
+CAN,fptp,4,2021-09-20,L,0,0.4,1.3,0,1
+KOR,mixed,4,2020-04-15,L,1,0.4,2.7,0.03,0.84
+AUS,fptp,3,2022-05-21,R,0,0.45,1.9,0,1
+BRA,pr,4,2022-10-02,R,1,0.55,1.5,0,0
+MEX,mixed,6,2024-06-02,L,1,0.45,0.5,0.03,0.6
+IND,fptp,5,2024-04-19,R,0,0.45,2.4,0,1
+RUS,none,6,,R,1,0.15,3.9,0.05,0.5
+TUR,pr,5,2023-05-14,R,1,0.2,2.7,0.1,0
+IDN,pr,5,2024-02-14,C,1,0.45,0.8,0.04,0
+SAU,none,0,,C,0,0,8.0,0,0
+ZAF,pr,5,2024-05-29,L,0,0.35,1.0,0,0
+ARG,pr,4,2023-10-22,L,1,0.45,0.7,0.03,0
+ROW,pr,5,2022-06-01,C,0,0.3,2.0,0.03,0

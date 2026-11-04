@@ -151,7 +151,8 @@ void update_finance(game_state& state) {
                                     - static_cast<float>(P.portfolio_risk) * std::max(0.0f, n.get_spread() - n.get_spread0());
             const float fdi = static_cast<float>(P.fdi_growth) * ((n.get_trend_growth() - n.get_trend_growth0()) - 0.0f * world_growth)
                               + static_cast<float>(P.fdi_institutions) * 100.0f * (n.get_liberal() - n.get_liberal0()) * 0.1f;
-            n.set_portfolio_flow(std::clamp(portfolio, -15.0f, 15.0f));
+            // Capital controls (policy.cpp) shut the financial account both ways.
+            n.set_portfolio_flow(std::clamp(portfolio * (1.0f - 0.8f * n.get_capital_controls()), -15.0f, 15.0f));
             n.set_fdi_flow(std::clamp(fdi, -5.0f, 5.0f));
             const double gdp = n.get_gdp0() * n.get_core_price() * n.get_gf();
             transfer(state, account::rest_of_world(n.id), account::finance(n.id), n.get_portfolio_flow() / 100.0 * gdp * years, flow::portfolio);

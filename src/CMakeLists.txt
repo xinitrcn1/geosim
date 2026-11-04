@@ -43,6 +43,7 @@ if(GEOSIM_USE_DCON)
         sim/systems/internet.cpp
         sim/systems/markets.cpp
         sim/systems/politics.cpp
+        sim/systems/policy.cpp
         sim/systems/society.cpp)
     target_link_libraries(geosim_sim PUBLIC geosim_core)
     geosim_dcon_generate(geosim_sim ${PROJECT_SOURCE_DIR}/schema/geosim_dcon.txt)

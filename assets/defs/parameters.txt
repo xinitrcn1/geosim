@@ -395,6 +395,25 @@ disaster_rate{0.05}                      # annual probability of a major disaste
 disaster_warming{0.5}                    # disaster hazard increase per C of warming above the start (IPCC AR6)
 disaster_loss{0.02}                      # mean capital loss of a major disaster (share of regional capacity; Hsiang & Jina 2014)
 top_share_capital{1}                     # elasticity of the top-1% income share to the capital-income share
+repression_deterrence{0.4}               # joining-cost rise at full repression (Davenport 2007)
+repression_backlash{0.3}                 # protest drive per unit repression memory (backlash; Francisco 1995)
+repression_memory_days{180}              # decay time of the memory of repression (days)
+repression_legitimacy{0.2}               # legitimacy target lost per unit repression
+immigration_tan{0.05}                    # annual shift toward traditional values per unit immigration salience above normal (Hainmueller & Hopkins 2014)
+corruption_vote{1}                       # incumbent vote penalty per unit corruption salience x corruption
+trust_growth{0.01}                       # trend-growth change per unit social-trust change (Knack & Keefer 1997)
+party_id_inertia{0.7}                    # share of last month's party support kept (party identification; Green et al. 2002)
+diaspora_pull{2}                         # migration gravity gain per unit diaspora / destination population x 100 (Beine et al. 2011)
+immigration_shortage{2}                  # pragmatic openness rise per unit labour shortage (unemployment below start)
+retirement_pension_saving{0.03}          # pension spending cut per year of later retirement (share)
+retirement_debt{0.5}                     # pragmatic later retirement (years) per unit debt / GDP above 0.9
+education_tertiary{0.02}                 # tertiary-share rise per year per % GDP of extra education spending (lagged)
+health_beds{0.5}                         # hospital beds per 1000 added per year per % GDP of extra health spending
+capital_controls_trigger{5}              # portfolio outflow (% GDP/yr) at which controls become pragmatic
+cube_law{3}                              # seat-vote exponent of single-member districts in a one-region nation (Taagepera 1986)
+lobby_tariff{0.05}                       # ideological tariff per unit lobby pressure (Grossman & Helpman 1994)
+governor_alignment{0.3}                  # regional NPI offset of a governor from the opposition per unit party distance
+health_threat{0.5}                       # pragmatic health spending (% GDP above baseline) per unit epidemic threat (2020: +0.5..1.5% GDP; OECD Health Statistics)
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

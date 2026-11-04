@@ -427,6 +427,26 @@
     X(disaster_warming, 0.5, "disaster hazard increase per C of warming above the start (IPCC AR6)")      \
     X(disaster_loss, 0.02, "mean capital loss of a major disaster (share of regional capacity; Hsiang & Jina 2014)") \
     X(top_share_capital, 1.0, "elasticity of the top-1% income share to the capital-income share")       \
+    /* ---- society and politics extensions ---- */                                                          \
+    X(repression_deterrence, 0.4, "joining-cost rise at full repression (Davenport 2007)")                 \
+    X(repression_backlash, 0.3, "protest drive per unit repression memory (backlash; Francisco 1995)")    \
+    X(repression_memory_days, 180.0, "decay time of the memory of repression (days)")                     \
+    X(repression_legitimacy, 0.2, "legitimacy target lost per unit repression")                           \
+    X(immigration_tan, 0.05, "annual shift toward traditional values per unit immigration salience above normal (Hainmueller & Hopkins 2014)") \
+    X(corruption_vote, 1.0, "incumbent vote penalty per unit corruption salience x corruption")           \
+    X(trust_growth, 0.01, "trend-growth change per unit social-trust change (Knack & Keefer 1997)")      \
+    X(party_id_inertia, 0.7, "share of last month's party support kept (party identification; Green et al. 2002)") \
+    X(diaspora_pull, 2.0, "migration gravity gain per unit diaspora / destination population x 100 (Beine et al. 2011)") \
+    X(immigration_shortage, 2.0, "pragmatic openness rise per unit labour shortage (unemployment below start)") \
+    X(retirement_pension_saving, 0.03, "pension spending cut per year of later retirement (share)")      \
+    X(retirement_debt, 0.5, "pragmatic later retirement (years) per unit debt / GDP above 0.9")          \
+    X(education_tertiary, 0.02, "tertiary-share rise per year per % GDP of extra education spending (lagged)") \
+    X(health_beds, 0.5, "hospital beds per 1000 added per year per % GDP of extra health spending")      \
+    X(capital_controls_trigger, 5.0, "portfolio outflow (% GDP/yr) at which controls become pragmatic")  \
+    X(cube_law, 3.0, "seat-vote exponent of single-member districts in a one-region nation (Taagepera 1986)") \
+    X(lobby_tariff, 0.05, "ideological tariff per unit lobby pressure (Grossman & Helpman 1994)")       \
+    X(governor_alignment, 0.3, "regional NPI offset of a governor from the opposition per unit party distance") \
+    X(health_threat, 0.5, "pragmatic health spending (% GDP above baseline) per unit epidemic threat (2020: +0.5..1.5% GDP; OECD Health Statistics)") \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

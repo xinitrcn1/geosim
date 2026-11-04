@@ -117,11 +117,13 @@ void update_epidemic(game_state& state) {
             const dcon::pathogen_id pid{p};
             const float sens = w.pathogen_get_npi_sensitivity(pid);
             float npi_factor = 1.0f;
+            // Governors tighten or loosen national measures in their region (policy.cpp).
+            const float regional = r.get_governor() ? r.get_npi_offset() : 1.0f;
             for(uint8_t k = 0; k < D.npi_count; ++k) {
                 // Regional measures target hotspots, so they reach most (not all) transmission.
                 const float reach = 1.0f - (1.0f - std::max(static_cast<float>(P.npi_targeted_transmission), tti)) * w.nation_get_npi_targeted(n, k);
                 npi_factor *= 1.0f - compliance * sens * w.npi_indicator_get_transmission_effect(dcon::npi_indicator_id{k})
-                                         * npi_fraction(state, n, k) * reach;
+                                         * std::min(1.0f, npi_fraction(state, n, k) * regional) * reach;
             }
             // Tracing only follows detected chains of this pathogen.
             const float traceable = std::min(1.0f, w.pathogen_get_detection_ratio(pid) / static_cast<float>(P.tracing_reference_detection));

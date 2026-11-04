@@ -1454,6 +1454,7 @@ struct builder {
             w.agent_set_rho(mil, 0.5f);
             w.nation_set_military_agent(n, mil);
             w.nation_set_military_loyalty(n, static_cast<float>(std::clamp(0.6 + 0.1 * in.voice, 0.3, 0.85)));
+            w.nation_set_immigration_openness(n, 1.0f);
             w.nation_set_defense_share(n, static_cast<float>(in.defense));
             w.nation_set_defense_share0(n, static_cast<float>(in.defense));
             w.nation_set_voice(n, static_cast<float>(in.voice));
@@ -1607,6 +1608,8 @@ struct builder {
         w.nation_resize_bilateral_exports(N);
         w.nation_resize_trust(N);
         w.nation_resize_threat_to(N);
+        w.nation_resize_diaspora(N); // bilateral stocks come with the full dataset; grows with flows
+        w.nation_resize_portfolio_party(static_cast<uint32_t>(portfolio::count));
         w.nation_resize_trade_share(N);
         w.nation_resize_sanction(N);
         w.nation_resize_sanction_prior(N);
@@ -1620,7 +1623,7 @@ struct builder {
             double term = 4;
             std::string next;
             std::string incumbent = "C";
-            double presidential = 0, veto = 0.3, defense = 2.0;
+            double presidential = 0, veto = 0.3, defense = 2.0, pr_threshold = 0.0, smd_share = 0.0;
         };
         std::map<std::string, sys> systems;
         if(exists(dir + "/politics_curated.csv")) {
@@ -1634,6 +1637,8 @@ struct builder {
                 s.presidential = t.number_or(row, "presidential", 0.0);
                 s.veto = t.number_or(row, "veto", 0.3);
                 s.defense = t.number_or(row, "defense_pct", 2.0);
+                s.pr_threshold = t.number_or(row, "pr_threshold", 0.0);
+                s.smd_share = t.number_or(row, "smd_share", 0.0);
                 systems[std::string(t.get(row, "iso3"))] = s;
             }
         }
@@ -1648,8 +1653,14 @@ struct builder {
             const auto n = find_nation(state, iso);
             auto const& in = inputs[iso];
             const sys s = systems.count(iso) ? systems[iso] : sys{};
-            const auto es = s.system == "fptp" ? electoral_system::fptp : s.system == "none" ? electoral_system::none : electoral_system::pr;
+            const auto es = s.system == "fptp"        ? electoral_system::fptp
+                            : s.system == "none"      ? electoral_system::none
+                            : s.system == "mixed"     ? electoral_system::mixed
+                            : s.system == "two_round" ? electoral_system::two_round
+                                                      : electoral_system::pr;
             w.nation_set_electoral_system(n, static_cast<uint8_t>(es));
+            w.nation_set_pr_threshold(n, static_cast<float>(s.pr_threshold));
+            w.nation_set_smd_share(n, static_cast<float>(s.smd_share));
             w.nation_set_presidential(n, s.presidential > 0.0 ? 1 : 0);
             w.nation_set_veto(n, static_cast<float>(s.veto));
             w.nation_set_defense_share(n, static_cast<float>(s.defense));
@@ -1908,6 +1919,7 @@ struct builder {
         }
         for(auto n : w.in_nation) {
             if(auto inc = n.get_incumbent()) n.set_gov_econ0(w.party_get_position(inc, static_cast<uint8_t>(value_axis::economic_right)));
+            if(auto inc = n.get_incumbent()) n.set_gov_tan0(-w.party_get_position(inc, static_cast<uint8_t>(value_axis::self_expression)));
         }
     }
 };

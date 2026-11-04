@@ -69,10 +69,35 @@ The player can override any implemented agent
 - **Voting.** Salience-weighted spatial distance to each party (Downs 1957)
   plus retrospective economic and health voting for the incumbent
   (Lewis-Beck & Stegmaier 2000), logit choice; turnout by kind.
-- **Elections** on the national calendar: proportional seats (pr) or regional
-  pluralities (fptp). Government = minimal connected winning coalition in
+- **Issue salience** over seven issues (economy, health, security, identity,
+  immigration, environment, corruption) follows the crisis of the moment.
+  Identity, immigration and environment weight the GAL-TAN axis; salient
+  immigration pulls voters toward traditional values (Hainmueller & Hopkins
+  2014); corruption made salient by hard times penalises the incumbent.
+- **Party identification** (Green, Palmquist & Schickler 2002): pops keep a
+  share `party_id_inertia` of last month's support, so vote intention moves
+  gradually.
+- **Elections** on the national calendar with explicit seat formulas
+  (`electoral_system`, `pr_threshold`, `smd_share` in `politics_curated.csv`):
+  list PR by D'Hondt over a 500-seat chamber among parties above the legal
+  threshold (Turkey 10%, Germany 5%; Lijphart 1994, Gallagher 1991); FPTP by
+  regional pluralities, or the cube law in single-region nations (Kendall &
+  Stuart 1950; Taagepera 1986); two-round systems with a softer exponent
+  (Blais & Loewen 2009); parallel mixed systems (Japan, Italy, Korea, Mexico)
+  as an `smd_share` blend. Government = minimal connected winning coalition in
   left-right order (Axelrod 1970); the winner's position reshapes the
   executive's ideology.
+- **Cabinets** (`policy.cpp`): portfolios (finance, health, interior, foreign)
+  go to governing parties in proportion to seats (Gamson's law; Laver &
+  Shepsle 1996). The finance minister's party sets the ideology of pensions
+  and public-service spending, the interior minister's that of repression,
+  immigration and capital controls.
+- **Governors** of multi-region nations (the region's plurality party) set
+  regional NPI stringency relative to the national level - pragmatically with
+  local incidence, ideologically by their order ideal (partisan federalism).
+- **Lobbies**: associations of tradable sectors losing ground relative to the
+  rest of the economy (import competition, not a general slump; Trefler 1993)
+  buy protection - an ideological tariff term (Grossman & Helpman 1994).
 - **Adaptive parties** (Laver 2005; Laver & Sergenti 2011): strategies
   *sticker* (niche and ruling parties keep their position; Adams et al. 2006),
   *aggregator* (mainstream parties drift to their supporters' centroid),
@@ -81,9 +106,9 @@ The player can override any implemented agent
   from every party (de Vries & Hobolt 2020; Meguid 2005); a party below 1% of
   the vote for two years dissolves.
 
-**Planned:** party identification inertia, mixed and two-round systems,
-explicit seat formulas with thresholds (D'Hondt / Sainte-Laguë), portfolio
-bargaining, and initial positions from the Manifesto Project.
+**Planned:** presidential runoffs for the executive, compensatory mixed
+systems with overhang seats, portfolio bargaining beyond Gamson's law
+(ministerial salience), and initial positions from the Manifesto Project.
 
 ## The Overton window
 
@@ -202,6 +227,13 @@ indicator):
 | `policy_rate`, `asset_purchases` | central bank | rate and QE |
 | `hoarding`, `investment` | board | labour hoarding, investment drive |
 | `wage_push` | union federation | real-wage demand |
+| `carbon_price` | executive (bill) | USD/t CO2 ([03](03-economy.md)) |
+| `repression` | executive | 0..1; deters protest at once (cost of joining), leaves a memory that feeds backlash and erodes legitimacy (Davenport 2007; Francisco 1995; Chenoweth & Stephan 2011); capped by military loyalty |
+| `immigration` | executive (bill) | openness relative to 2019; pragmatic with labour shortages, ideological by the interior minister's TAN shift; scales the migration gravity term |
+| `retirement_age` | executive (bill) | years relative to 2019; pragmatic as debt rises above its 2019 level; cuts pension outlays |
+| `education`, `health` | executive (bill) | % of GDP above baseline; education raises the tertiary share, health adds hospital beds; health is pragmatic in an epidemic |
+| `capital_controls` | executive | 0..1; pragmatic in a sudden stop outside reserve-currency issuers (Rey 2013); cut portfolio flows both ways |
+| `regional_npi` | governor | regional NPI stringency relative to national |
 
 Sanctions, war, treaties and coups are decisions outside the lever enum
 ([06](06-geopolitics-ai.md)).
@@ -211,14 +243,11 @@ Sanctions, war, treaties and coups are decisions outside the lever enum
 - **Fiscal:** statutory income tax bands, VAT, corporate tax, subsidies
   (fuel, food, sectors), transfer rules (pensions, unemployment insurance,
   cash transfers, child benefits), public investment by type.
-- **Labor:** employment protection, union law, retirement age, immigration
-  rules.
-- **Monetary/financial:** capital controls, peg changes; bank regulation,
-  deposit insurance.
-- **Social:** education spending and reach, health spending, housing policy,
-  minority rights, religious law.
+- **Labor:** employment protection, union law.
+- **Monetary/financial:** peg changes; bank regulation, deposit insurance.
+- **Social:** housing policy, minority rights, religious law.
 - **Health:** vaccination priority, border health checks.
-- **Security:** police budgets, repression level, surveillance.
-- **Environment:** carbon price, energy-mix mandates, subsidies.
+- **Security:** police budgets, surveillance.
+- **Environment:** energy-mix mandates, subsidies.
 - **Constitutional:** electoral system, term limits, federalism, court
   appointments. Changing these needs supermajorities or Force.

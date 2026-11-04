@@ -69,10 +69,13 @@ enum class event_kind : uint8_t {
 // pop.values axes (Inglehart-Welzel + economic left-right), each roughly -1..1
 enum class value_axis : uint8_t { secular = 0, self_expression = 1, economic_right = 2, count };
 // pop.salience issues (weights sum to 1)
-enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3, count };
+enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3, immigration = 4, environment = 5, corruption = 6, count };
 
 // agent.kind
-enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4 };
+enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4, governor = 5 };
+
+// nation.portfolio_party: ministries held by coalition parties (Gamson's law).
+enum class portfolio : uint8_t { finance = 0, health = 1, interior = 2, foreign = 3, count };
 
 // agent.override_mode (docs/01-gameplay-loop.md#3-act--overrides)
 enum class override_mode : uint8_t { none = 0, advise = 1, direct = 2, force = 3 };
@@ -99,6 +102,13 @@ enum class lever : uint8_t {
     defense,         // executive (bill): defence spending, % of GDP (systems/institutions.cpp)
     wage_push,       // union: real-wage demand, annual log change (systems/labour.cpp)
     carbon_price,    // executive (bill): carbon price, USD per tonne CO2 (systems/climate.cpp)
+    repression,      // executive: use of security forces against protest, 0..1 (systems/society.cpp)
+    immigration,     // executive (bill): openness to immigration relative to the start (systems/society.cpp)
+    retirement_age,  // executive (bill): statutory retirement age change, years (systems/policy.cpp)
+    education,       // executive (bill): education spending above the baseline, % of GDP (systems/policy.cpp)
+    health,          // executive (bill): health spending above the baseline, % of GDP (systems/policy.cpp)
+    capital_controls,// executive: controls on portfolio flows, 0..1 (systems/policy.cpp)
+    regional_npi,    // governor: regional NPI stringency relative to the national level (systems/policy.cpp)
     count
 };
 
@@ -113,7 +123,7 @@ enum class party_strategy : uint8_t {
 enum class party_family : uint8_t { oth = 0, soc, con, lib, chr, grn, rad_right, rad_left, com, reg, agr, challenger };
 
 // nation.electoral_system
-enum class electoral_system : uint8_t { none = 0, pr = 1, fptp = 2 };
+enum class electoral_system : uint8_t { none = 0, pr = 1, fptp = 2, mixed = 3, two_round = 4 };
 
 // decision.lever codes for non-lever journal entries
 inline constexpr uint8_t journal_election = 0xF0;
@@ -172,6 +182,7 @@ enum class flow : uint8_t {
     carbon_tax,            // carbon-price revenue
     fdi,                   // foreign direct investment inflows (net, above baseline)
     portfolio,             // portfolio inflows (net, above baseline)
+    public_services,       // education and health spending above baseline
     count
 };
 

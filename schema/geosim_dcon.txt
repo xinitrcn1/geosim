@@ -308,6 +308,7 @@ object{
 	property{ name{military_agent} type{agent_id} }
 	property{ name{union_agent} type{agent_id} }
 	property{ name{gov_econ0} type{float} }
+	property{ name{gov_tan0} type{float} }
 	property{ name{profit0} type{float} }
 	property{ name{tax_multiplier} type{float} }
 	property{ name{tag_code} type{array{uint16_t}{uint32_t}} }
@@ -335,6 +336,18 @@ object{
 	property{ name{capital_income_share0} type{float} }
 	property{ name{disaster_losses} type{float} }
 	property{ name{frontier_gap0} type{float} }
+	property{ name{repression} type{float} }
+	property{ name{repression_memory} type{float} }
+	property{ name{immigration_openness} type{float} }
+	property{ name{retirement_age_shift} type{float} }
+	property{ name{education_spending} type{float} }
+	property{ name{health_spending} type{float} }
+	property{ name{capital_controls} type{float} }
+	property{ name{portfolio_party} type{array{uint16_t}{party_id}} }
+	property{ name{pr_threshold} type{float} }
+	property{ name{smd_share} type{float} }
+	property{ name{lobby_pressure} type{float} }
+	property{ name{diaspora} type{array{uint16_t}{float}} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }
@@ -439,6 +452,8 @@ object{
 	property{ name{backfire} type{float} }
 	property{ name{protest_fatigue} type{float} }
 	property{ name{insurgency} type{float} }
+	property{ name{npi_offset} type{float} }
+	property{ name{governor} type{agent_id} }
 	property{ name{crisis_days} type{float} }
 }
 

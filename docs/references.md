@@ -279,6 +279,24 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Powell, J. (2012). Determinants of the attempting and outcome of coups d'état. *JCR* 56(6).
 - Svolik, M. (2012). *The Politics of Authoritarian Rule.* Cambridge UP.
 - Davenport, C. (2007) — see Society.
+- Francisco, R. (1995). The relationship between coercion and protest. *JCR* 39(2). — Repression backlash.
+- Chenoweth, E. & Stephan, M. (2011). *Why Civil Resistance Works.* Columbia UP. — Backfire of repression.
+- Green, D., Palmquist, B. & Schickler, E. (2002). *Partisan Hearts and Minds.* Yale UP. — Party identification inertia.
+- Hainmueller, J. & Hopkins, D. (2014). Public attitudes toward immigration. *Annual Review of Political Science* 17.
+- Lijphart, A. (1994). *Electoral Systems and Party Systems.* Oxford UP.
+- Gallagher, M. (1991). Proportionality, disproportionality and electoral systems. *Electoral Studies* 10(1). — D'Hondt bias.
+- Kendall, M. & Stuart, A. (1950). The law of the cubic proportion in election results. *British J. Sociology* 1(3).
+- Taagepera, R. (1986). Reformulating the cube law for proportional representation elections. *APSR* 80(2).
+- Duverger, M. (1954). *Political Parties.* Methuen.
+- Blais, A. & Loewen, P. (2009). The French electoral system and its effects. *West European Politics* 32(2). — Two-round disproportionality.
+- Gamson, W. (1961). A theory of coalition formation. *American Sociological Review* 26(3). — Portfolio proportionality.
+- Laver, M. & Shepsle, K. (1996). *Making and Breaking Governments.* Cambridge UP. — Ministerial control of policy.
+- Grossman, G. & Helpman, E. (1994). Protection for sale. *AER* 84(4).
+- Trefler, D. (1993). Trade liberalization and the theory of endogenous protection. *JPE* 101(1).
+- Rey, H. (2013). Dilemma not trilemma: the global financial cycle and monetary policy independence. *Jackson Hole Symposium.* — Capital controls.
+- Massey, D. et al. (1993). Theories of international migration. *Population and Development Review* 19(3). — Migrant networks.
+- Beine, M., Docquier, F. & Özden, Ç. (2011). Diasporas. *J. Development Economics* 95(1).
+- Knack, S. & Keefer, P. (1997). Does social capital have an economic payoff? *QJE* 112(4). — Trust and growth.
 
 ## Internet, cyber, war economics ([06](06-geopolitics-ai.md))
 

@@ -264,7 +264,9 @@ void decide_tariff(game_state& state, dcon::agent_id a, dcon::nation_id n) {
         nationalist = std::max(0.0f, w.nation_get_window_center(n, se) - w.party_get_position(inc, se));
     }
     // Relative to the start: 2019 tariffs already reflect 2019 politics.
-    const float ideal = pragmatic + static_cast<float>(P.tariff_nationalism) * (nationalist - w.nation_get_nationalism0(n));
+    // Sector associations of distressed tradables buy protection (Grossman & Helpman 1994; policy.cpp).
+    const float ideal = pragmatic + static_cast<float>(P.tariff_nationalism) * (nationalist - w.nation_get_nationalism0(n))
+                        + static_cast<float>(P.lobby_tariff) * 100.0f * w.nation_get_lobby_pressure(n);
     const float rho = w.agent_get_rho_base(a);
     const float raw = (1.0f - rho) * pragmatic + rho * ideal;
     const float before = w.nation_get_tariff(n);
