@@ -89,4 +89,32 @@ struct hazard_snapshot {
     std::vector<disaster_note> disasters; // every live record
 };
 
+// Politics of one nation for the electoral tile map (sim_runner::request_politics).
+inline constexpr std::size_t politics_max_parties = 16; // politics.cpp max_parties
+
+struct party_info {
+    std::string key;       // short code (DEM, REP, ...)
+    uint8_t family = 0;    // sim::party_family
+    float vote_share = 0;  // national vote intention
+    float seat_share = 0;
+    bool in_government = false, incumbent = false;
+};
+
+struct politics_region {
+    uint32_t region = 0;   // sim region index
+    float electorate = 0;  // people (pop sizes)
+    float voters = 0;      // electorate x turnout by pop kind (politics.cpp)
+    float share[politics_max_parties] = {}; // vote shares of the nation's parties (local_index order)
+    float grievance = 0, trust = 0, unrest = 0, protest = 0, insurgency = 0;
+};
+
+struct politics_snapshot {
+    uint32_t nation = 0xFFFFFFFFu;
+    float electoral = 0, liberal = 0, legitimacy = 0, military_loyalty = 0, repression = 0, approval = 0;
+    bool competitive = false;
+    int32_t tick = 0, next_election = 0;
+    std::vector<party_info> parties;      // local_index order
+    std::vector<politics_region> regions; // the regions the nation owns now
+};
+
 } // namespace geosim::client

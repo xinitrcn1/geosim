@@ -186,4 +186,72 @@ std::future<region_snapshot> sim_runner::request_regions(bool with_faults) {
     return future;
 }
 
+std::future<politics_snapshot> sim_runner::request_politics(uint32_t nation_index) {
+    auto promise = std::make_shared<std::promise<politics_snapshot>>();
+    auto future = promise->get_future();
+    post([promise, nation_index](game_state& s) {
+        politics_snapshot out;
+        auto const& w = s.world;
+        out.tick = s.current_tick;
+        if(nation_index >= w.nation_size()) {
+            promise->set_value(std::move(out));
+            return;
+        }
+        const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(nation_index)};
+        out.nation = nation_index;
+        out.electoral = w.nation_get_electoral(n);
+        out.liberal = w.nation_get_liberal(n);
+        out.legitimacy = w.nation_get_legitimacy(n);
+        out.military_loyalty = w.nation_get_military_loyalty(n);
+        out.repression = w.nation_get_repression(n);
+        out.approval = w.nation_get_approval(n);
+        out.competitive = w.nation_get_competitive(n) != 0;
+        out.next_election = w.nation_get_next_election(n);
+        // Parties in local_index order (pop.party_support is indexed the same way); stable, so
+        // parties with equal (e.g. zero) indices keep their membership order.
+        std::vector<std::pair<uint8_t, dcon::party_id>> parties;
+        for(auto m : w.nation_get_party_membership(n)) parties.emplace_back(m.get_party().get_local_index(), m.get_party().id);
+        std::stable_sort(parties.begin(), parties.end(), [](auto const& a, auto const& b) { return a.first < b.first; });
+        if(parties.size() > politics_max_parties) parties.resize(politics_max_parties);
+        const auto incumbent = w.nation_get_incumbent(n);
+        for(auto const& [li, p] : parties) {
+            party_info info;
+            info.key = core::unpack_key(w.party_get_key(p));
+            info.family = w.party_get_family(p);
+            info.vote_share = w.party_get_vote_share(p);
+            info.seat_share = w.party_get_seat_share(p);
+            info.in_government = w.party_get_in_government(p) != 0;
+            info.incumbent = p == incumbent;
+            out.parties.push_back(std::move(info));
+        }
+        constexpr float turnout[4] = {0.5f, 0.6f, 0.75f, 0.7f}; // by pop.kind & 3, as politics.cpp
+        for(auto own : w.nation_get_region_ownership(n)) {
+            auto r = own.get_region();
+            politics_region pr;
+            pr.region = static_cast<uint32_t>(r.id.index());
+            double grievance = 0.0;
+            for(auto loc : r.get_pop_location()) {
+                auto p = loc.get_pop();
+                const float size = p.get_size();
+                const float v = size * turnout[p.get_kind() & 3];
+                pr.electorate += size;
+                pr.voters += v;
+                grievance += static_cast<double>(size) * p.get_grievance();
+                for(std::size_t j = 0; j < out.parties.size(); ++j) pr.share[j] += v * p.get_party_support(static_cast<uint8_t>(j));
+            }
+            float total = 0.0f;
+            for(std::size_t j = 0; j < out.parties.size(); ++j) total += pr.share[j];
+            for(std::size_t j = 0; j < out.parties.size(); ++j) pr.share[j] = total > 0.0f ? pr.share[j] / total : 0.0f;
+            pr.grievance = pr.electorate > 0.0f ? static_cast<float>(grievance / pr.electorate) : r.get_grievance();
+            pr.trust = r.get_trust_r();
+            pr.unrest = r.get_unrest();
+            pr.protest = r.get_protest();
+            pr.insurgency = r.get_insurgency();
+            out.regions.push_back(pr);
+        }
+        promise->set_value(std::move(out));
+    });
+    return future;
+}
+
 } // namespace geosim::client

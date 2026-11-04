@@ -72,7 +72,7 @@ void hazard_feed::poll(sim_runner& sim, alert_feed& alerts, float seconds) {
         }
         if(quake_seen_.size() > 512) quake_seen_.clear();
         // Oldest first so the newest ends up on top.
-        std::sort(snap.disasters.begin(), snap.disasters.end(), [](auto const& a, auto const& b) { return a.start < b.start; });
+        std::stable_sort(snap.disasters.begin(), snap.disasters.end(), [](auto const& a, auto const& b) { return a.start < b.start; });
         std::unordered_map<uint32_t, record> live;
         for(auto& n : snap.disasters) {
             auto it = records_.find(n.id);

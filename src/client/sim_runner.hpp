@@ -122,6 +122,9 @@ public:
     // Per-region and per-nation state for the map views (sim_hazards.cpp);
     // faults (static) only when asked.
     std::future<region_snapshot> request_regions(bool with_faults);
+    // One nation's parties and per-region vote shares (pop-level support x size
+    // x turnout) or regime-support inputs, for the Politics tab (sim_hazards.cpp).
+    std::future<politics_snapshot> request_politics(uint32_t nation_index);
 
     // Indicator panels for the agents the player controls (racy direct reads;
     // call from the UI thread once status() == running).

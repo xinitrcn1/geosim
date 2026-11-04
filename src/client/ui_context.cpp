@@ -138,6 +138,23 @@ bool ui_context::button(std::string_view id_text, layer l, rect r, std::string_v
     return clicked;
 }
 
+bool ui_context::flat_button(std::string_view id_text, rect r, std::string_view label, float size_px, bool active,
+                             std::string_view tip) {
+    const uint64_t id = hash_id(id_text);
+    const bool hot = hovered(r);
+    if(hot) wants_mouse_ = true;
+    if(hot && in_.pressed) active_id_ = id;
+    const bool clicked = active_id_ == id && in_.released && hot;
+    rgba bg = active ? style::flat_header : (hot ? hex(0xDCE8F6) : hex(0xEEF2F7));
+    fill(layer::overlay, r, bg);
+    const bool backing = backing_;
+    backing_ = false;
+    text_in(layer::overlay, r, label, size_px, active ? style::text : style::flat_text, align::centre);
+    backing_ = backing;
+    if(hot && !tip.empty()) tooltip_ = tip;
+    return clicked;
+}
+
 void ui_context::end() {
     if(tooltip_.empty() || in_.mouse_x < 0) return;
     const float size = px(style::font_small);

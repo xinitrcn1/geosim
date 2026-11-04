@@ -72,6 +72,9 @@ public:
     bool button(std::string_view id, layer l, rect r, std::string_view label, float size_px, bool active = false,
                 std::string_view tooltip = {});
     void tooltip(std::string_view s) { tooltip_ = s; }
+    // A button on a flat (white) panel: dark label, light-blue hover, blue when active.
+    bool flat_button(std::string_view id, rect r, std::string_view label, float size_px, bool active = false,
+                     std::string_view tooltip = {});
 
     [[nodiscard]] static rgba colour(tone t) noexcept;
 

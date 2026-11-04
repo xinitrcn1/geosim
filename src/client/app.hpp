@@ -28,6 +28,8 @@ struct app_options {
     // window width in degrees of arc (default: the first --nation, ~75 degrees).
     std::string map_view;
     std::string view = "political"; // initial map view: political, climate, economy, trade, energy, epidemic, unrest
+    std::string politics;     // open the Politics tab at start on this nation (ISO3; "" = closed, "-" = the player's first)
+    int politics_mode = 0;    // its initial mode button
     bool clouds = true;       // cloud layer (C toggles it at run time)
     bool hazard_demo = false; // fixed demo storms and an earthquake (visual checks before the sim feeds them)
     // Procedural music (docs/14-audio.md); M toggles it at run time.

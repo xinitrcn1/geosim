@@ -45,6 +45,22 @@ public:
     [[nodiscard]] map_tooltip_info describe(int region, map_filter view, sim_runner const& sim) const;
     [[nodiscard]] map_tab_info tab(map_filter view, sim_runner const& sim, hazard_feed const& hazards) const;
 
+    // Politics tab: the nation shown (resolves -1 to the player's first nation),
+    // its electoral tile map for `mode` and a tile's tooltip.
+    [[nodiscard]] int resolve_nation(int nation, int step, sim_runner const& sim) const;
+    void update_politics(sim_runner& sim, int nation);
+    [[nodiscard]] electoral_view_info electoral(int nation, int mode, sim_runner const& sim) const;
+    [[nodiscard]] map_tooltip_info describe_tile(int region, int mode, sim_runner const& sim) const;
+    // Sim nation controlling a raster region (-1 = not simulated).
+    [[nodiscard]] int nation_at(int region) const noexcept { return owner_of(region); }
+    // Sim nation index of an ISO3 code (-1 until bound / unknown).
+    [[nodiscard]] int nation_index(std::string const& iso) const noexcept {
+        for(std::size_t k = 0; k < nation_iso3_.size(); ++k) {
+            if(nation_iso3_[k] == iso) return static_cast<int>(k);
+        }
+        return -1;
+    }
+
     static constexpr float fill_strength = 0.72f;
 
     // Hazard state of a raster region in the climate view.
@@ -85,6 +101,26 @@ private:
     std::vector<float> exports0_;         // nation exports % of GDP at the first snapshot
     std::vector<uint8_t> fault_risk_;     // raster region near a fault late in its cycle
     float grievance_q90_ = 1e9f;
+
+    // Electoral map.
+    std::vector<map_box> boxes_;
+    std::future<politics_snapshot> pending_politics_;
+    politics_snapshot politics_;
+    int politics_for_ = -1;
+    std::chrono::steady_clock::time_point last_politics_{};
+    std::vector<std::vector<float>> start_votes_; // nation -> national vote shares at first sight (swing)
+    struct layout_cache {
+        int nation = -1;
+        int32_t tick = -1;
+        std::vector<int> regions; // raster regions, in tile order
+        std::vector<electoral_tile> tiles;
+        float aspect = 1;
+        bool weighted = false; // sized by electorate (else by area, until the politics data arrives)
+    };
+    mutable layout_cache layout_;
+    void layout_tiles(int nation) const;
+    [[nodiscard]] politics_region const* politics_of(int raster) const noexcept;
+    [[nodiscard]] bool democracy() const noexcept;
     map_filter last_view_ = map_filter::count;
 };
 

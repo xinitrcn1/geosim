@@ -252,6 +252,51 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         }
         ids_raw.clear();
         ids_raw.shrink_to_fit();
+        // Bounding boxes: x extents both as stored and shifted by half the width, and
+        // the narrower of the two (regions across the antimeridian).
+        {
+            struct ext {
+                uint32_t x0 = ~0u, x1 = 0, s0 = ~0u, s1 = 0, y0 = ~0u, y1 = 0, n = 0;
+            };
+            std::vector<ext> e(region_count + 1);
+            const uint32_t half = id_w / 2;
+            for(uint32_t y = 0; y < id_h; ++y) {
+                uint16_t const* row = l0.texels.data() + std::size_t{y} * id_w;
+                for(uint32_t x = 0; x < id_w; ++x) {
+                    const uint16_t v = row[x];
+                    if(v == map_water || v == map_unclaimed) continue;
+                    ext& r = e[v];
+                    const uint32_t sx = (x + half) % id_w;
+                    r.x0 = std::min(r.x0, x);
+                    r.x1 = std::max(r.x1, x);
+                    r.s0 = std::min(r.s0, sx);
+                    r.s1 = std::max(r.s1, sx);
+                    r.y0 = std::min(r.y0, y);
+                    r.y1 = std::max(r.y1, y);
+                    ++r.n;
+                }
+            }
+            out.boxes.resize(region_count);
+            const float dx = 360.0f / static_cast<float>(id_w), dy = 180.0f / static_cast<float>(id_h);
+            for(uint32_t i = 0; i < region_count; ++i) {
+                ext const& r = e[i + 1];
+                map_box& b = out.boxes[i];
+                if(r.n == 0) { // too small for a cell: a one-cell box at the centroid
+                    b = {out.regions[i].lon - dx, out.regions[i].lon + dx, out.regions[i].lat - dy, out.regions[i].lat + dy, 0};
+                    continue;
+                }
+                b.cells = r.n;
+                if(r.s1 - r.s0 < r.x1 - r.x0) { // narrower when shifted: crosses the antimeridian
+                    b.lon0 = -180.0f + (static_cast<float>(r.s0) - static_cast<float>(half)) * dx + 360.0f * (r.s0 < half ? 1.0f : 0.0f);
+                    b.lon1 = b.lon0 + static_cast<float>(r.s1 - r.s0 + 1) * dx;
+                } else {
+                    b.lon0 = -180.0f + static_cast<float>(r.x0) * dx;
+                    b.lon1 = -180.0f + static_cast<float>(r.x1 + 1) * dx;
+                }
+                b.lat1 = 90.0f - static_cast<float>(r.y0) * dy;
+                b.lat0 = 90.0f - static_cast<float>(r.y1 + 1) * dy;
+            }
+        }
         out.ids.push_back(std::move(l0));
         while(out.ids.back().width > 256 && out.ids.back().height > 1) {
             auto const& src = out.ids.back();

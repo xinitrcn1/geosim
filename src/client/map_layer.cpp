@@ -1,6 +1,7 @@
 #include "map_layer.hpp"
 
 #include "core/csv.hpp"
+#include "tile_pack.hpp"
 #include "core/diagnostics.hpp"
 
 #include <SDL3/SDL_log.h>
@@ -109,6 +110,7 @@ void map_layer::init(map_data& data, std::string const& assets) {
         ids_h_ = data.ids[0].height;
         ids_ = std::move(data.ids[0].texels);
     }
+    boxes_ = data.boxes;
     names_.assign(regions_.size(), std::string{});
     core::diagnostics diag;
     const auto t = core::csv_table::load(assets + "/scenario/world2020/regions.csv", diag);
@@ -573,6 +575,330 @@ map_tab_info map_layer::tab(map_filter view, sim_runner const& sim, hazard_feed 
         }
     }
     return t;
+}
+
+} // namespace geosim::client
+
+// --- electoral map ----------------------------------------------------------
+
+namespace geosim::client {
+
+namespace {
+
+// Party colours by family (sim::party_family): stable across nations.
+constexpr uint32_t family_colour[] = {
+    0x9AA0A6, // oth
+    0xD6453D, // soc: red
+    0x2F64B5, // con: blue
+    0xE8B723, // lib: yellow
+    0xE07B24, // chr: orange
+    0x3A9A48, // grn: green
+    0x2B3A67, // rad_right: navy
+    0x8E1B2E, // rad_left: dark red
+    0xB0162B, // com: crimson
+    0x7E57A8, // reg: purple
+    0x8AA834, // agr: lime
+    0xC2408E, // challenger: magenta
+};
+
+// Distinct colours when the families say nothing (the generic L / C / R parties of
+// nations without curated party systems are all "other").
+constexpr uint32_t index_colour[] = {0xD6453D, 0xE8B723, 0x2F64B5, 0x3A9A48, 0x7E57A8, 0xE07B24, 0x2B3A67, 0xC2408E};
+
+uint32_t party_colour(std::vector<party_info> const& parties, std::size_t j, std::string const& iso) {
+    party_info const& p = parties[j];
+    // US convention: Democrats blue, Republicans red (the families would give yellow / blue).
+    if(iso == "USA" && p.family == 3) return 0x2F64B5;
+    if(iso == "USA" && p.family == 2) return 0xD6453D;
+    bool shared = false;
+    for(std::size_t k = 0; k < parties.size(); ++k) shared = shared || (k != j && parties[k].family == p.family);
+    if(p.family == 0 && shared) {
+        if(p.key == "L") return 0xD6453D;
+        if(p.key == "C") return 0xE8B723;
+        if(p.key == "R") return 0x2F64B5;
+        return index_colour[j % std::size(index_colour)];
+    }
+    return family_colour[p.family < std::size(family_colour) ? p.family : 0];
+}
+
+rgba blend_white(uint32_t hex_rgb, float t) {
+    const rgba c = client::hex(hex_rgb);
+    t = std::clamp(t, 0.0f, 1.0f);
+    return {1.0f + (c.r - 1.0f) * t, 1.0f + (c.g - 1.0f) * t, 1.0f + (c.b - 1.0f) * t, 1.0f};
+}
+
+rgba red_green(float t) { // 0 red .. 1 green
+    t = std::clamp(t, 0.0f, 1.0f);
+    const rgba a = client::hex(0xC9443A), m = client::hex(0xF2EBD9), b = client::hex(0x2E9E58);
+    auto mix = [](rgba x, rgba y, float u) { return rgba{x.r + (y.r - x.r) * u, x.g + (y.g - x.g) * u, x.b + (y.b - x.b) * u, 1.0f}; };
+    return t < 0.5f ? mix(a, m, t * 2.0f) : mix(m, b, (t - 0.5f) * 2.0f);
+}
+
+float regime_support(politics_region const& r) {
+    return std::clamp(0.5f * (1.0f - r.grievance) + 0.5f * r.trust - 0.15f * r.unrest - r.insurgency, 0.0f, 1.0f);
+}
+
+std::string pct(double v) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.1f%%", v * 100.0);
+    return buf;
+}
+
+} // namespace
+
+int map_layer::resolve_nation(int nation, int step, sim_runner const& sim) const {
+    const auto& player = sim.nations();
+    int n = nation;
+    if(n < 0) {
+        for(std::size_t k = 0; k < nation_iso3_.size() && n < 0; ++k) {
+            if(!player.empty() && nation_iso3_[k] == player.front()) n = static_cast<int>(k);
+        }
+        if(n < 0 && !nation_iso3_.empty()) n = 0;
+    }
+    if(step != 0 && !nation_iso3_.empty()) {
+        // Step through the player's nations first, then all nations.
+        const int count = static_cast<int>(nation_iso3_.size());
+        n = ((n + step) % count + count) % count;
+    }
+    return n;
+}
+
+void map_layer::update_politics(sim_runner& sim, int nation) {
+    if(sim.status() != sim_status::running || nation < 0) return;
+    if(pending_politics_.valid() && pending_politics_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        politics_ = pending_politics_.get();
+        if(politics_.nation < nation_iso3_.size()) {
+            if(start_votes_.size() < nation_iso3_.size()) start_votes_.resize(nation_iso3_.size());
+            auto& sv = start_votes_[politics_.nation];
+            if(sv.empty()) {
+                for(auto const& p : politics_.parties) sv.push_back(p.vote_share);
+            }
+        }
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if(!pending_politics_.valid() && (nation != politics_for_ || now - last_politics_ > std::chrono::seconds(1))) {
+        pending_politics_ = sim.request_politics(static_cast<uint32_t>(nation));
+        politics_for_ = nation;
+        last_politics_ = now;
+    }
+}
+
+politics_region const* map_layer::politics_of(int raster) const noexcept {
+    const int sr = sim_region(raster);
+    if(sr < 0) return nullptr;
+    for(auto const& r : politics_.regions) {
+        if(r.region == static_cast<uint32_t>(sr)) return &r;
+    }
+    return nullptr;
+}
+
+bool map_layer::democracy() const noexcept {
+    return politics_.electoral >= 0.3f && politics_.competitive && politics_.parties.size() >= 2;
+}
+
+void map_layer::layout_tiles(int nation) const {
+    // Positions are cached per nation; colours are recomputed by electoral().
+    const bool have_votes = politics_.nation == static_cast<uint32_t>(nation);
+    if(layout_.nation == nation && !layout_.tiles.empty() && (layout_.weighted || !have_votes)) return;
+    layout_.nation = nation;
+    layout_.tick = politics_.tick;
+    layout_.weighted = have_votes;
+    layout_.regions.clear();
+    layout_.tiles.clear();
+    // The nation's raster regions; weight = its sim region's electorate, split by raster cells.
+    std::map<int, double> cells_of_sim;
+    for(std::size_t i = 0; i < regions_.size(); ++i) {
+        if(owner_of(static_cast<int>(i)) != nation || i >= boxes_.size()) continue;
+        layout_.regions.push_back(static_cast<int>(i));
+        cells_of_sim[sim_region(static_cast<int>(i))] += std::max(1u, boxes_[i].cells);
+    }
+    if(layout_.regions.empty()) return;
+    std::vector<tile> tiles;
+    std::vector<double> weight;
+    double x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    // Longitudes relative to the first region (nations across the antimeridian).
+    const double ref = (boxes_[static_cast<std::size_t>(layout_.regions[0])].lon0 + boxes_[static_cast<std::size_t>(layout_.regions[0])].lon1) * 0.5;
+    for(int i : layout_.regions) {
+        map_box const& b = boxes_[static_cast<std::size_t>(i)];
+        const double lon = ref + std::remainder((b.lon0 + b.lon1) * 0.5 - ref, 360.0);
+        const double half_w = (b.lon1 - b.lon0) * 0.5;
+        tile t;
+        t.x = lon * deg;
+        t.y = (mercator_y(b.lat0) + mercator_y(b.lat1)) * 0.5;
+        x0 = std::min(x0, (lon - half_w) * deg);
+        x1 = std::max(x1, (lon + half_w) * deg);
+        y0 = std::min(y0, mercator_y(b.lat0));
+        y1 = std::max(y1, mercator_y(b.lat1));
+        tiles.push_back(t);
+        politics_region const* pr = politics_of(i);
+        const double share = std::max(1u, b.cells) / std::max(1.0, cells_of_sim[sim_region(i)]);
+        weight.push_back(pr && pr->electorate > 0.0f ? pr->electorate * share : static_cast<double>(b.cells));
+    }
+    pack_tiles(tiles, weight, std::max(1e-6, (x1 - x0) * (y1 - y0)));
+    double bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
+    for(auto const& t : tiles) {
+        bx0 = std::min(bx0, t.x - t.side / 2);
+        bx1 = std::max(bx1, t.x + t.side / 2);
+        by0 = std::min(by0, t.y - t.side / 2);
+        by1 = std::max(by1, t.y + t.side / 2);
+    }
+    const double bw = std::max(1e-9, bx1 - bx0), bh = std::max(1e-9, by1 - by0);
+    layout_.aspect = static_cast<float>(bw / bh);
+    for(std::size_t k = 0; k < tiles.size(); ++k) {
+        electoral_tile et;
+        et.x = static_cast<float>((tiles[k].x - tiles[k].side / 2 - bx0) / bw);
+        et.y = static_cast<float>((by1 - (tiles[k].y + tiles[k].side / 2)) / bh); // y down
+        et.w = static_cast<float>(tiles[k].side / bw);
+        et.h = static_cast<float>(tiles[k].side / bh);
+        et.region = layout_.regions[k];
+        layout_.tiles.push_back(et);
+    }
+}
+
+electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const& sim) const {
+    electoral_view_info out;
+    if(nation < 0) return out;
+    out.nation = sim.nation_name(static_cast<uint32_t>(nation));
+    if(politics_.nation != static_cast<uint32_t>(nation)) return out; // loading
+    out.valid = true;
+    out.democracy = democracy();
+    const std::string iso = iso_of(nation);
+    auto const& parties = politics_.parties;
+    if(out.democracy) {
+        out.modes.push_back("Winner");
+        for(auto const& p : parties) out.modes.push_back(p.key);
+        out.modes.push_back("Population");
+        out.modes.push_back("Turnout");
+    } else {
+        out.modes = {"Regime support", "Unrest", "Insurgency", "Population"};
+    }
+    out.mode = std::clamp(mode, 0, static_cast<int>(out.modes.size()) - 1);
+    layout_tiles(nation);
+    out.aspect = layout_.aspect;
+    out.tiles = layout_.tiles;
+    const int party_mode = out.democracy && out.mode >= 1 && out.mode <= static_cast<int>(parties.size()) ? out.mode - 1 : -1;
+    const bool population = out.modes[static_cast<std::size_t>(out.mode)] == "Population";
+    const bool turnout = out.modes[static_cast<std::size_t>(out.mode)] == "Turnout";
+    // Population density range for the shading.
+    float dmax = 0.0f;
+    for(auto const& t : out.tiles) {
+        politics_region const* pr = politics_of(t.region);
+        const float cells = static_cast<float>(std::max(1u, boxes_[static_cast<std::size_t>(t.region)].cells));
+        if(pr) dmax = std::max(dmax, std::log10(1.0f + pr->electorate / cells));
+    }
+    for(auto& t : out.tiles) {
+        politics_region const* pr = politics_of(t.region);
+        t.colour = client::hex(0xD5DCE5);
+        if(!pr) continue;
+        if(population) {
+            const float cells = static_cast<float>(std::max(1u, boxes_[static_cast<std::size_t>(t.region)].cells));
+            t.colour = blend_white(0x5B3F9E, 0.15f + 0.85f * (dmax > 0.0f ? std::log10(1.0f + pr->electorate / cells) / dmax : 0.0f));
+        } else if(out.democracy && turnout) {
+            const float to = pr->electorate > 0.0f ? pr->voters / pr->electorate : 0.0f;
+            t.colour = blend_white(0x1F7A6E, 0.15f + 0.85f * std::clamp((to - 0.5f) / 0.25f, 0.0f, 1.0f));
+        } else if(party_mode >= 0) {
+            t.colour = blend_white(party_colour(parties, static_cast<std::size_t>(party_mode), iso),
+                                   0.1f + 0.9f * std::clamp(pr->share[party_mode] / 0.6f, 0.0f, 1.0f));
+        } else if(out.democracy) { // winner, saturation by margin
+            std::size_t best = 0, second = parties.size() > 1 ? 1 : 0;
+            for(std::size_t j = 0; j < parties.size(); ++j) {
+                if(pr->share[j] > pr->share[best]) {
+                    second = best;
+                    best = j;
+                } else if(j != best && pr->share[j] > pr->share[second]) {
+                    second = j;
+                }
+            }
+            const float margin = best == second ? 1.0f : pr->share[best] - pr->share[second];
+            t.colour = blend_white(party_colour(parties, best, iso), 0.3f + 0.7f * std::clamp(margin / 0.3f, 0.0f, 1.0f));
+        } else if(out.mode == 0) {
+            t.colour = red_green(regime_support(*pr));
+        } else if(out.mode == 1) {
+            t.colour = blend_white(0xC23A30, std::clamp(pr->unrest / 3.0f, 0.05f, 1.0f));
+        } else if(out.mode == 2) {
+            t.colour = pr->insurgency > 0.0f ? client::hex(0xB8201A) : (pr->unrest > 1.5f || pr->protest > 0.2f ? client::hex(0xF0A08E) : client::hex(0xF2EBD9));
+        }
+    }
+    // Legend and the national strip.
+    if(out.democracy) {
+        if(party_mode < 0 && !population && !turnout) {
+            for(std::size_t j = 0; j < parties.size(); ++j) out.legend.push_back({client::hex(party_colour(parties, j, iso)), parties[j].key});
+        }
+        std::string votes = "Vote intention:", seats = "Seats:", gov = "Government:";
+        auto const* sv = politics_.nation < start_votes_.size() ? &start_votes_[politics_.nation] : nullptr;
+        std::string swing = "Swing since the start:";
+        for(std::size_t j = 0; j < parties.size(); ++j) {
+            votes += " " + parties[j].key + " " + pct(parties[j].vote_share);
+            if(parties[j].seat_share > 0.0f) seats += " " + parties[j].key + " " + pct(parties[j].seat_share);
+            if(parties[j].in_government) gov += " " + parties[j].key + (parties[j].incumbent ? " (head)" : "");
+            if(sv && j < sv->size()) swing += " " + parties[j].key + fmt(" %+.1f", (parties[j].vote_share - (*sv)[j]) * 100.0);
+        }
+        out.strip = {votes};
+        if(seats != "Seats:") out.strip.push_back(seats);
+        out.strip.push_back(gov + fmt("  (electoral index %.2f)", politics_.electoral));
+        out.strip.push_back(swing);
+        if(politics_.next_election > politics_.tick && sim.status() == sim_status::running) {
+            out.strip.push_back("Next election: " + format_long_date(core::date_from_tick(politics_.next_election, sim.epoch_days())));
+        }
+    } else {
+        if(out.mode == 0) out.legend = {{red_green(0.0f), "Low support"}, {red_green(0.5f), "Mixed"}, {red_green(1.0f), "High support"}};
+        out.strip = {"Not an election: regime support = (1 - grievance) and regional trust, less unrest and insurgency",
+                     fmt("Legitimacy %.2f", politics_.legitimacy) + fmt(" · military loyalty %.2f", politics_.military_loyalty)
+                         + fmt(" · repression %.2f", politics_.repression) + fmt(" · liberal index %.2f", politics_.liberal)};
+    }
+    return out;
+}
+
+map_tooltip_info map_layer::describe_tile(int region, int mode, sim_runner const& sim) const {
+    map_tooltip_info out;
+    if(region < 0 || static_cast<std::size_t>(region) >= regions_.size()) return out;
+    politics_region const* pr = politics_of(region);
+    out.valid = true;
+    out.title = names_[static_cast<std::size_t>(region)];
+    out.subtitle = sim.nation_name(politics_.nation);
+    auto const& parties = politics_.parties;
+    if(!pr) {
+        out.label = "No data";
+        return out;
+    }
+    (void)mode;
+    if(democracy()) {
+        std::size_t best = 0;
+        for(std::size_t j = 0; j < parties.size(); ++j) {
+            if(pr->share[j] > pr->share[best]) best = j;
+        }
+        out.label = "Leading";
+        out.value = parties.empty() ? "-" : parties[best].key + " " + pct(pr->share[best]);
+        out.details.emplace_back("Region", "");
+        for(std::size_t j = 0; j < parties.size(); ++j) out.details.emplace_back(parties[j].key, pct(pr->share[j]));
+        out.details.emplace_back("Turnout", pct(pr->electorate > 0.0f ? pr->voters / pr->electorate : 0.0f));
+        out.details.emplace_back("Electorate", people(pr->electorate));
+        out.details.emplace_back("National", "");
+        for(auto const& p : parties) {
+            out.details.emplace_back(p.key + (p.in_government ? (p.incumbent ? " (gov, head)" : " (gov)") : ""),
+                                     pct(p.vote_share) + " · seats " + pct(p.seat_share));
+        }
+        if(politics_.next_election > politics_.tick && sim.status() == sim_status::running) {
+            out.details.emplace_back("Next election", format_long_date(core::date_from_tick(politics_.next_election, sim.epoch_days())));
+        }
+    } else {
+        out.label = "Regime support";
+        out.value = fmt("%.2f", regime_support(*pr));
+        out.t = regime_support(*pr) < 0.4f ? tone::bad : tone::neutral;
+        out.details.emplace_back("Region (not an election)", "");
+        out.details.emplace_back("Grievance", fmt("%.2f", pr->grievance));
+        out.details.emplace_back("Trust", fmt("%.2f", pr->trust));
+        out.details.emplace_back("Unrest", fmt("%.2f", pr->unrest));
+        out.details.emplace_back("Protest", fmt("%.2f", pr->protest));
+        out.details.emplace_back("Insurgency", fmt("%.2f", pr->insurgency));
+        out.details.emplace_back("Population", people(pr->electorate));
+        out.details.emplace_back("Nation", "");
+        out.details.emplace_back("Legitimacy", fmt("%.2f", politics_.legitimacy));
+        out.details.emplace_back("Military loyalty", fmt("%.2f", politics_.military_loyalty));
+        out.details.emplace_back("Repression", fmt("%.2f", politics_.repression));
+        out.details.emplace_back("Liberal index", fmt("%.2f", politics_.liberal));
+    }
+    return out;
 }
 
 } // namespace geosim::client

@@ -6,6 +6,7 @@
 //          [--frames N [--until-day D] [--screenshot OUT.ppm]] [--inject SCRIPT]
 //          [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]
 //          [--clouds 0|1] [--hazard-demo 0|1] [--view political|climate|economy|trade|energy|epidemic|unrest]
+//          [--politics ISO3|- [--politics-mode N]]
 //   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime]
 //          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 //            renders procedural music offline, no window or audio device
@@ -32,6 +33,7 @@ int usage() {
                "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
                "              [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]\n"
                "              [--clouds 0|1] [--hazard-demo 0|1] [--view political|climate|economy|trade|energy|epidemic|unrest]\n"
+               "              [--politics ISO3|- [--politics-mode N]]\n"
                "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
                "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx|counter]\n",
                stderr);
@@ -87,6 +89,8 @@ int main(int argc, char** argv) {
         else if(key == "inject") opt.inject = v;
         else if(key == "map-view") opt.map_view = v;
         else if(key == "view") opt.view = v;
+        else if(key == "politics") opt.politics = v;
+        else if(key == "politics-mode") ok = parse(v, opt.politics_mode);
         else if(key == "clouds") opt.clouds = std::strcmp(v, "0") != 0;
         else if(key == "hazard-demo") opt.hazard_demo = std::strcmp(v, "0") != 0;
         else if(key == "speed") ok = parse(v, opt.speed) && opt.speed >= 0 && opt.speed <= 5;

@@ -99,7 +99,7 @@ void alert_feed::poll(sim_runner& sim) {
         if(pending_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
         journal_batch batch = pending_.get();
         // Oldest first so that the newest ends up on top.
-        std::sort(batch.entries.begin(), batch.entries.end(), [](auto const& a, auto const& b) { return a.tick < b.tick; });
+        std::stable_sort(batch.entries.begin(), batch.entries.end(), [](auto const& a, auto const& b) { return a.tick < b.tick; });
         for(auto const& e : batch.entries) add(e, sim);
         scanned_to_ = std::max(scanned_to_, batch.scanned_to - 1); // re-scan the boundary day; keys dedupe
         if(items_.size() > 200) items_.resize(200);
@@ -414,13 +414,117 @@ void view_tab(ui_context& ui, map_tab_info const& tab, hud_state& st, float y, b
     ui.set_text_backing(true);
 }
 
-void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab) {
+// The Politics tab: the electoral tile map of one nation, its mode buttons and
+// the national result (or regime indicators), flat white like the view tabs.
+void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st, float y, bool alerts_shown) {
+    const float pad = ui.px(style::pad);
+    const float gap = ui.px(style::gap);
+    const float hh = ui.px(style::tab_header);
+    const float font = ui.px(14);
+    const float small = ui.px(style::font_small);
+    const float line = ui.px(18);
+    const float right = alerts_shown ? ui.width() - ui.px(style::alert_width) - gap * 2 : ui.width() - gap;
+    const float w = std::min(ui.px(560), right - gap);
+    const float x = right - w;
+    // Mode buttons, wrapped into rows.
+    const float bh = ui.px(22);
+    std::vector<rect> buttons;
+    float bx = x + pad, by = 0;
+    for(auto const& m : info.modes) {
+        const float bw = ui.text_width(m, small) + pad * 2;
+        if(bx + bw > x + w - pad && bx > x + pad) {
+            bx = x + pad;
+            by += bh + ui.px(4);
+        }
+        buttons.push_back({bx, by, bw, bh});
+        bx += bw + ui.px(4);
+    }
+    const float rows_h = info.modes.empty() ? 0.0f : by + bh;
+    const float map_w = w - pad * 2;
+    const float map_h = std::min(ui.px(320), std::max(ui.px(140), map_w / std::max(0.4f, info.aspect)));
+    const float h = hh + pad + rows_h + pad + map_h + pad + (info.legend.empty() ? 0.0f : line) +
+                    static_cast<float>(info.strip.size()) * line + pad;
+    rect r{x, y, w, h};
+    ui.flat_panel(r, hh);
+    float tw = ui.text_in(layer::overlay, {x + pad, y, w, hh}, "Politics", font, style::text, align::left, font_weight::semibold);
+    tw += ui.text_in(layer::overlay, {x + pad + tw + pad, y, w, hh}, info.nation, font, style::text_dim);
+    const float bs = ui.px(22);
+    if(ui.button("politics.close", layer::overlay, {r.right() - bs - ui.px(3), y + (hh - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false, "Close")) {
+        st.open = hud_action::none;
+    }
+    if(ui.button("politics.next", layer::overlay, {r.right() - 2 * bs - ui.px(6), y + (hh - bs) * 0.5f, bs, bs}, "▶", ui.px(12), false,
+                 "Next nation (or click a nation on the map)")) {
+        st.politics_step = 1;
+    }
+    if(ui.button("politics.prev", layer::overlay, {r.right() - 3 * bs - ui.px(9), y + (hh - bs) * 0.5f, bs, bs}, "◀", ui.px(12), false,
+                 "Previous nation")) {
+        st.politics_step = -1;
+    }
+    float cy = y + hh + pad;
+    for(std::size_t i = 0; i < buttons.size(); ++i) {
+        rect b = buttons[i];
+        b.y += cy;
+        char id[48];
+        std::snprintf(id, sizeof(id), "politics.mode.%zu", i);
+        if(ui.flat_button(id, b, info.modes[i], small, static_cast<int>(i) == info.mode)) st.politics_mode = static_cast<int>(i);
+    }
+    cy += rows_h + pad;
+    // Tiles, fitted into the map area with the layout's aspect.
+    float lw = map_w, lh = map_w / std::max(0.05f, info.aspect);
+    if(lh > map_h) {
+        lh = map_h;
+        lw = map_h * info.aspect;
+    }
+    const float ox = x + pad + (map_w - lw) * 0.5f, oy = cy + (map_h - lh) * 0.5f;
+    st.politics_tile = -1;
+    ui.set_text_backing(false);
+    if(info.tiles.empty()) {
+        ui.text_in(layer::overlay, {x + pad, cy, map_w, map_h}, info.valid ? "No regions" : "Loading…", small, style::flat_dim, align::centre);
+    }
+    for(auto const& t : info.tiles) {
+        rect tr{std::round(ox + t.x * lw), std::round(oy + t.y * lh), std::max(1.0f, std::round(t.w * lw)), std::max(1.0f, std::round(t.h * lh))};
+        ui.fill(layer::overlay, tr, t.colour);
+        if(ui.hovered(tr)) {
+            st.politics_tile = t.region;
+            const float o = std::max(1.0f, std::round(ui.px(1)));
+            ui.fill(layer::overlay, {tr.x, tr.y, tr.w, o}, style::flat_text);
+            ui.fill(layer::overlay, {tr.x, tr.bottom() - o, tr.w, o}, style::flat_text);
+            ui.fill(layer::overlay, {tr.x, tr.y, o, tr.h}, style::flat_text);
+            ui.fill(layer::overlay, {tr.right() - o, tr.y, o, tr.h}, style::flat_text);
+        }
+    }
+    cy += map_h + pad;
+    if(!info.legend.empty()) {
+        float lx = x + pad;
+        const float sw = ui.px(12);
+        for(auto const& item : info.legend) {
+            const float iw = sw + ui.px(4) + ui.text_width(item.label, small) + pad;
+            if(lx + iw > x + w) break;
+            ui.fill(layer::overlay, {lx, std::round(cy + (line - sw) * 0.5f), sw, sw}, item.colour);
+            ui.text_in(layer::overlay, {lx + sw + ui.px(4), cy, iw, line}, item.label, small, style::flat_text);
+            lx += iw;
+        }
+        cy += line;
+    }
+    for(auto const& sline : info.strip) {
+        ui.text_in(layer::overlay, {x + pad, cy, w - pad * 2, line}, sline, small, style::flat_text);
+        cy += line;
+    }
+    ui.set_text_backing(true);
+}
+
+void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab,
+               electoral_view_info const* politics) {
     st.requested_speed = -1;
+    st.politics_step = 0;
     const rect bar = top_bar(ui, sim, st);
-    const bool tab_open = tab && st.filter != map_filter::political;
-    agent_bars(ui, sim, bar.bottom(), bar.w, tab_open ? 1 : static_cast<std::size_t>(-1));
+    const bool politics_open = politics && st.open == hud_action::politics;
+    const bool tab_open = !politics_open && tab && st.filter != map_filter::political;
+    agent_bars(ui, sim, bar.bottom(), bar.w, tab_open || politics_open ? 1 : static_cast<std::size_t>(-1));
     alert_list(ui, sim, alerts, st, bar.bottom() + ui.px(style::gap)); // right side, below the top bar; floating cards keep their margins
-    if(tab_open) view_tab(ui, *tab, st, bar.bottom() + ui.px(style::gap), !alerts.items().empty());
+    if(politics_open) politics_tab(ui, *politics, st, bar.bottom() + ui.px(style::gap), !alerts.items().empty());
+    else if(tab_open) view_tab(ui, *tab, st, bar.bottom() + ui.px(style::gap), !alerts.items().empty());
+    if(!politics_open) st.politics_tile = -1;
 }
 
 void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& st) {

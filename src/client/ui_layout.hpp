@@ -71,6 +71,25 @@ struct legend_item {
     std::string label;
 };
 
+// The Politics tab's electoral tile map (docs/07-map-and-filters.md#electoral-map).
+struct electoral_tile {
+    float x = 0, y = 0, w = 0, h = 0; // in the layout box, 0..1 (y down)
+    rgba colour;
+    int region = -1;                  // raster region (tooltip)
+};
+
+struct electoral_view_info {
+    bool valid = false;
+    std::string nation;             // name
+    bool democracy = true;
+    std::vector<std::string> modes; // button labels
+    int mode = 0;                   // active button
+    float aspect = 1;               // layout box width / height
+    std::vector<electoral_tile> tiles;
+    std::vector<legend_item> legend;
+    std::vector<std::string> strip; // national result / regime indicators
+};
+
 // The open view's tab: legend and a short summary.
 struct map_tab_info {
     std::string title;
@@ -90,11 +109,19 @@ struct hud_state {
     float tooltip_x = 0, tooltip_y = 0;
     rect tooltip_rect{};
     bool tooltip_expanded = false;
+    // Politics tab: the nation shown (sim nation index, -1 = the player's first),
+    // the electoral-map mode button, the tile under the pointer, nation stepping.
+    int politics_nation = -1;
+    int politics_mode = 0;
+    int politics_tile = -1;
+    int politics_step = 0; // -1 / +1 when the nation arrows are clicked
+    bool tooltip_tile = false; // the tooltip describes an electoral tile, not the main map
 };
 
 // `tab` (may be null): the open view's tab panel, drawn when a view other than
 // political is selected; while it is open only the first agent bar shows.
-void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab = nullptr);
+void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st, map_tab_info const* tab = nullptr,
+               electoral_view_info const* politics = nullptr);
 // The map tooltip (call after build_hud, with the region under the pointer).
 void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& st);
 

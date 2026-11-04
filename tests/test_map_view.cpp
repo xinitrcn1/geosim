@@ -1,6 +1,9 @@
 // The map camera (src/client/map_view.hpp): oblique Mercator round trips,
 // north-up and unit scale at the focus, pan and zoom-at-cursor invariants.
 #include "map_view.hpp"
+#include "tile_pack.hpp"
+
+#include <vector>
 
 #include <cmath>
 #include <cstdio>
@@ -72,6 +75,23 @@ int main() {
         v.to_screen(lon, lat, sx, sy);
         check(near(sx, 400, 0.5) && near(sy, -150, 0.5), "zoom at the cursor");
         check(near(v.scale, 1000, 1e-9), "zoom factor");
+    }
+    // Tile cartogram: 60 regions crowded on a grid end up disjoint, near home.
+    {
+        std::vector<geosim::client::tile> tiles;
+        std::vector<double> weight;
+        for(int k = 0; k < 60; ++k) {
+            geosim::client::tile t;
+            t.x = (k % 10) * 0.1 + 0.03 * (k % 3);
+            t.y = (k / 10) * 0.1;
+            tiles.push_back(t);
+            weight.push_back(1.0 + (k % 7));
+        }
+        geosim::client::pack_tiles(tiles, weight, 1.0 * 0.6, 0.6);
+        check(geosim::client::tiles_disjoint(tiles), "packed tiles do not overlap");
+        double drift = 0.0;
+        for(auto const& t : tiles) drift = std::max(drift, std::hypot(t.x - t.home_x, t.y - t.home_y));
+        check(drift < 1.0, "tiles stay near home");
     }
     if(failures == 0) std::printf("test_map_view: ok\n");
     return failures == 0 ? 0 : 1;

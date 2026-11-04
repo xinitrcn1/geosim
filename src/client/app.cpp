@@ -217,6 +217,9 @@ int run_app(app_options const& opt) {
         view.set_focus(0.0, 20.0 * map_deg);
         view.scale = static_cast<double>(metrics.pixel_w) / (75.0 * map_deg);
         bool dragging = false;
+        float press_x = 0, press_y = 0;
+        const std::string politics_iso = opt.politics;
+        bool politics_iso_done = false;
         float drag_x = 0, drag_y = 0;
         double key_pan_x = 0, key_pan_y = 0, key_zoom = 1.0;
         double cell_radians = 2.0 * map_pi / 8192.0;
@@ -240,6 +243,10 @@ int run_app(app_options const& opt) {
         ui_context ui(text);
         alert_feed alerts;
         hud_state hud;
+        if(!opt.politics.empty()) {
+            hud.open = hud_action::politics;
+            hud.politics_mode = opt.politics_mode;
+        }
         {
             static constexpr char const* view_names[] = {"political", "climate", "economy", "trade", "energy", "epidemic", "unrest"};
             static_assert(std::size(view_names) == static_cast<std::size_t>(map_filter::count));
@@ -400,7 +407,26 @@ int run_app(app_options const& opt) {
             if(!map.ready()) ui.scene.push(material::map_placeholder, {0, 0, fw, fh, 0, 0, 1, 1, 0xFFFFFFFFu, 0, 0, 0});
             map_tab_info tab_info;
             if(map.ready() && hud.filter != map_filter::political) tab_info = political.tab(hud.filter, sim, hazards);
-            build_hud(ui, sim, alerts, hud, map.ready() ? &tab_info : nullptr);
+            // Politics tab (🗳): the electoral tile map of one nation.
+            electoral_view_info politics_info;
+            const bool politics_open = map.ready() && hud.open == hud_action::politics && sim.status() == sim_status::running;
+            if(politics_open) {
+                if(!politics_iso_done && !politics_iso.empty() && politics_iso != "-") { // --politics ISO3
+                    const int n = political.nation_index(politics_iso);
+                    if(n >= 0) {
+                        hud.politics_nation = n;
+                        politics_iso_done = true;
+                    }
+                }
+                hud.politics_nation = political.resolve_nation(hud.politics_nation, 0, sim);
+                political.update_politics(sim, hud.politics_nation);
+                politics_info = political.electoral(hud.politics_nation, hud.politics_mode, sim);
+            }
+            build_hud(ui, sim, alerts, hud, map.ready() ? &tab_info : nullptr, politics_open ? &politics_info : nullptr);
+            if(politics_open && hud.politics_step != 0) {
+                hud.politics_nation = political.resolve_nation(hud.politics_nation, hud.politics_step, sim);
+                hud.politics_mode = 0;
+            }
             const bool on_tooltip = hud.tooltip_rect.contains(input.mouse_x, input.mouse_y);
             const bool on_ui = ui.wants_mouse() || on_tooltip;
             // Map navigation: drag pans (started outside the panels), the wheel zooms
@@ -411,6 +437,18 @@ int run_app(app_options const& opt) {
                     dragging = true;
                     drag_x = input.mouse_x;
                     drag_y = input.mouse_y;
+                    press_x = input.mouse_x;
+                    press_y = input.mouse_y;
+                }
+                // A click (no drag) on the map while the Politics tab is open shows that nation.
+                if(input.released && dragging && politics_open && std::fabs(input.mouse_x - press_x) < 4 && std::fabs(input.mouse_y - press_y) < 4) {
+                    double lon = 0, lat = 0;
+                    view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
+                    const int n = political.nation_at(political.pick(lon / map_deg, lat / map_deg));
+                    if(n >= 0 && n != hud.politics_nation) {
+                        hud.politics_nation = n;
+                        hud.politics_mode = 0;
+                    }
                 }
                 if(dragging && (input.mouse_x != drag_x || input.mouse_y != drag_y) && input.mouse_x >= 0) {
                     view.pan(input.mouse_x - drag_x, input.mouse_y - drag_y);
@@ -428,7 +466,14 @@ int run_app(app_options const& opt) {
                 // tooltip keeps it and expands its details.
                 if(on_tooltip && hud.tooltip_region >= 0) {
                     hud.tooltip_expanded = true;
+                } else if(hud.politics_tile >= 0) { // an electoral tile
+                    hud.tooltip_region = hud.politics_tile;
+                    hud.tooltip_tile = true;
+                    hud.tooltip_x = input.mouse_x;
+                    hud.tooltip_y = input.mouse_y;
+                    hud.tooltip_expanded = false;
                 } else if(!on_ui && !dragging && input.mouse_x >= 0) {
+                    hud.tooltip_tile = false;
                     double lon = 0, lat = 0;
                     view.to_geo(input.mouse_x - fw * 0.5, input.mouse_y - fh * 0.5, lon, lat);
                     hud.tooltip_region = political.pick(lon / map_deg, lat / map_deg);
@@ -439,7 +484,9 @@ int run_app(app_options const& opt) {
                     hud.tooltip_region = -1;
                 }
                 if(hud.tooltip_region >= 0) {
-                    draw_map_tooltip(ui, political.describe(hud.tooltip_region, hud.filter, sim), hud);
+                    draw_map_tooltip(ui, hud.tooltip_tile ? political.describe_tile(hud.tooltip_region, hud.politics_mode, sim)
+                                                          : political.describe(hud.tooltip_region, hud.filter, sim),
+                                     hud);
                 } else {
                     hud.tooltip_rect = {};
                 }

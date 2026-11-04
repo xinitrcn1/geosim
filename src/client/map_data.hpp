@@ -37,6 +37,13 @@ struct map_region {
     float lat = 0, lon = 0;      // degrees, as in regions.csv
 };
 
+// A region's bounding box on the ID raster, degrees; lon1 may exceed 180 for a
+// region across the antimeridian (lon0 < lon1 always). cells = raster cells.
+struct map_box {
+    float lon0 = 0, lon1 = 0, lat0 = 0, lat1 = 0;
+    uint32_t cells = 0;
+};
+
 template <typename T>
 struct map_level {
     uint32_t width = 0, height = 0;
@@ -46,6 +53,7 @@ struct map_level {
 struct map_data {
     std::vector<map_nation> nations;
     std::vector<map_region> regions;
+    std::vector<map_box> boxes;               // per region, from the ID raster
     std::vector<map_level<uint16_t>> ids;     // level 0 = full resolution
     std::vector<map_level<uint32_t>> terrain; // RGBA8 packed little-endian (r in the low byte)
 

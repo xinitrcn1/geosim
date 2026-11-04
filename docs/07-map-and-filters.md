@@ -190,6 +190,50 @@ nation only, every region of the nation shows it.
 lon/lat, then to the full-resolution region-ID raster, which `map_layer` keeps
 on the CPU (64 MB). The tooltip names the region and its controller.
 
+## Electoral map
+
+The Politics tab (🗳 in the top bar; `--politics ISO3`) shows one nation as a
+tile cartogram in plain Mercator (north up, not the oblique view projection),
+like US electoral tile maps but for every nation. The nation defaults to the
+player's first; ◀ ▶ step through the nations, and clicking a region on the
+main map while the tab is open shows its nation.
+
+- **Rectangles**: at load, `map_data` derives each region's bounding box from
+  the region-ID raster (antimeridian-aware). A tile's home is the centre of
+  that box in Mercator (`x = lon`, `y = ln tan(π/4 + φ/2)`).
+- **Packing** (`tile_pack.hpp`, cached per nation): squares with area
+  ∝ the region's electorate (the sum of its pops' sizes; area until the data
+  arrives), together covering 45 % of the nation's Mercator bounding box (at
+  least a third of the median side), then iterative overlap removal along the
+  axis of least overlap with a weak spring back home (400 passes, the last
+  quarter without the spring), leaving a small gap between tiles; then
+  scaled into the tab. In the 2020 / 2008 slices a nation's tiles share its
+  single sim region's data.
+- **Democracies** (electoral index ≥ 0.3, competitive, ≥ 2 parties): per
+  region, the vote shares of the nation's parties from pop-level support:
+  Σ `party_support[j]` × pop size × turnout (by pop kind: 0.5, 0.6, 0.75, 0.7,
+  as `vote_intention`), parties in `local_index` order. Modes: **Winner**
+  (the leading party's family colour, lighter for narrow margins), one button
+  **per party** (its share on a single-hue scale), **Population** (electorate
+  per raster cell, log scale), **Turnout**. Party colours follow the family
+  (social democrats red, conservatives blue, liberals yellow, Christian
+  democrats orange, greens green, radical right navy, radical left dark red,
+  communists crimson, regionalists purple, agrarians lime, challengers
+  magenta, others grey), except the US convention (Democrats blue,
+  Republicans red). The strip under the map: national vote intention, seats,
+  the governing coalition, the swing in vote intention since the start of the
+  run, and the next election date.
+- **Non-democracies**: no candidates. Modes: **Regime support** (labelled as
+  not an election: `0.5·(1 − grievance) + 0.5·trust − 0.15·unrest − insurgency`,
+  red → green), **Unrest**, **Insurgency**, **Population**; the strip shows
+  legitimacy, military loyalty, repression and the liberal index.
+- Tiles have tooltips like the main map: the region's shares (or regime
+  inputs), expanded with the national result, seats, coalition and next
+  election.
+
+Swing is national (vote intention now vs at the start): the sim keeps no
+per-region result of the last election.
+
 ## Hazards
 
 `hazard_feed` requests a `hazard_snapshot` every 250 ms
