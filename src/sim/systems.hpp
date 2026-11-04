@@ -41,6 +41,7 @@ void update_geopolitics(game_state& state);
 void update_power(game_state& state);
 // Bilateral export access (partners' import demand x trade share x sanctions/war).
 [[nodiscard]] float trade_access(game_state const& state, dcon::nation_id n);
+void record_bilateral_exports(game_state& state, dcon::nation_id n, float exports);
 
 // Every 28 days: exchange rates, sovereign spreads and default, remittance index;
 // long-run potential, trend growth and climate (docs/03-economy.md).
@@ -113,6 +114,14 @@ void update_lod(game_state& state);
 [[nodiscard]] float tech_oil_factor(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float tech_emission_factor(game_state const& state);
 [[nodiscard]] float tech_vaccine_factor(game_state const& state);
+[[nodiscard]] float tech_progress(game_state const& state, dcon::nation_id n, uint8_t t);
+// Climate policy (docs/03): carbon price (lever), energy vintages, stranded assets,
+// disasters (monthly).
+void decide_carbon_price(game_state& state, dcon::agent_id a, dcon::nation_id n);
+void update_climate_policy(game_state& state);
+void init_frontier_gaps(game_state& state);
+[[nodiscard]] float carbon_cost_share(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float carbon_emission_factor(game_state const& state);
 
 // Every 28 days (sharded): identity groups - horizontal inequality, network
 // insurance (docs/04-society.md#identity-groups). Daily: protest cascades.

@@ -88,7 +88,7 @@ void update_finance(game_state& state) {
         const auto lead = (*members.begin()).get_member().id;
         if(!is_due(static_cast<uint32_t>(lead.index()), tick, monthly_cadence)) continue;
         if(peg_anchor(state, lead)) continue; // pegs follow their anchor below
-        double ca = 0.0, weight = 0.0, spread_change = 0.0, substitution = 0.0, flight = 0.0;
+        double ca = 0.0, weight = 0.0, spread_change = 0.0, substitution = 0.0, flight = 0.0, inflows = 0.0;
         for(auto m : members) {
             const auto n = m.get_member().id;
             const double g = w.nation_get_gdp0(n);
@@ -98,19 +98,22 @@ void update_finance(game_state& state) {
             const float real_fall = w.nation_get_real_rate0(n) - (w.nation_get_policy_rate(n) - 100.0f * w.nation_get_inflation_expect(n));
             substitution += g * w.nation_get_fx_deposit_share(n) * std::max(0.0f, real_fall) / 100.0f;
             flight += g * w.nation_get_capital_flight(n);
+            inflows += g * (w.nation_get_portfolio_flow(n) + w.nation_get_fdi_flow(n)) / 100.0;
             weight += g;
         }
         ca /= weight;
         spread_change /= weight;
         substitution /= weight;
         flight /= weight;
+        inflows /= weight;
         const float r_diff = (w.nation_get_policy_rate(lead) - w.nation_get_policy_rate0(lead)) - r_us;
         const float dlog = lead == usa ? 0.0f
                                        : years * (static_cast<float>(P.fx_current_account) * static_cast<float>(ca)
                                                   + static_cast<float>(P.fx_interest) * r_diff / 100.0f
                                                   - static_cast<float>(P.fx_risk) * static_cast<float>(spread_change) / 100.0f
                                                   - static_cast<float>(P.fx_dollarisation) * static_cast<float>(substitution)
-                                                  - static_cast<float>(P.fx_flight) * static_cast<float>(flight));
+                                                  - static_cast<float>(P.fx_flight) * static_cast<float>(flight)
+                                                  + static_cast<float>(P.fx_capital_flows) * static_cast<float>(inflows));
         for(auto m : members) {
             const auto n = m.get_member().id;
             w.nation_set_exchange_rate(n, std::clamp(w.nation_get_exchange_rate(n) * std::exp(dlog), 0.2f, 5.0f));
@@ -123,6 +126,37 @@ void update_finance(game_state& state) {
         if(!anchor) continue;
         w.nation_set_fx_change(n, w.nation_get_fx_change(anchor));
         w.nation_set_exchange_rate(n, w.nation_get_exchange_rate(anchor));
+    }
+
+    // Financial account (above the calibrated baseline): portfolio flows chase real yields
+    // and flee risk (Forbes & Warnock 2012; sudden stops, Calvo 1998); FDI follows growth
+    // prospects and institutions (Alfaro, Kalemli-Ozcan & Volosovych 2008).
+    {
+        double tg = 0.0, gw = 0.0;
+        for(auto n : w.in_nation) {
+            tg += n.get_gdp0() * n.get_trend_growth();
+            gw += n.get_gdp0();
+        }
+        const float world_growth = gw > 0.0 ? static_cast<float>(tg / gw) : 0.0f;
+        float us_real = 0.0f, us_real0 = 0.0f;
+        if(usa) {
+            us_real = w.nation_get_yield10(usa) - 100.0f * w.nation_get_inflation_expect(usa);
+            us_real0 = w.nation_get_yield10_0(usa) - 100.0f * w.nation_get_inflation_trend(usa);
+        }
+        for(auto n : w.in_nation) {
+            if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence) || n.id == usa) continue;
+            const float real = n.get_yield10() - 100.0f * n.get_inflation_expect(), real0 = n.get_yield10_0() - 100.0f * n.get_inflation_trend();
+            const float differential = (real - real0) - (us_real - us_real0);
+            const float portfolio = static_cast<float>(P.portfolio_yield) * differential * n.get_foreign_debt_share() * 2.0f
+                                    - static_cast<float>(P.portfolio_risk) * std::max(0.0f, n.get_spread() - n.get_spread0());
+            const float fdi = static_cast<float>(P.fdi_growth) * ((n.get_trend_growth() - n.get_trend_growth0()) - 0.0f * world_growth)
+                              + static_cast<float>(P.fdi_institutions) * 100.0f * (n.get_liberal() - n.get_liberal0()) * 0.1f;
+            n.set_portfolio_flow(std::clamp(portfolio, -15.0f, 15.0f));
+            n.set_fdi_flow(std::clamp(fdi, -5.0f, 5.0f));
+            const double gdp = n.get_gdp0() * n.get_core_price() * n.get_gf();
+            transfer(state, account::rest_of_world(n.id), account::finance(n.id), n.get_portfolio_flow() / 100.0 * gdp * years, flow::portfolio);
+            transfer(state, account::rest_of_world(n.id), account::firms(n.id), n.get_fdi_flow() / 100.0 * gdp * years, flow::fdi);
+        }
     }
 
     // Spreads and default (the effective debt cost follows yields in bonds.cpp).

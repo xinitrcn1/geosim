@@ -68,6 +68,12 @@ parties, lobbies).
 
 ## Conventions
 
+- **Array index types are `uint16_t`.** DCON converts an array property's index
+  through the signed version of its index type (`dcon::get_index`), so a `uint8_t`
+  index wraps past 127 and writes before the buffer. Arrays indexed by partner nation
+  (up to 256 nations) or by flow kind x tag slot exceed that, so every array property
+  uses `uint16_t` (limit 32767).
+
 - **Ownership:** the generated `dcon::data_container` is the member
   `game_state::world` ([09](09-engine-architecture.md#game-state)). All entity
   data is accessed as `state.world.<object>_get_<property>(id)`. Nothing else

@@ -36,6 +36,7 @@ void advance_day(game_state& state) {
     update_treaties(state);
     update_longrun(state);
     update_technology(state);
+    update_climate_policy(state);
     update_strata(state);
     update_indicators(state);
     ++state.current_tick;

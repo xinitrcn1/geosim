@@ -67,7 +67,19 @@ void update_labour(game_state& state) {
 
         // Real wage index: wage curve (dampened by coverage) and bargained push.
         const float curve = -static_cast<float>(P.wage_curve) * (1.0f - static_cast<float>(P.wage_rigidity) * cov) * std::log(u / u0);
-        const float target = std::exp(curve) * (1.0f + cov * push);
+        // Nash bargaining (Pissarides 2000): the wage moves with labour productivity in
+        // proportion to workers' bargaining power and with the outside option (benefits)
+        // in proportion to the rest.
+        const float power = static_cast<float>(P.nash_power_base + P.nash_power_coverage * cov);
+        const float employment = std::max(0.3f, (1.0f - u) / std::max(0.05f, 1.0f - u0));
+        // Persistent productivity (smoothed output gap per worker), not the composition
+        // jump when low-wage jobs go first; the outside option is the permanent benefit
+        // system (benefit_base changes with reforms, not with crisis top-ups).
+        const float productivity = (1.0f + n.get_gap_smoothed()) / std::max(0.3f, employment);
+        const float outside = 1.0f; // benefit_base is the calibrated regime; reforms would move it
+        const float nash = 1.0f + power * (std::clamp(productivity, 0.8f, 1.2f) - 1.0f)
+                           + (1.0f - power) * n.get_benefit_replacement() * (outside - 1.0f) * 0.3f;
+        const float target = std::exp(curve) * (1.0f + cov * push) * std::clamp(nash, 0.7f, 1.3f);
         float wr = n.get_wage_real();
         float next = wr + (target - wr) * std::min(1.0f, years / static_cast<float>(P.wage_adjust_years));
         // Downward nominal rigidity: nominal wages (real index x core prices) do not fall.

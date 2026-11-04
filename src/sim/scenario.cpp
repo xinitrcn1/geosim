@@ -55,7 +55,7 @@ struct nation_input {
     double yield10 = NAN, effective_rate = NAN, avg_maturity = 7.0, foreign_debt_share = 0.3, fx_debt_share = 0.1, food_cpi = 0.25;
     double coordination = 0.5, tariff = 0.05;
     double union_density = 0.12, bargaining_coverage = 0.15, min_wage_bite = 0.4, tax_progressivity = 0.08, trust = 0.25;
-    double presidential = 0, veto = 0.3, defense = 2.0;
+    double presidential = 0, veto = 0.3, defense = 2.0, carbon_price = 0.0, top1 = 0.0;
     // society_curated.csv
     double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03, net_freedom = 60.0;
     struct group {
@@ -253,6 +253,7 @@ struct builder {
             w.sector_set_shipped(id, static_cast<float>(node.num_or("shipped", 0.0, path, diag)));
             w.sector_set_critical_input(id, static_cast<float>(node.num_or("critical_input", 0.0, path, diag)));
             w.sector_set_cyber_exposure(id, static_cast<float>(node.num_or("cyber_exposure", 0.0, path, diag)));
+            w.sector_set_subsistence(id, static_cast<float>(std::clamp(node.num_or("subsistence", 0.0, path, diag), 0.0, 0.9)));
             w.sector_set_inventory_days(id, static_cast<float>(std::max(7.0, node.num_or("inventory_days", 14.0, path, diag))));
             sector_by_key[key] = static_cast<uint8_t>(id.index());
         }
@@ -403,6 +404,7 @@ struct builder {
             in.bargaining_coverage = t.number_or(row, "bargaining_coverage", in.bargaining_coverage);
             in.min_wage_bite = t.number_or(row, "min_wage_bite", in.min_wage_bite);
             in.tax_progressivity = t.number_or(row, "tax_progressivity", in.tax_progressivity);
+            in.carbon_price = t.number_or(row, "carbon_price_usd", in.carbon_price);
         });
         rows("society_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             in.youth_share = t.number_or(row, "youth_share", in.youth_share);
@@ -412,6 +414,7 @@ struct builder {
             in.emigrant_stock = t.number_or(row, "emigrant_stock_pct", in.emigrant_stock * 100.0) / 100.0;
             in.net_freedom = t.number_or(row, "net_freedom", in.net_freedom);
             in.trust = t.number_or(row, "trust_wvs", in.trust);
+            in.top1 = t.number_or(row, "top1_share", in.top1);
         });
         rows("groups_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             nation_input::group g;
@@ -1133,6 +1136,10 @@ struct builder {
         w.nation_set_house_price(n, 1.0f);
         w.nation_set_equity_price(n, 1.0f);
         w.nation_set_gdp_pc0(n, static_cast<float>(in.gdp / in.population));
+        w.nation_set_carbon_price(n, static_cast<float>(in.carbon_price));
+        w.nation_set_carbon_price0(n, static_cast<float>(in.carbon_price));
+        w.nation_set_top1_share0(n, static_cast<float>(in.top1));
+        for(uint8_t s = 0; s < S; ++s) w.nation_set_sector_price(n, s, 1.0f);
         // Society.
         w.nation_set_youth_share(n, static_cast<float>(in.youth_share));
         w.nation_set_youth_unemp_rel(n, static_cast<float>(in.youth_unemp_rel));
@@ -1337,7 +1344,20 @@ struct builder {
         w.nation_set_bal_firms(n, 0.0);
         w.nation_set_bal_row(n, 0.0);
 
-        // Within-group dispersion matching the national Gini (bisection).
+        // Within-group dispersion matching the national Gini (bisection). The top tail
+        // keeps the WID shape, but WID shares are pre-tax while the Gini is of disposable
+        // income: scale the tail's share down (first to post-tax, ~0.7, then further if the
+        // Gini cannot be met even with a tight body) so the national Gini holds.
+        w.nation_set_top1_share0(n, static_cast<float>(in.top1 * 0.7));
+        if(in.top1 > 0.0 && compute_gini(state, n, 0.02f) > in.gini) {
+            double tlo = 0.0, thi = in.top1 * 0.7;
+            for(int it = 0; it < 30; ++it) {
+                const double mid = 0.5 * (tlo + thi);
+                w.nation_set_top1_share0(n, static_cast<float>(mid));
+                if(compute_gini(state, n, 0.05f) < in.gini) tlo = mid; else thi = mid;
+            }
+            w.nation_set_top1_share0(n, static_cast<float>(tlo));
+        }
         double lo = 0.02, hi = 2.0;
         for(int it = 0; it < 40; ++it) {
             const double mid = 0.5 * (lo + hi);
@@ -1584,6 +1604,7 @@ struct builder {
         w.nation_resize_pair_cost(N);
         w.nation_resize_coupling(N);
         w.nation_resize_fta(N);
+        w.nation_resize_bilateral_exports(N);
         w.nation_resize_trust(N);
         w.nation_resize_threat_to(N);
         w.nation_resize_trade_share(N);
@@ -1822,6 +1843,7 @@ struct builder {
         }
         w.nation_resize_io_stock(S * S);
         w.nation_resize_io_stock_m(S * S);
+        w.nation_resize_sector_price(S);
 
         load_nations();
         if(diag.failed()) return;
@@ -1873,6 +1895,16 @@ struct builder {
                 }
             }
             init_technologies(state, observed);
+        }
+        init_frontier_gaps(state);
+        // Fossil share of energy capacity at the start: 1 - renewables adoption (electricity).
+        for(auto n : w.in_nation) {
+            float ren = 0.0f;
+            for(auto t : w.in_technology) {
+                if(t.get_emission_cut() > 0.0f) ren = n.get_tech_adoption(static_cast<uint8_t>(t.id.index()));
+            }
+            n.set_fossil_share0(1.0f - ren);
+            n.set_fossil_share(1.0f - ren);
         }
         for(auto n : w.in_nation) {
             if(auto inc = n.get_incumbent()) n.set_gov_econ0(w.party_get_position(inc, static_cast<uint8_t>(value_axis::economic_right)));

@@ -300,7 +300,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float i_real = w.nation_get_i0(n) * gf * accel * (1.0f - static_cast<float>(P.rate_i_elasticity) * rate_dev) * std::max(0.3f, balance_sheet)
                          * (1.0f + (apply ? w.nation_get_board_investment(n) : 0.0f))
                          * (1.0f - static_cast<float>(P.crime_investment) * std::max(0.0f, w.nation_get_crime(n) - 1.0f))
-                         + (apply ? w.nation_get_credit_flow_firm(n) / p : 0.0f);
+                         + (apply ? w.nation_get_credit_flow_firm(n) / p : 0.0f)
+                         // FDI above the baseline funds new investment (finance.cpp).
+                         + (apply ? static_cast<float>(P.fdi_investment_share) * w.nation_get_fdi_flow(n) / 100.0f * w.nation_get_gdp0_daily(n) * gf : 0.0f);
     // Exports follow partners' import demand through bilateral trade shares, cut by
     // sanctions and war (relative to the starting access).
     const float access0 = std::max(1e-6f, w.nation_get_trade_access0(n));
@@ -320,9 +322,23 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     std::array<float, max_sectors> dem{};
     std::array<float, max_sectors> out{};
     float blocked_contact = 0.0f;
+    // Linear expenditure system (Stone 1954): subsistence quantities of food and energy
+    // are bought first; the rest of the budget is shared by marginal shares, deflated by
+    // sector relative prices (markups; below). With base prices and spending this
+    // reproduces the calibrated composition.
+    const float hh_base = (1.0f - m_share) * w.nation_get_c0(n) * gf;
+    float gamma_total = 0.0f, gamma_cost = 0.0f;
+    std::array<float, max_sectors> gamma{};
+    for(uint8_t s = 0; s < S; ++s) {
+        gamma[s] = w.sector_get_subsistence(dcon::sector_id{s}) * w.nation_get_comp_c(n, s) * hh_base;
+        gamma_total += gamma[s];
+        gamma_cost += gamma[s] * w.nation_get_sector_price(n, s);
+    }
+    const float discretionary = std::max(0.0f, hh_dom - gamma_cost);
     for(uint8_t s = 0; s < S; ++s) {
         const dcon::sector_id sid{s};
-        hh[s] = w.nation_get_comp_c(n, s) * hh_dom;
+        const float beta = hh_base > gamma_total ? (w.nation_get_comp_c(n, s) * hh_base - gamma[s]) / (hh_base - gamma_total) : w.nation_get_comp_c(n, s);
+        hh[s] = gamma[s] + beta * discretionary / std::max(0.2f, w.nation_get_sector_price(n, s));
         const float vd = w.sector_get_voluntary_distancing(sid);
         const float avoided = hh[s] * vd * (1.0f - fear);
         hh[s] -= avoided;
@@ -419,7 +435,24 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         w.nation_set_inflation_expect(n, pe);
         const float oil_rel = D.oil ? w.commodity_get_price(D.oil) / w.commodity_get_price0(D.oil) : 1.0f;
         w.nation_set_cpi(n, w.nation_get_core_price(n) * (1.0f + static_cast<float>(P.oil_cpi_share) * (oil_rel - 1.0f))
-                                * commodity_cpi_factor(state, n));
+                                * commodity_cpi_factor(state, n) * (1.0f + 0.05f * carbon_cost_share(state, n)));
+        // Sector relative prices: markups follow capacity pressure (Kalecki 1954); a
+        // Calvo share resets each step (Calvo 1983). Normalised to the consumption basket,
+        // so they shift the composition of demand, not aggregate inflation.
+        {
+            const float reset = 1.0f - std::pow(1.0f - static_cast<float>(P.calvo_monthly), dt / 28.0f);
+            float mean = 0.0f;
+            for(uint8_t s = 0; s < S; ++s) {
+                const float pressure = cap[s] > 0.0f ? std::clamp(dem[s] / cap[s] - 1.0f, -0.5f, 0.5f) : 0.0f;
+                const float target = std::exp(static_cast<float>(P.markup_utilisation) * pressure);
+                const float ps = w.nation_get_sector_price(n, s) + (target - w.nation_get_sector_price(n, s)) * reset;
+                w.nation_set_sector_price(n, s, ps);
+                mean += w.nation_get_comp_c(n, s) * ps;
+            }
+            if(mean > 0.0f) {
+                for(uint8_t s = 0; s < S; ++s) w.nation_set_sector_price(n, s, w.nation_get_sector_price(n, s) / mean);
+            }
+        }
     }
 
     // ---- labour-market parameters for the pop pass
@@ -546,6 +579,12 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         }
         w.nation_set_defense_spend(n, def_g);
         {
+            // Carbon-price revenue above the start (climate.cpp).
+            cause_scope c(state, lever_cause(state, n, lever::carbon_price));
+            const double ene = D.energy_sector ? static_cast<double>(out[static_cast<uint8_t>(D.energy_sector.index())]) * p : 0.0;
+            transfer(state, firms, gov, ene * carbon_cost_share(state, n) * w.nation_get_fossil_share(n) * ddt, flow::carbon_tax);
+        }
+        {
             cause_scope c(state, lever_cause(state, n, lever::tariff));
             transfer(state, firms, gov, static_cast<double>(imports) * p * (w.nation_get_tariff(n) - w.nation_get_tariff0(n)) * ddt, flow::tariffs);
         }
@@ -573,6 +612,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         w.nation_set_investment(n, i_real);
         w.nation_set_gov_spend(n, g_real + war_g + pub_g + def_g);
         w.nation_set_exports(n, x_real);
+        record_bilateral_exports(state, n, x_real);
         w.nation_set_imports(n, imports);
         w.nation_set_gdp_real(n, gdp);
     }

@@ -507,6 +507,7 @@ void update_ai(game_state& state) {
             decide_defense(state, a, n);
             decide_min_wage(state, a, n);
             decide_fiscal_structure(state, a, n);
+            decide_carbon_price(state, a, n);
         }
     }
     for(auto bank : w.in_agent) {

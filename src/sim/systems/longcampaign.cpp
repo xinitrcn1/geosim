@@ -67,7 +67,10 @@ float adoption_lag(game_state const& state, dcon::technology_id t, dcon::nation_
                                                                          : w.nation_get_gdp0(n) / std::max(1.0f, w.nation_get_population(n)));
     return w.technology_get_lag_years(t) + static_cast<float>(P.tech_income_lag) * std::max(0.0f, std::log(f.gdp_pc / std::max(1.0f, pc)))
            + static_cast<float>(P.tech_skill_lag) * std::max(0.0f, f.tertiary - w.nation_get_tertiary_share(n))
-           + static_cast<float>(P.tech_openness_lag) * w.nation_get_net_filtering(n);
+           + static_cast<float>(P.tech_openness_lag) * w.nation_get_net_filtering(n)
+           // A carbon price above the start pulls clean technology forward (induced innovation;
+           // Acemoglu, Aghion, Bursztyn & Hemous 2012): years per 10 USD/t.
+           - (w.technology_get_emission_cut(t) > 0.0f ? 0.5f * std::max(0.0f, w.nation_get_carbon_price(n) - w.nation_get_carbon_price0(n)) / 10.0f : 0.0f);
 }
 
 float year_of(game_state const& state, int32_t tick) {

@@ -156,24 +156,53 @@ void update_power(game_state& state) {
 
 // Export / import factor relative to the start, from bilateral trade shares,
 // sanctions and war (used by the economy instead of a world-average index).
-float trade_access(game_state const& state, dcon::nation_id n) {
+// Export access of n to m relative to gravity: partner import demand, sanctions,
+// war, shipping delays, FTAs and Armington competition with m's other suppliers.
+static double pair_access(game_state const& state, dcon::nation_id n, dcon::nation_id m) {
     auto const& w = state.world;
     auto const& P = state.params;
+    const auto k = static_cast<uint8_t>(m.index());
+    const auto kn = static_cast<uint8_t>(n.index());
+    const float barrier = std::max({w.nation_get_sanction(n, k), w.nation_get_sanction(m, kn)});
+    const float war = std::max(w.nation_get_at_war(n, k), w.nation_get_at_war(m, kn));
+    const double base = static_cast<double>(w.nation_get_m0(m)) * w.nation_get_gf(m);
+    const double demand = base > 0.0 ? w.nation_get_imports(m) / base : 1.0;
+    // FTAs phase in a trade gain (treaties.cpp; Baier & Bergstrand 2007).
+    const double fta = std::exp(P.fta_trade_gain * w.nation_get_fta(n, k));
+    // Armington (1969): in m's market, n competes with m's other suppliers on relative
+    // real exchange rates (its competitiveness against m's own producers is the
+    // export elasticity in economy.cpp).
+    double rival = 0.0, rival_w = 0.0;
+    for(auto o : w.in_nation) {
+        if(o.id == m) continue;
+        const double share = o.get_x0() * o.get_trade_share(k);
+        rival += share * std::log(std::max(0.05f, o.get_exchange_rate()));
+        rival_w += share;
+    }
+    const double rel = std::log(std::max(0.05f, w.nation_get_exchange_rate(n))) - (rival_w > 0.0 ? rival / rival_w : 0.0);
+    const double armington = std::exp(-(P.armington - 1.0) * rel);
+    return w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war) * w.nation_get_pair_cost(n, k) * fta * armington;
+}
+
+float trade_access(game_state const& state, dcon::nation_id n) {
     double access = 0.0;
-    for(auto m : w.in_nation) {
-        if(m.id == n) continue;
-        const auto k = static_cast<uint8_t>(m.id.index());
-        const auto kn = static_cast<uint8_t>(n.index());
-        const float barrier = std::max({w.nation_get_sanction(n, k), w.nation_get_sanction(m.id, kn)});
-        const float war = std::max(w.nation_get_at_war(n, k), w.nation_get_at_war(m.id, kn));
-        const double base = static_cast<double>(m.get_m0()) * m.get_gf();
-        const double demand = base > 0.0 ? m.get_imports() / base : 1.0;
-        // Persistent shipping delays on the route also cut the pair's trade (logistics.cpp).
-        // FTAs phase in a trade gain (treaties.cpp; Baier & Bergstrand 2007).
-        const double fta = std::exp(P.fta_trade_gain * w.nation_get_fta(n, k));
-        access += w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war) * w.nation_get_pair_cost(n, k) * fta;
+    for(auto m : state.world.in_nation) {
+        if(m.id != n) access += pair_access(state, n, m.id);
     }
     return static_cast<float>(access);
+}
+
+// Bilateral exports of n (real, per day): total exports split by pair access.
+void record_bilateral_exports(game_state& state, dcon::nation_id n, float exports) {
+    auto& w = state.world;
+    double total = 0.0;
+    for(auto m : w.in_nation) {
+        if(m.id != n) total += pair_access(state, n, m.id);
+    }
+    for(auto m : w.in_nation) {
+        const auto k = static_cast<uint8_t>(m.id.index());
+        w.nation_set_bilateral_exports(n, k, m.id == n || total <= 0.0 ? 0.0f : static_cast<float>(exports * pair_access(state, n, m.id) / total));
+    }
 }
 
 // Insurgency (civil war) per region, every 28 days on the nation's shard.

@@ -25,6 +25,7 @@ if(GEOSIM_USE_DCON)
     geosim_add_test(test_firms geosim_sim)
     geosim_add_test(test_institutions geosim_sim)
     geosim_add_test(test_longcampaign geosim_sim)
+    geosim_add_test(test_economy_ext geosim_sim)
 
     # Full 2020 run against real outcomes (slower; label "backtest").
     add_test(NAME backtest_2020

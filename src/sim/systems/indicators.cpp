@@ -213,6 +213,41 @@ std::vector<point> income_points(game_state const& state, dcon::nation_id n, flo
             }
         }
     }
+    // Pareto top tail (Piketty & Saez 2003; WID): the top 1% hold the data share,
+    // moving with the capital-income share of income. The lognormal body gets the rest.
+    const float top0 = w.nation_get_top1_share0(n);
+    if(top0 > 0.0f && !pts.empty()) {
+        const float gdp_index = w.nation_get_gdp_real(n) / std::max(1.0f, w.nation_get_gdp0_daily(n) * w.nation_get_gf(n));
+        const float profit_index = w.nation_get_profit0(n) > 0.0f ? w.nation_get_profit_smoothed(n) / (w.nation_get_profit0(n) * std::max(0.01f, w.nation_get_gf(n) * w.nation_get_core_price(n))) : 1.0f;
+        const float cap_rel = gdp_index > 0.0f ? std::max(0.1f, profit_index / gdp_index) : 1.0f;
+        const double share = std::clamp(static_cast<double>(top0) * std::pow(cap_rel, static_cast<float>(state.params.top_share_capital)), 0.02, 0.5);
+        std::sort(pts.begin(), pts.end(), [](point const& a, point const& b) { return a.x < b.x; });
+        double weight = 0.0, income = 0.0;
+        for(auto const& pt : pts) {
+            weight += pt.weight;
+            income += pt.weight * pt.x;
+        }
+        // Split points at the 99th percentile (a straddling point is split in two).
+        std::vector<point> body, tail;
+        double cum = 0.0;
+        for(auto const& pt : pts) {
+            const double before = cum;
+            cum += pt.weight;
+            const double in_tail = std::clamp((cum - 0.99 * weight) / pt.weight, 0.0, 1.0);
+            if(in_tail < 1.0) body.push_back({pt.x, pt.weight * (1.0 - in_tail)});
+            if(in_tail > 0.0) tail.push_back({pt.x, pt.weight * in_tail});
+            (void)before;
+        }
+        double body_inc = 0.0, tail_inc = 0.0;
+        for(auto const& pt : body) body_inc += pt.weight * pt.x;
+        for(auto const& pt : tail) tail_inc += pt.weight * pt.x;
+        if(body_inc > 0.0 && tail_inc > 0.0) {
+            for(auto& pt : body) pt.x *= (1.0 - share) * income / body_inc;
+            for(auto& pt : tail) pt.x *= share * income / tail_inc;
+            pts = body;
+            pts.insert(pts.end(), tail.begin(), tail.end());
+        }
+    }
     return pts;
 }
 

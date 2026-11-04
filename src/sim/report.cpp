@@ -92,7 +92,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     static constexpr char const* names[] = {"consumption", "gov_purchases", "exports", "imports", "wages_private",
         "wages_public", "job_retention_pay", "unemployment_benefits", "pensions", "fiscal_households", "fiscal_firms",
         "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households", "household_transfers", "remittances_in", "remittances_out", "sovereign_default",
-        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending"};
+        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio"};
     static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(flow::count));
     auto const& w = state.world;
     const double days = std::max(1.0, w.nation_get_acc_days(n));
@@ -100,7 +100,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     out << "flows for " << core::unpack_key(w.nation_get_iso3(n)) << " (year to date, % of nominal GDP over the period)\n";
     static constexpr char const* levers[] = {"fiscal", "stw_coverage", "stw_replacement", "tti", "policy_rate", "oil_target", "directed_credit",
         "info_control", "asset_purchases", "net_filtering", "tariff", "hoarding", "investment", "tax_scale", "public_investment", "min_wage",
-        "defense", "wage_push"};
+        "defense", "wage_push", "carbon_price"};
     static_assert(sizeof(levers) / sizeof(levers[0]) == static_cast<std::size_t>(lever::count));
     auto label = [&](uint32_t code) {
         const auto kind = static_cast<cause_kind>(code >> 24);

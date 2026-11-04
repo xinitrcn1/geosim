@@ -404,6 +404,29 @@
     X(tech_income_lag, 4.0, "extra adoption lag (years) per unit log income gap to the frontier (recent technologies; Comin & Hobijn 2010)") \
     X(tech_skill_lag, 5.0, "extra adoption lag (years) per unit tertiary-share gap to the frontier")    \
     X(tech_openness_lag, 5.0, "extra adoption lag (years) at full internet filtering / sanctions")        \
+    /* ---- economy extensions ---- */                                                                        \
+    X(calvo_monthly, 0.15, "share of prices reset per month (Calvo 1983; Nakamura & Steinsson 2008)")    \
+    X(markup_utilisation, 0.1, "relative-price response to the sector's capacity fill (Kalecki 1954)")   \
+    X(nash_power_base, 0.3, "workers' bargaining power with no collective agreements (Pissarides 2000)") \
+    X(nash_power_coverage, 0.4, "extra bargaining power at full bargaining coverage")                     \
+    X(catch_up, 0.01, "trend-growth gain per unit log gap to the frontier above the start x tertiary share (Nelson & Phelps 1966)") \
+    X(armington, 2.0, "elasticity of substitution between import sources (Armington 1969; Feenstra et al. 2018)") \
+    X(portfolio_yield, 1.0, "portfolio inflows (% GDP/yr) per pp of real yield differential vs the US (Forbes & Warnock 2012)") \
+    X(portfolio_risk, 2.0, "portfolio outflows (% GDP/yr) per pp of spread rise (sudden stops; Calvo 1998)") \
+    X(fdi_growth, 50.0, "FDI inflows (% GDP/yr) per unit trend-growth gap vs the world")                \
+    X(fdi_institutions, 1.0, "FDI inflows (% GDP/yr) per unit liberal-index change (Alfaro et al. 2008)") \
+    X(fdi_investment_share, 0.7, "share of FDI inflows that is new investment")                          \
+    X(fx_capital_flows, 1.0, "annual log appreciation per unit capital inflow / GDP")                     \
+    X(carbon_damage_weight, 2.0, "pragmatic carbon price (USD/t) per % of world output lost to climate x environmental concern") \
+    X(carbon_green_shift, 50.0, "ideological carbon price (USD/t) per unit GAL shift of the governing party") \
+    X(carbon_emission_elasticity, 0.003, "emissions cut per USD/t of carbon price (short run)")           \
+    X(carbon_fossil_margin, 80.0, "carbon price (USD/t) at which fossil energy capacity loses its margin") \
+    X(carbon_stranding, 0.2, "annual early retirement of fossil capacity per unit price above the margin (Mercure et al. 2018)") \
+    X(carbon_tonnes_per_gdp, 0.4, "tonnes of CO2 per thousand USD of energy-sector output (rough)")      \
+    X(disaster_rate, 0.05, "annual probability of a major disaster per region at today's climate (EM-DAT)") \
+    X(disaster_warming, 0.5, "disaster hazard increase per C of warming above the start (IPCC AR6)")      \
+    X(disaster_loss, 0.02, "mean capital loss of a major disaster (share of regional capacity; Hsiang & Jina 2014)") \
+    X(top_share_capital, 1.0, "elasticity of the top-1% income share to the capital-income share")       \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

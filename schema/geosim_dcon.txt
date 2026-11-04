@@ -31,8 +31,8 @@ object{
 	property{ name{migration_net} type{float} }
 	property{ name{state_capacity} type{float} }
 
-	property{ name{prior_npi} type{array{uint8_t}{float}} }
-	property{ name{prior_npi_targeted} type{array{uint8_t}{float}} }
+	property{ name{prior_npi} type{array{uint16_t}{float}} }
+	property{ name{prior_npi_targeted} type{array{uint16_t}{float}} }
 	property{ name{prior_npi_set} type{uint8_t} }
 	property{ name{prior_rate} type{float} }
 	property{ name{prior_rate_set} type{uint8_t} }
@@ -63,13 +63,13 @@ object{
 	property{ name{lat} type{float} }
 	property{ name{lon} type{float} }
 	property{ name{power} type{float} }
-	property{ name{trust} type{array{uint8_t}{float}} }
-	property{ name{threat_to} type{array{uint8_t}{float}} }
-	property{ name{trade_share} type{array{uint8_t}{float}} }
-	property{ name{sanction} type{array{uint8_t}{float}} }
-	property{ name{sanction_prior} type{array{uint8_t}{float}} }
-	property{ name{alliance} type{array{uint8_t}{float}} }
-	property{ name{at_war} type{array{uint8_t}{float}} }
+	property{ name{trust} type{array{uint16_t}{float}} }
+	property{ name{threat_to} type{array{uint16_t}{float}} }
+	property{ name{trade_share} type{array{uint16_t}{float}} }
+	property{ name{sanction} type{array{uint16_t}{float}} }
+	property{ name{sanction_prior} type{array{uint16_t}{float}} }
+	property{ name{alliance} type{array{uint16_t}{float}} }
+	property{ name{at_war} type{array{uint16_t}{float}} }
 	property{ name{war_cost} type{float} }
 	property{ name{trade_access0} type{float} }
 	property{ name{exchange_rate} type{float} }
@@ -89,27 +89,27 @@ object{
 	property{ name{trend_growth0} type{float} }
 	property{ name{media_freedom} type{float} }
 
-	property{ name{va0} type{array{uint8_t}{float}} }
-	property{ name{emp0} type{array{uint8_t}{float}} }
-	property{ name{output} type{array{uint8_t}{float}} }
-	property{ name{capacity} type{array{uint8_t}{float}} }
-	property{ name{demand} type{array{uint8_t}{float}} }
-	property{ name{hours} type{array{uint8_t}{float}} }
-	property{ name{labor_need} type{array{uint8_t}{float}} }
-	property{ name{comp_c} type{array{uint8_t}{float}} }
-	property{ name{comp_g} type{array{uint8_t}{float}} }
-	property{ name{comp_i} type{array{uint8_t}{float}} }
-	property{ name{comp_x} type{array{uint8_t}{float}} }
-	property{ name{npi} type{array{uint8_t}{float}} }
-	property{ name{npi_targeted} type{array{uint8_t}{float}} }
+	property{ name{va0} type{array{uint16_t}{float}} }
+	property{ name{emp0} type{array{uint16_t}{float}} }
+	property{ name{output} type{array{uint16_t}{float}} }
+	property{ name{capacity} type{array{uint16_t}{float}} }
+	property{ name{demand} type{array{uint16_t}{float}} }
+	property{ name{hours} type{array{uint16_t}{float}} }
+	property{ name{labor_need} type{array{uint16_t}{float}} }
+	property{ name{comp_c} type{array{uint16_t}{float}} }
+	property{ name{comp_g} type{array{uint16_t}{float}} }
+	property{ name{comp_i} type{array{uint16_t}{float}} }
+	property{ name{comp_x} type{array{uint16_t}{float}} }
+	property{ name{npi} type{array{uint16_t}{float}} }
+	property{ name{npi_targeted} type{array{uint16_t}{float}} }
 	property{ name{npi_exposure} type{float} }
 	property{ name{tti_strength} type{float} }
-	property{ name{flows} type{array{uint8_t}{double}} }
+	property{ name{flows} type{array{uint16_t}{double}} }
 
 	property{ name{gf} type{float} }
-	property{ name{npi_cut} type{array{uint8_t}{float}} }
-	property{ name{sector_factor} type{array{uint8_t}{float}} }
-	property{ name{fill} type{array{uint8_t}{float}} }
+	property{ name{npi_cut} type{array{uint16_t}{float}} }
+	property{ name{sector_factor} type{array{uint16_t}{float}} }
+	property{ name{fill} type{array{uint16_t}{float}} }
 	property{ name{rate_transfer} type{float} }
 	property{ name{rate_fiscal} type{float} }
 	property{ name{rate_dividend} type{float} }
@@ -206,29 +206,29 @@ object{
 	property{ name{import_cost_prev} type{float} }
 	property{ name{trade_cost_factor} type{float} }
 	property{ name{domestic_logistics} type{float} }
-	property{ name{transit_days} type{array{uint8_t}{float}} }
-	property{ name{transit_days0} type{array{uint8_t}{float}} }
-	property{ name{land_share} type{array{uint8_t}{float}} }
-	property{ name{trade_distance} type{array{uint8_t}{float}} }
-	property{ name{pair_cost} type{array{uint8_t}{float}} }
+	property{ name{transit_days} type{array{uint16_t}{float}} }
+	property{ name{transit_days0} type{array{uint16_t}{float}} }
+	property{ name{land_share} type{array{uint16_t}{float}} }
+	property{ name{trade_distance} type{array{uint16_t}{float}} }
+	property{ name{pair_cost} type{array{uint16_t}{float}} }
 	property{ name{port_throughput0} type{float} }
 	property{ name{goods_export_share} type{float} }
 	property{ name{sea_import_share} type{float} }
 
-	property{ name{gross_output} type{array{uint8_t}{float}} }
-	property{ name{io_demand} type{array{uint8_t}{float}} }
-	property{ name{io_import} type{array{uint8_t}{float}} }
-	property{ name{io_stock} type{array{uint8_t}{float}} }
-	property{ name{io_stock_m} type{array{uint8_t}{float}} }
-	property{ name{io_constraint} type{array{uint8_t}{float}} }
+	property{ name{gross_output} type{array{uint16_t}{float}} }
+	property{ name{io_demand} type{array{uint16_t}{float}} }
+	property{ name{io_import} type{array{uint16_t}{float}} }
+	property{ name{io_stock} type{array{uint16_t}{float}} }
+	property{ name{io_stock_m} type{array{uint16_t}{float}} }
+	property{ name{io_constraint} type{array{uint16_t}{float}} }
 
 	property{ name{food_cpi_share} type{float} }
 	property{ name{energy_cpi_share} type{float} }
 	property{ name{food_price} type{float} }
-	property{ name{commodity_prod} type{array{uint8_t}{float}} }
-	property{ name{commodity_cons} type{array{uint8_t}{float}} }
-	property{ name{commodity_take} type{array{uint8_t}{float}} }
-	property{ name{commodity_demand} type{array{uint8_t}{float}} }
+	property{ name{commodity_prod} type{array{uint16_t}{float}} }
+	property{ name{commodity_cons} type{array{uint16_t}{float}} }
+	property{ name{commodity_take} type{array{uint16_t}{float}} }
+	property{ name{commodity_demand} type{array{uint16_t}{float}} }
 	property{ name{commodity_tot} type{float} }
 	property{ name{commodity_rent} type{float} }
 
@@ -292,7 +292,7 @@ object{
 	property{ name{war_effort} type{float} }
 	property{ name{military} type{float} }
 	property{ name{resource_rents} type{float} }
-	property{ name{coupling} type{array{uint8_t}{float}} }
+	property{ name{coupling} type{array{uint16_t}{float}} }
 	property{ name{coordination} type{float} }
 	property{ name{soe_share} type{float} }
 	property{ name{board_hoarding} type{float} }
@@ -310,18 +310,31 @@ object{
 	property{ name{gov_econ0} type{float} }
 	property{ name{profit0} type{float} }
 	property{ name{tax_multiplier} type{float} }
-	property{ name{tag_code} type{array{uint8_t}{uint32_t}} }
-	property{ name{tag_amount} type{array{uint8_t}{double}} }
-	property{ name{tag_rest} type{array{uint8_t}{double}} }
+	property{ name{tag_code} type{array{uint16_t}{uint32_t}} }
+	property{ name{tag_amount} type{array{uint16_t}{double}} }
+	property{ name{tag_rest} type{array{uint16_t}{double}} }
 	property{ name{lod} type{uint8_t} }
 	property{ name{econ_dt} type{float} }
 	property{ name{econ_due} type{float} }
 	property{ name{lod_calm_days} type{float} }
 	property{ name{lod_last_gdp} type{float} }
 	property{ name{lod_last_u} type{float} }
-	property{ name{tech_adoption} type{array{uint8_t}{float}} }
-	property{ name{tech_lag} type{array{uint8_t}{float}} }
-	property{ name{tech_offset} type{array{uint8_t}{float}} }
+	property{ name{tech_adoption} type{array{uint16_t}{float}} }
+	property{ name{tech_lag} type{array{uint16_t}{float}} }
+	property{ name{tech_offset} type{array{uint16_t}{float}} }
+	property{ name{sector_price} type{array{uint16_t}{float}} }
+	property{ name{carbon_price} type{float} }
+	property{ name{carbon_price0} type{float} }
+	property{ name{fossil_share} type{float} }
+	property{ name{fossil_share0} type{float} }
+	property{ name{stranded} type{float} }
+	property{ name{portfolio_flow} type{float} }
+	property{ name{fdi_flow} type{float} }
+	property{ name{bilateral_exports} type{array{uint16_t}{float}} }
+	property{ name{top1_share0} type{float} }
+	property{ name{capital_income_share0} type{float} }
+	property{ name{disaster_losses} type{float} }
+	property{ name{frontier_gap0} type{float} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }
@@ -355,14 +368,14 @@ object{
 	property{ name{equity_price} type{float} }
 	property{ name{wealth_effect} type{float} }
 	property{ name{vaccinated} type{float} }
-	property{ name{fta} type{array{uint8_t}{float}} }
+	property{ name{fta} type{array{uint16_t}{float}} }
 	property{ name{imf_program} type{float} }
 	property{ name{palma} type{float} }
 	property{ name{poverty} type{float} }
 	property{ name{urban_share} type{float} }
-	property{ name{window_center} type{array{uint8_t}{float}} }
-	property{ name{window_width} type{array{uint8_t}{float}} }
-	property{ name{policy_position} type{array{uint8_t}{float}} }
+	property{ name{window_center} type{array{uint16_t}{float}} }
+	property{ name{window_width} type{array{uint16_t}{float}} }
+	property{ name{policy_position} type{array{uint16_t}{float}} }
 	property{ name{policy_outside} type{float} }
 	property{ name{policy_outside0} type{float} }
 	property{ name{window_outside0} type{float} }
@@ -383,10 +396,10 @@ object{
 	property{ name{lon} type{float} }
 	property{ name{area_km2} type{float} }
 	property{ name{urban_share} type{float} }
-	property{ name{va0} type{array{uint8_t}{float}} }
-	property{ name{capacity} type{array{uint8_t}{float}} }
-	property{ name{output} type{array{uint8_t}{float}} }
-	property{ name{util} type{array{uint8_t}{float}} }
+	property{ name{va0} type{array{uint16_t}{float}} }
+	property{ name{capacity} type{array{uint16_t}{float}} }
+	property{ name{output} type{array{uint16_t}{float}} }
+	property{ name{util} type{array{uint16_t}{float}} }
 	property{ name{old_share} type{float} }
 	property{ name{children} type{float} }
 	property{ name{epi_deaths_young} type{float} }
@@ -400,19 +413,19 @@ object{
 	property{ name{hemisphere} type{float} }
 	property{ name{beds_per_1000} type{float} }
 
-	property{ name{ep_s} type{array{uint8_t}{float}} }
-	property{ name{ep_e} type{array{uint8_t}{float}} }
-	property{ name{ep_i} type{array{uint8_t}{float}} }
-	property{ name{ep_r} type{array{uint8_t}{float}} }
-	property{ name{ep_h} type{array{uint8_t}{float}} }
-	property{ name{ep_d} type{array{uint8_t}{float}} }
+	property{ name{ep_s} type{array{uint16_t}{float}} }
+	property{ name{ep_e} type{array{uint16_t}{float}} }
+	property{ name{ep_i} type{array{uint16_t}{float}} }
+	property{ name{ep_r} type{array{uint16_t}{float}} }
+	property{ name{ep_h} type{array{uint16_t}{float}} }
+	property{ name{ep_d} type{array{uint16_t}{float}} }
 
-	property{ name{beta} type{array{uint8_t}{float}} }
-	property{ name{imported} type{array{uint8_t}{float}} }
-	property{ name{infections_p} type{array{uint8_t}{float}} }
-	property{ name{deaths_p} type{array{uint8_t}{float}} }
-	property{ name{deaths_reported_p} type{array{uint8_t}{float}} }
-	property{ name{cum_infections_p} type{array{uint8_t}{float}} }
+	property{ name{beta} type{array{uint16_t}{float}} }
+	property{ name{imported} type{array{uint16_t}{float}} }
+	property{ name{infections_p} type{array{uint16_t}{float}} }
+	property{ name{deaths_p} type{array{uint16_t}{float}} }
+	property{ name{deaths_reported_p} type{array{uint16_t}{float}} }
+	property{ name{cum_infections_p} type{array{uint16_t}{float}} }
 	property{ name{ifr_mult} type{float} }
 	property{ name{new_infections} type{float} }
 	property{ name{severe_infections} type{float} }
@@ -441,10 +454,10 @@ object{
 	property{ name{home} type{region_id} }
 	property{ name{shard} type{int32_t} }
 	property{ name{size} type{float} }
-	property{ name{emp0} type{array{uint8_t}{float}} }
-	property{ name{wage0} type{array{uint8_t}{float}} }
-	property{ name{hours} type{array{uint8_t}{float}} }
-	property{ name{need_slow} type{array{uint8_t}{float}} }
+	property{ name{emp0} type{array{uint16_t}{float}} }
+	property{ name{wage0} type{array{uint16_t}{float}} }
+	property{ name{hours} type{array{uint16_t}{float}} }
+	property{ name{need_slow} type{array{uint16_t}{float}} }
 	property{ name{wage_avg0} type{float} }
 	property{ name{owner_weight} type{float} }
 	property{ name{transfer_weight} type{float} }
@@ -464,7 +477,7 @@ object{
 	property{ name{f_programmes} type{float} }
 	property{ name{f_remit_in} type{float} }
 	property{ name{f_remit_out} type{float} }
-	property{ name{employed} type{array{uint8_t}{float}} }
+	property{ name{employed} type{array{uint16_t}{float}} }
 	property{ name{unemployed} type{float} }
 	property{ name{inactive} type{float} }
 	property{ name{wage_mult} type{float} }
@@ -478,10 +491,10 @@ object{
 	property{ name{consumption} type{float} }
 	property{ name{balance} type{double} }
 	property{ name{balance_trend} type{double} }
-	property{ name{values} type{array{uint8_t}{float}} }
-	property{ name{salience} type{array{uint8_t}{float}} }
+	property{ name{values} type{array{uint16_t}{float}} }
+	property{ name{salience} type{array{uint16_t}{float}} }
 	property{ name{income_expected} type{float} }
-	property{ name{party_support} type{array{uint8_t}{float}} }
+	property{ name{party_support} type{array{uint16_t}{float}} }
 	property{ name{grievance} type{float} }
 	property{ name{inc_sigma} type{float} }
 	property{ name{owner_share} type{float} }
@@ -512,13 +525,14 @@ object{
 	property{ name{demand_gov} type{float} }
 	property{ name{demand_inv} type{float} }
 	property{ name{demand_exp} type{float} }
-	property{ name{skill} type{array{uint8_t}{float}} }
-	property{ name{npi_capacity} type{array{uint8_t}{float}} }
+	property{ name{skill} type{array{uint16_t}{float}} }
+	property{ name{npi_capacity} type{array{uint16_t}{float}} }
 	property{ name{shipped} type{float} }
-	property{ name{io_coeff} type{array{uint8_t}{float}} }
+	property{ name{io_coeff} type{array{uint16_t}{float}} }
 	property{ name{value_added_share} type{float} }
 	property{ name{critical_input} type{float} }
 	property{ name{cyber_exposure} type{float} }
+	property{ name{subsistence} type{float} }
 	property{ name{inventory_days} type{float} }
 }
 
@@ -555,7 +569,7 @@ object{
 	property{ name{npi_sensitivity} type{float} }
 	property{ name{severity} type{float} }
 	property{ name{initial_immunity} type{float} }
-	property{ name{cross_immunity} type{array{uint8_t}{float}} }
+	property{ name{cross_immunity} type{array{uint16_t}{float}} }
 	property{ name{vaccine_days} type{float} }
 	property{ name{vaccine_efficacy} type{float} }
 	property{ name{vaccine_ramp_days} type{float} }
@@ -604,7 +618,7 @@ object{
 	property{ name{harvest} type{float} }
 	property{ name{biofuel_share} type{float} }
 	property{ name{income_elasticity} type{float} }
-	property{ name{sector_weight} type{array{uint8_t}{float}} }
+	property{ name{sector_weight} type{array{uint16_t}{float}} }
 	property{ name{supply_index} type{float} }
 }
 
@@ -626,7 +640,7 @@ object{
 	property{ name{excluded} type{float} }
 	property{ name{network} type{float} }
 	property{ name{immigrant} type{uint8_t} }
-	property{ name{skill} type{array{uint8_t}{float}} }
+	property{ name{skill} type{array{uint16_t}{float}} }
 	property{ name{income_rel} type{float} }
 	property{ name{income_rel0} type{float} }
 	property{ name{unemployment} type{float} }
@@ -767,13 +781,13 @@ object{
 	property{ name{order_ideal} type{float} }
 	property{ name{fiscal_hawk} type{float} }
 	property{ name{credit_bias} type{float} }
-	property{ name{override_mode} type{array{uint8_t}{uint8_t}} }
-	property{ name{override_value} type{array{uint8_t}{float}} }
-	property{ name{last_pragmatic} type{array{uint8_t}{float}} }
-	property{ name{last_ideological} type{array{uint8_t}{float}} }
-	property{ name{last_prior} type{array{uint8_t}{float}} }
-	property{ name{last_choice} type{array{uint8_t}{float}} }
-	property{ name{last_ai_choice} type{array{uint8_t}{float}} }
+	property{ name{override_mode} type{array{uint16_t}{uint8_t}} }
+	property{ name{override_value} type{array{uint16_t}{float}} }
+	property{ name{last_pragmatic} type{array{uint16_t}{float}} }
+	property{ name{last_ideological} type{array{uint16_t}{float}} }
+	property{ name{last_prior} type{array{uint16_t}{float}} }
+	property{ name{last_choice} type{array{uint16_t}{float}} }
+	property{ name{last_ai_choice} type{array{uint16_t}{float}} }
 }
 
 object{
@@ -783,7 +797,7 @@ object{
 	tag{scenario}
 
 	property{ name{key} type{uint32_t} }
-	property{ name{position} type{array{uint8_t}{float}} }
+	property{ name{position} type{array{uint16_t}{float}} }
 	property{ name{vote_share} type{float} }
 	property{ name{seat_share} type{float} }
 	property{ name{in_government} type{uint8_t} }
@@ -792,7 +806,7 @@ object{
 	property{ name{family} type{uint8_t} }
 	property{ name{last_vote} type{float} }
 	property{ name{low_vote_months} type{float} }
-	property{ name{heading} type{array{uint8_t}{float}} }
+	property{ name{heading} type{array{uint16_t}{float}} }
 }
 
 object{

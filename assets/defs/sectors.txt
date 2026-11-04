@@ -31,6 +31,8 @@
 #               rounded: manufacturing ~ 3-4 weeks, services ~ 1 week).
 # shipped       1 = output crosses borders in ships and containers (goods), uses ports
 #               and the container fleet (src/sim/systems/logistics.cpp).
+# subsistence   share of baseline household spending on the sector that is subsistence
+#               (Stone-Geary gamma; food and energy are necessities: Deaton & Muellbauer 1980)
 # cyber_exposure  share of capacity a cyber operation's damage applies to (control systems
 #               of energy grids and pipelines, IT of finance and business services;
 #               src/sim/systems/internet.cpp).
@@ -50,6 +52,7 @@ sector{
 	critical_input{1}
 	inventory_days{30}
 	shipped{1}
+	subsistence{0.6}
 }
 
 sector{
@@ -68,6 +71,7 @@ sector{
 	inventory_days{20}
 	shipped{1}
 	cyber_exposure{1.0}
+	subsistence{0.5}
 }
 
 sector{

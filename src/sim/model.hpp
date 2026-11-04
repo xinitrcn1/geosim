@@ -98,6 +98,7 @@ enum class lever : uint8_t {
     min_wage,        // executive (bill): minimum wage relative to the start (systems/labour.cpp)
     defense,         // executive (bill): defence spending, % of GDP (systems/institutions.cpp)
     wage_push,       // union: real-wage demand, annual log change (systems/labour.cpp)
+    carbon_price,    // executive (bill): carbon price, USD per tonne CO2 (systems/climate.cpp)
     count
 };
 
@@ -130,7 +131,8 @@ inline constexpr uint8_t journal_bill = 0xFB;       // pragmatic = lever, before
 inline constexpr uint8_t journal_no_confidence = 0xFC;
 inline constexpr uint8_t journal_court = 0xFD;      // pragmatic = lever struck down
 inline constexpr uint8_t journal_regime_change = 0xFE;
-inline constexpr uint8_t journal_treaty = 0xEF;     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
+inline constexpr uint8_t journal_treaty = 0xEF;
+inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
@@ -167,6 +169,9 @@ enum class flow : uint8_t {
     public_investment,     // public investment above the baseline
     defense,               // defence spending above the baseline
     imf_lending,           // IMF programme disbursements (from the rest of the world)
+    carbon_tax,            // carbon-price revenue
+    fdi,                   // foreign direct investment inflows (net, above baseline)
+    portfolio,             // portfolio inflows (net, above baseline)
     count
 };
 

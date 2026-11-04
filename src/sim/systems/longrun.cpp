@@ -21,6 +21,27 @@ namespace geosim::sim {
 
 namespace {
 constexpr cadence monthly_cadence{28, 28};
+
+float frontier_gap(game_state const& state, dcon::nation_id n) {
+    auto const& w = state.world;
+    double best = 1.0;
+    for(auto m : w.in_nation) best = std::max(best, m.get_gdp0() * m.get_gf() / std::max(1.0f, m.get_population()));
+    const double own = w.nation_get_gdp_real(n) > 0.0f ? w.nation_get_gdp_real(n) * 365.0 / std::max(1.0f, w.nation_get_population(n))
+                                                        : w.nation_get_gdp0(n) / std::max(1.0f, w.nation_get_population(n));
+    return static_cast<float>(std::log(best / std::max(1.0, own)));
+}
+
+// Catch-up (Nelson & Phelps 1966; Benhabib & Spiegel 2005): falling further behind the
+// frontier than at the start raises growth, in proportion to absorptive capacity
+// (human capital). Trend growth from data already holds the 2019 convergence.
+float catch_up_growth(game_state const& state, dcon::nation_id n) {
+    auto const& w = state.world;
+    return static_cast<float>(state.params.catch_up) * w.nation_get_tertiary_share(n) * (frontier_gap(state, n) - w.nation_get_frontier_gap0(n));
+}
+} // namespace
+
+void init_frontier_gaps(game_state& state) {
+    for(auto n : state.world.in_nation) n.set_frontier_gap0(frontier_gap(state, n.id));
 }
 
 float world_oil_demand(game_state const& state) {
@@ -50,7 +71,8 @@ void update_longrun(game_state& state) {
         // Institutions and human capital -> trend growth.
         n.set_trend_growth(n.get_trend_growth0() + static_cast<float>(P.institutions_growth) * (n.get_liberal() - n.get_liberal0())
                            + static_cast<float>(P.human_capital_growth) * (n.get_tertiary_share() - n.get_tertiary0())
-                           - static_cast<float>(P.net_growth_cost) * std::max(0.0f, n.get_net_filtering() - n.get_net_filtering0()));
+                           - static_cast<float>(P.net_growth_cost) * std::max(0.0f, n.get_net_filtering() - n.get_net_filtering0())
+                           + catch_up_growth(state, n.id));
     }
 
     // Climate: global, once per 28 days.
@@ -60,7 +82,7 @@ void update_longrun(game_state& state) {
     for(auto c : w.in_climate) {
         const float oil = world_oil_demand(state);
         // Renewables cut CO2 per unit of energy (technology diffusion; longcampaign.cpp).
-        const float emissions = c.get_emission_intensity() * oil * tech_emission_factor(state);
+        const float emissions = c.get_emission_intensity() * oil * tech_emission_factor(state) * carbon_emission_factor(state);
         c.set_emissions(emissions);
         const float ppm = c.get_co2_ppm() + emissions * static_cast<float>(P.airborne_fraction) / 7.8f * years;
         c.set_co2_ppm(ppm);

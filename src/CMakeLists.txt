@@ -27,6 +27,7 @@ if(GEOSIM_USE_DCON)
         sim/systems/labour.cpp
         sim/systems/treaties.cpp
         sim/systems/bonds.cpp
+        sim/systems/climate.cpp
         sim/systems/commodities.cpp
         sim/systems/credit.cpp
         sim/systems/economy.cpp
