@@ -1,0 +1,6 @@
+build/
+generated/
+compile_commands.json
+.cache/
+data/raw/
+__pycache__/

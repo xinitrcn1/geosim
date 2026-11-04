@@ -1,0 +1,22 @@
+# Non-pharmaceutical interventions = OxCGRT indicators (hand-written; moddable).
+#
+# key                  OxCGRT indicator code, used in assets/events/*/npi.txt
+# role                 generic | travel | testing | tracing | income_support | stay_home | movement
+# max_level            top of the OxCGRT ordinal scale
+# transmission_effect  fractional cut in transmission at max level. Multiplicative across
+#                      indicators. Values from Brauner et al. (2021), Science 371:eabd9338
+#                      (gatherings, schools, business closures, stay-at-home), rounded; masks from
+#                      Mitze et al. (2020) PNAS; travel/testing/tracing act through their own mechanics.
+
+npi{ key{C1} role{generic}        max_level{3} transmission_effect{0.35} name{School closing} }
+npi{ key{C2} role{generic}        max_level{3} transmission_effect{0.25} name{Workplace closing} }
+npi{ key{C3} role{generic}        max_level{2} transmission_effect{0.05} name{Cancel public events} }
+npi{ key{C4} role{generic}        max_level{4} transmission_effect{0.35} name{Restrictions on gatherings} }
+npi{ key{C5} role{generic}        max_level{2} transmission_effect{0.02} name{Close public transport} }
+npi{ key{C6} role{stay_home}      max_level{3} transmission_effect{0.13} name{Stay at home requirements} }
+npi{ key{C7} role{movement}       max_level{2} transmission_effect{0.05} name{Restrictions on internal movement} }
+npi{ key{C8} role{travel}         max_level{4} transmission_effect{0.00} name{International travel controls} }
+npi{ key{E1} role{income_support} max_level{2} transmission_effect{0.00} name{Income support} }
+npi{ key{H2} role{testing}        max_level{3} transmission_effect{0.00} name{Testing policy} }
+npi{ key{H3} role{tracing}        max_level{2} transmission_effect{0.00} name{Contact tracing} }
+npi{ key{H6} role{generic}        max_level{4} transmission_effect{0.15} name{Facial coverings} }

@@ -1,0 +1,65 @@
+# Hand-written historical anchors for 2020 (not generated).
+# Format: kind{ field{value} ... }  -- see assets/README.md for every event kind.
+#
+# --------------------------------------------------------------- epidemic
+# Wuhan outbreak already under way on 2020-01-01. ~3,000 true infections is
+# consistent with early estimates (Imai et al., MRC/Imperial report 2, 2020-01-22:
+# ~4,000 cases by 2020-01-18; Li et al. 2020 NEJM doubling time ~7.4 days).
+epidemic_seed{ date{2020-01-01} nation{CHN} infections{3000} }
+
+# --------------------------------------------------------------- oil supply
+# Absolute crude production targets in million barrels/day (EIA STEO / OPEC MOMR, rounded).
+# 2020-03-06 OPEC+ talks collapse; Saudi Arabia and Russia raise output from April.
+oil_production{ date{2020-04-01} nation{SAU} mbd{11.6} source{EIA: Saudi April 2020 output ~11.6-12.0 mb/d} }
+oil_production{ date{2020-04-01} nation{RUS} mbd{11.4} }
+oil_production_delta{ date{2020-04-01} nation{ROW} mbd{0.6} source{UAE/Kuwait/Iraq increases} }
+# 2020-04-12 OPEC+ agreement: 9.7 mb/d cut from 2020-05-01 (SAU and RUS to 8.5 mb/d crude quota).
+oil_production{ date{2020-05-01} nation{SAU} mbd{8.5} }
+oil_production{ date{2020-05-01} nation{RUS} mbd{9.4} source{8.5 crude quota + ~0.9 condensate} }
+oil_production_delta{ date{2020-05-01} nation{ROW} mbd{-5.3} source{rest of OPEC+ cut share} }
+# Extra voluntary Saudi cut in June only.
+oil_production{ date{2020-06-01} nation{SAU} mbd{7.5} }
+oil_production{ date{2020-07-01} nation{SAU} mbd{8.5} }
+# Cut eased from 9.7 to 7.7 mb/d from August.
+oil_production{ date{2020-08-01} nation{SAU} mbd{8.9} }
+oil_production{ date{2020-08-01} nation{RUS} mbd{9.9} }
+oil_production_delta{ date{2020-08-01} nation{ROW} mbd{1.3} }
+
+# --------------------------------------------------------------- job retention schemes
+# coverage: share of a labour-demand drop absorbed by reduced hours (workers stay
+# employed) instead of layoffs. replacement: share of lost wages paid by the state.
+# Dates are from the enabling legislation/announcement; coverage and replacement
+# are model parameters informed by OECD (2020) "Job retention schemes during the
+# COVID-19 lockdown and beyond", policy brief, and scheme rules (rounded).
+stw{ date{2020-03-13} nation{DEU} coverage{0.85} replacement{0.65} source{Kurzarbeit fast-track law, 60/67% of net pay} }
+stw{ date{2020-03-16} nation{FRA} coverage{0.85} replacement{0.84} source{activite partielle, 84% of net pay} }
+stw{ date{2020-03-17} nation{ITA} coverage{0.85} replacement{0.80} source{Cura Italia decree: CIG + layoff ban} }
+stw{ date{2020-03-17} nation{ESP} coverage{0.75} replacement{0.70} source{RDL 8/2020 ERTE} }
+stw{ date{2020-03-20} nation{GBR} coverage{0.80} replacement{0.80} source{Coronavirus Job Retention Scheme, 80% of wages} }
+stw{ date{2020-03-25} nation{KOR} coverage{0.60} replacement{0.70} source{employment retention subsidy expansion} }
+stw{ date{2020-03-26} nation{TUR} coverage{0.40} replacement{0.60} source{short-time work allowance; layoff ban 2020-04-17} }
+stw{ date{2020-03-30} nation{AUS} coverage{0.75} replacement{0.70} source{JobKeeper payment} }
+stw{ date{2020-03-31} nation{ARG} coverage{0.50} replacement{0.60} source{DNU 329/2020 layoff ban; ATP wage support} }
+stw{ date{2020-04-01} nation{JPN} coverage{0.80} replacement{0.70} source{Employment Adjustment Subsidy special measures} }
+stw{ date{2020-04-01} nation{BRA} coverage{0.40} replacement{0.70} source{MP 936/2020 BEm programme} }
+stw{ date{2020-04-01} nation{ZAF} coverage{0.30} replacement{0.50} source{UIF COVID-19 TERS} }
+stw{ date{2020-04-03} nation{USA} coverage{0.30} replacement{0.60} source{Paycheck Protection Program loans} }
+stw{ date{2020-04-03} nation{SAU} coverage{0.30} replacement{0.60} source{SANED support, Saudi nationals} }
+stw{ date{2020-04-11} nation{CAN} coverage{0.60} replacement{0.75} source{Canada Emergency Wage Subsidy} }
+stw{ date{2020-02-10} nation{CHN} coverage{0.50} replacement{0.50} source{social insurance relief; guidance against layoffs} }
+stw{ date{2020-08-08} nation{USA} coverage{0.0} replacement{0.0} source{PPP application window closes} }
+
+# --------------------------------------------------------------- fiscal (gaps in OxCGRT E3)
+# OxCGRT has no E3 entries for Spain. Size is approximate: IMF Fiscal Monitor
+# (Jan 2021) "above the line" measures for Spain, about 4% of GDP. Date: RDL 8/2020.
+fiscal_package{ date{2020-03-17} nation{ESP} pct_gdp{4.0} }
+
+# --------------------------------------------------------------- suppression strategies
+# test_trace_isolate: an explicit suppression ("zero-COVID") strategy - mass testing,
+# centralised quarantine of cases and contacts, strict border quarantine - which
+# OxCGRT's ordinal H2/H3/C8 levels do not distinguish from ordinary tracing.
+# strength 0..1 is a model parameter; dates and descriptions from the sources.
+test_trace_isolate{ date{2020-01-23} nation{CHN} strength{1.0} source{Wuhan cordon; centralised isolation (Fangcang shelter hospitals from 2020-02-05)} }
+test_trace_isolate{ date{2020-02-24} nation{KOR} strength{0.8} source{KCDC test-trace-isolate; drive-through testing from 2020-02-26} }
+test_trace_isolate{ date{2020-02-25} nation{JPN} strength{0.5} source{MHLW cluster-based countermeasures, Basic Policy 2020-02-25} }
+test_trace_isolate{ date{2020-03-28} nation{AUS} strength{0.8} source{mandatory 14-day hotel quarantine for all arrivals} }

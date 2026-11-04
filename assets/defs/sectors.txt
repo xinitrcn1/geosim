@@ -1,0 +1,107 @@
+# Production sectors (hand-written; moddable).
+#
+# key           matches assets/scenario/<year>/sectors.csv
+# role          generic | government | energy | contact | manufacturing (see src/sim/model.hpp)
+# labor_share   compensation of employees / value added (OECD national accounts, rounded)
+# oil_intensity relative oil use per unit of output (transport-heavy services highest)
+# import_intensity relative import content per unit of output (goods >> services; OECD TiVA, rounded)
+# voluntary_distancing  1 = demand falls when people avoid contact (Goolsbee & Syverson 2021)
+# demand        prior share of each final-demand component (hh, gov, inv, exp) landing in this
+#               sector. The loader rescales them (RAS) so baseline sector value added matches data.
+# skills        employment mix by skill tier (low, mid, high); ILO/OECD occupation data, rounded
+# npi_capacity  capacity lost at the maximum level of each OxCGRT indicator (summed, capped at 95%).
+#               Contact services lose ~58% at every indicator's maximum, in line with the deepest
+#               observed 2020 hospitality/retail/transport output falls.
+#               Informed by Dingel & Neiman (2020) teleworkability and del Rio-Chanona et al. (2020)
+#               supply-shock estimates by industry.
+
+sector{
+	key{agr}
+	name{Agriculture}
+	role{generic}
+	labor_share{0.50}
+	oil_intensity{1.0}
+	import_intensity{1.0}
+	voluntary_distancing{0}
+	demand{ hh{0.05} gov{0.00} inv{0.00} exp{0.07} }
+	skills{ low{0.70} mid{0.25} high{0.05} }
+	npi_capacity{ C2{0.05} C6{0.02} }
+}
+
+sector{
+	key{ene}
+	name{Mining, energy and utilities}
+	role{energy}
+	labor_share{0.25}
+	oil_intensity{0.5}
+	import_intensity{1.5}
+	voluntary_distancing{0}
+	demand{ hh{0.06} gov{0.02} inv{0.02} exp{0.12} }
+	skills{ low{0.20} mid{0.50} high{0.30} }
+	npi_capacity{ C2{0.05} }
+}
+
+sector{
+	key{man}
+	name{Manufacturing}
+	role{manufacturing}
+	labor_share{0.55}
+	oil_intensity{1.2}
+	import_intensity{2.0}
+	voluntary_distancing{0}
+	demand{ hh{0.25} gov{0.08} inv{0.35} exp{0.55} }
+	skills{ low{0.35} mid{0.50} high{0.15} }
+	npi_capacity{ C2{0.20} C6{0.05} }
+}
+
+sector{
+	key{con}
+	name{Construction}
+	role{generic}
+	labor_share{0.60}
+	oil_intensity{1.0}
+	import_intensity{0.6}
+	voluntary_distancing{0}
+	demand{ hh{0.03} gov{0.07} inv{0.45} exp{0.00} }
+	skills{ low{0.45} mid{0.45} high{0.10} }
+	npi_capacity{ C2{0.25} C6{0.05} }
+}
+
+sector{
+	key{csv}
+	name{Contact-intensive services}
+	role{contact}
+	labor_share{0.60}
+	oil_intensity{2.0}
+	import_intensity{0.4}
+	voluntary_distancing{1}
+	demand{ hh{0.30} gov{0.03} inv{0.01} exp{0.12} }
+	skills{ low{0.50} mid{0.40} high{0.10} }
+	npi_capacity{ C2{0.30} C6{0.10} C4{0.06} C3{0.04} C7{0.03} C8{0.04} C1{0.01} }
+}
+
+sector{
+	key{osv}
+	name{Business, financial and other market services}
+	role{generic}
+	labor_share{0.50}
+	oil_intensity{0.3}
+	import_intensity{0.4}
+	voluntary_distancing{0}
+	demand{ hh{0.27} gov{0.15} inv{0.17} exp{0.14} }
+	skills{ low{0.10} mid{0.40} high{0.50} }
+	npi_capacity{ C2{0.08} C6{0.02} }
+}
+
+sector{
+	key{gov}
+	name{Public administration, education and health}
+	role{government}
+	labor_share{0.90}
+	oil_intensity{0.4}
+	import_intensity{0.2}
+	voluntary_distancing{0}
+	demand{ hh{0.04} gov{0.65} inv{0.00} exp{0.00} }
+	skills{ low{0.10} mid{0.40} high{0.50} }
+	npi_capacity{ C1{0.05} C2{0.03} }
+}

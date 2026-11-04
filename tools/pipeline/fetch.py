@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Download raw datasets for the 2020 scenario (initial state + back-test targets) into data/raw/ (not committed).
+
+Standard library only. Re-running skips files that already exist unless
+--force is given. Every source is listed in SOURCES with its licence, which
+build_assets.py copies into assets/SOURCES.txt.
+
+Usage: python3 tools/pipeline/fetch.py [--raw data/raw] [--force]
+"""
+
+import argparse
+import json
+import pathlib
+import sys
+import time
+import urllib.request
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from countries import SLICE, ISO2  # noqa: E402
+
+USER_AGENT = "geosim-data-pipeline/0.1"
+
+# World Bank WDI indicators (2019 initial state).
+WDI_INDICATORS = {
+    "SP.POP.TOTL": "population",
+    "SP.POP.0014.TO.ZS": "pop_0_14_pct",
+    "SP.POP.65UP.TO.ZS": "pop_65up_pct",
+    "SL.TLF.TOTL.IN": "labor_force",
+    "SL.UEM.TOTL.ZS": "unemployment_pct",
+    "NY.GDP.MKTP.CD": "gdp_usd",
+    "NY.GDP.MKTP.PP.CD": "gdp_ppp",
+    "NV.AGR.TOTL.ZS": "va_agr_pct",
+    "NV.IND.TOTL.ZS": "va_ind_pct",
+    "NV.IND.MANF.ZS": "va_man_pct",
+    "NV.SRV.TOTL.ZS": "va_srv_pct",
+    "NY.GDP.PETR.RT.ZS": "oil_rents_pct",
+    "NY.GDP.NGAS.RT.ZS": "gas_rents_pct",
+    "NY.GDP.COAL.RT.ZS": "coal_rents_pct",
+    "SL.AGR.EMPL.ZS": "emp_agr_pct",
+    "SL.IND.EMPL.ZS": "emp_ind_pct",
+    "SL.SRV.EMPL.ZS": "emp_srv_pct",
+    "SL.EMP.VULN.ZS": "vulnerable_emp_pct",
+    "NE.CON.PRVT.ZS": "hh_cons_pct",
+    "NE.CON.GOVT.ZS": "gov_cons_pct",
+    "NE.GDI.TOTL.ZS": "investment_pct",
+    "NE.EXP.GNFS.ZS": "exports_pct",
+    "NE.IMP.GNFS.ZS": "imports_pct",
+    "SI.POV.GINI": "gini",
+    "SH.MED.BEDS.ZS": "hospital_beds_per_1000",
+    "SE.TER.CUAT.BA.ZS": "tertiary_attainment_pct",
+    "SP.URB.TOTL.IN.ZS": "urban_pct",
+    "NY.GDP.MKTP.KD.ZG": "real_gdp_growth_pct",
+    "FP.CPI.TOTL.ZG": "cpi_inflation_pct",
+    "GC.REV.XGRT.GD.ZS": "gov_revenue_pct",
+    "GC.XPN.TOTL.GD.ZS": "gov_expense_pct",
+    "GC.NLD.TOTL.GD.ZS": "gov_net_lending_pct",
+    "GC.DOD.TOTL.GD.ZS": "gov_debt_pct",
+    "SL.TLF.CACT.ZS": "lfp_rate_pct",
+}
+
+SOURCES = [
+    ("World Bank WDI", "https://data.worldbank.org", "CC BY 4.0"),
+    ("Oxford COVID-19 Government Response Tracker (OxCGRT)", "https://github.com/OxCGRT/covid-policy-dataset", "CC BY 4.0"),
+    ("BIS central bank policy rates (WS_CBPOL)", "https://data.bis.org", "BIS terms: free reuse with attribution"),
+    ("Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)", "https://github.com/datasets/oil-prices", "Public domain (EIA) / PDDL"),
+]
+
+
+def get(url: str, dest: pathlib.Path, force: bool) -> None:
+    if dest.exists() and not force:
+        print(f"  cached  {dest.name}")
+        return
+    print(f"  fetch   {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=180) as r:
+                data = r.read()
+            break
+        except Exception as e:  # network hiccups: retry with backoff
+            if attempt == 3:
+                raise
+            print(f"    retry after error: {e}")
+            time.sleep(2 ** attempt)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    tmp.write_bytes(data)
+    tmp.replace(dest)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--raw", default="data/raw")
+    ap.add_argument("--force", action="store_true")
+    args = ap.parse_args()
+    raw = pathlib.Path(args.raw)
+    (raw / "wdi").mkdir(parents=True, exist_ok=True)
+
+    countries = ";".join(SLICE + ["WLD"])
+    print("World Bank WDI")
+    for code in WDI_INDICATORS:
+        get(f"https://api.worldbank.org/v2/country/{countries}/indicator/{code}"
+            f"?date=2010:2020&format=json&per_page=2000",
+            raw / "wdi" / f"{code}.json", args.force)
+
+    # All-country population: weights for the rest-of-world NPI average.
+    get("https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?date=2019&format=json&per_page=400",
+        raw / "wdi_population_all.json", args.force)
+
+    print("OxCGRT (national, compact)")
+    get("https://raw.githubusercontent.com/OxCGRT/covid-policy-dataset/main/data/OxCGRT_compact_national_v1.csv",
+        raw / "oxcgrt_compact_national.csv", args.force)
+
+    print("BIS policy rates")
+    areas = "+".join(sorted(set(ISO2.values()) | {"XM"}))
+    get(f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.{areas}"
+        f"?startPeriod=2019-12-01&endPeriod=2020-12-31&format=csv",
+        raw / "bis_cbpol.csv", args.force)
+
+    print("Brent (EIA RBRTE)")
+    get("https://raw.githubusercontent.com/datasets/oil-prices/main/data/brent-daily.csv",
+        raw / "brent.csv", args.force)
+
+    (raw / "sources.json").write_text(json.dumps(SOURCES, indent=1))
+    print("done")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
