@@ -86,9 +86,22 @@ if(GEOSIM_BUILD_CLIENT)
     endforeach()
     add_custom_target(geosim_client_shaders DEPENDS ${geosim_shader_headers})
 
+    # Procedural music (docs/14-audio.md): composer + synth + offline renderer,
+    # no SDL. DSP code is always optimised: at -O0 the synth would not keep up
+    # with real time in Debug builds.
+    add_library(geosim_audio STATIC
+        client/audio/composer.cpp
+        client/audio/jukebox.cpp
+        client/audio/render.cpp
+        client/audio/synth.cpp)
+    target_link_libraries(geosim_audio PUBLIC geosim_core)
+    geosim_target_defaults(geosim_audio)
+    target_compile_options(geosim_audio PRIVATE -O2)
+
     add_executable(geosim
         client/main.cpp
         client/app.cpp
+        client/audio/music.cpp
         client/sim_runner.cpp
         client/text.cpp
         client/ui_context.cpp
@@ -100,6 +113,7 @@ if(GEOSIM_BUILD_CLIENT)
     target_include_directories(geosim PRIVATE ${geosim_shader_out})
     target_link_libraries(geosim PRIVATE
         geosim_sim
+        geosim_audio
         Threads::Threads
         SDL3::SDL3
         Vulkan::Vulkan

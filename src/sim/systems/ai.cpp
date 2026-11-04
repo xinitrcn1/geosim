@@ -192,7 +192,7 @@ void decide_npis(game_state& state, dcon::agent_id a, dcon::nation_id n, situati
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::tti));
     const bool tti_anchor = P.historical_anchors != 0.0 && w.nation_get_prior_tti_set(n);
     const float early = s.cases_pm < static_cast<float>(P.ai_tti_window) ? 1.0f : 0.0f;
-    auto r = blend(capacity * capacity * early * s.threat, w.agent_get_order_ideal(a) * s.threat, rho, tti_anchor || anchors,
+    auto r = blend(capacity * capacity * early * s.threat, w.agent_get_order_ideal(a) * s.threat, rho, tti_anchor,
                    w.nation_get_prior_tti(n), kappa, 0.0f, 1.0f);
     if(sov) {
         r.choice = autonomy * r.choice + (1.0f - autonomy) * w.nation_get_tti_strength(sov);
@@ -224,7 +224,9 @@ void decide_fiscal(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float announced = w.nation_get_fiscal_announced_cum(n);
     // In historical mode the prior always exists: no announcement so far means "no package yet".
     (void)anchors;
-    auto r = blend(pragmatic, ideal, rho, P.historical_anchors != 0.0, w.nation_get_prior_fiscal_cum(n), kappa, announced, 100.0f);
+    // Anchored only where the scenario records this nation's packages (an empty record
+    // then means "no package yet"); elsewhere the agent decides (docs/13).
+    auto r = blend(pragmatic, ideal, rho, P.historical_anchors != 0.0 && w.nation_get_fiscal_data(n), w.nation_get_prior_fiscal_cum(n), kappa, announced, 100.0f);
     const float target = settle(state, a, lev, r, announced, 100.0f);
     const float fresh = target - announced;
     if(fresh >= static_cast<float>(P.ai_fiscal_min_package)) {
@@ -338,8 +340,10 @@ void decide_job_retention(game_state& state, dcon::agent_id a, dcon::nation_id n
     const float capacity = w.nation_get_state_capacity(n);
     const uint8_t lc = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::stw_coverage));
     const uint8_t lr = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::stw_replacement));
-    auto rc = blend(capacity * closure * 0.85f, 0.0f, rho, anchors, has ? w.nation_get_prior_stw_coverage(n) : 0.0f, kappa, 0.0f, 1.0f);
-    auto rr = blend(0.7f * capacity, 0.5f, rho, anchors, has ? w.nation_get_prior_stw_replacement(n) : 0.0f, kappa, 0.0f, 1.0f);
+    // Anchored only to a recorded scheme; nations without one decide for themselves.
+    (void)anchors;
+    auto rc = blend(capacity * closure * 0.85f, 0.0f, rho, has, w.nation_get_prior_stw_coverage(n), kappa, 0.0f, 1.0f);
+    auto rr = blend(0.7f * capacity, 0.5f, rho, has, w.nation_get_prior_stw_replacement(n), kappa, 0.0f, 1.0f);
     const float before = w.nation_get_stw_coverage(n);
     w.nation_set_stw_coverage(n, settle(state, a, lc, rc, 0.0f, 1.0f));
     w.nation_set_stw_replacement(n, settle(state, a, lr, rr, 0.0f, 1.0f));

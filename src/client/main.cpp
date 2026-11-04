@@ -4,10 +4,16 @@
 //   geosim [--assets DIR] [--scenario 2020] [--nation USA] [--speed 0..5]
 //          [--width W --height H] [--ui-scale S] [--validation 1]
 //          [--frames N [--until-day D] [--screenshot OUT.ppm]] [--inject SCRIPT]
+//          [--music 0|1] [--music-volume 0..1] [--music-seed N]
+//   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph]
+//          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD]
+//            renders procedural music offline, no window or audio device
+//            (docs/14-audio.md)
 //
 // Headless check (no display): SDL_VIDEODRIVER=offscreen geosim --frames 120 --screenshot out.ppm
 
 #include "app.hpp"
+#include "audio/render.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -22,7 +28,10 @@ namespace {
 int usage() {
     std::fputs("usage: geosim [--assets DIR] [--scenario NAME] [--nation ISO3] [--speed 0..5] [--width W] [--height H]\n"
                "              [--ui-scale S] [--validation 1] [--frames N] [--until-day D] [--screenshot OUT.ppm]\n"
-               "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n",
+               "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
+               "              [--music 0|1] [--music-volume 0..1] [--music-seed N]\n"
+               "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph] [--intensity 0..1]\n"
+               "              [--songs N] [--switch SECONDS:MOOD]\n",
                stderr);
     return 2;
 }
@@ -59,6 +68,7 @@ bool parse(char const* text, T& out) {
 
 int main(int argc, char** argv) {
     geosim::client::app_options opt;
+    geosim::client::audio::render_options render;
     bool assets_given = false;
     for(int i = 1; i < argc; i += 2) {
         if(i + 1 >= argc || std::strncmp(argv[i], "--", 2) != 0) return usage();
@@ -80,8 +90,32 @@ int main(int argc, char** argv) {
         else if(key == "frames") ok = parse(v, opt.frames) && opt.frames >= 0;
         else if(key == "until-day") ok = parse(v, opt.until_day) && opt.until_day >= 0;
         else if(key == "validation") opt.validation = std::strcmp(v, "0") != 0;
+        else if(key == "music") opt.music = std::strcmp(v, "0") != 0;
+        else if(key == "music-volume") ok = parse(v, opt.music_volume) && opt.music_volume >= 0.0f && opt.music_volume <= 1.0f;
+        else if(key == "music-seed") ok = parse(v, opt.music_seed);
+        else if(key == "render-music") render.path = v;
+        else if(key == "seed") ok = parse(v, render.seed);
+        else if(key == "mood") ok = geosim::client::audio::parse_mood(v, render.m);
+        else if(key == "intensity") ok = parse(v, render.intensity) && render.intensity >= 0.0f && render.intensity <= 1.0f;
+        else if(key == "songs") ok = parse(v, render.songs) && render.songs >= 1 && render.songs <= 20;
+        else if(key == "switch") {
+            char mood_text[16] = {};
+            ok = std::sscanf(v, "%lf:%15s", &render.switch_at, mood_text) == 2 && geosim::client::audio::parse_mood(mood_text, render.switch_to);
+        }
         else ok = false;
         if(!ok) return usage();
+    }
+    if(!render.path.empty()) {
+        geosim::core::diagnostics diag;
+        geosim::client::audio::render_report report;
+        const bool ok = geosim::client::audio::render_music(render, report, diag);
+        if(!ok) {
+            std::fprintf(stderr, "render-music: %s\n", diag.error().c_str());
+            return 1;
+        }
+        geosim::client::audio::print_report(report);
+        std::printf("wrote %s\n", render.path.c_str());
+        return report.non_finite == 0 && report.clipped == 0 ? 0 : 1;
     }
     if(!assets_given) opt.assets = find_assets();
     return geosim::client::run_app(opt);

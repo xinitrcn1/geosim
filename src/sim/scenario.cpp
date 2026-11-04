@@ -610,6 +610,7 @@ struct builder {
                     w.event_set_value(e, num("rate_pct"));
                 } else if(node.key == "fiscal_package") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::fiscal_package));
+                    w.nation_set_fiscal_data(nation, 1); // the scenario records this nation's packages
                     w.event_set_value(e, num("pct_gdp"));
                 } else if(node.key == "epidemic_seed") {
                     w.event_set_kind(e, static_cast<uint8_t>(event_kind::epidemic_seed));

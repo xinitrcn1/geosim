@@ -2,6 +2,7 @@
 // The client application: SDL3 window and event loop, frame orchestration
 // (input -> HUD layout -> Vulkan frame), and the simulation thread.
 
+#include <cstdint>
 #include <string>
 
 namespace geosim::client {
@@ -23,6 +24,10 @@ struct app_options {
     // key:NAME (SDL key name), move:X,Y, click:X,Y, wheel:X,Y,DY, resize:W,H
     // (window coordinates). Example: "10:key:3;20:click:220,24".
     std::string inject;
+    // Procedural music (docs/14-audio.md); M toggles it at run time.
+    bool music = true;
+    float music_volume = 0.6f;
+    uint64_t music_seed = 0; // 0 = random
 };
 
 // Returns the process exit code.

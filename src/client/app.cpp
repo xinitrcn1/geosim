@@ -1,5 +1,6 @@
 #include "app.hpp"
 
+#include "audio/music.hpp"
 #include "sim_runner.hpp"
 #include "style.hpp"
 #include "text.hpp"
@@ -91,6 +92,50 @@ void inject_events(SDL_Window* window, std::string const& script, int frame) {
     }
 }
 
+// Music mood from what the HUD already shows (docs/14-audio.md#mood-mapping):
+// the share of indicators coloured bad / good for the player and the bad
+// alerts of the last ~4 months (a war involving the player forces "crisis").
+struct music_mood {
+    audio::mood m = audio::mood::calm;
+    float intensity = 0.3f;
+};
+music_mood derive_music_mood(sim_runner& sim, alert_feed const& alerts) {
+    music_mood out;
+    if(sim.status() != sim_status::running) return out;
+    int good = 0, bad = 0, total = 0;
+    for(auto const& panel : sim.read_agents()) {
+        for(auto const& item : panel.items) {
+            ++total;
+            good += item.t == tone::good;
+            bad += item.t == tone::bad;
+        }
+    }
+    const int32_t now = sim.tick();
+    int bad_alerts = 0, peace = 0;
+    bool war = false;
+    for(auto const& a : alerts.items()) {
+        if(a.tick <= 0 || now - a.tick > 120) continue; // local notices have tick 0
+        if(a.t == tone::bad) {
+            ++bad_alerts;
+            war = war || a.icon == "\u2694";
+        } else if(a.t == tone::good && a.icon == "\U0001F54A") {
+            ++peace;
+        }
+    }
+    const float bad_share = total > 0 ? static_cast<float>(bad) / static_cast<float>(total) : 0.0f;
+    const float good_share = total > 0 ? static_cast<float>(good) / static_cast<float>(total) : 0.0f;
+    const float stress = bad_share + 0.15f * static_cast<float>(std::min(bad_alerts, 4)) + (war ? 0.4f : 0.0f);
+    if(war || stress >= 0.65f) out.m = audio::mood::crisis;
+    else if(stress >= 0.3f) out.m = audio::mood::tense;
+    else if((good_share >= 0.4f && bad == 0) || (peace > 0 && stress < 0.15f)) out.m = audio::mood::triumph;
+    else out.m = audio::mood::calm;
+    float intensity = 0.25f + 0.65f * stress;
+    if(out.m == audio::mood::triumph) intensity = 0.55f + 0.3f * good_share;
+    if(sim.speed() >= 4) intensity += 0.1f; // fast time feels busier
+    out.intensity = std::clamp(intensity, 0.15f, 1.0f);
+    return out;
+}
+
 int fail(char const* stage, std::string const& message) {
     SDL_Log("geosim: %s failed: %s", stage, message.c_str());
     return 1;
@@ -136,6 +181,11 @@ int run_app(app_options const& opt) {
             return fail("renderer initialisation", diag.error());
         }
         SDL_Log("swapchain %ux%u, emoji flag ligatures: %zu", vk.swap_extent.width, vk.swap_extent.height, text.flag_ligatures());
+
+        audio::music_system music;
+        if(opt.music) music.start(opt.music_seed, opt.music_volume);
+        music_mood last_mood{};
+        steady::time_point last_mood_check{};
 
         sim.start(opt.assets, opt.scenario, opt.nation);
         sim.set_speed(opt.speed);
@@ -206,6 +256,9 @@ int run_app(app_options const& opt) {
                         sim.set_speed(std::max(0, sim.speed() - 1));
                     } else if(k == SDLK_Q && (ev.key.mod & SDL_KMOD_CTRL)) {
                         running = false;
+                    } else if(k == SDLK_M && music.running()) {
+                        music.set_muted(!music.muted());
+                        SDL_Log("music %s", music.muted() ? "muted" : "on");
                     }
                     break;
                 }
@@ -241,6 +294,13 @@ int run_app(app_options const& opt) {
                 }
             }
             alerts.poll(sim);
+            if(music.running() && steady::now() - last_mood_check > std::chrono::seconds(2)) {
+                last_mood_check = steady::now();
+                const music_mood mm = derive_music_mood(sim, alerts);
+                if(mm.m != last_mood.m) SDL_Log("music mood: %s (intensity %.2f)", audio::mood_name(mm.m), static_cast<double>(mm.intensity));
+                last_mood = mm;
+                music.set_mood(mm.m, mm.intensity);
+            }
 
             // --- layout ---------------------------------------------------------
             const float scale = metrics.display_scale * opt.ui_scale;
@@ -303,6 +363,7 @@ int run_app(app_options const& opt) {
                 secs > 0 ? frames / secs : 0.0, sim.tick(), sim.status() == sim_status::running ? "running" : sim.status() == sim_status::failed ? "failed" : "loading",
                 vk.validation_messages, vk.validation_errors);
         if(exit_code == 0 && vk.validation_errors > 0 && opt.frames > 0) exit_code = 3;
+        music.stop();
         sim.stop();
         renderer.shutdown();
         text.shutdown();

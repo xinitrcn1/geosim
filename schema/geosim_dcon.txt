@@ -38,6 +38,7 @@ object{
 	property{ name{prior_rate_set} type{uint8_t} }
 	property{ name{prior_fiscal_cum} type{float} }
 	property{ name{prior_fiscal_set} type{uint8_t} }
+	property{ name{fiscal_data} type{uint8_t} }
 	property{ name{fiscal_announced_cum} type{float} }
 	property{ name{prior_stw_coverage} type{float} }
 	property{ name{prior_stw_replacement} type{float} }
