@@ -28,14 +28,16 @@ assign each region a shard `region_id % K`, so every region is processed
 
 | Cadence | Systems (implemented) |
 |---------|---------|
-| Daily, unsharded | scenario events, executive crisis reactions and central-bank meetings (`ai.cpp`), epidemics (SEIR per pathogen) and vaccination, logistics (chokepoints, routing, queues, ports, freight market), commodity markets (gas, coal, grains, metals) and the crude oil market, internet coupling and protest contagion, protest threshold cascade, indicators |
-| Weekly, 7 shards (by nation) | economy (demand, production network, prices, labour flows, incomes), firms (cash flow, exit, entry), executive lever choices |
-| "Month" = 28 days, 28 shards (by region or nation) | demography, migration, identity groups, opinion, social capital, unrest drive and PSI, politics (vote intention, elections, parties, Overton window), institutions (bills, confidence, courts, military), geopolitics (trust, threat, sanctions, war), treaties, finance (FX, spreads, default), credit, bonds, labour (wages, unions, minimum wage), fiscal (taxes, compliance, public investment), assets, long run (capital hysteresis, trend growth, climate), internet value diffusion and cyber operations |
+| Daily, unsharded | scenario events, executive crisis reactions and central-bank meetings (`ai.cpp`, incl. FX intervention and macroprudential buffers), epidemics (SEIR per pathogen, commuting coupling), vaccination, variants, spatial LOD, logistics (chokepoints, routing, queues, ports, freight market), commodity markets (gas, coal, grains, metals) and the crude oil market, internet coupling and protest contagion, protest threshold cascade, organisation memberships (exits, elected terms; elections on 1 January) and the UN General Assembly session (15 September), indicators |
+| Weekly, 7 shards (by nation) | economy (demand, production network, prices, labour flows, incomes), firms (cash flow, exit, entry), executive lever choices (incl. the policy catalogue of `policy.cpp` and `reforms.cpp`) |
+| "Month" = 28 days, 28 shards (by region or nation) | demography (age bands, mortality, mobility), migration, identity groups, opinion, social capital, unrest drive and PSI (national and regional), politics (vote intention, elections, parties, Overton window), institutions (bills, confidence, courts, military), politics extensions (court appointments, identity legitimacy, willingness to serve), geopolitics (trust, threat, sanctions, war), disputes and diplomacy, treaties and agreements (treaty objects, rebels), WTO disputes, strategy (goals and plan steps), finance (FX, spreads, default), credit, bonds, labour (wages, unions, minimum wage), fiscal (taxes, compliance, public investment), reform channels (tax rates, wealth tax, subsidies, vintage capital, regional housing, fiscal equalisation), assets, long run (capital hysteresis, trend growth, climate), climate policy and disasters, technology diffusion, strata split / merge, cabinets / governors / lobbies, internet value diffusion and cyber operations |
 
 The scheduler (`src/core/scheduler.hpp`) also defines `quarterly` (91, 91)
 and `annual` (364, 364) cadences, but no system uses them yet: everything
 slow runs on the 28-day tier. A few 28-day systems also do a world-level
-step on ticks where `t % 28 == 0` (world trade shares, climate).
+step on ticks where `t % 28 == 0` (world trade shares, climate, and the
+Security Council, Human Rights Council and EU recovery fund in
+`organisations.cpp`).
 
 All sim periods are whole numbers of weeks (7 / 28 / 91 / 364 days), so the
 cadences line up with each other. Calendar months and years are a
@@ -63,27 +65,41 @@ reductions), which keeps the ledger exact.
 
 ## Long-campaign detail extension
 
-Over decades the world changes in *structure*, not only in numbers. Status
-per item: implemented items say so; the others are planned.
+Over decades the world changes in *structure*, not only in numbers.
+Implemented in `longcampaign.cpp` unless noted.
 
-- **Technology tree with diffusion** (not yet implemented). New sectors and goods (e.g. EVs,
-  grid storage, AI services) enter at frontier economies and spread with
-  lags following Comin & Hobijn (2010). A new good adds a column to the
-  commodity arrays, which are pre-sized with spare slots (see
-  [10](10-data-model-dcon.md)).
-- **Strata split and merge** (not yet implemented; pops are a fixed
-  skill × identity-group grid per region, [04](04-society.md#pops)). When the dispersion of a stratum along a tracked
-  dimension (sector, income) exceeds a threshold, it splits (e.g. a
-  platform/gig worker stratum appears). Strata that converge merge. Sizes and
-  balance sheets are conserved in both cases.
-- **Cohort memory.** Implemented in part: workers entering the labour force
-  during high unemployment permanently lower their pop's wage level (scarring;
-  Kahn 2010). Formative-years effects on values (Inglehart) are planned.
-- **Climate.** Implemented: a DICE-lite carbon cycle and damage function ([03](03-economy.md#growth--long-run)).
-- **Spatial LOD** (not yet implemented). Regions that are quiet (small Δ on all tracked indicators)
-  and far from the player's focus may drop from weekly to monthly cadence. The
-  aggregation they use is conservation-safe. A region is promoted back
-  immediately on an alert, an override touching it, or the player selecting it.
+- **Technology diffusion** (28 days, nation shard). Technologies are data
+  (`assets/defs/technologies.txt`: electric vehicles, renewable power, AI
+  services, mobile broadband / 5G, the mRNA vaccine platform). Adoption is
+  logistic (Griliches 1957); each nation lags the frontier by a base lag plus
+  gaps in income, skills and internet openness (Comin & Hobijn 2010), starting
+  from observed 2019 adoption (`technology_curated.csv`; IEA, Ember) where
+  given. Trend growth already holds the 2019 diffusion path, so productivity
+  effects use only the *deviation* from it; physical effects (oil per unit of
+  activity, CO2 per unit of energy, connectivity, vaccine development time)
+  follow adoption since 2020. New goods as extra commodity columns are planned.
+- **Strata split and merge** (28 days, region shard). When the jobless share
+  of a worker pop rises well above what its job slots imply (a long-term
+  unemployed layer after a shock), the excess jobless split off into a
+  **precarious** stratum with their share of savings, weights and job slots;
+  it merges back once its jobless share converges to its parent's. Sizes,
+  money and job slots are conserved both ways; entrants join base strata.
+  Splits along other dimensions (sector, gig work) are planned.
+- **Cohort memory.** Workers entering the labour force during high
+  unemployment permanently lower their pop's wage level (scarring; Kahn
+  2010), and cohorts entering in insecure times pull their pop's values toward
+  survival (formative years; Inglehart 1997). Region age bands carry the
+  cohorts ([04](04-society.md#demography)).
+- **Climate.** A DICE-lite carbon cycle and damage function, carbon pricing,
+  energy vintages and disasters ([03](03-economy.md#growth--long-run)).
+- **Spatial LOD** (daily). Quiet nations (small changes in output and
+  unemployment, no epidemic threat, protest, war or player override) drop from
+  the weekly to a 28-day economy step (a per-lane step length in the SIMD pop
+  pass, so money stays conserved); an alert promotes them back at once. It is
+  a performance device for the full world: it runs only in scenarios with at
+  least `lod_min_nations` nations, so the calibration slice keeps full detail,
+  or everywhere under `lod_force` (reduced-detail forks). LOD by region and by
+  the player's focus is planned.
 
 ## Determinism
 
@@ -142,9 +158,12 @@ lending, …), and AI decisions are journalled as `decision` objects with their
 pragmatic, ideological and prior components. Together these feed the "Why?"
 trace ([01](01-gameplay-loop.md#51-the-why-trace-always-on-cheap)).
 
-**Planned:** per-flow **cause tags** (`flow_tag` object; see
-[10](10-data-model-dcon.md)), each flow storing the top 4 tag contributions
-plus a remainder. Not yet implemented.
+**Cause tags** (implemented, `ledger.cpp`): a system sets the cause of the
+payments it makes (`cause_scope`: a lever of a nation, a journal entry such as
+an agreement, or an event; code `(kind << 24) | (nation << 8) | detail`), and
+the ledger keeps, per nation and flow kind, the top 4 causes
+(`tag_code`, `tag_amount`) plus an untagged remainder (`tag_rest`).
+`--flows ISO3` prints them.
 
 ## Counterfactual forks
 
@@ -160,12 +179,13 @@ plus a remainder. Not yet implemented.
   unemployment, CPI, population-weighted unrest). Results are indicator time
   series, not full states.
 
-**Planned, not yet implemented:**
-
-- Running forks on a worker thread (today `run_fork` runs synchronously in the
-  caller's thread), up to 2 at once.
-- **Reduced detail**: every system at monthly cadence, pops aggregated, AI on
-  cached plans, with the UI labelling the result as approximate.
+- `fork_job` runs a fork on a **worker thread**: the state is copied before
+  the thread starts, so the caller keeps simulating the live state; the UI
+  runs up to two at once.
+- **Reduced detail** (`fork_options::reduced`): every nation at low detail
+  (28-day economy steps, `lod_force`) and agents frozen on their current
+  levers (`ai_frozen`, cached plans). Faster and approximate; the UI labels it
+  so. Aggregated pops in reduced forks are planned.
 
 ## Performance budget
 

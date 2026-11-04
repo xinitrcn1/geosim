@@ -105,21 +105,28 @@ cadences; sanctions, war and treaties are decided in `geopolitics.cpp` and
 scores a goal catalogue against 2019 - contain an epidemic, restore growth,
 regime security, deter a threat, consolidate, secure energy - and adopts the
 best above `goal_threshold` with hysteresis; a goal decomposes into tactical
-biases (`goal_gain`) on its levers: public investment, pension reform,
-repression, defence, health spending, and softer sanctions on energy
-suppliers. Goal changes are journalled (`journal_goal`).
+biases (`goal_gain`) on its levers. Goal changes are journalled
+(`journal_goal`).
 
-**Planned:** full HTN decomposition into multi-step plans, and the layers below.
+**Plans** (HTN-lite): a goal decomposes into ordered steps that unlock every
+90 days while the goal persists (`plan_bias`; `journal_plan`):
 
-- **Strategic layer (monthly, sharded):** goal selection with an HTN-style
-  decomposition. Example: `secure energy` → `diversify suppliers` →
-  {`sign LNG deal with X`, `build terminal`, `subsidise renewables`}. Goals
-  come from a utility-scored catalogue.
-- **Tactical layer (weekly):** utility-scored actions under the current goals.
-- **Reactive layer (daily):** crisis responses (rate emergency, NPIs, border
-  closure, mobilisation) triggered by alerts.
-- Each layer stores its top candidates and their utility breakdown. The
-  "Why?" panel shows them ([01](01-gameplay-loop.md#3-act--overrides)).
+| Goal | Step 0 | Step 1 | Step 2 |
+|------|--------|--------|--------|
+| secure energy | softer sanctions on energy suppliers | renewables mandate | R&D |
+| restore growth | public investment | R&D | corporate tax cut |
+| consolidate | less public investment | VAT rise | pension reform (retirement age) |
+| regime security | repression | police | |
+| deter a threat | defence | R&D (technology race) | alliances (lower formation thresholds) |
+| contain an epidemic | health spending | vaccine priority | |
+
+The layers map onto cadences: strategic goals and plans monthly, tactical
+lever choices weekly, reactive crisis responses (rate emergencies, NPIs)
+daily. **Planned:** plans with branching methods and concrete deal steps
+(`sign LNG deal with X`, `build terminal`), and storing each layer's top
+candidates with their utility breakdown for the "Why?" panel
+([01](01-gameplay-loop.md#3-act--overrides)); today the journal keeps the
+chosen value with its `P`, `I` and `A`.
 
 ## Two-level games
 
@@ -131,10 +138,17 @@ Putnam (1988): every international agreement must win at two tables.
   agents, who vote with their own utilities. The **win-set** (deals that would
   ratify) is computed before offers, so executives with narrow win-sets can
   credibly demand more ("my parliament won't accept this").
-- **Implemented in part:** sanction escalations need legislative ratification
-  in competitive systems (`geopolitics.cpp`), and domestic bills face veto
-  players ([05](05-politics-institutions.md#legislation)). Level I bargaining
-  over deal vectors and win-set computation are planned.
+- **Implemented:** sanction escalations need legislative ratification
+  in competitive systems (`geopolitics.cpp`), domestic bills face veto
+  players ([05](05-politics-institutions.md#legislation)), and FTAs are
+  bargained at both levels (`treaties.cpp`). Each side's **win-set** narrows
+  with protectionist lobby pressure and a thin governing majority; the
+  agreement's **depth** is the Nash bargaining outcome bounded by the
+  narrower win-set, and the side with the narrower win-set claims the larger
+  share of the gains (`nash_split` ± the win-set gap; Schelling 1960). Depth
+  scales the FTA trade gain (Dür, Baccini & Elsig 2014); the deal must then
+  pass both legislatures. Bargaining over multi-issue deal vectors (aid,
+  emissions) is planned.
 - When the player overrides *only* the executive, they still face Level II.
   Overriding parliament as well removes it, at a capture-index cost.
 
@@ -151,16 +165,18 @@ partner; `geopolitics.cpp`, 28 days):
 | Sanctions, alliance, FTA, war | decisions below | implemented |
 | Energy dependence | share of oil demand supplied by each exporter (gravity over trade shares); raises the cost of sanctions beyond its 2019 level (Keohane & Nye 1977; Farrell & Newman 2019) | implemented |
 | Credibility | lost by abandoning an ally at war, recovered over `credibility_years`; lowers every partner's trust (Tomz 2007; Gibler 2008; Crescenzi 2018) | implemented |
-| Affinity (diaspora) | migrant stocks (grown by flows) raise trust | implemented; language and religion planned |
-| Dependence via debt holdings, remittances | | planned |
+| Affinity | migrant stocks (grown by flows) raise trust; a common official language (`language_trust`; Guiso, Sapienza & Zingales 2009; Melitz & Toubal 2014) and a shared majority religion (`religion_trust`) add a constant to the trust level (`nations_ext_curated.csv`) | implemented |
+| Debt holdings | reserves (months of imports) held in each issuer's debt by IMF COFER reserve-currency weights; holdings beyond 2019 raise the cost of sanctioning the issuer (`debt_dependence_cost`; Farrell & Newman 2019) | implemented |
+| UN voting alignment | agreement on the last General Assembly session relative to 2019 ([below](#international-organisations)) | implemented |
+| Dependence via remittances | | planned |
 
 **Implemented instruments:**
 
 - **Sanctions** per partner: pragmatic (security gain vs trade dependence),
   ideological (regime distance), the status quo as anchor; escalations need
   ratification. Tariff rises invite retaliatory sanction steps.
-- **Treaties** (`treaties.cpp`, 28 days), as relation flags rather than
-  treaty objects: **alliances** form against a shared threat between states
+- **Treaties** (`treaties.cpp`, 28 days), as relation flags:
+  **alliances** form against a shared threat between states
   that trust each other and are not too far apart politically (balance of
   threat; Walt 1987) and dissolve when trust collapses; **free-trade
   agreements** form between interdependent, trusting, politically close
@@ -169,12 +185,11 @@ partner; `geopolitics.cpp`, 28 days):
   Fund lends from the rest of the world, spreads fall (catalytic effect;
   Corsetti, Guimaraes & Roubini 2006) and the executive must consolidate
   (conditionality; Dreher 2006), for three years.
+- **Agreements with terms and compliance** are `treaty` objects
+  ([below](#agreements-and-rebels)).
 
-**Planned:** treaty objects with terms vectors and compliance history beyond
-alliances, conditional aid and debt relief, recognition and UN votes, World
-Bank programmes, climate agreements and migration deals (see
-[Coercion, aid, arms and treaties](#coercion-aid-arms-and-treaties) for what is
-implemented).
+**Planned:** moving alliances and FTAs onto treaty objects, recognition of
+states, terms vectors with several issues.
 
 **Systemic effects** implemented as war-hazard modifiers:
 
@@ -286,37 +301,80 @@ down, or is settled (one outcome per month; hazards normalised):
 
 ### International organisations
 
-**Implemented** (`un.cpp`; membership in `un_curated.csv`):
+**Implemented** (`organisations.cpp`). Organisations are generic data, not
+code: an `organisation` object (`assets/defs/organisations.txt`: key, kind,
+decision rule, thresholds, seats, elected seats, term) and a `membership`
+relationship to nations (role member / elected / permanent, term end, exit
+date; per scenario in `organisations_curated.csv`, `ALL` = every nation).
 
-- **General Assembly.** Each nation's ideal point on the main dimension of UN
-  voting - the US-led liberal order (Bailey, Strezhnev & Voeten 2017) - follows
-  its liberal institutions, self-expression values and alliance with the
-  leading liberal power, monthly. Changes in pairwise voting alignment since
-  2019 shift trust (Signorino & Ritter 1999); alignment also weights crisis aid.
-- **Security Council.** Five permanent members, ten elected seats with two-year
-  terms (2019-20: Germany, Indonesia, South Africa in the slice); expiring seats
-  are refilled each 1 January, larger states more often (Dreher et al. 2014),
-  and elected members draw more aid (Kuziemko & Werker 2006). Wars and
-  insurgencies put drafts on the agenda: a **ceasefire demand** (raises the war
-  settlement hazard; Fortna 2004), **sanctions on an occupier** (every
-  non-allied member applies at least `un_sanction_level`; Bapat & Morgan 2009)
-  and a **peace operation** after a war or insurgency (cuts dispute and
-  insurgency recurrence; Fortna 2008; Hultman, Kathman & Shannon 2014). A draft
-  passes with nine votes and no veto (UN Charter art. 27). Members vote by
-  alignment with the drafter against their ties to the target; a permanent
-  member vetoes to shield itself or a client (Voeten 2001). Seats held outside
-  the slice vote as the rest of the world. Votes are journalled (`journal_unsc`).
-- **WTO dispute settlement.** A member whose exports face a tariff rise above
+- **Decision rules** (`org_vote`): `majority` (share of members ≥ threshold),
+  `veto` (`votes_needed` yes votes and no permanent member against; UN
+  Charter art. 27), `qualified` (shares of members *and* of their population;
+  TEU art. 16(4): 55% / 65%) and `consensus` (no member against). Seats held
+  by nations outside the scenario vote as the rest of the world.
+- **Voting.** A member supports acting against a target by its UN alignment
+  with the drafter minus its ties to the target (alliance, trust) plus a
+  draft-specific shift; it always opposes its own case. Votes are journalled
+  (`journal_unsc`: kind 0 ceasefire, 1 sanctions, 2 peace operation, 3 naming
+  and shaming).
+- **Memberships** (daily): exit dates end membership (the UK leaves the EU on
+  2020-01-31); expired elected terms end; on 1 January scenario nations
+  compete for free elected seats, larger states more often (Dreher et al.
+  2014).
+
+Behaviour by kind:
+
+- **assembly** (UN General Assembly). Each 15 September the session votes on
+  ten resolutions placed along the main dimension of UN voting, the US-led
+  liberal order (Bailey, Strezhnev & Voeten 2017); each nation's ideal point
+  follows its liberal institutions, self-expression values and alliance with
+  the leading liberal power (the largest liberal economy), and it votes yes
+  when its ideal point lies beyond a resolution's position. Pairwise
+  agreement on the last session (Signorino & Ritter 1999) relative to 2019
+  shifts trust and weights crisis aid.
+- **security** (UN Security Council; five permanent members, ten elected
+  seats with two-year terms; 2019-20 Germany, Indonesia, South Africa in the
+  slice). Every 28 days wars and insurgencies put drafts on the agenda, drafted
+  by the permanent member least tied to the target: a **ceasefire demand**
+  once per war (raises the settlement hazard, `ceasefire_settle`; Fortna
+  2004), **sanctions on an occupier** (every non-allied state applies at least
+  `un_sanction_level`; Bapat & Morgan 2009) and a **peace operation** after a
+  war or during an insurgency, with host consent (cuts dispute and insurgency
+  recurrence by `peacekeeping_effect` for `peacekeeping_years`; Fortna 2008;
+  Hultman, Kathman & Shannon 2014). Permanent members veto to shield
+  themselves or clients (Voeten 2001); elected members draw more aid
+  (Kuziemko & Werker 2006).
+- **trade** (WTO). A member whose exports face a tariff rise above
   `wto_bound` files a complaint; the panel reports after `wto_panel_days`
-  (Busch & Reinhardt 2003); the complainant usually wins (Hudec 1993; Bown
-  2009); the loser complies (halving the excess) with a probability that grows
-  with its credibility and dependence, otherwise retaliation is authorised (a
-  sanction floor). With the Appellate Body paralysed since 2019-12-11
+  (Busch & Reinhardt 2003); the complainant usually wins (`wto_win`; Hudec
+  1993; Bown 2009); the loser complies (halving the excess) with a
+  probability that grows with its credibility and dependence, otherwise
+  retaliation is authorised (a sanction floor) and the loser loses
+  credibility. With the Appellate Body paralysed since 2019-12-11
   (`wto_appellate = 0`) the loser appeals into the void and nothing follows
   (Hoekman & Mavroidis 2021).
+- **union** (EU). Members share one external tariff (customs union,
+  `firms.cpp`). When the union-wide output gap exceeds `eu_fund_trigger`, the
+  hardest-hit member drafts a **recovery fund** of `eu_fund_size` of EU GDP,
+  financed by common borrowing from the rest of the world and allocated by
+  output loss (NextGenerationEU 2020); members support it unless fiscally
+  hawkish ("frugal") and little hit, and it needs a qualified majority. Grants
+  are committed at once and paid after national ratification
+  (`eu_fund_lag_days`) over `eu_fund_years` (`flow::eu_fund`;
+  `journal_eu_fund`); no new fund for three years.
+- **rights** (UN Human Rights Council; 47 elected seats, three-year terms).
+  The most liberal member drafts a resolution naming and shaming a state
+  whose repression is high; if adopted the target loses legitimacy
+  (`shaming_legitimacy` a year while shamed) and liberal states' trust
+  (Hafner-Burton 2008; Lebovic & Voeten 2006 on the politics of shaming).
+- **health** (WHO). Members' surveillance sharing raises the detection that
+  transparent states see (`who_detection` × media freedom, `ai.cpp`; IHR
+  2005).
 
-**Planned:** GA resolutions as explicit votes, Human Rights Council, WHO
-coordination in pandemics, regional organisations (EU, AU, ASEAN) as actors.
+**Planned:** regional organisations beyond the EU (AU, ASEAN) and their
+memberships in the world scenario (which has no `organisations_curated.csv`
+yet), WHO coordination beyond surveillance (vaccine pooling sits in COVAX,
+[04](04-society.md#health-and-epidemics)), budget contributions.
 
 ### Coercion, aid, arms and treaties
 
@@ -349,16 +407,61 @@ coordination in pandemics, regional organisations (EU, AU, ASEAN) as actors.
   for allies with a record of defection. Declining costs credibility and the
   victim's trust (`journal_alliance_call`).
 - **Fronts** (monthly): control shares of each side's territory move by the
-  Lanchester square law on CINC × war effort (Lanchester 1916; Epstein 1985),
-  with a loss-of-strength gradient over distance (Boulding 1962) and a
-  defender's multiplier on home ground (Mearsheimer 1989; Biddle 2004).
+  Lanchester square law on committed force = CINC × war effort × willingness
+  to serve ([05](05-politics-institutions.md#legitimacy); Lanchester 1916;
+  Epstein 1985), with a loss-of-strength gradient over distance (Boulding
+  1962) and a defender's multiplier on home ground (Mearsheimer 1989; Biddle
+  2004) that rugged terrain raises (`terrain`, the mountainous share; Fearon &
+  Laitin 2003; Tkach 2023). War weariness (low willingness) raises the
+  settlement hazard (Mueller 1973).
   Occupied territory produces nothing for its owner, pushes refugees, and a
   decisive front raises the settlement hazard (Fearon 1995; Slantchev 2003;
   Reiter 2009). At peace, unclaimed land returns; claimed land freezes
   (Fortna 2004; Vasquez 1993).
 
-**Planned:** region-level front lines with terrain; rebel sides drawn from
-high-grievance pops as agents.
+**Planned:** region-level front lines (today control shares are per nation
+pair; `region.enemy_control` is reserved for them).
+
+### Agreements and rebels
+
+**Implemented** (`agreements.cpp`, 28 days). `treaty` objects carry a kind,
+parties, terms, compliance and an active flag; signings, breaches and ends
+are journalled (`journal_agreement`).
+
+- **Climate pledges** (Paris Agreement, in force 2016): each nation pledges a
+  2030 carbon price above its 2019 price, higher where self-expression values
+  and liberal institutions are strong. Compliance is the price reached over
+  the pledged path; below `pledge_slack` the nation loses
+  `pledge_credibility` a year: pledge-and-review relies on reputation, not
+  enforcement (Victor 2011; Keohane & Victor 2016).
+- **Migration deals** (EU-Turkey 2016 style): a rich destination with rising
+  arrivals and low asylum openness pays the poorer origin with the largest
+  diaspora (`migration_deal_aid` of its GDP a year) to control departures;
+  migration along that route falls to 30% (Greenhill 2010 on coercive
+  engineered migration). Deals run four years.
+- **Sovereign debt relief**: a nation in default restructures with its foreign
+  creditors after ~6 months on average, a `debt_relief_haircut` on external
+  debt (`flow::debt_relief`), and the default ends (Cruces & Trebesch 2013;
+  Reinhart & Trebesch 2016).
+- **Conditional aid** (World Bank / bilateral programmes): poor, not
+  autocratic recipients receive aid (`aid_rate`) from their most trusting rich
+  donor; it is suspended when they repress or backslide below the liberal
+  level at signing (Dreher, Sturm & Vreeland 2009; Molenaers, Dellepiane &
+  Faust 2015 on budget-support suspensions).
+- **Rebels** (`agent_kind::rebel`): an insurgency creates a rebel agent whose
+  strength grows with unrest, the exclusion and mobilisation of the most
+  excluded group, rugged terrain (`ruggedness`; the insurgency hazard also
+  rises with it, `ruggedness_insurgency`; Fearon & Laitin 2003) and outside
+  support for the rebels, and falls with state capacity and outside support
+  for the government. At a **mutually hurting stalemate** (rebel strength
+  close to state capacity) the sides negotiate (`rebel_negotiate`, raised by
+  mediation; Zartman 1989): a **power-sharing** deal cuts the group's
+  exclusion by `power_sharing` and ends the insurgency (Hartzell & Hoddie
+  2003); a rebellion whose strength falls near zero is defeated
+  (`journal_rebels`).
+
+**Planned:** rebel territorial control, several rebel groups per nation,
+renegotiation of terms.
 
 ## Calibration of AI personalities (2020 start)
 

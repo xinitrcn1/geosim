@@ -14,40 +14,44 @@ Code: `src/sim/` (systems in `src/sim/systems/`), data: `assets/`
 
 The slice is a **calibration and measurement device**: every mechanism is generic
 and data-driven (optional tables, documented defaults for nations without rows,
-nothing keyed to a country), so the full-world dataset can be added later without
-code changes.
+nothing keyed to a country), so the full-world dataset needs no code changes:
+the world 2020 scenario (218 nations, 3,243 regions) already builds and runs on
+the same code, uncalibrated ([11](11-data-calibration.md#world-2020-dataset)).
 
 | Design element | Slice status |
 |----------------|--------------|
 | SFC ledger ([02](02-simulation-core.md#accounting-core)) | **Yes.** Pops, firms, government, finance, rest of world per nation; every payment via `sim::transfer`; conservation tested |
-| "Why?" flows | **Partial.** Year-to-date flows by kind per nation (`--flows ISO3`), decision journal (levers, bills, elections, coups, wars, cyber operations, chokepoint incidents, treaties); no per-flow cause tags yet |
-| Cadence scheduler | **Yes.** Daily: epidemic, vaccination, logistics, commodities, oil, internet coupling, protest cascade, events, AI. Weekly (7 shards): economy, firms. 28-day shards: society, groups, politics, institutions, geopolitics, treaties, finance, credit, bonds, labour, fiscal, assets, long run |
-| Determinism, saves, forks | **Yes.** DCON serialisation; save -> load -> continue is bit-identical; counterfactual forks copy the state in memory and run ahead (`sim/fork.hpp`) |
+| "Why?" flows | **Yes.** Year-to-date flows by kind per nation with the top 4 cause tags each (`--flows ISO3`), decision journal (levers, bills, elections, coups, wars, cyber operations, chokepoint incidents, treaties, agreements, UN and WTO votes, variants, plan steps, term limits, court seats) |
+| Cadence scheduler | **Yes.** Daily: events, AI, epidemic, vaccination, variants, LOD, logistics, commodities, oil, internet coupling, protest cascade, organisation memberships and GA sessions. Weekly (7 shards): economy, firms, executive levers. 28-day shards: society, groups, politics, institutions, geopolitics, diplomacy, treaties, agreements, organisations, strategy, reforms, finance, credit, bonds, labour, fiscal, assets, long run, technology, climate policy, strata |
+| Determinism, saves, forks | **Yes.** DCON serialisation; save -> load -> continue is bit-identical; counterfactual forks copy the state in memory and run ahead, on a worker thread and optionally at reduced detail (`sim/fork.hpp`) |
 | Error handling | **Yes.** `-fno-exceptions -fno-rtti`; first error with file:line through `core::diagnostics` ([09](09-engine-architecture.md)) |
-| Production | **Yes.** Dynamic input-output network with input stocks and critical inputs (Pichler et al. 2022); capacity from NPIs, sickness, strikes, cyber damage |
+| Production | **Yes.** Dynamic input-output network with input stocks and critical inputs (Pichler et al. 2022); capacity from NPIs, sickness, strikes, cyber damage, disasters; LES demand and sector markups |
 | Logistics and transport | **Yes.** Sea-lane graph, 8 chokepoints with stochastic blockages, rerouting, queues, port congestion, container freight market, delays and freight costs in trade, prices and input arrivals |
-| Commodities | **Yes.** Oil (OPEC+ decisions) plus gas, coal, grains, metals; terms of trade, rents, food prices |
+| Commodities | **Yes.** Oil (OPEC+ decisions) plus gas, coal, grains, metals; terms of trade, rents, food prices; cartel restraint and grain export bans |
 | Firms | **Yes.** SME and large cohorts per sector: cash buffers, bankruptcies, entry; boards as agents |
-| Credit, banks, bonds | **Yes.** Credit as deviation from the calibrated path, directed state-bank lending, NPLs, capital, forbearance; 10-year yields, term premium, QE, roll-over of the debt |
-| Labour | **Yes.** Layoffs, job retention, informality by identity group, wage curve with bargaining coverage, nominal rigidity, unions, minimum wage |
-| Fiscal | **Yes.** Progressive household taxes (HSV), compliance, behavioural base, tax / public-investment / tariff / defence levers as bills |
-| Trade | **Partial.** Gravity shares with sea-route distances and contiguity, sanctions, FTAs, tariffs, freight costs; no bilateral flow matrix or Armington yet |
-| Asset prices | **Yes.** House and equity prices, wealth effects |
-| Pops | **Yes.** Skill kind (low / mid / high / retired) x identity group (caste, race, hukou, migrant status) per region |
-| Society | **Yes.** Demography with fertility transition, migration, values with cross-border diffusion, trust, crime, horizontal inequality, protest cascades, PSI with youth bulge |
-| Epidemics | **Yes.** Multi-pathogen SEIR, NPIs, vaccines, random novel epidemics |
-| Politics | **Yes.** Real parties (CHES / GPS / V-Party), adaptive strategies, challenger entry, Overton window, elections, legislation with veto players, confidence votes, courts, military |
-| Geopolitics | **Yes.** Trust, threat, sanctions, alliances (formed by shared threat), FTAs, IMF programmes, war emergent from the economy, drones and precision strike, insurgency, cyber operations, the internet as political infrastructure |
-| Not yet | Strata split / merge, spatial LOD, per-flow cause tags, technology diffusion tree, cabinets / governors / lobbies as agents, sub-national budgets, Armington trade |
+| Credit, banks, bonds | **Yes.** Credit as deviation from the calibrated path, directed state-bank lending, NPLs, capital, forbearance, countercyclical buffer; 10-year yields, term premium, QE, roll-over of the debt; financial account, FX intervention, capital controls |
+| Labour | **Yes.** Layoffs, job retention, EPL, informality by identity group, wage curve with bargaining coverage, Nash bargaining, nominal rigidity, unions, minimum wage, retirement age |
+| Fiscal | **Yes.** Progressive household taxes (HSV), compliance, behavioural base, VAT, corporate and wealth taxes, subsidies, carbon price, public investment, R&D, police, education and health as bills; sub-national fiscal capacity; ageing pensions |
+| Trade | **Yes.** Gravity shares with sea-route distances and contiguity, Armington competition, a stored bilateral export matrix, sanctions, FTAs with bargained depth, tariffs, EU customs union, WTO disputes, freight costs |
+| Asset prices | **Yes.** House and equity prices (national and regional house prices), wealth effects, shock events |
+| Pops | **Yes.** Skill kind (low / mid / high / retired) x identity group (caste, race, hukou, migrant status) per region, with precarious strata splitting off |
+| Society | **Yes.** Demography with age bands, mortality, fertility transition and Great Gatsby mobility, migration with asylum and housing, values with cross-border diffusion, trust, crime and police, horizontal inequality, protest cascades, PSI with youth bulge (national and regional) |
+| Epidemics | **Yes.** Multi-pathogen SEIR, NPIs, vaccines with COVAX and age priority, variants, random novel epidemics, WHO detection (commuting coupling needs regions; one region per nation here) |
+| Politics | **Yes.** Real parties (CHES / GPS / V-Party), adaptive strategies, challenger entry, Overton window, elections with presidential runoffs and term limits, cabinets, governors, lobbies, legislation with veto players, confidence votes, courts with appointments, military, identity legitimacy |
+| Geopolitics | **Yes.** Trust (incl. language and religion), threat, sanctions, alliances (formed by shared threat), FTAs, IMF programmes, disputes and crisis bargaining, war emergent from the economy, fronts with terrain and willingness to serve, drones and precision strike, insurgency and rebel agents, cyber operations, the internet as political infrastructure; UN General Assembly, Security Council, WTO, EU, Human Rights Council, WHO; climate pledges, migration deals, debt relief, conditional aid, power sharing |
+| Long run | **Yes.** Capital hysteresis, trend growth with catch-up, R&D and vintage capital, technology diffusion, climate with carbon pricing, energy vintages and disasters; strategic goals with multi-step plans |
+| Not yet | Production units per sector x region, structural gravity, sub-national budgets as ledger accounts, regional rents, class tiers and age bands on pops, region-level fronts |
 
 ## Day loop (`src/sim/simulation.cpp`)
 
 ```
-apply_events -> update_ai -> epidemic -> vaccination -> logistics -> commodities
-  -> economy -> firms -> oil -> demography -> migration -> groups -> internet
+apply_events -> update_ai -> epidemic -> vaccination -> lod -> logistics -> commodities
+  -> economy -> firms -> oil -> demography -> migration -> groups -> internet -> opinion
   -> social capital -> unrest (drive) -> protest (cascade) -> politics -> institutions
   -> geopolitics -> finance -> credit -> bonds -> labour -> fiscal -> assets -> treaties
-  -> long run -> indicators -> ++tick
+  -> long run -> technology -> climate policy -> policy -> strategy -> diplomacy
+  -> organisations -> reforms -> politics extensions -> agreements -> variants
+  -> strata -> indicators -> ++tick
 ```
 
 ## New systems in this slice
@@ -83,6 +87,18 @@ design docs give the detail ([03](03-economy.md), [04](04-society.md),
   disloyal military defects under mass protest (`tests/test_institutions.cpp`).
 - **Vaccines.** Approval ~345 days after the outbreak, then a production ramp: 4.4M
   Americans vaccinated by 31 Dec 2020 (real: ~2.8M doses).
+- **Organisations** (`systems/organisations.cpp`). The UN, WTO, EU, HRC and WHO are
+  data (`defs/organisations.txt`, `organisations_curated.csv`), not code: one generic
+  organisation object with memberships and a decision rule. In the slice the UK
+  leaves the EU on 2020-01-31 and the elected UNSC seats rotate on 1 January.
+  `tests/test_un.cpp`: a permanent member occupying a neighbour vetoes sanctions on
+  itself; a tariff hike draws WTO complaints, and with the Appellate Body paralysed
+  the loser appeals into the void, while with it working the loser complies or
+  faces retaliation.
+- **Financial shock events.** `house_price_shock`, `equity_shock`,
+  `credit_spread_shock` (with an unwind horizon) and `bank_capital_shock` let a
+  scenario anchor a financial crisis (the coming 2008 slice); assets, credit and
+  banks then propagate them ([03](03-economy.md#money-banking-and-finance)).
 
 ## AI agents and historical anchors (`systems/ai.cpp`)
 
@@ -119,8 +135,9 @@ priors); with anchors off the agents produce an emergent 2020 (`--set historical
 ## Calibration of the starting state (`src/sim/scenario.cpp`)
 
 The 2019 data are turned into a consistent steady state, checked by
-`tests/test_scenario.cpp` (no-shock run stays within 0.5 pp unemployment and
-2% GDP of baseline for every nation):
+`tests/test_scenario.cpp` (a 120-day no-shock run stays within 0.5 pp
+unemployment and 2% GDP of baseline for every nation; longer runs drift, see
+[Open issues](#open-issues)):
 
 1. Daily output = 2019 GDP grown half a year at trend; sector value added from `sectors.csv`.
 2. Final demand C, G, I, X, M from WDI shares; imports split by sector import intensity.
@@ -225,31 +242,33 @@ blowout ends in a default that conserves money.
 `ctest -L backtest` runs the year and compares it with real outcomes
 (`assets/backtest/2020_targets.csv`, plus hand-written yields, credit growth and
 shipping in `2020_targets_curated.csv`) using the bands in
-`assets/backtest/2020_tolerances.txt`. Current state: **9 of 11 metrics pass**:
+`assets/backtest/2020_tolerances.txt`. Current state: **8 of 10 metrics pass**:
 
 | Metric | Band | Within band |
 |--------|------|-------------|
-| Real GDP growth 2020 | ±3 pp | **14/20 (needs 15)** |
-| Unemployment, 2020 mean | ±max(2 pp, 25%) | 14/20 |
+| Real GDP growth 2020 | ±3 pp | **13/20 (needs 15)** |
+| Unemployment, 2020 mean | ±max(2 pp, 25%) | 14/20 (needs 14) |
 | CPI inflation 2020 | ±max(1.5 pp, 35%) | 16/20 |
-| Government net lending | ±4 pp | 12/16 |
+| Government net lending | ±4 pp | 10/16 (needs 10) |
 | Reported COVID deaths per million | within 3x | 14/20 |
-| 10-year yield, end 2020 | ±1 pp | 15/18 |
-| Bank credit growth 2020 | ±6 pp | 14/19 |
-| Brent 2020 mean | ±6 USD | model 41.9 vs real 42.0 |
-| Container freight index, 2020 mean / 2019 | ±0.3 | **model 1.03 vs real ~1.5** |
-| Idle container fleet, 2020 peak | ±3 pp | model 11.9% vs real 11.6% |
+| 10-year yield, end 2020 | ±1 pp | 17/18 |
+| Bank credit growth 2020 | ±6 pp | 13/19 |
+| Brent 2020 mean | ±6 USD | pass |
+| Container freight index, 2020 mean / 2019 | ±0.3 | **fail** (2020H2 surge missing) |
+| Idle container fleet, 2020 peak | ±3 pp | pass |
 
-The GDP count is the same as before the new systems (it was 14/20 then as well).
-While adding them, the no-shock baseline was kept a steady state (`tests/test_scenario.cpp`)
-by making every new behaviour a response to *changes* from the calibrated 2019
-state (credit, tariffs, boards, censorship, policy acceptance).
+Since the previous documented run (before the policy catalogue, organisations,
+agreements and demography) GDP fell from 14/20 to 13/20, net lending from 12/16 to
+10/16 and credit from 14/19 to 13/19; yields rose from 15/18 to 17/18. Every new behaviour is a response to
+*changes* from the calibrated 2019 state (credit, tariffs, boards, censorship,
+policy acceptance, every reform lever), so the first months of a no-shock run
+stay at the baseline.
 
 **Caveat — this is in-sample.** Behavioural parameters were tuned against these
 targets, so the back-test shows that the mechanisms *can* reproduce 2020 jointly,
 not that they forecast it. A held-out year (2021) is the next validation step.
 
-**Known misses** (and the missing piece):
+**Known misses** (itemised before the latest systems; to be re-checked):
 
 - GDP: India (-0.5 vs -5.8), Russia (-9.0 vs -2.7), Turkey (-4.5 vs +1.8; the credit boom
   now emerges but GDP responds too little: all economies recover too slowly in 2020H2),
@@ -265,10 +284,15 @@ not that they forecast it. A held-out year (2021) is the next validation step.
 
 ## Open issues
 
+- **Multi-year baseline drift.** A no-shock run is steady for the 120 days the test
+  checks, but over several years it drifts: unemployment rises steadily from the
+  first year. Being worked on; until fixed, multi-year results (and the 2009 scores
+  of the 2008 slice) are not meaningful.
 - 2020H2 recovery speed and the goods-demand shift (freight surge, Turkey).
-- Per-flow cause tags for the "Why?" trace; journal review at +1m / +6m / +2y.
-- Strata split / merge, spatial LOD, technology diffusion, sub-national regions and
-  budgets, cabinets / governors / lobbies as agents, Armington trade.
-- Party data and identity groups for the full world (the pipeline comes with the dataset).
+- Journal review at +1m / +6m / +2y for the "Why?" trace.
+- Sub-national regions and budgets in the slice (one region per nation).
+- Party data, identity groups, finance tables and organisation memberships for the
+  full world (the world 2020 scenario runs on defaults).
+- A held-out year (2021) and the 2008 slice as out-of-sample tests.
 - Calibration warnings at build: dividend payouts clamped (CHN, SAU, TUR, KOR, JPN, FRA),
   transfers residual below 2% of GDP (CAN, IND), Gini floors (CAN, IND).

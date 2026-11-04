@@ -45,15 +45,16 @@ planned. Consequences:
 | Agent | Powers (legal) | Typical utility | Status |
 |-------|----------------|-----------------|--------|
 | Head of state / executive | decrees within limits, appointments, foreign policy, emergency powers | stay in office, coalition welfare, ideology | implemented (`agent_kind::executive`) |
-| Cabinet / ministries (finance, interior, foreign, health) | budget proposals, regulation, NPIs | the executive's utility + portfolio priorities | planned (the executive pulls these levers today) |
+| Cabinet / ministries (finance, interior, foreign, health) | budget proposals, regulation, NPIs | the executive's utility + portfolio priorities | implemented as portfolios (`policy.cpp`): ministers' parties set the ideology of their levers; the executive agent still pulls them |
 | Parliament parties | vote on bills, budgets and treaties; no-confidence | seats, voters' welfare weighted by electorate, ideology | implemented as `party` objects voting by rule, not as agents |
-| Central bank | policy rate, QE | mandate (π, gap), independence | implemented (`agent_kind::central_bank`); FX intervention and macroprudential planned |
-| Regional governors (federal states) | regional budgets, local NPIs, police | regional voters, party line | planned |
-| Courts | strike down forced levers (scales with judicial independence) | legal consistency | implemented as a rule ([Courts](#courts)), not an agent |
+| Central bank | policy rate, QE, FX intervention, countercyclical buffer | mandate (π, gap), independence | implemented (`agent_kind::central_bank`; FX and macroprudential tools in `reforms.cpp`) |
+| Regional governors (multi-region nations) | local NPIs | regional incidence, party line | implemented (`agent_kind::governor`, the region's plurality party); regional budgets and police planned |
+| Courts | strike down forced levers (scales with judicial independence) | legal consistency | implemented as a rule with appointed seats ([Courts](#courts)), not an agent |
 | Union federation | wage demands, strikes | members' real income | implemented (`agent_kind::union_federation`) |
 | Firm boards | labour hoarding, investment | profit, varieties of capitalism, state ownership | implemented (`agent_kind::board`, one per large-firm cohort; [03](03-economy.md#firms)) |
-| Sector associations / lobbies | lobbying, investment strikes | members' income | planned |
+| Sector associations / lobbies | lobbying for protection | members' income | implemented as a pressure stock (`lobby_pressure`, `policy.cpp`), not an agent; investment strikes planned |
 | Military / security services | loyalty, coup, defection | institutional interest, budget | implemented (`agent_kind::military`; [Military](#military)) |
+| Rebels | insurgency strength, negotiation | the excluded group's inclusion | implemented (`agent_kind::rebel`, `agreements.cpp`; [06](06-geopolitics-ai.md#agreements-and-rebels)) |
 
 The player can override any implemented agent
 ([01](01-gameplay-loop.md#3-act--overrides)).
@@ -87,6 +88,19 @@ The player can override any implemented agent
   as an `smd_share` blend. Government = minimal connected winning coalition in
   left-right order (Axelrod 1970); the winner's position reshapes the
   executive's ideology.
+- **Presidential elections** (`presidential` systems): the executive is
+  elected separately, by a runoff between the top two first-round parties
+  where none has a majority (second preferences from each pop's support;
+  Shugart & Carey 1992; Blais, Massicotte & Dobrzynska 1997). The president's
+  party forms the cabinet and governs with the legislature it gets (divided
+  government).
+- **Term limits** (`politics_ext.cpp`; `term_limit_years` in
+  `nations_ext_curated.csv`): a president re-elected at the limit steps down
+  and a new leader of the same party takes over (personal rigidity resets
+  toward the party norm); where liberal institutions are weak the incumbent
+  evades the limit with probability (1 − liberal) × `term_evasion`, at a cost
+  to liberal institutions and judicial independence (Versteeg et al. 2020;
+  Baturo 2014). Journalled (`journal_term_limit`).
 - **Cabinets** (`policy.cpp`): portfolios (finance, health, interior, foreign)
   go to governing parties in proportion to seats (Gamson's law; Laver &
   Shepsle 1996). The finance minister's party sets the ideology of pensions
@@ -106,9 +120,10 @@ The player can override any implemented agent
   from every party (de Vries & Hobolt 2020; Meguid 2005); a party below 1% of
   the vote for two years dissolves.
 
-**Planned:** presidential runoffs for the executive, compensatory mixed
-systems with overhang seats, portfolio bargaining beyond Gamson's law
-(ministerial salience), and initial positions from the Manifesto Project.
+**Planned:** compensatory mixed systems with overhang seats, portfolio
+bargaining beyond Gamson's law (ministerial salience), constitutional changes
+to term limits by supermajority, and initial positions from the Manifesto
+Project.
 
 ## The Overton window
 
@@ -141,8 +156,11 @@ Implemented per nation and value axis (`politics.cpp`):
 
 Implemented in `institutions.cpp` (28 days). Levers set by law go through
 the legislature as **bills** (`enact`). These are the household tax
-scale, public investment, the minimum wage, defence spending, tariffs and
-cross-border internet filtering. Fiscal crisis packages and emergency measures
+scale, public investment, the minimum wage, defence spending, tariffs,
+cross-border internet filtering, the carbon price, immigration, the
+retirement age, education and health spending, police and R&D spending, VAT,
+corporate and wealth taxes, employment protection and the renewables
+mandate. Fiscal crisis packages and emergency measures
 (NPIs, domestic information control) stay executive decisions, anchored in 2020 on
 what was decided (sanction escalations need ratification,
 [06](06-geopolitics-ai.md#two-level-games)).
@@ -165,9 +183,16 @@ Every bill, confidence vote and court ruling is journalled as a `decision`.
 
 ## Courts
 
-An independent judiciary (liberal index) strikes down levers forced beyond
-their legal range, with a monthly probability. Planned: court agents and
-appointments.
+An independent judiciary strikes down levers forced beyond their legal
+range, with a monthly probability. **Judicial independence** is a stock that
+starts at the liberal index and changes through **appointments**
+(`politics_ext.cpp`, monthly): seats fall vacant at random (mean
+`court_vacancy_years`); executives in liberal systems appoint professionals
+(independence drifts back toward the institutional level), while low-liberal
+executives **pack the court**, cutting independence by `court_capture` per
+vacancy (Helmke 2017; Ginsburg & Moustafa 2008; Hungary, Poland, Turkey).
+Journalled (`journal_court_seat`). Planned: court agents with their own
+ideal points.
 
 ## Military
 
@@ -195,13 +220,23 @@ Legitimacy per nation (Weber; Lipset 1959) combines:
 - **Procedural legitimacy** (rule-following, elections, use of Force overrides)
 - **Identity legitimacy** (does the pop see the state as "theirs")
 
-Implemented: procedural (electoral + liberal indices) and performance
-(grievance) components; forced overrides erode legitimacy and the liberal
-index and raise the capture index; policy outside the Overton window costs
-legitimacy. Identity legitimacy and per-pop legitimacy are planned.
+Implemented: legitimacy targets 0.4 procedural (electoral + liberal
+indices) + 0.4 performance (grievance) + 0.2 **identity**; forced overrides
+erode legitimacy and the liberal index and raise the capture index; policy
+outside the Overton window, repression and being named and shamed by the
+Human Rights Council cost legitimacy. **Identity legitimacy**
+(`politics_ext.cpp`) falls as the exclusion and mobilisation of identity
+groups rise above 2019 (`identity_weight`; Gilley 2009; Wimmer 2002) and
+rises with power-sharing deals. Per-pop legitimacy enters only through each
+pop's grievance; a per-pop stock is planned.
 
 Legitimacy scales tax compliance, sovereign spreads, unrest, military loyalty
-and coup risk; conscription willingness is planned.
+and coup risk. **Willingness to serve** (consent to fight; Levi 1997;
+Horowitz, Simpson & Stam 2011) moves toward a target raised by legitimacy
+and external threat above 2019 and by occupation, and lowered by war
+weariness (war cost; Mueller 1973); it scales committed force on the front
+(`willingness_war`) and raises the war-settlement hazard when low
+([06](06-geopolitics-ai.md#coercion-aid-arms-and-treaties)).
 
 ## Policy catalogue
 
@@ -234,20 +269,37 @@ indicator):
 | `education`, `health` | executive (bill) | % of GDP above baseline; education raises the tertiary share, health adds hospital beds; health is pragmatic in an epidemic |
 | `capital_controls` | executive | 0..1; pragmatic in a sudden stop outside reserve-currency issuers (Rey 2013); cut portfolio flows both ways |
 | `regional_npi` | governor | regional NPI stringency relative to national |
+| `police` | executive (bill) | % of GDP above baseline; pragmatic with crime and unrest, more for order-minded rulers and traditionalist interior ministers; cuts crime (Levitt 1997; Chalfin & McCrary 2017) |
+| `asylum` | executive | refugee admission openness relative to 2019; humanitarian, held back by joblessness and traditionalist interior ministers; scales refugee arrivals (Hatton 2009) |
+| `vat`, `corporate_tax` | executive (bill) | pp shifts; consolidation raises VAT first (Alesina, Favero & Giavazzi 2019); weak investment invites corporate tax cuts (Devereux, Lockwood & Redoano 2008), the left raises them |
+| `wealth_tax` | executive (bill) | % a year on top wealth; the left and rising inequality; base erodes with avoidance (Jakobsen et al. 2020; Saez & Zucman 2019) |
+| `rd` | executive (bill) | public R&D, % of GDP above baseline; growth programmes and technology races against a rising threat; raises trend growth (Romer 1990; Ugur et al. 2016) |
+| `subsidy` | executive | share of the energy and food price rise absorbed; a populist answer to price spikes, larger where the winning coalition is small; costs the budget and is regressive (Coady et al. 2015) |
+| `epl` | executive (bill) | OECD EPL index points; flexibilisation under high unemployment, resisted by strong unions and the left (Boeri & Jimeno 2005) |
+| `energy_mandate` | executive (bill) | 0..1 renewables mandate; follows carbon concern and green governments; speeds clean-capacity diffusion (Johnstone, Hascic & Popp 2010) |
+| `vaccine_priority` | executive | 0..1 share of doses to the old first, more where health weighs more (Bubar et al. 2021) |
+| `fx_intervention` | central bank | 0..1 reserve sales against depreciation faster than 10% a year, while reserves last (Fratzscher et al. 2019) |
+| `macroprudential` | central bank | countercyclical capital buffer (pp) against credit above its 2019 path; released at once in a bust (Basel III CCyB; Cerutti, Claessens & Laeven 2017) |
+
+Every lever is relative to the calibrated 2019 setting, with pragmatic and
+ideological targets in the usual blend ([06](06-geopolitics-ai.md#agent-utility-pragmatism-vs-ideology));
+strategic plan steps bias several of them
+([06](06-geopolitics-ai.md#planning-structure)).
 
 Sanctions, war, treaties and coups are decisions outside the lever enum
 ([06](06-geopolitics-ai.md)).
 
 **Planned** (the long-term catalogue):
 
-- **Fiscal:** statutory income tax bands, VAT, corporate tax, subsidies
-  (fuel, food, sectors), transfer rules (pensions, unemployment insurance,
-  cash transfers, child benefits), public investment by type.
-- **Labor:** employment protection, union law.
-- **Monetary/financial:** peg changes; bank regulation, deposit insurance.
+- **Fiscal:** statutory income tax bands, sector subsidies, transfer rules
+  (pensions, unemployment insurance, cash transfers, child benefits), public
+  investment by type, fiscal equalisation as a lever (today a fixed share).
+- **Labor:** union law.
+- **Monetary/financial:** peg changes; deposit insurance, other bank
+  regulation.
 - **Social:** housing policy, minority rights, religious law.
-- **Health:** vaccination priority, border health checks.
-- **Security:** police budgets, surveillance.
-- **Environment:** energy-mix mandates, subsidies.
-- **Constitutional:** electoral system, term limits, federalism, court
-  appointments. Changing these needs supermajorities or Force.
+- **Health:** border health checks.
+- **Security:** surveillance.
+- **Environment:** clean-energy subsidies.
+- **Constitutional:** electoral system, term-limit amendments, federalism.
+  Changing these needs supermajorities or Force.

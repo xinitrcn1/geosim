@@ -43,6 +43,22 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Piketty, T. & Saez, E. (2003). Income inequality in the United States, 1913–1998. *QJE* 118(1). — Pareto tails.
 - Kahn, L. (2010). The long-term labor market consequences of graduating from college in a bad economy. *Labour Economics* 17(2). — Cohort scarring.
 - Kydland, F. & Prescott, E. (1977). Rules rather than discretion. *JPE* 85(3). — Time inconsistency.
+- Solow, R. (1960). Investment and technical progress. In Arrow, K., Karlin, S. & Suppes, P. (eds.), *Mathematical Methods in the Social Sciences 1959.* Stanford UP. — Embodied technical change (vintage capital).
+- Greenwood, J., Hercowitz, Z. & Krusell, P. (1997). Long-run implications of investment-specific technological change. *AER* 87(3). — Embodied technology.
+- Griliches, Z. (1957). Hybrid corn: an exploration in the economics of technological change. *Econometrica* 25(4). — Logistic adoption.
+- Griliches, Z. (1992). The search for R&D spillovers. *Scandinavian Journal of Economics* 94(Supplement). — R&D and productivity.
+- Ugur, M., Trushin, E., Solomon, E. & Guidi, F. (2016). R&D and productivity in OECD firms and industries: a hierarchical meta-regression analysis. *Research Policy* 45(10). — R&D returns.
+- Nelson, R. & Phelps, E. (1966). Investment in humans, technological diffusion, and economic growth. *AER* 56(1/2). — Catch-up with absorptive capacity.
+- Benhabib, J. & Spiegel, M. (2005). Human capital and technology diffusion. In Aghion, P. & Durlauf, S. (eds.), *Handbook of Economic Growth* vol. 1A. Elsevier. — Catch-up.
+- Djankov, S., Ganser, T., McLiesh, C., Ramalho, R. & Shleifer, A. (2010). The effect of corporate taxes on investment and entrepreneurship. *AEJ: Macroeconomics* 2(3). — Corporate tax and growth.
+- Acemoglu, D., Aghion, P., Bursztyn, L. & Hemous, D. (2012). The environment and directed technical change. *AER* 102(1). — Carbon price pulls clean technology forward.
+- Mercure, J.-F. et al. (2018). Macroeconomic impact of stranded fossil fuel assets. *Nature Climate Change* 8. — Stranded assets.
+- van der Ploeg, F. & Rezai, A. (2020). Stranded assets in the transition to a carbon-free economy. *Annual Review of Resource Economics* 12. — Early retirement of fossil capacity.
+- Johnstone, N., Haščič, I. & Popp, D. (2010). Renewable energy policies and technological innovation: evidence based on patent counts. *Environmental and Resource Economics* 45(1). — Renewables mandates.
+- Hsiang, S. & Jina, A. (2014). The causal effect of environmental catastrophes on long-run economic growth: evidence from 6,700 cyclones. NBER WP 20352. — Persistent disaster losses.
+- Nakamura, E. & Steinsson, J. (2008). Five facts about prices: a reevaluation of menu cost models. *QJE* 123(4). — Price reset frequency.
+- Feenstra, R., Luck, P., Obstfeld, M. & Russ, K. (2018). In search of the Armington elasticity. *REStat* 100(1). — Elasticity between import sources.
+- Piketty, T. & Zucman, G. (2014). Capital is back: wealth-income ratios in rich countries 1700–2010. *QJE* 129(3). — Private wealth ~4× GDP.
 
 ## Society ([04](04-society.md))
 
@@ -65,6 +81,20 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Becker, G. (1968). Crime and punishment: an economic approach. *JPE* 76(2).
 - Putnam, R. (1993). *Making Democracy Work.* Princeton UP. — Social capital.
 - Knack, S. & Keefer, P. (1997). Does social capital have an economic payoff? *QJE* 112(4).
+- Preston, S. (1975). The changing relation between mortality and level of economic development. *Population Studies* 29(2). — Mortality and income.
+- Cutler, D., Deaton, A. & Lleras-Muney, A. (2006). The determinants of mortality. *JEP* 20(3). — Mortality and health spending.
+- Corak, M. (2013). Income inequality, equality of opportunity, and intergenerational mobility. *JEP* 27(3). — Great Gatsby curve.
+- Inglehart, R. (1977). *The Silent Revolution.* Princeton UP. — Cohort replacement of values.
+- Inglehart, R. (1997). *Modernization and Postmodernization.* Princeton UP. — Formative years; environmental concern.
+- Levitt, S. (1997). Using electoral cycles in police hiring to estimate the effect of police on crime. *AER* 87(3). — Police and crime.
+- Chalfin, A. & McCrary, J. (2017). Criminal deterrence: a review of the literature. *JEL* 55(1). — Police elasticity of crime.
+- Hatton, T. (2009). The rise and fall of asylum: what happened and why? *Economic Journal* 119(535). — Asylum policy and arrivals.
+- Balcan, D., Colizza, V., Gonçalves, B., Hu, H., Ramasco, J. & Vespignani, A. (2009). Multiscale mobility networks and the spatial spreading of infectious diseases. *PNAS* 106(51). — Commuting coupling.
+- Otto, S. et al. (2021). The origins and potential future of SARS-CoV-2 variants of concern in the evolving COVID-19 pandemic. *Current Biology* 31(14). — Variant emergence.
+- Davies, N. et al. (2021). Estimated transmissibility and impact of SARS-CoV-2 lineage B.1.1.7 in England. *Science* 372(6538). — Alpha transmissibility.
+- Campbell, F. et al. (2021). Increased transmissibility and global spread of SARS-CoV-2 variants of concern as at June 2021. *Eurosurveillance* 26(24). — Delta transmissibility.
+- Bubar, K. et al. (2021). Model-informed COVID-19 vaccine prioritization strategies by age and serostatus. *Science* 371(6532). — Age prioritisation.
+- Goldstone, J. et al. (2010). A global model for forecasting political instability. *AJPS* 54(1). — Local instability.
 
 ## Politics & institutions ([05](05-politics-institutions.md))
 
@@ -78,6 +108,17 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Lipset, S. M. (1959). Some social requisites of democracy. *APSR* 53(1). — Legitimacy.
 - Erikson, R. & Goldthorpe, J. (1992). *The Constant Flux.* Clarendon. — EGP class scheme.
 - Oesch, D. (2006). *Redrawing the Class Map.* Palgrave.
+- Shugart, M. & Carey, J. (1992). *Presidents and Assemblies.* Cambridge UP. — Presidential systems, divided government.
+- Blais, A., Massicotte, L. & Dobrzynska, A. (1997). Direct presidential elections: a world summary. *Electoral Studies* 16(4). — Runoffs.
+- Versteeg, M., Horley, T., Meng, A., Guim, M. & Guirguis, M. (2020). The law and politics of presidential term limit evasion. *Columbia Law Review* 120(1). — Term-limit evasion.
+- Baturo, A. (2014). *Democracy, Dictatorship, and Term Limits.* University of Michigan Press.
+- Helmke, G. (2017). *Institutions on the Edge: The Origins and Consequences of Inter-Branch Crises in Latin America.* Cambridge UP. — Court packing.
+- Ginsburg, T. & Moustafa, T. (eds.) (2008). *Rule by Law: The Politics of Courts in Authoritarian Regimes.* Cambridge UP.
+- Gilley, B. (2009). *The Right to Rule: How States Win and Lose Legitimacy.* Columbia UP. — Identity legitimacy.
+- Wimmer, A. (2002). *Nationalist Exclusion and Ethnic Conflict.* Cambridge UP.
+- Levi, M. (1997). *Consent, Dissent, and Patriotism.* Cambridge UP. — Willingness to serve.
+- Horowitz, M., Simpson, E. & Stam, A. (2011). Domestic institutions and wartime casualties. *International Studies Quarterly* 55(4).
+- Mueller, J. (1973). *War, Presidents and Public Opinion.* Wiley. — War weariness.
 
 ## Geopolitics & AI ([06](06-geopolitics-ai.md))
 
@@ -93,6 +134,22 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Wintrobe, R. (1998). *The Political Economy of Dictatorship.* Cambridge UP. — Dictator's dilemma (information).
 - Singer, J. D., Bremer, S. & Stuckey, J. (1972). Capability distribution, uncertainty, and major power war. — CINC (Correlates of War).
 - Bailey, M., Strezhnev, A. & Voeten, E. (2017). Estimating dynamic state preferences from UN voting data. *JCR* 61(2).
+- Schelling, T. (1960). *The Strategy of Conflict.* Harvard UP. — Bargaining power of a narrow win-set.
+- Dür, A., Baccini, L. & Elsig, M. (2014). The design of international trade agreements: introducing a new dataset. *Review of International Organizations* 9(3). — FTA depth.
+- Guiso, L., Sapienza, P. & Zingales, L. (2009). Cultural biases in economic exchange? *QJE* 124(3). — Cultural affinity and trust.
+- Melitz, J. & Toubal, F. (2014). Native language, spoken language, translation and trade. *JIE* 93(2). — Common language.
+- Victor, D. (2011). *Global Warming Gridlock.* Cambridge UP. — Pledge and review.
+- Keohane, R. & Victor, D. (2016). Cooperation and discord in global climate policy. *Nature Climate Change* 6.
+- Greenhill, K. (2010). *Weapons of Mass Migration: Forced Displacement, Coercion, and Foreign Policy.* Cornell UP. — Migration deals.
+- Dreher, A., Sturm, J.-E. & Vreeland, J. (2009). Development aid and international politics: does membership on the UN Security Council influence World Bank decisions? *JDE* 88(1). — Conditional aid.
+- Molenaers, N., Dellepiane, S. & Faust, J. (2015). Political conditionality and foreign aid. *World Development* 75. — Budget-support suspensions.
+- Zartman, I. W. (1989). *Ripe for Resolution: Conflict and Intervention in Africa* (2nd ed.). Oxford UP. — Mutually hurting stalemate.
+- Hartzell, C. & Hoddie, M. (2003). Institutionalizing peace: power sharing and post-civil war conflict management. *AJPS* 47(2). — Power sharing.
+- Hafner-Burton, E. (2008). Sticks and stones: naming and shaming the human rights enforcement problem. *International Organization* 62(4). — Naming and shaming.
+- Lebovic, J. & Voeten, E. (2006). The politics of shame: the condemnation of country human rights practices in the UNCHR. *International Studies Quarterly* 50(4).
+- Tkach, B. (2023). Cited in `geopolitics.cpp` on mountainous terrain and the defender; full reference to be verified.
+- World Health Organization (2005). *International Health Regulations (2005).* — Surveillance sharing.
+- Council of the EU (2020). Regulation (EU) 2020/2094 establishing a European Union Recovery Instrument (NextGenerationEU); Decision (EU, Euratom) 2020/2053 on own resources. — Recovery fund, ratification lag.
 
 ## 2020 slice mechanisms ([12](12-simulation-slice-2020.md))
 
@@ -169,6 +226,9 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Roberts, M. & Schlenker, W. (2013). Identifying supply and demand elasticities of agricultural commodities. *AER* 103(6).
 - Labandeira, X., Labeaga, J. & López-Otero, X. (2017). A meta-analysis on the price elasticity of energy demand. *Energy Policy* 102.
 - Anand, R., Prasad, E. & Zhang, B. (2015). What measure of inflation should a developing country central bank target? *JME* 74. — Food weights in CPI.
+- Stigler, G. (1964). A theory of oligopoly. *JPE* 72(1). — Cartels hold better when few and large.
+- Martin, W. & Anderson, K. (2012). Export restrictions and price insulation during commodity price booms. *American Journal of Agricultural Economics* 94(2). — Grain export bans.
+- Headey, D. (2011). Rethinking the global food crisis: the role of trade shocks. *Food Policy* 36(2). — Export bans in 2008.
 
 ## Credit, banks, bonds ([03](03-economy.md#money-banking-and-finance))
 
@@ -203,6 +263,14 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Arslanalp, S. & Tsuda, T. (2014). Tracking global demand for emerging market sovereign debt. IMF WP 14/39.
 - Corsetti, G., Guimarães, B. & Roubini, N. (2006). International lending of last resort and moral hazard. *JME* 53(3). — IMF catalytic effect.
 - Dreher, A. (2006). IMF and economic growth: the effects of programs, loans, and compliance with conditionality. *World Development* 34(5).
+- Forbes, K. & Warnock, F. (2012). Capital flow waves: surges, stops, flight, and retrenchment. *JIE* 88(2). — Portfolio flows.
+- Calvo, G. (1998). Capital flows and capital-market crises: the simple economics of sudden stops. *Journal of Applied Economics* 1(1). — Sudden stops.
+- Alfaro, L., Kalemli-Ozcan, S. & Volosovych, V. (2008). Why doesn't capital flow from rich to poor countries? An empirical investigation. *REStat* 90(2). — FDI and institutions.
+- Fratzscher, M., Gloede, O., Menkhoff, L., Sarno, L. & Stöhr, T. (2019). When is foreign exchange intervention effective? Evidence from 33 countries. *AEJ: Macroeconomics* 11(1). — FX intervention.
+- Cerutti, E., Claessens, S. & Laeven, L. (2017). The use and effectiveness of macroprudential policies: new evidence. *Journal of Financial Stability* 28. — Macroprudential buffers.
+- Basel Committee on Banking Supervision (2010). Guidance for national authorities operating the countercyclical capital buffer. BIS. — CCyB.
+- Cruces, J. & Trebesch, C. (2013). Sovereign defaults: the price of haircuts. *AEJ: Macroeconomics* 5(3). — Restructuring haircuts.
+- Reinhart, C. & Trebesch, C. (2016). Sovereign debt relief and its aftermath. *JEEA* 14(1). — Debt relief.
 
 ## Assets ([03](03-economy.md#money-banking-and-finance))
 
@@ -211,6 +279,8 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Favara, G. & Imbs, J. (2015). Credit supply and the price of housing. *AER* 105(3).
 - Mian, A., Rao, K. & Sufi, A. (2013). Household balance sheets, consumption, and the economic slump. *QJE* 128(4). — Housing wealth MPC.
 - Case, K., Quigley, J. & Shiller, R. (2005). Comparing wealth effects: the stock market versus the housing market. *Advances in Macroeconomics* 5(1).
+- Saiz, A. (2010). The geographic determinants of housing supply. *QJE* 125(3). — Housing supply elasticity.
+- Ganong, P. & Shoag, D. (2017). Why has regional income convergence in the U.S. declined? *Journal of Urban Economics* 102. — Housing costs deter moves.
 
 ## Labour and fiscal ([03](03-economy.md#labor-market), [03](03-economy.md#fiscal))
 
@@ -224,6 +294,14 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Levi, M. (1988). *Of Rule and Revenue.* UC Press. — Quasi-voluntary compliance.
 - Slemrod, J. (2007). Cheating ourselves: the economics of tax evasion. *JEP* 21(1).
 - Bom, P. & Ligthart, J. (2014). What have we learned from three decades of research on the productivity of public capital? *J. Economic Surveys* 28(5).
+- Boeri, T. & Jimeno, J. F. (2005). The effects of employment protection: learning from variable enforcement. *European Economic Review* 49(8). — EPL reform.
+- Alesina, A., Favero, C. & Giavazzi, F. (2019). *Austerity: When It Works and When It Doesn't.* Princeton UP. — Tax- vs spending-based consolidation.
+- Devereux, M., Lockwood, B. & Redoano, M. (2008). Do countries compete over corporate tax rates? *J. Public Economics* 92(5–6). — Tax competition.
+- Benzarti, Y., Carloni, D., Harju, J. & Kosonen, T. (2020). What goes up may not come down: asymmetric incidence of value-added taxes. *JPE* 128(12). — VAT pass-through.
+- Jakobsen, K., Jakobsen, K., Kleven, H. & Zucman, G. (2020). Wealth taxation and wealth accumulation: theory and evidence from Denmark. *QJE* 135(1). — Wealth-tax base erosion.
+- Saez, E. & Zucman, G. (2019). Progressive wealth taxation. *BPEA* 2019(2). — Wealth tax design and avoidance.
+- Coady, D., Parry, I., Sears, L. & Shang, B. (2015). How large are global energy subsidies? IMF WP 15/105. — Fiscal cost of fuel subsidies.
+- Boadway, R. & Shah, A. (2009). *Fiscal Federalism: Principles and Practice of Multiorder Governance.* Cambridge UP. — Fiscal capacity and equalisation.
 
 ## Identity groups, collective action ([04](04-society.md))
 
@@ -400,3 +478,5 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Transparency International (2019). *Corruption Perceptions Index*; DataReportal (2020) *Digital 2020*; UN DESA (2019) *International Migrant Stock*; UN (2019) *World Population Prospects.*
 - SIPRI Military Expenditure Database; WTO / WITS applied tariffs.
 - Census and survey sources for identity groups are listed in `assets/scenario/2020/groups_curated.csv`.
+- Huth, P. & Allee, T. (2002). *The Democratic Peace and Territorial Conflict in the Twentieth Century.* Cambridge UP. — Claim strength.
+- Frederick, B., Hensel, P. & Macaulay, C. (2017). The Issue Correlates of War territorial claims data, 1816–2001. *Journal of Peace Research* 54(1). — Territorial claims.

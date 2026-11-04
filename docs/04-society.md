@@ -15,7 +15,10 @@ Identity groups come from `groups_curated.csv` (one group for nations
 without rows); every pop belongs to exactly one, so the economy, migration,
 opinion and unrest systems see the groups directly. Children are part of the
 young epidemic age group, not separate pops. Two epidemic age groups (under
-and over 65) live on the region.
+and over 65) and five demographic age bands (0–14, 15–29, 30–49, 50–64, 65+;
+[Demography](#demography)) live on the region. A worker pop can split off a
+**precarious stratum** after a shock and merge back later
+([02](02-simulation-core.md#long-campaign-detail-extension)).
 
 Pop fields today: size; employed / unemployed / inactive; wages by sector and
 a wage multiplier; income by source (work, benefits, other), expected and
@@ -25,12 +28,12 @@ informality and formal-benefit access; network strength; effective tax
 factor; and a pop-specific CPI.
 
 **Planned** (the long-term key): class tiers (Erikson–Goldthorpe–Portocarero
-and Oesch schemes) and age bands, giving
-`region × class tier × skill × age band`, with these additional fields:
+and Oesch schemes) and age bands on pops (today they are region accounts),
+giving `region × class tier × skill × age band`, with these additional fields:
 
 | Group | Fields |
 |-------|--------|
-| Income | Pareto tail α, source shares incl. profit/rent/remittance |
+| Income | per-pop Pareto tail α (today a national top tail), source shares incl. profit/rent/remittance |
 | Wealth | bonds, equity, housing, debt |
 | Labor | employed by sector |
 | Human capital | mean years of schooling, skill index |
@@ -67,6 +70,23 @@ from `groups_curated.csv`: caste, race / ethnicity, religion and legal status
 entering the labour force by skill (following their group's own skill mix),
 retirement, baseline mortality and epidemic and war deaths by age.
 
+- **Age bands.** A coarse cohort-component account (the UN WPP method) of
+  five bands per region, started from WDI 0–14 and 65+ shares (working ages
+  split 30/42/28): births enter band 0, each band ages into the next at
+  1/width a year, deaths fall on the bands of their group, and the account is
+  rescaled to the population total.
+- **Mortality** follows income and health spending relative to 2019
+  (`mortality_income`, `mortality_health`; Preston 1975; Cutler, Deaton &
+  Lleras-Muney 2006).
+- **Retirement** moves a share of each worker pop to the retired pop of its
+  group; a later statutory age (`lever::retirement_age`) lengthens working
+  lives. **Pension outlays** scale with the 65+ share relative to 2019
+  (`pension_ageing`).
+- **Intergenerational mobility** between skill tiers (low → mid → high) is
+  lower where inequality is high, the Great Gatsby curve (Corak 2013; Chetty
+  et al. 2014): IGE = `gatsby_slope` × Gini − 0.2, and `mobility_rate` × (1 −
+  IGE) of a tier's unemployed a year move up and re-enter as job seekers.
+
 - **Fertility transition.** The birth rate drifts toward a long-run level set
   by income per head and education (Bongaarts 1978; Lee 2003), over about a
   decade.
@@ -75,11 +95,13 @@ retirement, baseline mortality and epidemic and war deaths by age.
   penalty (Kahn 2010).
 - **Educational expansion.** The tertiary share rises with income growth,
   moving people between skill tiers.
+- **Formative years.** Cohorts entering in insecure times pull their pop's
+  values toward survival (Inglehart 1997).
 
-**Planned:** a full cohort-component projection (the UN WPP method) by age
-band; mortality responding to health spending and income; ageing effects on
-pensions and values; mobility between class tiers calibrated to
-intergenerational mobility estimates (Chetty et al.; the Great Gatsby curve).
+**Planned:** age-specific fertility and mortality schedules (today rates are
+per group, distributed over bands), age bands on pops, values that follow
+cohort replacement explicitly (`cohort_replacement` and `formative_security`
+are declared in `parameters.txt` but not yet used), class tiers beyond skill.
 
 ## Health and epidemics
 
@@ -98,27 +120,50 @@ intergenerational mobility estimates (Chetty et al.; the Great Gatsby curve).
   as deaths rise (Eichenbaum, Rebelo & Trabandt 2021). Informality and low
   social trust lower compliance. Testing, tracing and a suppression strategy
   are levers.
+- **Commuting.** Adjacent regions inside a nation are coupled: infection
+  pressure flows from higher- to lower-prevalence neighbours by adjacency
+  weight (`commute_rate`; Balcan et al. 2009), cut by internal movement
+  restrictions (C7).
 - **Vaccines.** A pathogen with `vaccine_days > 0` gets a vaccine that many
   days after it is first seen (SARS-CoV-2: first emergency authorisation ~11
   months after the outbreak). World production ramps up; doses go to nations
   by population weighted by income per head (advance purchases; Wouters et
-  al. 2021), the old first; a dose makes a susceptible immune with the
-  vaccine's efficacy.
+  al. 2021), except a **COVAX** share (`covax_share`) pooled for equal
+  per-capita allocation. Within a nation **`lever::vaccine_priority`** sets the
+  share of doses offered to the old first, the rest by population (Bubar et
+  al. 2021); a dose makes a susceptible immune with the vaccine's efficacy.
+- **Variants** (`update_variants`, daily): a new variant emerges with a hazard
+  proportional to world infections (`variant_rate`; more replication, more
+  mutation; Otto et al. 2021), up to four per pathogen; each multiplies R0 by
+  `variant_r0_gain` (Alpha, Delta; Davies et al. 2021; Campbell et al. 2021)
+  and returns `variant_escape` of the immune to susceptible. Journalled
+  (`journal_variant`).
+- **WHO surveillance** sharing raises the detection that transparent members
+  see (`who_detection` × media freedom; IHR 2005;
+  [06](06-geopolitics-ai.md#international-organisations)).
 - **Emergent epidemics.** A novel epidemic emerges at random (about 2% a year
   for a COVID-scale event; Marani et al. 2021): an unseeded `emergent`
   template starts in a nation drawn by population.
 
-**Planned:** a regional mobility matrix (commuting + air travel) coupling
-regions inside nations; variants; vaccination priority as a lever.
+**Planned:** air-travel coupling between regions, variant-specific
+severity and vaccine escape.
 
 ## Migration
 
 **Implemented** (`update_migration`, 28 days): Harris–Todaro moves toward
 higher expected income net of a moving cost; internal moves follow region
-adjacency and are cut by movement restrictions; international moves follow a
-gravity term and are cut by travel controls at both ends; war pushes refugees.
-Migrants arrive as job seekers and remit. Diaspora networks, distance and
-language terms, refugee policies and attitude effects below are planned.
+adjacency, are cut by movement restrictions and deterred by **housing costs**
+in booming regions (regional house prices; Ganong & Shoag 2017);
+international moves follow a gravity term scaled by diaspora networks
+(Massey et al. 1993; Beine, Docquier & Özden 2011) and the destination's
+immigration openness (`lever::immigration`), cut by travel controls at both
+ends and by a **migration deal** with the origin
+([06](06-geopolitics-ai.md#agreements-and-rebels)); war and occupation push
+refugees, scaled by the destination's **asylum openness** (`lever::asylum`;
+Hatton 2009). Migrants arrive as job seekers, join the immigrant group and
+remit; salient immigration feeds attitudes ([values](#values-and-opinion)).
+Distance and language terms, disaster-driven displacement and
+skill-specific wage effects below are planned.
 
 - **Harris–Todaro** (1970): the incentive to move is the *expected* income
   gap, `p_employment × wage`, minus moving costs.
@@ -142,8 +187,12 @@ language terms, refugee policies and attitude effects below are planned.
 2. Survival ↔ self-expression (same)
 3. Economic left ↔ right (state vs market, redistribution)
 
-Plus issue salience weights. Implemented issues: economy, health, security,
-identity; immigration, environment and corruption are planned.
+Plus issue salience weights over seven issues: economy, health, security,
+identity, immigration (with migrant inflows), environment (with warming and
+self-expression values) and corruption (made visible online in hard times);
+salient immigration pulls values toward tradition (Hainmueller & Hopkins
+2014), and the issues enter voting
+([05](05-politics-institutions.md#parliaments-and-elections)).
 
 **Dynamics:**
 
@@ -167,15 +216,16 @@ Krause 2002) runs within each nation with a radius widened by media freedom.
 foreign publics they are coupled to, within bounded confidence (Gleditsch &
 Ward 2006; [06](06-geopolitics-ai.md#information-and-the-internet)). Public
 opinion is also thermostatic against economic policy
-([05](05-politics-institutions.md#the-overton-window)). Cohort replacement and
-a regional media graph are planned.
+([05](05-politics-institutions.md#the-overton-window)). Formative-years
+values enter with new cohorts ([Demography](#demography)); explicit cohort
+replacement and a regional media graph are planned.
 
 ## Unrest: the "temperature"
 
 Instability comes from **Turchin's structural-demographic theory** (Goldstone
 1991; Turchin 2003, 2016) combined with **relative deprivation** (Gurr 1970).
 
-**Political Stress Index** per nation (a regional PSI is planned):
+**Political Stress Index** per nation, concentrated by region:
 
 ```
 PSI = MMP × EMP × SFD
@@ -203,6 +253,17 @@ backlash against liberty-restricting policy
 ([05](05-politics-institutions.md#the-overton-window)) and strike pressure
 from real-wage losses where unions are strong. Every 28 days these set each
 region's protest **drive**.
+
+- **Regional PSI**: the national index concentrated where grievance is,
+  `psi_region = PSI × (g_r + 0.02) / (g_nation + 0.02)` clamped to 0.5–2, so
+  its population-weighted mean stays near the national value (Turchin 2016
+  applied to regions; cf. Goldstone et al. 2010 on local instability). The
+  drive uses the regional value.
+- **Fiscal resentment**: regions with low sub-national fiscal capacity
+  ([03](03-economy.md#fiscal)) add to the drive (Boadway & Shah 2009).
+- **Regional trust**: national social trust eroded locally by unrest
+  (`trust_region_unrest`; Putnam 1993); computed and reported, not yet read by
+  other systems.
 
 ### Protest cascade
 
@@ -244,8 +305,12 @@ insurgency-level unrest can become armed rebellion
 ([06](06-geopolitics-ai.md#conflict)); a disloyal military may defect
 ([05](05-politics-institutions.md#military)).
 
-- Repression lowers immediate unrest but erodes legitimacy and raises future
-  grievance (Davenport 2007). Planned: repression as an explicit lever.
+- **Repression** (`lever::repression`, [05](05-politics-institutions.md#policy-catalogue))
+  raises the cost of joining at once but leaves a memory that feeds later
+  backlash and erodes legitimacy (Davenport 2007; Francisco 1995); it is
+  capped by the military's loyalty. Naming and shaming by the Human Rights
+  Council follows high repression
+  ([06](06-geopolitics-ai.md#international-organisations)).
 
 ## Social capital and demography
 
@@ -257,11 +322,13 @@ Implemented in `update_social_capital` (28 days per nation):
   ([03](03-economy.md#fiscal)) and NPI compliance (Bargain & Aminjonov 2020).
   Cyber operations also lower it.
 - **Crime** (Becker 1968): property crime rises with unemployment and poverty
-  (Raphael & Winter-Ebmer 2001) and deters investment.
+  (Raphael & Winter-Ebmer 2001) and deters investment; **police** spending
+  above baseline (`lever::police`) cuts it (`police_crime` elasticity 0.3;
+  Levitt 1997; Chalfin & McCrary 2017).
 - **Fertility and education:** the demographic transition and educational
   expansion ([Demography](#demography)).
 - **CPI per pop:** food weighs more in poorer budgets (Engel's law), so food
   inflation hits the poor harder.
 
-Planned: trust per region raising contract enforcement (TFP); crime
-enforcement as a policy.
+Planned: regional trust raising contract enforcement (TFP); crime by
+region; surveillance as a policy.

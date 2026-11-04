@@ -63,8 +63,10 @@ L_eff = Σ_skill  θ_skill · L_skill                                (skill-weig
 ```
 
 - `ρ` follows the capital–labor substitution elasticity σ≈0.5–0.8 (Chirinko 2008).
-- **Capital vintages.** Investment adds capital with the frontier technology
-  of its year; old vintages depreciate (stranded assets in transitions).
+- **Capital vintages.** Implemented in reduced form: a vintage TFP index
+  (`reforms.cpp`) and fossil / clean energy vintages (`climate.cpp`; see
+  [Growth](#growth--long-run)). Full vintage stocks per production unit are
+  planned.
 
 ## Firms
 
@@ -163,17 +165,33 @@ Sea-route distances also replace great-circle distances in trade gravity
   distribution shock when internal freight is disrupted. With large CPI food
   weights this drives headline inflation (Anand, Prasad & Zhang 2015). Gas
   reaches the CPI through household energy.
+  **Strategic supply** (`commodities.cpp`): when a market's producer
+  concentration (Herfindahl of production shares) exceeds 0.15, a cartel
+  restrains supply as the price falls below 80% of 2019 (`cartel_cut`;
+  Stigler 1964: cartels hold better when few and large); food exporters ban
+  exports in price spikes above 1.3× 2019 (`export_ban`), which deepens the
+  spike (Martin & Anderson 2012 on 2008 and 2010–11; Headey 2011).
+- **Sector relative prices** (`economy.cpp`): markups follow capacity
+  pressure (Kalecki 1954) and a Calvo share resets each step
+  (`calvo_monthly` 0.15; Calvo 1983; Nakamura & Steinsson 2008). They are
+  normalised to the consumption basket, so they shift the composition of
+  demand, not aggregate inflation.
+- **Headline CPI** = core × oil, food and gas, carbon-cost terms. A
+  **subsidy** (`lever::subsidy`, [05](05-politics-institutions.md#policy-catalogue))
+  absorbs a share of the energy and food rise above core at a fiscal cost
+  (Coady et al. 2015); VAT changes pass into consumer prices (`vat_pass` = 1;
+  Benzarti et al. 2020).
 - **CPI per pop.** Food weighs more in poorer budgets (Engel's law), so food
   inflation hits the poor harder ([04](04-society.md#social-capital-and-demography)).
 
 ### Planned
 
-- **Markup pricing** over unit cost (Kalecki 1954): `p = (1 + μ) · ulc`, with
-  μ adjusting to inventories and utilisation, and Calvo-like repricing
-  (≈ 10–20% of units per month).
+- Markup pricing of the *level* over unit cost (`p = (1 + μ) · ulc`) per
+  production unit; today markups move relative prices only.
 - National goods markets with an internal transport-cost matrix between
-  regions; Armington competition with imports ([Trade](#trade)).
-- Regional gas hubs; producer AI (cartels) for markets other than oil.
+  regions.
+- Regional gas hubs; producer agents (beyond the cartel rule) for markets
+  other than oil.
 
 ## Consumption
 
@@ -184,15 +202,20 @@ with housing and equity wealth ([assets](#asset-prices-and-wealth-effects)).
 Contact-services demand falls with deaths (voluntary avoidance, with fatigue)
 and part of blocked contact spending moves to goods.
 
-**Planned:** a Linear Expenditure System / Stone–Geary (Stone 1954):
+The composition of spending is a **Linear Expenditure System** / Stone–Geary
+(Stone 1954):
 
 ```
 x_pc = γ_pc + (β_pc / p_c) · ( E_p − Σ_k p_k γ_pk )
 ```
 
-with subsistence quantities γ (food, energy, housing), so price shocks to
-necessities are regressive, and a buffer-stock saving rule (Carroll 1997) for
-the MPC. Later upgrade: AIDS (Deaton & Muellbauer 1980).
+Subsistence quantities γ of food and energy (`sector.subsistence`) are bought
+first; the rest is shared by marginal shares deflated by sector relative
+prices ([prices](#prices)). With base prices and spending it reproduces the
+calibrated composition, and price shocks to necessities are regressive.
+
+**Planned:** housing as a subsistence good, a buffer-stock saving rule
+(Carroll 1997) for the MPC; later AIDS (Deaton & Muellbauer 1980).
 
 ## Labor market
 
@@ -210,7 +233,10 @@ the MPC. Later upgrade: AIDS (Deaton & Muellbauer 1980).
   Blanchflower & Oswald 1994), weaker where collective bargaining covers many
   workers; **inflation surprises** erode real pay, and covered workers recover
   part through **indexation**; **downward nominal rigidity** (Dickens et al.
-  2007). Nash bargaining is not implemented.
+  2007); **Nash bargaining** (Pissarides 2000): the wage moves with persistent
+  labour productivity in proportion to workers' bargaining power
+  (`nash_power_base` plus coverage) and with the outside option (the permanent
+  benefit system) in proportion to the rest.
 - **Unions.** A union-federation agent pushes for real-wage gains
   (`lever::wage_push`): pragmatic (recover purchasing power, held back by
   unemployment), ideological (militancy of dense, left-leaning movements),
@@ -223,14 +249,22 @@ the MPC. Later upgrade: AIDS (Deaton & Muellbauer 1980).
   protection and less unemployment insurance.
 - **Short-time work** (job retention coverage and replacement) is an explicit
   lever that keeps matches alive while cutting hours.
+- **Employment protection** (`lever::epl`, a bill; `reforms.cpp`):
+  flexibilisation under high unemployment, resisted by strong unions and the
+  left (Boeri & Jimeno 2005); each index point shifts the layoff lag
+  (`epl_layoff`).
+- **Retirement and ageing.** A later statutory retirement age
+  (`lever::retirement_age`) lengthens working lives and cuts pension outlays;
+  pension outlays scale with the old-age share relative to 2019
+  (`pension_ageing`, [04](04-society.md#demography)).
 
 ### Planned
 
 - Search and matching (Pissarides 2000) per region × skill with
   Cobb–Douglas matching `m · U^η · V^(1−η)` (Petrongolo & Pissarides 2001)
   and vacancies from expected profitability.
-- Nash wage bargaining with outside options; informality that grows with
-  regulation and tax wedges (Schneider & Enste 2000).
+- Informality that grows with regulation and tax wedges (Schneider & Enste
+  2000).
 - **Emergent curves.** The Beveridge, Phillips and Okun relations are not
   imposed; validation checks that they emerge ([11](11-data-calibration.md)).
 
@@ -249,12 +283,26 @@ the MPC. Later upgrade: AIDS (Deaton & Muellbauer 1980).
   channels add pressure: currency substitution in dollarised economies when
   real rates fall (Ize & Levy Yeyati 2003) and credit-financed purchases of
   foreign assets.
+- **FX intervention** (`lever::fx_intervention`, central bank, daily): against
+  depreciation faster than 10% a year the bank sells reserves (months of
+  imports, `reserves_months`), absorbing up to `fx_defend` of the pressure
+  while reserves last (Fratzscher et al. 2019); reserves rebuild over ~3 years.
+- **Financial account** (above the calibrated baseline): portfolio flows chase
+  real yield differentials and flee risk (Forbes & Warnock 2012; sudden stops,
+  Calvo 1998); FDI follows growth prospects and institutions (Alfaro,
+  Kalemli-Ozcan & Volosovych 2008) and funds investment. Both move the
+  exchange rate; **capital controls** (`lever::capital_controls`) shut the
+  account both ways (Rey 2013).
 - **Sovereign spreads** from debt, deficits, state capacity, legitimacy and
   reserve-currency status (Reinhart & Rogoff 2009). When the spread explodes
   the sovereign **defaults**: a haircut through the ledger, a legitimacy hit
   and a risk premium; an IMF programme can intervene first
   ([06](06-geopolitics-ai.md#diplomacy)).
 - **Remittances** follow the income of migrants' host economies.
+- **Sovereign debt relief**: a defaulted sovereign restructures with its
+  foreign creditors after ~6 months on average, a `debt_relief_haircut` on
+  external debt (Cruces & Trebesch 2013; Reinhart & Trebesch 2016;
+  [06](06-geopolitics-ai.md#agreements-and-rebels)).
 
 ### Credit and banking
 
@@ -292,6 +340,15 @@ departures move spending, which keeps the steady state exact.
   fast enough to turn it orthodox.
 - **Pass-through** of depreciation into prices rises with trend inflation
   (Taylor 2000), so inflationary credit booms feed on themselves.
+- **Macroprudential buffer** (`lever::macroprudential`, central bank, daily):
+  a countercyclical capital buffer (Basel III CCyB) built slowly when credit
+  runs above its 2019 path and released at once in a bust; each point cuts
+  credit growth (`ccyb_credit`; Cerutti, Claessens & Laeven 2017).
+- **Financial shock events** (historical anchors for crises such as 2008;
+  `assets/README.md`): `credit_spread_shock` raises the lending spread and
+  unwinds at rate 1/`unwind_days`; `bank_capital_shock` cuts bank capital
+  (losses on securitised assets), which the capital-shortfall channel above
+  then turns into a credit crunch.
 
 ### Bonds and yields
 
@@ -328,9 +385,14 @@ Implemented in `assets.cpp` (28 days), per nation:
 - **Wealth effects:** households spend ~5 cents per dollar of housing wealth
   change (Mian, Rao & Sufi 2013; Case, Quigley & Shiller 2005) and ~2 cents
   of equity wealth a year.
+- **Regional house prices** (`reforms.cpp`, 28 days): the national price ×
+  local population growth since 2019 over a supply elasticity
+  (`housing_supply` 1.5, the Saiz 2010 median). High prices deter internal
+  moves to booming regions (Ganong & Shoag 2017; [04](04-society.md#migration)).
+- **Shock events:** `house_price_shock` and `equity_shock` move prices by a
+  given share; the wealth effects and credit channels propagate them.
 
-Planned: one housing price per region with supply elasticity, and housing
-wealth in each pop's balance sheet.
+Planned: housing wealth in each pop's balance sheet; regional rents.
 
 ## Fiscal
 
@@ -358,14 +420,33 @@ wealth in each pop's balance sheet.
 - **Tariffs** are trade policy ([Trade](#trade)) and also raise revenue.
 - **Debt** follows from the ledger; interest rolls over at market yields
   ([bonds](#bonds-and-yields)).
+- **Tax catalogue** (`reforms.cpp`; bills, relative to 2019):
+  **VAT** (pp; consolidation raises it first, Alesina, Favero & Giavazzi 2019;
+  passes into prices), **corporate tax** (pp; weak investment invites cuts,
+  tax competition, Devereux, Lockwood & Redoano 2008; 10 pp ≈ −0.4 pp of
+  trend growth, Djankov et al. 2010), and a **wealth tax** on the top 1%
+  (private wealth ~4× GDP, Piketty & Zucman 2014; the base erodes with
+  avoidance, `wealth_tax_flight`, Jakobsen et al. 2020; Saez & Zucman 2019),
+  paid by owner pops by capital-income weight (`flow::wealth_tax`).
+  **Carbon-price revenue** comes from `climate.cpp`.
+- **Spending levers**: education, health, police and public R&D above
+  baseline (bills) are government purchases of services; fuel and food
+  **subsidies** are paid to households by size (`flow::subsidies`).
+- **Sub-national fiscal capacity** (28 days): a region's capacity is its
+  output per head relative to the nation × the nation's decentralisation
+  (`nations_ext_curated.csv`), closed in part by equalisation
+  (`equalisation_gain`; Boadway & Shah 2009). Fiscally starved regions add to
+  the unrest drive ([04](04-society.md#unrest-the-temperature)).
+- **EU recovery fund** grants arrive through the rest-of-world account
+  (`flow::eu_fund`; [06](06-geopolitics-ai.md#international-organisations)).
 
 ### Planned
 
-- Statutory tax bands applied to each pop's income distribution, VAT,
-  corporate, property and wealth taxes; resource-rent taxation beyond the
-  current state take.
+- Statutory tax bands applied to each pop's income distribution; property
+  taxes; resource-rent taxation beyond the current state take.
 - Public goods feeding sector capacities and human capital; issuance by
-  maturity bucket; sub-national budgets with equalisation.
+  maturity bucket; sub-national budgets as ledger accounts (today fiscal
+  capacity is an index).
 
 ## Trade
 
@@ -377,9 +458,20 @@ wealth in each pop's balance sheet.
   road distance for overland trade, and a shared land border roughly
   doubling trade (contiguity).
 - **Export access** relative to the start is cut by **sanctions** and war,
-  raised by **FTAs** (phased in over a decade; Baier & Bergstrand 2007), and
-  reduced by freight costs and delays and by internet filtering of digitally
-  delivered services (Freund & Weinhold 2004).
+  raised by **FTAs** (phased in over a decade; Baier & Bergstrand 2007; deeper
+  agreements from Level-I bargaining liberalise more, Dür, Baccini & Elsig
+  2014; [06](06-geopolitics-ai.md#two-level-games)), and reduced by freight
+  costs and delays and by internet filtering of digitally delivered services
+  (Freund & Weinhold 2004).
+- **Armington competition** (`geopolitics.cpp`; Armington 1969): in a
+  partner's market a nation competes with the partner's other suppliers on
+  relative real exchange rates (`armington` 2; Feenstra et al. 2018);
+  bilateral exports are stored as a matrix split by pair access.
+- **Customs union** (`firms.cpp`): members of an organisation of kind
+  `union` (the EU) share one GDP-weighted external tariff; currency unions
+  without one still align tariffs.
+- **WTO disputes** against tariff rises
+  ([06](06-geopolitics-ai.md#international-organisations)).
 - **Tariffs** (`firms.cpp`, `lever::tariff`): an average import tariff set
   by the executive. Pragmatic: protect when manufacturing jobs are lost or
   the currency is strong, hold back when inflation is high (Bown & Crowley
@@ -397,9 +489,8 @@ wealth in each pop's balance sheet.
 - Structural gravity with multilateral resistance (Anderson & van Wincoop
   2003): `X_ij = (Y_i E_j / Y_W) · (τ_ij / (Π_i P_j))^(1−σ)`, with CEPII trade
   costs (language, colonial ties) and non-tariff barriers.
-- **Armington** substitution per commodity (GTAP elasticities) and a bilateral
-  flow matrix that rebalances quarterly. Neither exists yet.
-- **Financial account.** Portfolio and FDI flows reacting to returns and risk.
+- **Armington** substitution per commodity (GTAP elasticities); today one
+  elasticity applies to total exports.
 
 ## Growth & long run
 
@@ -409,24 +500,52 @@ wealth in each pop's balance sheet.
   investment gap.
 - **Trend growth** responds to institutions (liberal index; Acemoglu, Johnson
   & Robinson 2001), human capital (tertiary share; Lucas 1988), public capital
-  (Bom & Ligthart 2014) and internet filtering (Czernich et al. 2011).
-- **Climate** (DICE-lite; Nordhaus 2017): emissions from world oil demand,
-  an airborne fraction, transient warming toward equilibrium, and DICE-2016R
-  quadratic damages, larger in hotter regions (Burke, Hsiang & Miguel 2015).
-  Warming also raises the canal drought hazard ([logistics](#logistics-and-transport)).
+  (Bom & Ligthart 2014) and internet filtering (Czernich et al. 2011), plus
+  terms relative to 2019:
+  - **catch-up**: falling further behind the frontier than at the start
+    raises growth in proportion to absorptive capacity (Nelson & Phelps 1966;
+    Benhabib & Spiegel 2005);
+  - **public R&D** (`lever::rd`): `rd_tfp` per pp of GDP (Romer 1990;
+    Griliches 1992; Ugur et al. 2016);
+  - **vintage capital** (`reforms.cpp`): investment above its 2019 rate
+    renews the stock faster and new capital embodies newer technology
+    (`vintage_embodiment`; Solow 1960; Greenwood, Hercowitz & Krusell 1997);
+  - **corporate tax** (Djankov et al. 2010);
+  - **technology diffusion** relative to the 2019 path
+    ([02](02-simulation-core.md#long-campaign-detail-extension)).
+- **Climate** (DICE-lite; Nordhaus 2017): emissions from world oil demand ×
+  the technology emission factor × the carbon-price factor, an airborne
+  fraction, transient warming toward equilibrium, and DICE-2016R quadratic
+  damages, larger in hotter regions (Burke, Hsiang & Miguel 2015). Warming
+  also raises the canal drought hazard ([logistics](#logistics-and-transport)).
+- **Climate policy** (`climate.cpp`). The **carbon price** (`lever::carbon_price`,
+  a bill; 2019 prices from the World Bank) is pragmatic with the world output
+  lost to warming, weighted by environmental concern (Inglehart 1997), and
+  ideological for green governing parties. Energy capacity is split into
+  fossil and clean **vintages**; clean capacity grows with renewables
+  adoption, pulled forward by the price (induced innovation; Acemoglu,
+  Aghion, Bursztyn & Hemous 2012) and by a **renewables mandate**
+  (`lever::energy_mandate`; `mandate_diffusion`; Johnstone, Hascic & Popp
+  2010); above the fossil margin the price retires fossil capacity early
+  (**stranded assets**; Mercure et al. 2018; van der Ploeg & Rezai 2020). The
+  price cuts emissions, raises energy costs and raises revenue. Paris
+  pledges are treaty objects ([06](06-geopolitics-ai.md#agreements-and-rebels)).
+- **Disasters** (28 days, region shard): storms, floods, droughts and
+  wildfires strike at random with a hazard rising with warming (IPCC AR6),
+  higher in hot regions; each destroys a lognormal share of regional capacity
+  (losses persist; Hsiang & Jina 2014). Disaster aid follows
+  ([06](06-geopolitics-ai.md#coercion-aid-arms-and-treaties)).
 
-**Planned:** a vintage capital stock (Solow 1956); TFP from R&D (Romer 1990)
-and frontier distance (catch-up); technology diffusion with adoption lags
-(Comin & Hobijn 2010) for the tech tree
-([02](02-simulation-core.md#long-campaign-detail-extension)); emissions from
-the full energy mix; disaster events.
+**Planned:** a full vintage capital stock (Solow 1956) per production unit;
+emissions from the full energy mix (gas, coal) rather than oil demand.
 
 ## Inequality within strata
 
-Implemented today: each pop has a lognormal dispersion σ around its mean
-income, and Gini and related indicators are computed from the mixture
-(`indicators.cpp`). The Pareto tail and the policy effects on shape below are
-planned.
+Implemented (`indicators.cpp`): each pop has a lognormal dispersion σ around
+its mean income, and a **Pareto top tail** holds the top-1% share from WID
+(scaled to disposable income and calibrated with the Gini), moving with the
+capital-income share of income. Gini and related indicators are computed from
+the mixture. Tax progressivity compressing σ and the tail is planned.
 
 Every pop stores parameters of its income distribution, not only the mean:
 
@@ -443,8 +562,9 @@ Every pop stores parameters of its income distribution, not only the mean:
 
 ## Open questions
 
-- Housing: should regional rent be its own market (it is a big share of
-  subsistence spending) or derived from house prices? Leaning towards its own market.
+- Housing: regional house prices now exist (derived from national prices);
+  should regional rent be its own market (it is a big share of subsistence
+  spending)? Leaning towards its own market.
 - Firm granularity: the SME vs large-firm split per nation × sector is now
   implemented ([Firms](#firms)); is a regional split or a size distribution
   needed for market concentration / markups?
