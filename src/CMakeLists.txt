@@ -27,6 +27,7 @@ if(GEOSIM_USE_DCON)
         sim/systems/epidemic.cpp
         sim/systems/events.cpp
         sim/systems/finance.cpp
+        sim/systems/firms.cpp
         sim/systems/geopolitics.cpp
         sim/systems/logistics.cpp
         sim/systems/longrun.cpp

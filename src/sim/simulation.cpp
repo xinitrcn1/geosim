@@ -12,6 +12,7 @@ void advance_day(game_state& state) {
     update_logistics(state);
     update_commodity_markets(state);
     update_economy(state);
+    update_firms(state);
     update_oil_market(state);
     update_demography(state);
     update_migration(state);

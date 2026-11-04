@@ -136,7 +136,8 @@ void update_credit(game_state& state) {
         const float npl_target = n.get_npl0() + static_cast<float>(P.npl_unemployment) * u_rise
                                  + static_cast<float>(P.npl_gap) * std::max(0.0f, -n.get_gap_smoothed())
                                  + static_cast<float>(P.npl_fx) * n.get_fx_loan_share() * std::max(0.0f, -log_e)
-                                 + static_cast<float>(P.npl_boom) * std::max(0.0f, credit_gap);
+                                 + static_cast<float>(P.npl_boom) * std::max(0.0f, credit_gap)
+                                 + n.get_firm_exit_npl() * static_cast<float>(Lf / std::max(1.0, Lh + Lf)); // bankruptcies (firms.cpp)
         float npl = n.get_npl();
         // Forbearance and moratoria slow recognition while crisis support runs.
         const float support = std::clamp(n.get_stw_coverage() + n.get_directed_credit() / 5.0f, 0.0f, 1.0f);

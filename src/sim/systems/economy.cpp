@@ -281,6 +281,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float log_e0 = std::log(std::max(0.05f, w.nation_get_exchange_rate(n)));
     const float balance_sheet = 1.0f - static_cast<float>(P.fx_balance_sheet) * w.nation_get_fx_loan_share(n) * std::max(0.0f, -log_e0);
     const float i_real = w.nation_get_i0(n) * gf * accel * (1.0f - static_cast<float>(P.rate_i_elasticity) * rate_dev) * std::max(0.3f, balance_sheet)
+                         * (1.0f + (apply ? w.nation_get_board_investment(n) : 0.0f))
                          + (apply ? w.nation_get_credit_flow_firm(n) / p : 0.0f);
     // Exports follow partners' import demand through bilateral trade shares, cut by
     // sanctions and war (relative to the starting access).
@@ -357,7 +358,8 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float intermediate = static_cast<float>(P.io_import_trade_share);
     const float imports = w.nation_get_m0(n) * gf * (base > 0.0f ? import_demand / base : 1.0f)
                           * ((1.0f - intermediate) + intermediate * restock)
-                          * std::exp(static_cast<float>(P.fx_import_elasticity) * log_e) * (apply ? w.nation_get_trade_cost_factor(n) : 1.0f);
+                          * std::exp(static_cast<float>(P.fx_import_elasticity) * log_e) * (apply ? w.nation_get_trade_cost_factor(n) : 1.0f)
+                          * (apply ? std::exp(-static_cast<float>(P.tariff_elasticity) * (w.nation_get_tariff(n) - w.nation_get_tariff0(n))) : 1.0f);
     const float util = pot_total > 0.0f ? gdp / pot_total : 1.0f;
     const double c_nom = static_cast<double>(c_eff) * p;
     w.nation_set_cons_fill(n, c_des_total > 0.0 ? static_cast<float>(c_nom / c_des_total) : 1.0f);
@@ -379,8 +381,12 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         // Freight-driven import costs reach consumer prices through the import share.
         const float ici = w.nation_get_import_cost_index(n);
         const float prev = std::max(0.5f, w.nation_get_import_cost_prev(n));
-        const float freight_level = std::pow(ici / prev, static_cast<float>(P.freight_passthrough) * m_share);
+        float freight_level = std::pow(ici / prev, static_cast<float>(P.freight_passthrough) * m_share);
         w.nation_set_import_cost_prev(n, ici);
+        // Tariffs pass fully into import prices (Amiti, Redding & Weinstein 2019).
+        const float tariff_level = std::pow((1.0f + w.nation_get_tariff(n)) / (1.0f + w.nation_get_tariff_prev(n)), m_share);
+        w.nation_set_tariff_prev(n, w.nation_get_tariff(n));
+        freight_level *= tariff_level;
         w.nation_set_core_price(n, p * std::exp(std::log1p(pi) * dt / 365.0f) * freight_level);
         pe += (pi - pe) * std::min(1.0f, dt / static_cast<float>(P.expectations_days));
         w.nation_set_inflation_expect(n, pe);
@@ -402,7 +408,9 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     // Only the scheme's take-up share of lost hours is paid.
     w.nation_set_stw_mult(n, coverage > 0.0f ? coverage * w.nation_get_stw_replacement(n) : 0.0f);
     // Job retention and employment protection keep a share of the pre-crisis jobs attached.
-    w.nation_set_absorb(n, coverage + (1.0f - coverage) * epl * static_cast<float>(P.epl_hoarding));
+    // Boards hoard labour beyond what EPL forces (coordinated economies; firms.cpp).
+    const float board = static_cast<float>(P.board_hoarding_gain) * (w.nation_get_board_hoarding(n) - w.nation_get_board_hoarding0(n));
+    w.nation_set_absorb(n, std::clamp(coverage + (1.0f - coverage) * (epl * static_cast<float>(P.epl_hoarding) + board), 0.0f, 1.0f));
     const float stay = D.npi_stay_home != 0xFF ? npi_fraction(state, n, D.npi_stay_home) : 0.0f;
     // Laid-off workers who cannot search (informal economy, stay-at-home orders) leave the labour force.
     w.nation_set_lf_exit(n, clamp01(static_cast<float>(P.lf_exit_base + P.lf_exit_informal * w.nation_get_informality(n)
@@ -494,6 +502,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         transfer(state, gov, firms, gov_purchases * ddt, flow::gov_purchases);
         transfer(state, gov, firms, fiscal_firms, flow::fiscal_firms);
         transfer(state, gov, firms, static_cast<double>(war_g) * p * ddt, flow::war_spending);
+        transfer(state, firms, gov, static_cast<double>(imports) * p * (w.nation_get_tariff(n) - w.nation_get_tariff0(n)) * ddt, flow::tariffs);
         transfer(state, row, firms, static_cast<double>(x_real) * p * ddt, flow::exports);
         transfer(state, firms, row, static_cast<double>(imports) * p * ddt, flow::imports);
         transfer(state, firms, gov, indirect * ddt, flow::tax_indirect);

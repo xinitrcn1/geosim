@@ -248,8 +248,10 @@ void update_geopolitics(game_state& state) {
             // Sanctions (two-level: escalation needs a governing majority where elections compete).
             if(exec) {
                 const float dependence = n.get_trade_share(k);
+                // Reciprocity: a partner's tariff rise invites retaliation.
+                const float retaliation = static_cast<float>(P.tariff_retaliation) * std::max(0.0f, m.get_tariff() - m.get_tariff0()) * 10.0f;
                 const float pragmatic = std::clamp(static_cast<float>(P.sanction_security_gain) * (threat - 0.2f)
-                                                       - static_cast<float>(P.sanction_dependence_cost) * dependence, 0.0f, 1.0f);
+                                                       - static_cast<float>(P.sanction_dependence_cost) * dependence + retaliation, 0.0f, 1.0f);
                 const float ideological = std::clamp(static_cast<float>(P.sanction_ideology_gain) * (regime_distance(state, n.id, m.id) - 0.3f),
                                                      0.0f, 1.0f);
                 const float rho = exec.get_rho();

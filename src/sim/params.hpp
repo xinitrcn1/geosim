@@ -307,6 +307,24 @@
     X(insurgency_days, 60.0, "days at insurgency-level unrest before an insurgency can start")         \
     X(insurgency_rate, 0.5, "annual insurgency onset hazard at full exclusion and no state capacity (Fearon & Laitin 2003)") \
     X(insurgency_end_rate, 0.3, "annual hazard that an insurgency ends at full state capacity")         \
+    /* ---- firms (systems/firms.cpp) ---- */                                                                \
+    X(sme_cash_days, 27.0, "cash buffer of small firms in days of costs (JPMorgan Chase Institute 2016)") \
+    X(large_cash_days, 60.0, "cash buffer of large firms in days of costs")                             \
+    X(firm_fixed_cost, 0.35, "share of firm costs that do not fall with output in the short run (rent, debt, salaried staff)") \
+    X(firm_exit_base_sme, 0.08, "annual exit rate of small firms in normal times (OECD business demography)") \
+    X(firm_exit_base_large, 0.03, "annual exit rate of large firms in normal times")                    \
+    X(firm_fragility, 6.0, "exit-rate multiple at an exhausted cash buffer (financial fragility; Delli Gatti et al. 2005)") \
+    X(firm_support_cover, 0.8, "share of a firm's shortfall covered per unit of support / private wage bill") \
+    X(firm_reallocation, 0.5, "share of an exiting firm's capacity taken up by survivors (Caballero & Hammour 1994)") \
+    X(firm_entry_gain, 1.0, "entry above the base rate per unit of buffer above normal (Dosi et al. 2010)") \
+    X(firm_lgd, 0.5, "loss on the loans of failed firms")                                                \
+    X(board_hoarding_gain, 0.4, "extra labour hoarding of a fully coordinated board (Hall & Soskice 2001)") \
+    X(tariff_pain, 0.05, "pragmatic tariff (ad valorem) per unit manufacturing job loss (Bown & Crowley 2013)") \
+    X(tariff_appreciation, 0.05, "pragmatic tariff per unit log real appreciation (Bown & Crowley 2013)") \
+    X(tariff_inflation_brake, 2.0, "pragmatic tariff cut per unit inflation above trend")              \
+    X(tariff_nationalism, 0.08, "ideological tariff per unit nationalist (TAN) position of the governing party") \
+    X(tariff_elasticity, 4.0, "import volume elasticity to tariffs (Simonovska & Waugh 2014)")          \
+    X(tariff_retaliation, 0.5, "partner sanction step per unit tariff rise (reciprocity)")              \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

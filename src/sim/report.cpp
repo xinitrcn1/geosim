@@ -92,7 +92,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     static constexpr char const* names[] = {"consumption", "gov_purchases", "exports", "imports", "wages_private",
         "wages_public", "job_retention_pay", "unemployment_benefits", "pensions", "fiscal_households", "fiscal_firms",
         "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households", "household_transfers", "remittances_in", "remittances_out", "sovereign_default",
-        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending"};
+        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs"};
     static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(flow::count));
     auto const& w = state.world;
     const double days = std::max(1.0, w.nation_get_acc_days(n));
@@ -151,7 +151,7 @@ void write_logistics(game_state const& state, std::ostream& out) {
 void write_daily_header(std::ostream& out) {
     out << "date,iso3,stringency,new_infections,new_deaths_reported,deaths_reported_per_million,gdp_index,"
            "unemployment_pct,cpi,policy_rate,gov_balance_pct_gdp,consumption_index,exports_index,gini,oil_price,r_eff,oil_demand_mbd,oil_supply_mbd,oil_inventory_mb,nation_oil_demand_index,"
-           "freight_index,logistics_delay_days,port_dwell_days,yield10,credit_growth,credit_impulse,npl,exchange_rate,food_price,unrest,protest,directed_credit_pct_gdp,qe_pct_gdp,info_control,lending_rate,capital_ratio\n";
+           "freight_index,logistics_delay_days,port_dwell_days,yield10,credit_growth,credit_impulse,npl,exchange_rate,food_price,unrest,protest,directed_credit_pct_gdp,qe_pct_gdp,info_control,lending_rate,capital_ratio,firm_exit_rate,tariff,net_filtering\n";
 }
 
 void write_daily_rows(game_state const& state, std::ostream& out) {
@@ -209,7 +209,7 @@ void write_daily_rows(game_state const& state, std::ostream& out) {
             << n.get_credit_growth() << ',' << n.get_credit_impulse() << ',' << n.get_npl() << ',' << n.get_exchange_rate() << ','
             << n.get_food_price() << ',' << (rpop > 0 ? unrest / rpop : 0.0f) << ',' << (rpop > 0 ? protest / rpop : 0.0f) << ','
             << n.get_directed_credit() << ',' << n.get_qe_rate() << ',' << n.get_info_control() << ',' << n.get_lending_rate() << ','
-            << n.get_capital_ratio() << '\n';
+            << n.get_capital_ratio() << ',' << n.get_firm_exit_rate() << ',' << n.get_tariff() << ',' << n.get_net_filtering() << '\n';
     }
 }
 

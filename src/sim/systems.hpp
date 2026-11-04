@@ -68,6 +68,12 @@ void update_bonds(game_state& state);
 // operations (docs/06-geopolitics-ai.md#information-and-the-internet).
 void update_internet(game_state& state);
 
+// Firms: cohorts, bankruptcies, entry and boards (weekly, economy shard); the
+// executive's tariff decision (docs/03-economy.md#firms).
+void init_firms(game_state& state);
+void update_firms(game_state& state);
+void decide_tariff(game_state& state, dcon::agent_id a, dcon::nation_id n);
+
 // Every 28 days (sharded): identity groups - horizontal inequality, network
 // insurance (docs/04-society.md#identity-groups). Daily: protest cascades.
 void update_groups(game_state& state);

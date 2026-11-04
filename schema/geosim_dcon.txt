@@ -293,6 +293,17 @@ object{
 	property{ name{military} type{float} }
 	property{ name{resource_rents} type{float} }
 	property{ name{coupling} type{array{uint8_t}{float}} }
+	property{ name{coordination} type{float} }
+	property{ name{soe_share} type{float} }
+	property{ name{board_hoarding} type{float} }
+	property{ name{board_hoarding0} type{float} }
+	property{ name{nationalism0} type{float} }
+	property{ name{board_investment} type{float} }
+	property{ name{firm_exit_rate} type{float} }
+	property{ name{firm_exit_npl} type{float} }
+	property{ name{tariff} type{float} }
+	property{ name{tariff0} type{float} }
+	property{ name{tariff_prev} type{float} }
 	property{ name{urban_share} type{float} }
 	property{ name{window_center} type{array{uint8_t}{float}} }
 	property{ name{window_width} type{array{uint8_t}{float}} }
@@ -556,6 +567,28 @@ object{
 	property{ name{unemployment} type{float} }
 	property{ name{grievance} type{float} }
 	property{ name{mobilisation} type{float} }
+}
+
+object{
+	name{firm}
+	storage_type{contiguous}
+	size{1024}
+	tag{scenario}
+
+	property{ name{nation} type{nation_id} }
+	property{ name{sector} type{sector_id} }
+	property{ name{large} type{uint8_t} }
+	property{ name{board} type{agent_id} }
+	property{ name{share} type{float} }
+	property{ name{cash_days} type{float} }
+	property{ name{cash_days0} type{float} }
+	property{ name{leverage} type{float} }
+	property{ name{exit_rate} type{float} }
+	property{ name{exits} type{float} }
+	property{ name{entries} type{float} }
+	property{ name{soe_share} type{float} }
+	property{ name{hoarding} type{float} }
+	property{ name{investment_drive} type{float} }
 }
 
 object{

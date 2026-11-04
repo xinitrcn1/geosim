@@ -60,7 +60,7 @@ enum class value_axis : uint8_t { secular = 0, self_expression = 1, economic_rig
 enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3, count };
 
 // agent.kind
-enum class agent_kind : uint8_t { executive = 0, central_bank = 1 };
+enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2 };
 
 // agent.override_mode (docs/01-gameplay-loop.md#3-act--overrides)
 enum class override_mode : uint8_t { none = 0, advise = 1, direct = 2, force = 3 };
@@ -78,6 +78,9 @@ enum class lever : uint8_t {
     info_control,    // executive: restrictions on online media and messaging, 0..1 (systems/society.cpp)
     asset_purchases, // central bank: government bond purchases (QE), % of GDP per year (systems/bonds.cpp)
     net_filtering,   // executive: filtering of foreign internet services and content, 0..1 (systems/internet.cpp)
+    tariff,          // executive: average import tariff, ad valorem (systems/firms.cpp)
+    hoarding,        // board: labour hoarding in a downturn, 0..1 (systems/firms.cpp)
+    investment,      // board: investment drive relative to the baseline (systems/firms.cpp)
     count
 };
 
@@ -138,6 +141,7 @@ enum class flow : uint8_t {
     commodity_terms,       // terms-of-trade gains / losses on non-oil commodities
     network_transfers,     // kin / caste / hometown network insurance between pops
     war_spending,          // military procurement during wars
+    tariffs,               // import tariff revenue (above the start)
     count
 };
 

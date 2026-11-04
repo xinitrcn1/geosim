@@ -53,6 +53,7 @@ struct nation_input {
     double private_credit = 0.5, hh_credit_share = 0.4, state_bank_share = 0.2, cb_independence = 0.6;
     double fx_loan_share = 0.1, fx_deposit_share = 0.1, npl = 0.03, capital_ratio = 0.16, lending_spread = 3.0;
     double yield10 = NAN, effective_rate = NAN, avg_maturity = 7.0, foreign_debt_share = 0.3, fx_debt_share = 0.1, food_cpi = 0.25;
+    double coordination = 0.5, tariff = 0.05;
     // society_curated.csv
     double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03, net_freedom = 60.0;
     struct group {
@@ -389,6 +390,8 @@ struct builder {
             in.foreign_debt_share = t.number_or(row, "foreign_debt_share", in.foreign_debt_share);
             in.fx_debt_share = t.number_or(row, "fx_debt_share", in.fx_debt_share);
             in.food_cpi = t.number_or(row, "food_cpi_share", in.food_cpi);
+            in.coordination = std::clamp(t.number_or(row, "coordination_index", in.coordination), 0.0, 1.0);
+            in.tariff = t.number_or(row, "tariff_pct", in.tariff * 100.0) / 100.0;
         });
         rows("society_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             in.youth_share = t.number_or(row, "youth_share", in.youth_share);
@@ -1093,6 +1096,12 @@ struct builder {
         w.nation_set_food_cpi_share(n, static_cast<float>(in.food_cpi));
         w.nation_set_energy_cpi_share(n, static_cast<float>(P.gas_cpi_share));
         w.nation_set_food_price(n, 1.0f);
+        // Firms and trade policy.
+        w.nation_set_coordination(n, static_cast<float>(in.coordination));
+        w.nation_set_soe_share(n, static_cast<float>(in.state_bank_share)); // SOE presence tracks state banking (OECD 2017)
+        w.nation_set_tariff(n, static_cast<float>(in.tariff));
+        w.nation_set_tariff0(n, static_cast<float>(in.tariff));
+        w.nation_set_tariff_prev(n, static_cast<float>(in.tariff));
         // Society.
         w.nation_set_youth_share(n, static_cast<float>(in.youth_share));
         w.nation_set_youth_unemp_rel(n, static_cast<float>(in.youth_unemp_rel));
@@ -1751,6 +1760,7 @@ struct builder {
         create_agents();
         if(diag.failed()) return;
         create_politics();
+        init_firms(state); // after politics: boards and tariffs read the governing party
     }
 };
 
