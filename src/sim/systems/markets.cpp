@@ -11,6 +11,17 @@ namespace geosim::sim {
 // Oil (docs/03-economy.md#prices): demand follows activity and personal
 // mobility; producers move toward event-set targets or price-elastic levels;
 // inventories absorb the imbalance; the price follows flow and stock gaps.
+// World oil demand on its trend path relative to 2019 (demand-weighted growth factors).
+float oil_trend_index(game_state const& state) {
+    auto const& w = state.world;
+    double num = 0.0, den = 0.0;
+    for(auto n : w.in_nation) {
+        num += static_cast<double>(n.get_oil_demand0()) * growth_factor(state, n.id);
+        den += n.get_oil_demand0();
+    }
+    return den > 0.0 ? static_cast<float>(num / den) : 1.0f;
+}
+
 void update_oil_market(game_state& state) {
     auto& w = state.world;
     auto const& P = state.params;
@@ -71,7 +82,7 @@ void update_oil_market(game_state& state) {
         supply += prod;
     }
 
-    const double d0 = w.commodity_get_demand0(oil);
+    const double d0 = w.commodity_get_demand0(oil) * oil_trend_index(state);
     double inventory = w.commodity_get_inventory(oil) + (supply - demand); // mb, one day
     w.commodity_set_inventory(oil, inventory);
     w.commodity_set_supply(oil, static_cast<float>(supply));

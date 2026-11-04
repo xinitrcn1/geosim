@@ -134,6 +134,7 @@ void init_reforms(game_state& state);
 void update_reforms(game_state& state);
 [[nodiscard]] float reform_growth(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float fiscal_capacity_of(game_state const& state, dcon::nation_id n, dcon::region_id r);
+[[nodiscard]] float oil_trend_index(game_state const& state);
 [[nodiscard]] float price_spike(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float pension_ageing_factor(game_state const& state, dcon::nation_id n);
 void update_variants(game_state& state);

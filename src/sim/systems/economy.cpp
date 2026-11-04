@@ -803,10 +803,12 @@ void update_economy(game_state& state, economy_mode mode) {
         const auto taxable = gross + other;
         const auto net_factor = ve::select(taxable > zero, one - tax / ve::max(taxable, ve::fp_vector(1e-9f)), one);
 
-        // Permanent income is smoothed in real terms; desired consumption for the next step.
+        // Permanent income is smoothed in real terms relative to the trend path (gf):
+        // households expect trend growth, so smoothing does not make spending lag the
+        // growth of potential (a lag that compounds into a demand drift; docs/13).
         const auto inc_perm_old = w.pop_get_income_perm(ids);
-        const auto inc_perm = probe ? inc_perm_old : inc_perm_old + (net / p - inc_perm_old) * smooth_inc;
-        const auto c_new = ve::max(zero, (one - w.pop_get_saving_rate0(ids)) * inc_perm * p * w.nation_get_conf_rate(nat)
+        const auto inc_perm = probe ? inc_perm_old : inc_perm_old + (net / (p * gf) - inc_perm_old) * smooth_inc;
+        const auto c_new = ve::max(zero, (one - w.pop_get_saving_rate0(ids)) * inc_perm * gf * p * w.nation_get_conf_rate(nat)
                                              + ve::max(zero, w.pop_get_excess_deposits(ids)) * wealth_rate);
         // This step's spending: last step's plan, scaled by what the market could supply.
         const auto spend = w.pop_get_c_des(ids) * w.nation_get_cons_fill(nat);
@@ -892,7 +894,7 @@ void update_economy(game_state& state, economy_mode mode) {
             }
         }
         pp.set_balance_trend(pp.get_balance_trend()
-                             + static_cast<double>(pp.get_saving_rate0()) * pp.get_income_perm() * w.nation_get_core_price(n) * ddt);
+                             + static_cast<double>(pp.get_saving_rate0()) * pp.get_income_perm() * w.nation_get_gf(n) * w.nation_get_core_price(n) * ddt);
         pp.set_excess_deposits(static_cast<float>(pp.get_balance() - pp.get_balance_trend()));
     }
     for(auto n : due_nations) {

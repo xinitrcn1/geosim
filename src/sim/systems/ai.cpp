@@ -355,10 +355,14 @@ void decide_oil(game_state& state, dcon::agent_id a, dcon::nation_id n) {
         return;
     }
     const float price = w.commodity_get_price(D.oil) / w.commodity_get_price0(D.oil);
-    const float market = prod0 * std::pow(std::max(0.05f, price), w.nation_get_oil_supply_elasticity(n));
+    // Capacity grows along the trend of world demand: the 2019 balance holds on the
+    // growth path (new fields replace depletion; IEA World Energy Investment), so a
+    // tightening market needs a real shock, not the passage of time.
+    const float capacity = prod0 * oil_trend_index(state);
+    const float market = capacity * std::pow(std::max(0.05f, price), w.nation_get_oil_supply_elasticity(n));
     const bool anchors = P.historical_anchors != 0.0 && w.nation_get_prior_oil_set(n);
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::oil_target));
-    auto r = blend(market, prod0, w.agent_get_rho(a), anchors, w.nation_get_prior_oil(n), static_cast<float>(P.anchor_prior_weight),
+    auto r = blend(market, capacity, w.agent_get_rho(a), anchors, w.nation_get_prior_oil(n), static_cast<float>(P.anchor_prior_weight),
                    0.0f, prod0 * 2.0f);
     const float before = w.nation_get_oil_target(n);
     const float after = settle(state, a, lev, r, 0.0f, prod0 * 2.0f);
