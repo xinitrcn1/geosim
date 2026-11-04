@@ -358,6 +358,13 @@ struct builder {
             // Energy data (generated: Energy Institute via OWID); curated values override.
             in.oil_production = t.number_or(row, "oil_production_mbd", 0.0);
             in.oil_consumption = t.number_or(row, "oil_consumption_mbd", -1.0);
+            // Institutions and reporting from the generated table (world: income-group
+            // priors or data); curated values below override them.
+            in.hemisphere = t.number_or(row, "hemisphere", in.hemisphere);
+            in.epl = t.number_or(row, "epl", in.epl);
+            in.benefit_replacement = t.number_or(row, "benefit_replacement", in.benefit_replacement);
+            in.benefit_coverage = t.number_or(row, "benefit_coverage", in.benefit_coverage);
+            in.death_reporting = t.number_or(row, "death_reporting", in.death_reporting);
             if(auto v = t.number(row, "tourism_receipts_pct_exports")) in.tourism_share = std::clamp(*v / 100.0, 0.0, 0.95);
             {
                 const auto a = t.number(row, "tourist_arrivals"), d = t.number(row, "tourist_departures");
@@ -377,16 +384,16 @@ struct builder {
                 { diag.fail(dir + "/nations_curated.csv: unknown nation " + iso); return; }
             }
             auto& in = it->second;
-            in.hemisphere = c.number_or(row, "hemisphere", 1.0);
+            if(auto v = c.number(row, "hemisphere")) in.hemisphere = *v;
             if(auto v = c.number(row, "oil_production_mbd")) in.oil_production = *v;
             if(auto v = c.number(row, "oil_supply_elasticity")) {
                 in.oil_elasticity = *v;
                 in.oil_elasticity_set = true;
             }
-            in.epl = c.number_or(row, "epl", 0.35);
-            in.benefit_replacement = c.number_or(row, "benefit_replacement", 0.3);
-            in.benefit_coverage = c.number_or(row, "benefit_coverage", 0.15);
-            in.death_reporting = c.number_or(row, "death_reporting", 0.5);
+            if(auto v = c.number(row, "epl")) in.epl = *v;
+            if(auto v = c.number(row, "benefit_replacement")) in.benefit_replacement = *v;
+            if(auto v = c.number(row, "benefit_coverage")) in.benefit_coverage = *v;
+            if(auto v = c.number(row, "death_reporting")) in.death_reporting = *v;
             if(auto v = c.number(row, "oil_gov_take")) {
                 in.oil_take = *v;
                 in.oil_take_set = true;
@@ -717,7 +724,8 @@ struct builder {
         w.region_set_lat(r, static_cast<float>(ri.lat));
         w.region_set_lon(r, static_cast<float>(ri.lon));
         w.region_set_area_km2(r, static_cast<float>(ri.area));
-        w.region_set_urban_share(r, static_cast<float>(ri.urban));
+        // A region without its own urban share (single-region nations) takes the nation's.
+        w.region_set_urban_share(r, static_cast<float>(ri.id == in.iso ? in.urban : ri.urban));
         w.region_set_old_share(r, static_cast<float>(in.pop65));
         // Seasonality follows the region's latitude when known, else the nation's hemisphere.
         w.region_set_hemisphere(r, ri.lat != 0.0 ? static_cast<float>(std::clamp(ri.lat / 23.5, -1.0, 1.0))

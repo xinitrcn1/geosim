@@ -146,7 +146,12 @@ void update_epidemic(game_state& state) {
             const float trace_factor = 1.0f - trace_max * trace_level * trace_room * std::max(detected_share, tti) * traceable;
             const float season = 1.0f + w.pathogen_get_seasonality(pid) * season_phase * r.get_hemisphere();
             const float gamma = 1.0f / w.pathogen_get_infectious_days(pid);
-            r.set_beta(p, w.pathogen_get_r0(pid) * gamma * npi_factor * voluntary * trace_factor * test_factor * isolation * season);
+            // Crowding: transmission is lower in rural populations (Rader et al. 2020,
+            // Nature Medicine; Wong & Li 2020); pathogens are calibrated on an 80% urban
+            // reference, so mostly rural regions see fewer effective contacts.
+            const float rural = static_cast<float>(P.rural_contact_rel);
+            const float crowding = (rural + (1.0f - rural) * r.get_urban_share()) / (rural + (1.0f - rural) * 0.8f);
+            r.set_beta(p, w.pathogen_get_r0(pid) * gamma * npi_factor * voluntary * trace_factor * test_factor * isolation * season * crowding);
 
             double own_i = 0.0;
             for(uint8_t a = 0; a < age_groups; ++a) {
@@ -184,7 +189,17 @@ void update_epidemic(game_state& state) {
             }
             r.set_imported(p, static_cast<float>(P.travel_rate) * connectivity(n) * pop * prevalence * (1.0f - static_cast<float>(P.border_effect) * border)
                                   * (1.0f - quarantine) + commute);
-            hospital_need += w.pathogen_get_hosp_share(pid) * static_cast<float>(own_i);
+            // Hospitalisation rises steeply with age (Salje et al. 2020: ~5x as likely
+            // at 65+ as under 65): need is weighted by who is infected and by the
+            // under-65 age mix, normalised so a reference population (17% aged 65+,
+            // ifr_age 1) needs hosp_share of its infections. Young populations with few
+            // beds are then not overloaded by infections that rarely need a bed.
+            {
+                const float i_young = r.get_ep_i(epi_index(p, age_young)), i_old = r.get_ep_i(epi_index(p, age_old));
+                constexpr float old_weight = 5.0f, norm = 0.83f + 0.17f * old_weight;
+                hospital_need += w.pathogen_get_hosp_share(pid)
+                                 * (i_young * std::sqrt(r.get_ifr_age()) + i_old * old_weight) / norm;
+            }
         }
         // Shared hospital capacity: overload from any pathogen raises every IFR.
         const float beds = r.get_beds_per_1000() / 1000.0f * pop * static_cast<float>(P.epidemic_bed_share);

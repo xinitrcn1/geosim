@@ -63,14 +63,13 @@ void ui_context::panel(rect r, panel_kind kind) {
     r = {std::round(r.x), std::round(r.y), std::round(r.w), std::round(r.h)};
     const float b = std::max(1.0f, std::round(px(style::border)));
     if(kind == panel_kind::opaque) {
-        auto q = make_quad(r, style::opaque_bg, quad_mode::solid);
-        q.border_color = pack(style::opaque_border);
-        q.border_width = b;
-        scene.push(material::ui, q);
+        scene.push(material::ui, make_quad(r, style::opaque_bg, quad_mode::solid));
     } else {
         auto q = make_quad(r, style::glass_tint, quad_mode::frosted);
-        q.border_color = pack(style::glass_border);
-        q.border_width = b;
+        if(kind == panel_kind::translucent) {
+            q.border_color = pack(style::glass_border);
+            q.border_width = b;
+        }
         overlay.push(material::ui, q);
     }
     if(hovered(r)) wants_mouse_ = true;
@@ -81,6 +80,18 @@ float ui_context::text(layer l, float x, float baseline, std::string_view s, flo
     const float adv = text_.shape(s, size_px, w, std::round(x), std::round(baseline), &glyphs_);
     auto& list = l == layer::scene ? scene : overlay;
     const uint32_t colour = pack(c);
+    if(l == layer::overlay) {
+        // Text on glass gets a faint dark backing (offset copy) so it stays
+        // legible over bright parts of the map.
+        const float o = std::max(1.0f, std::round(px(1)));
+        rgba back = style::text_backing;
+        back.a *= c.a;
+        const uint32_t bc = pack(back);
+        for(auto const& g : glyphs_) {
+            list.push(material::ui, {g.x0 + o, g.y0 + o, g.x1 - g.x0, g.y1 - g.y0, g.u0, g.v0, g.u1, g.v1, bc, 0, 0,
+                                     static_cast<uint32_t>(quad_mode::glyph)});
+        }
+    }
     for(auto const& g : glyphs_) {
         list.push(material::ui, {g.x0, g.y0, g.x1 - g.x0, g.y1 - g.y0, g.u0, g.v0, g.u1, g.v1, colour, 0, 0,
                                  static_cast<uint32_t>(quad_mode::glyph)});

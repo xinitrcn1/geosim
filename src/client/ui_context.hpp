@@ -26,7 +26,8 @@ struct ui_input {
 
 enum class panel_kind : uint8_t {
     opaque,      // flat, always-visible elements (top bar): drawn into the scene layer
-    translucent, // dismissable / ignorable elements: frosted glass in the overlay layer
+    translucent, // dismissable / ignorable elements: frosted glass in the overlay layer, floating card with an edge
+    glass_flush, // frosted glass without an edge, stacked flush with its neighbours (agent bars); separated by strips
 };
 
 enum class tone : uint8_t { neutral, good, bad, dim };

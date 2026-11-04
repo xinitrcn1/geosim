@@ -17,6 +17,7 @@ struct nation_summary {
     double gov_net_lending_pct = 0; // change in government balance / nominal GDP over the run
     double deaths_per_million = 0;  // reported, cumulative, all pathogens
     std::vector<std::pair<std::string, double>> deaths_by_pathogen; // reported per million, by pathogen key
+    std::vector<std::pair<std::string, double>> true_deaths_by_pathogen; // all deaths (reported or not) per million
     double gini_start = 0;
     double gini_end = 0;
     double population_change_pct = 0; // vs the scenario start

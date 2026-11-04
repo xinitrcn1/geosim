@@ -20,6 +20,13 @@ struct tolerance {
 };
 
 double model_value(nation_summary const& s, std::string const& metric, std::string const& pathogen) {
+    // Excess deaths are scored against all of the model's deaths (reported or not).
+    if(metric == "excess_deaths_per_million" && !pathogen.empty()) {
+        for(auto const& [key, v] : s.true_deaths_by_pathogen) {
+            if(key == pathogen) return v;
+        }
+        return NAN;
+    }
     if(metric == "deaths_per_million" && !pathogen.empty()) {
         for(auto const& [key, v] : s.deaths_by_pathogen) {
             if(key == pathogen) return v;

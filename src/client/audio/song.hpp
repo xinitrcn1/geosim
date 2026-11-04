@@ -43,6 +43,9 @@ enum drum : uint8_t {
     dr_riser = 90,  // noise sweep up over the event length
     dr_impact = 91, // low boom + noise burst (start of a drop)
     dr_swell = 92,  // reversed-cymbal-like swell over the event length
+    dr_lp_close = 93,  // not a sound: the music bus low-pass closes over the event length, then reopens
+    dr_lp_open = 94,   // not a sound: the music bus low-pass starts closed and opens over the event length
+    dr_downlifter = 95, // noise sweep down (falling energy after a peak)
 };
 
 enum class wave : uint8_t { pulse, saw, triangle, sine, noise, table };
@@ -90,7 +93,9 @@ enum layer : uint8_t {
 };
 inline constexpr float layer_mid = 0.4f, layer_high = 0.7f;
 
-enum class note_fx : uint8_t { none, arp, slide_up };
+// arp: cycle through notes[] every tick (chip chord); stab: short pluck
+// envelope (2 ms attack, fast decay to silence) whatever the patch says.
+enum class note_fx : uint8_t { none, arp, slide_up, stab };
 
 struct note_event {
     uint32_t tick = 0;       // absolute tracker tick (row * 6 + offset)
@@ -101,6 +106,7 @@ struct note_event {
     note_fx fx = note_fx::none; // arp: cycle through notes[] every tick (chip chord)
     uint8_t count = 1;       // notes used
     uint8_t notes[4] = {60, 0, 0, 0}; // MIDI notes (or drum ids on kit channels)
+    uint16_t gate = 0;       // trance gate: bit r open on the r-th 16th of each bar from the note start (0 = no gate)
 };
 
 enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro };

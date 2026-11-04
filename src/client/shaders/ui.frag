@@ -29,9 +29,14 @@ void main() {
     vec4 c;
     if(mode == mode_frosted) {
         vec3 backdrop = texture(u_blur, screen_uv).rgb;
-        // Tint: colour.a is the tint strength; a little dither hides banding
-        // from the quarter-resolution blur.
+        // Frosted glass: the blurred backdrop, slightly desaturated and
+        // dimmed, under a light cool tint (colour.a is the tint strength),
+        // with a faint sheen towards the top edge. A little dither hides
+        // banding from the quarter-resolution blur.
+        float luma = dot(backdrop, vec3(0.299, 0.587, 0.114));
+        backdrop = mix(backdrop, vec3(luma), 0.18) * 0.90;
         vec3 tinted = mix(backdrop, v_color.rgb, v_color.a);
+        tinted += 0.035 * (1.0 - clamp(v_local.y / max(v_rect.w, 1.0), 0.0, 1.0));
         tinted += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
         c = vec4(tinted, 1.0);
     } else if(mode == mode_glyph) {

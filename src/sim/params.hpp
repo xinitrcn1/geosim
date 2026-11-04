@@ -442,6 +442,7 @@
     X(cube_law, 3.0, "seat-vote exponent of single-member districts in a one-region nation (Taagepera 1986)") \
     X(lobby_tariff, 0.05, "ideological tariff per unit lobby pressure (Grossman & Helpman 1994)")       \
     X(governor_alignment, 0.3, "regional NPI offset of a governor from the opposition per unit party distance") \
+    X(rural_contact_rel, 0.6, "transmissible contacts in rural vs urban populations (Rader et al. 2020; crowding)") \
     X(telework_effect, 1.0, "share of teleworkable jobs that keep working under closures (Dingel & Neiman 2020)") \
     X(telework_reference_pc, 65000.0, "GDP per head (USD) at which the full US teleworkable shares apply") \
     X(health_threat, 0.5, "pragmatic health spending (% GDP above baseline) per unit epidemic threat (2020: +0.5..1.5% GDP; OECD Health Statistics)") \

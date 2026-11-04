@@ -68,6 +68,9 @@ private:
         float freq_mul = 1.0f, duty = 0.5f;
         float dcoef = 0, fcoef = 0, ratio2 = 1; // per-sample decay multipliers, osc 2 ratio
         float crush_phase = 0, crush_hold = 0;
+        float attack = 0.005f, sustain = 0.7f; // envelope (the patch's, or a stab's)
+        uint16_t gate_mask = 0;    // trance gate over the 16ths of a bar (0 = off)
+        float gate_amp = 1.0f;     // smoothed gate level
         float dphase = 0;          // drum oscillator phase
         float metal[6] = {};       // hat oscillator phases
         uint32_t noise = 22222u;
@@ -75,7 +78,7 @@ private:
 
     void process_tick() noexcept;
     void trigger(note_event const& e) noexcept;
-    void release_channel(int ch, uint32_t before_tick, bool fast) noexcept;
+    void release_channel(int ch, uint32_t before_tick, bool fast, float min_release = 0.0f) noexcept;
     voice& allocate(int ch) noexcept;
     void update_control(voice& v) noexcept;
     float render_tonal(voice& v, patch const& p) noexcept;
@@ -99,12 +102,20 @@ private:
     float intensity_ = 0.5f, intensity_target_ = 0.5f;
     float volume_ = 0.0f, volume_target_ = 0.8f;
     float bright_mul_ = 1.0f;
+    float row_seconds_ = 0.125f; // one 16th note
 
     std::array<std::array<voice, voices_per_channel>, num_channels> voices_{};
     patch patches_[num_channels];
     mix_settings mix_;
     float pan_l_[num_channels]{}, pan_r_[num_channels]{};
     float duck_t_ = 10.0f; // seconds since the last kick
+
+    // Bus low-pass sweep (dr_lp_close / dr_lp_open): every channel but the
+    // kick and the fx goes through its own SVF while a sweep runs.
+    int sweep_dir_ = 0;         // 0 off, -1 closing, +1 opening
+    float sweep_t_ = 0, sweep_len_ = 1;
+    float sweep_g_ = 1, sweep_k_ = 1.3f;
+    float sweep_ic1_[num_channels]{}, sweep_ic2_[num_channels]{};
 
     // effects
     std::vector<float> delay_l_, delay_r_;

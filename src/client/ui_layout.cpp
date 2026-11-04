@@ -184,7 +184,7 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
     const float date_w = ui.text_width("Wed 30 Sep 2020", font, font_weight::semibold);
     const float buttons = static_cast<float>(1 + max_speed) * (b + gap) + static_cast<float>(std::size(action_buttons) + std::size(filter_buttons)) * (b + gap);
     const float w = pad + flag_w + pad * 2 + date_w + pad * 2 + buttons + pad * 4;
-    rect bar{ui.px(style::gap), ui.px(style::gap), std::round(w), std::round(h)};
+    rect bar{0, 0, std::round(w), std::round(h)}; // flush with the window's top-left corner
     ui.panel(bar, panel_kind::opaque);
 
     float x = bar.x + pad;
@@ -247,7 +247,11 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
     return bar;
 }
 
-float agent_bars(ui_context& ui, sim_runner& sim, float y) {
+// The agent bars: one continuous pane of glass under the top bar, flush at
+// x = 0 and stacked without gaps; a thin white strip marks each shared edge
+// (top bar / first bar, bar / bar). Returns the bottom of the last bar.
+float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w) {
+    const float strip = std::max(1.0f, std::round(ui.px(style::separator_strip)));
     const float h = ui.px(style::bar_height);
     const float pad = ui.px(style::pad);
     const float font = ui.px(style::font_size);
@@ -259,8 +263,10 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y) {
         for(auto const& it : panel.items) {
             w += ui.text_width(it.label, small) + ui.px(5) + ui.text_width(it.value, font, font_weight::semibold) + pad * 2;
         }
-        rect bar{ui.px(style::gap), y, std::round(w), std::round(h)};
-        ui.panel(bar, panel_kind::translucent);
+        rect bar{0, y, std::round(w), std::round(h)};
+        ui.panel(bar, panel_kind::glass_flush);
+        ui.fill(layer::overlay, {0, y, std::min(above_w, bar.w), strip}, style::glass_separator);
+        above_w = bar.w;
         float x = bar.x + pad;
         x += ui.text_in(layer::overlay, {x, bar.y, w, h}, panel.icon, icon, style::text);
         x += ui.px(6);
@@ -274,7 +280,7 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y) {
             if(ui.hovered({x0, bar.y, x - x0, h})) ui.tooltip(it.tip);
             x += pad * 2;
         }
-        y += h + ui.px(style::gap);
+        y = bar.bottom();
     }
     return y;
 }
@@ -348,9 +354,8 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
 void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& st) {
     st.requested_speed = -1;
     const rect bar = top_bar(ui, sim, st);
-    float y = bar.bottom() + ui.px(style::gap);
-    y = agent_bars(ui, sim, y);
-    alert_list(ui, sim, alerts, st, y);
+    float y = agent_bars(ui, sim, bar.bottom(), bar.w);
+    alert_list(ui, sim, alerts, st, y + ui.px(style::gap)); // alerts float: they keep their margins
 }
 
 } // namespace geosim::client

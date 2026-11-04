@@ -90,8 +90,15 @@ player::player(float sample_rate) : sr_(sample_rate), inv_sr_(1.0f / sample_rate
 }
 
 void player::set_song(song const* s) noexcept {
+    // A song that played to its end lets its last chord and note ring out
+    // (the final cadence decays instead of being cut by the patch release).
+    const bool natural_end = song_ != nullptr && finished_ && s == nullptr;
+    if(natural_end) {
+        for(int c : {ch_bass, ch_lead, ch_pad}) release_channel(c, ~0u, false, 1.4f);
+    }
     song_ = s;
     finished_ = false;
+    sweep_dir_ = 0;
     next_event_ = 0;
     tick_ = 0;
     section_ = 0;
@@ -124,13 +131,13 @@ bool player::layer_on(uint8_t layer) const noexcept {
     }
 }
 
-void player::release_channel(int ch, uint32_t before_tick, bool fast) noexcept {
+void player::release_channel(int ch, uint32_t before_tick, bool fast, float min_release) noexcept {
     for(voice& v : voices_[static_cast<std::size_t>(ch)]) {
         if(!v.active || v.start_tick >= before_tick) continue;
         v.gate = false;
         if(v.stage != 2 || fast) {
             v.stage = 2;
-            const float t = fast ? 0.006f : std::max(0.005f, patches_[ch].release);
+            const float t = fast ? 0.006f : std::max({0.005f, patches_[ch].release, min_release});
             v.release_coef = std::exp(-4.6f * inv_sr_ / t);
         }
     }
@@ -193,6 +200,15 @@ void player::process_tick() noexcept {
 void player::trigger(note_event const& e) noexcept {
     patch const& p = patches_[e.ch];
     const float vel = std::pow(static_cast<float>(e.vel) / 127.0f, 1.4f);
+    if(p.kit && (e.notes[0] == dr_lp_close || e.notes[0] == dr_lp_open)) {
+        sweep_dir_ = e.notes[0] == dr_lp_close ? -1 : 1;
+        sweep_t_ = 0.0f;
+        sweep_len_ = std::max(0.05f, static_cast<float>(static_cast<double>(e.len) * samples_per_tick_) * inv_sr_);
+        if(sweep_dir_ > 0) {
+            for(int c = 0; c < num_channels; ++c) sweep_ic1_[c] = sweep_ic2_[c] = 0.0f;
+        }
+        return;
+    }
     if(p.kit) {
         // Each note is its own drum voice; mono kits choke earlier hits
         // (closed hat cuts the open hat), hits on the same tick layer.
@@ -255,9 +271,19 @@ void player::trigger(note_event const& e) noexcept {
     }
     v.glide_from = from_ratio;
     v.vel = vel;
+    v.attack = p.attack;
+    v.sustain = p.sustain;
+    float decay = p.decay;
+    if(e.fx == note_fx::stab) {
+        v.attack = 0.002f;
+        v.sustain = 0.0f;
+        decay = 0.16f;
+    }
+    v.gate_mask = e.gate;
+    v.gate_amp = e.gate ? 0.0f : 1.0f;
     v.gate_left = static_cast<double>(e.len) * samples_per_tick_;
     v.duty = p.duty;
-    v.dcoef = std::exp(-4.6f * inv_sr_ / std::max(0.005f, p.decay));
+    v.dcoef = std::exp(-4.6f * inv_sr_ / std::max(0.005f, decay));
     v.fcoef = std::exp(-4.6f * inv_sr_ / std::max(0.005f, p.fdecay));
     v.ratio2 = std::exp2((p.semi2 + p.detune * 0.01f) / 12.0f);
     update_control(v);
@@ -349,11 +375,21 @@ float player::render_tonal(voice& v, patch const& p) noexcept {
     // envelopes
     switch(v.stage) {
     case 0:
-        v.env += inv_sr_ / std::max(0.001f, p.attack);
+        v.env += inv_sr_ / std::max(0.001f, v.attack);
         if(v.env >= 1.0f) v.env = 1.0f, v.stage = 1;
         break;
-    case 1: v.env = p.sustain + (v.env - p.sustain) * v.dcoef; break;
+    case 1: v.env = v.sustain + (v.env - v.sustain) * v.dcoef; break;
     default: v.env *= v.release_coef; break;
+    }
+    float gate_gain = 1.0f;
+    if(v.gate_mask) {
+        // trance gate: open for the first 70 % of each enabled 16th,
+        // ~1.5 ms attack and ~5 ms release so the chops do not click
+        const float rows = v.age / row_seconds_;
+        const int row = static_cast<int>(rows) & 15;
+        const bool open = ((v.gate_mask >> row) & 1u) && (rows - std::floor(rows)) < 0.7f;
+        v.gate_amp += ((open ? 1.0f : 0.0f) - v.gate_amp) * (open ? 0.015f : 0.0045f);
+        gate_gain = v.gate_amp;
     }
     v.fenv *= v.fcoef;
     if(v.gate) {
@@ -365,7 +401,7 @@ float player::render_tonal(voice& v, patch const& p) noexcept {
         }
     }
     if(v.stage == 2 && v.env < 1e-4f) v.active = false;
-    return y * v.env * v.vel * p.gain;
+    return y * v.env * v.vel * p.gain * gate_gain;
 }
 
 float player::render_drum(voice& v, patch const& p, bool control) noexcept {
@@ -442,6 +478,20 @@ float player::render_drum(voice& v, patch const& p, bool control) noexcept {
         done = t > 0.4f;
         break;
     }
+    case dr_downlifter: {
+        // band-passed noise falling 4 octaves with a falling tone, fading out
+        const float len = std::max(0.1f, v.len_s);
+        const float u = std::min(1.0f, t / len);
+        if(control) v.g = svf_g(6000.0f * std::exp2(-4.0f * u), sr_);
+        float s = svf(white(v.noise), v.g, 0.7f, v.ic1, v.ic2).bp;
+        v.dphase += (880.0f * std::exp2(-3.0f * u)) * inv_sr_;
+        if(v.dphase >= 1.0f) v.dphase -= 1.0f;
+        s += 0.12f * std::sin(two_pi * v.dphase) * (1.0f - u);
+        const float amp = std::min(1.0f, t / 0.01f) * (1.0f - u) * (1.0f - u);
+        y = s * amp * 1.1f;
+        done = t > len;
+        break;
+    }
     case dr_riser:
     case dr_swell: {
         const float len = std::max(0.1f, v.len_s);
@@ -491,6 +541,7 @@ void player::render(float* out, int frames) noexcept {
     intensity_ += (intensity_target_ - intensity_) * (1.0f - std::exp(-block_s / 6.0f));
     volume_ += (volume_target_ - volume_) * (1.0f - std::exp(-block_s / 0.15f));
     bright_mul_ = std::exp2((intensity_ - 0.55f) * 1.6f);
+    row_seconds_ = static_cast<float>(samples_per_tick_ * ticks_per_row) * inv_sr_;
 
     const float fb = mix_.delay_feedback;
     const float room = 0.7f + 0.28f * std::clamp(mix_.reverb_size, 0.0f, 1.0f);
@@ -506,6 +557,17 @@ void player::render(float* out, int frames) noexcept {
             }
         }
         const bool control = (control_counter_++ & 15) == 0;
+        if(sweep_dir_ != 0) {
+            // closing: 16 kHz -> 280 Hz, then open again at the end; opening:
+            // 280 Hz -> 16 kHz (exponential, slow at first), then bypassed
+            sweep_t_ += inv_sr_;
+            const float u = std::min(1.0f, sweep_t_ / sweep_len_);
+            if(control) {
+                const float x = sweep_dir_ < 0 ? u * u * (3.0f - 2.0f * u) : 1.0f - u * u;
+                sweep_g_ = svf_g(16000.0f * std::exp2(-5.84f * x), sr_);
+            }
+            if(u >= 1.0f) sweep_dir_ = 0;
+        }
         float l = 0, r = 0, dsend = 0, rsend = 0;
         // sidechain: a short dip after each kick
         const float duck_env = duck_t_ < 0.004f ? duck_t_ / 0.004f : std::exp(-(duck_t_ - 0.004f) / 0.09f);
@@ -524,6 +586,7 @@ void player::render(float* out, int frames) noexcept {
                 }
                 v.age += inv_sr_;
             }
+            if(sweep_dir_ != 0 && c != ch_kick && c != ch_fx) s = svf(s, sweep_g_, sweep_k_, sweep_ic1_[c], sweep_ic2_[c]).lp;
             if(s == 0.0f) continue;
             s *= mix_.gain[c] * (1.0f - mix_.duck[c] * duck_env);
             l += s * pan_l_[c];

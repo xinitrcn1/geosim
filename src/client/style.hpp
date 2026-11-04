@@ -9,14 +9,17 @@
 
 namespace geosim::client::style {
 
-// Opaque panels (top bar).
+// Opaque panels (top bar): flat, no border, flush with the window's corner.
 inline constexpr rgba opaque_bg = hex(0x22416A);
-inline constexpr rgba opaque_border = hex(0x3B6799);
 
-// Translucent (frosted) panels: tint over the blurred backdrop; alpha = tint strength.
-inline constexpr rgba glass_tint = hex(0x2E5A8C, 0.55f);
-inline constexpr rgba glass_border = hex(0xFFFFFF, 0.16f);
-inline constexpr rgba tooltip_tint = hex(0x1C3A60, 0.70f);
+// Translucent (frosted) panels: a light, cool tint over the blurred backdrop
+// (alpha = tint strength), so the map clearly shows through like frosted glass.
+inline constexpr rgba glass_tint = hex(0x6E9FD8, 0.20f);
+inline constexpr rgba glass_border = hex(0xFFFFFF, 0.24f);    // edge of a floating card (alerts)
+inline constexpr rgba glass_separator = hex(0xFFFFFF, 0.55f); // strip between flush, stacked panes
+inline constexpr rgba tooltip_tint = hex(0x1C3A60, 0.55f);
+// Faint dark backing under text on glass (a 1 px drop shadow), for bright backdrops.
+inline constexpr rgba text_backing = hex(0x08121F, 0.42f);
 
 inline constexpr rgba button_hover = hex(0xFFFFFF, 0.12f);
 inline constexpr rgba button_pressed = hex(0xFFFFFF, 0.22f);
@@ -40,6 +43,7 @@ inline constexpr float font_size = 15.0f;
 inline constexpr float font_small = 12.0f;
 inline constexpr float icon_size = 18.0f;
 inline constexpr float border = 1.0f;
+inline constexpr float separator_strip = 1.0f;
 inline constexpr float alert_width = 340.0f;
 inline constexpr float alert_height = 44.0f;
 

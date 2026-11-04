@@ -62,6 +62,11 @@ world_summary summarize(game_state const& state) {
             double dp = 0.0;
             for(auto own : n.get_region_ownership()) dp += own.get_region().get_deaths_reported_p(p);
             s.deaths_by_pathogen.emplace_back(core::unpack_key(w.pathogen_get_key(dcon::pathogen_id{p})), dp / n.get_population() * 1e6);
+            double dt = 0.0;
+            for(auto own : n.get_region_ownership()) {
+                for(uint8_t a = 0; a < age_groups; ++a) dt += own.get_region().get_ep_d(epi_index(p, a));
+            }
+            s.true_deaths_by_pathogen.emplace_back(core::unpack_key(w.pathogen_get_key(dcon::pathogen_id{p})), dt / n.get_population() * 1e6);
         }
         s.gini_start = n.get_gini0();
         s.gini_end = n.get_gini();
@@ -161,7 +166,8 @@ void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out)
 
 void write_trace_header(std::ostream& out) {
     out << "date,gf,core_price,cpi,wage_real,population,pops,pop_size,employed,emp_gov,unemployed,inactive,gdp_real,gdp0_daily,"
-           "gov_spend,bal_gov,defense,health,education,police,rd,public_inv,war_effort,fx,trend_growth,stw_cov,fiscal_cum\n";
+           "gov_spend,bal_gov,defense,health,education,police,rd,public_inv,war_effort,fx,trend_growth,stw_cov,fiscal_cum,"
+           "ifr_mult,ifr_age,beds_per_1000,death_reporting,old_share\n";
 }
 
 void write_trace_row(game_state const& state, dcon::nation_id n, std::ostream& out) {
@@ -187,7 +193,18 @@ void write_trace_row(game_state const& state, dcon::nation_id n, std::ostream& o
         << emp_gov << ',' << une << ',' << ina << ',' << w.nation_get_gdp_real(n) << ',' << w.nation_get_gdp0_daily(n) << ',' << w.nation_get_gov_spend(n) << ','
         << w.nation_get_bal_gov(n) << ',' << w.nation_get_defense_share(n) << ',' << w.nation_get_health_spending(n) << ',' << w.nation_get_education_spending(n) << ','
         << w.nation_get_police(n) << ',' << w.nation_get_rd_spending(n) << ',' << w.nation_get_public_investment(n) << ',' << w.nation_get_war_effort(n) << ','
-        << w.nation_get_exchange_rate(n) << ',' << w.nation_get_trend_growth(n) << ',' << w.nation_get_stw_coverage(n) << ',' << w.nation_get_fiscal_announced_cum(n) << '\n';
+        << w.nation_get_exchange_rate(n) << ',' << w.nation_get_trend_growth(n) << ',' << w.nation_get_stw_coverage(n) << ',' << w.nation_get_fiscal_announced_cum(n);
+    {
+        double im = 0, ia = 0, beds = 0, old = 0, pw = 0;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            auto r = own.get_region();
+            const double p = r.get_population();
+            im += r.get_ifr_mult() * p; ia += r.get_ifr_age() * p; beds += r.get_beds_per_1000() * p; old += r.get_old_share() * p; pw += p;
+        }
+        pw = std::max(1.0, pw);
+        out << ',' << im / pw << ',' << ia / pw << ',' << beds / pw << ',' << w.nation_get_death_reporting(n) << ',' << old / pw;
+    }
+    out << '\n';
     if(std::getenv("GEOSIM_TRACE_POPS")) {
         for(auto own : w.nation_get_region_ownership(n)) {
             for(auto loc : own.get_region().get_pop_location()) {

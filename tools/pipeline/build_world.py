@@ -372,6 +372,52 @@ def energy_shares(raw, nations, wdi):
     return out, (num(world["oil_production"]) / TWH_PER_MBD, num(world["oil_consumption"]) / TWH_PER_MBD)
 
 
+def excess_deaths_2020(raw):
+    """Estimated excess deaths in 2020 per million (The Economist model, central): weekly
+    rows of daily averages, so the year's total is 7x their sum."""
+    path = raw / "economist_excess.csv"
+    if not path.exists():
+        return {}
+    ex, pop = defaultdict(float), {}
+    with path.open(newline="") as f:
+        for r in csv.DictReader(f):
+            if r["date"] > "2020-12-31":
+                continue
+            try:
+                ex[r["iso3c"]] += 7.0 * float(r["estimated_daily_excess_deaths"] or 0)
+                pop[r["iso3c"]] = float(r["population"])
+            except ValueError:
+                continue
+    return {i: max(0.0, ex[i]) / pop[i] * 1e6 for i in ex if pop.get(i)}
+
+
+def death_reporting_2020(raw):
+    """Reported COVID deaths / estimated excess deaths in 2020 per nation (The Economist's
+    excess-deaths model, central estimate; both series on the same dates, so the ratio does
+    not depend on the sampling). Where excess deaths were not positive (Japan, New Zealand,
+    ...) or below reported deaths, reporting is taken as complete."""
+    path = raw / "economist_excess.csv"
+    if not path.exists():
+        return {}
+    ex, cov = defaultdict(float), defaultdict(float)
+    with path.open(newline="") as f:
+        for r in csv.DictReader(f):
+            if r["date"] > "2020-12-31":
+                continue
+            try:
+                ex[r["iso3c"]] += float(r["estimated_daily_excess_deaths"] or 0)
+                cov[r["iso3c"]] += float(r["daily_covid_deaths"] or 0)
+            except ValueError:
+                continue
+    out = {}
+    for iso in ex:
+        if ex[iso] <= 0 or cov[iso] >= ex[iso]:
+            out[iso] = 1.0
+        elif cov[iso] > 0:
+            out[iso] = max(0.02, cov[iso] / ex[iso])
+    return out
+
+
 def region_sectors(regions, nation_sectors):
     """Per region x sector: share of the nation's sector value added and employment."""
     by_nation = defaultdict(list)
@@ -417,6 +463,13 @@ def main() -> int:
     extra = ba.read_curated(scen / "nations_extra_curated.csv")
     nations, imputed = build_nations(wdi, countries, extra)
     order = sorted(nations)
+    # COVID death reporting from excess-mortality estimates where available (else the
+    # income-group prior).
+    reporting = death_reporting_2020(raw)
+    for iso in order:
+        if iso in reporting:
+            nations[iso]["death_reporting"] = reporting[iso]
+    print(f"death reporting from excess mortality: {sum(1 for i in order if i in reporting)} nations")
 
     # Energy: oil production / consumption per nation (mb/d at the dataset's world total),
     # gas and coal shares (commodities.csv).
@@ -518,11 +571,16 @@ def main() -> int:
     (events / "fiscal.txt").write_text(text)
     (events / "epidemic_seeds.txt").write_text(ba.epidemic_seeds(ox, isos=with_ox))
 
+    excess = excess_deaths_2020(raw)
+    trows = ba.targets(wdi, ox, nations, isos=[i for i in order if i in wdi["population"]])
+    for r in trows:
+        r.append(excess.get(r[0]))
     ba.write_csv(assets / "backtest" / f"{SCENARIO}_targets.csv",
                  ["iso3", "gdp_growth_pct", "unemployment_pct", "inflation_pct", "gov_net_lending_pct",
-                  "deaths_per_million"],
-                 ba.targets(wdi, ox, nations, isos=[i for i in order if i in wdi["population"]]),
-                 f"{GEN}. Real 2020 outcomes: WDI, OxCGRT deaths to 2020-12-31.")
+                  "deaths_per_million", "excess_deaths_per_million"],
+                 trows,
+                 f"{GEN}. Real 2020 outcomes: WDI, OxCGRT reported deaths to 2020-12-31, estimated excess "
+                 f"deaths 2020 (The Economist model; scored against the model's true COVID deaths).")
     print(f"nations={len(order)} regions={len(regions)} adjacency={len(adjacency)} npi_events={n_npi} "
           f"rate_events={n_rates} fiscal_events={n_fiscal} imputed={dict(imputed)}")
     return 0

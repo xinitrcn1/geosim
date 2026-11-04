@@ -155,7 +155,7 @@ enum class bass_style : uint8_t { offbeat, rolling, house, octaves };
 
 class composer {
 public:
-    composer(uint64_t seed, mood m) : r_(seed), s_() {
+    composer(uint64_t seed, mood m) : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), s_() {
         s_.seed = seed;
         s_.m = m;
     }
@@ -165,7 +165,9 @@ public:
         choose_instruments();
         choose_groove();
         choose_form();
+        choose_arrangement();
         for(std::size_t i = 0; i < plan_.size(); ++i) render_section(i);
+        apply_mutes();
         std::stable_sort(s_.events.begin(), s_.events.end(), [](note_event const& a, note_event const& b) { return a.tick < b.tick; });
         describe();
         return std::move(s_);
@@ -178,9 +180,17 @@ private:
         int const* prog = nullptr;
         int bars_per_chord = 1;
         int variant = 0; // 0 first occurrence, 1 repeat (varied)
+        bool cadence = false; // last section: its last 2 bars are a cadence chord, then the tonic
+        bool end_tonic = false; // the last bar's chord shares no tone with the tonic triad: it becomes the tonic
+        // How this section hands over to the next one (docs/14-audio.md#transitions).
+        uint8_t out = 0;      // transition kind (tr_*)
+        bool reverse = false; // reverse cymbal into the next downbeat
+        bool downlift = false; // downlifter at the start of the next section
+        bool impact = false;  // impact boom at the start of the next section
     };
 
     rng r_;
+    rng tr_; // arrangement choices (transitions, development); separate so the basics stay the same per seed
     song s_;
     int key_ = 57;
     mode_def const* mode_ = &modes[0];
@@ -207,6 +217,34 @@ private:
     std::vector<plan_item> plan_;
     int last_voicing_[4] = {0, 0, 0, 0};
     int voicing_n_ = 0;
+    // registers (MIDI notes): pads below the lead, the lead above the pads
+    int pad_lo_ = 52, pad_hi_ = 69, lead_lo_ = 64, lead_hi_ = 83, lead_base_ = 69;
+    int cad_deg_ = 4;         // the final cadence chord (V, bVII or bII by mode)
+    // arrangement (tr_)
+    int seq_step_ = 1;        // diatonic sequence step of the second cell
+    int dev_steps_ = -2;      // development of the third cell in a repeated phrase
+    bool dev_invert_ = false;
+    int cad_steps_ = 2;       // the cadence cell's sequence step
+    int risers_left_ = 0;
+    bool hard_drop_ = false;  // the drop switches to an off-beat bass (hardtrance)
+    bool beat_intro_ = false; // the intro starts with kick, hats and bass
+    uint16_t gate_mask_ = 0;  // trance gate on breakdown pads (0 = none)
+    struct mute {
+        uint32_t from, to; // ticks
+        uint32_t channels; // bit per channel
+    };
+    std::vector<mute> mutes_;
+    std::string transitions_;
+    // the lead's notes for the current phrase, fitted to the register before emission
+    struct lead_note {
+        uint32_t bar;
+        int row, len, note, vel;
+        bool dbl;
+        int cell; // notes of one cell move together
+    };
+    std::vector<lead_note> phrase_;
+    int cell_id_ = 0;
+    int last_lead_ = -1; // the last lead note emitted (for smooth octave choices)
 
     // --- pitch helpers ------------------------------------------------------
     [[nodiscard]] int pitch(int base, int deg) const {
@@ -227,7 +265,12 @@ private:
         }
         return deg;
     }
-    [[nodiscard]] int chord_at(plan_item const& p, int bar) const { return p.prog[(bar / p.bars_per_chord) % 4]; }
+    [[nodiscard]] int chord_at(plan_item const& p, int bar) const {
+        const int bars = static_cast<int>(p.sec.bars);
+        if(p.cadence && bar == bars - 2) return cad_deg_;
+        if((p.cadence || p.end_tonic) && bar >= bars - 1) return 0;
+        return p.prog[(bar / p.bars_per_chord) % 4];
+    }
 
     // --- emission -------------------------------------------------------------
     void add(uint32_t bar, int row, uint8_t ch, std::initializer_list<int> notes, int len_rows, int vel, uint8_t lay = layer_always,
@@ -268,7 +311,7 @@ private:
         if(m == mood::tense) lo = 116, hi = 122;
         if(m == mood::crisis) lo = 122, hi = 128;
         if(m == mood::triumph) lo = 120, hi = 126;
-        s_.bpm = std::round(r_.range(lo, hi + 0.99f));
+        s_.bpm = std::min(hi, std::round(r_.range(lo, hi + 0.99f))); // (rounding could give hi + 1)
         key_ = 45 + r_.range(0, 11); // tonic between A2 and G#3
         s_.key = key_;
         static constexpr int calm_modes[] = {m_ionian, m_lydian, m_mixolydian, m_dorian, m_ionian};
@@ -284,6 +327,23 @@ private:
         }
         s_.mode = mode;
         mode_ = &modes[mode];
+        // Registers (no randomness, so the seed's choices stay the same).
+        // Pads sit in about an octave and a half from D3-C#4; the lead's
+        // window starts a fifth above the pad floor and never below D4, so
+        // it sings over the chords instead of muddying bass and pads.
+        pad_lo_ = key_ + 7 <= 61 ? key_ + 7 : key_ - 5;
+        pad_hi_ = pad_lo_ + 17;
+        lead_lo_ = std::max(62, pad_lo_ + 7);
+        lead_hi_ = lead_lo_ + 19;
+        lead_base_ = key_ + 12;
+        while(lead_base_ < lead_lo_ - 1) lead_base_ += 12;
+        switch(mode) {
+        case m_mixolydian:
+        case m_dorian:
+        case m_aeolian: cad_deg_ = 6; break; // bVII - i
+        case m_phrygian: cad_deg_ = 1; break; // bII - i
+        default: cad_deg_ = 4; break;        // V - I
+        }
         std::vector<int const*> fit;
         for(auto const& p : progressions) {
             if(p.mode_mask & bit(mode)) fit.push_back(p.deg);
@@ -351,18 +411,22 @@ private:
         case 0: // PWM pulse with vibrato
             l.w1 = wave::pulse, l.w2 = wave::pulse, l.mix2 = 0.4f, l.detune = 9, l.duty = 0.35f, l.pwm_depth = 0.12f, l.pwm_rate = 0.7f;
             l.cutoff = 3200, l.fenv = 1.0f;
+            l.gain = 1.0f;
             break;
         case 1: // detuned saws
             l.w1 = wave::saw, l.w2 = wave::saw, l.mix2 = 0.7f, l.detune = 12;
             l.cutoff = 2600, l.fenv = 1.4f, l.resonance = 0.25f;
+            l.gain = 1.95f; // the detuned pair partly cancels: measured ~6 dB under the PWM lead
             break;
         case 2: // chip "sample" lead
             l.w1 = wave::table, l.table1 = r_.chance(0.5f) ? 0 : 2, l.w2 = wave::pulse, l.duty = 0.5f, l.mix2 = 0.3f, l.semi2 = 12;
             l.cutoff = 4500, l.fenv = 0.5f, l.crush_rate = 20000.0f;
+            l.gain = 1.5f;
             break;
         default: // square + fifth organ-ish
             l.w1 = wave::pulse, l.duty = 0.5f, l.w2 = wave::triangle, l.mix2 = 0.5f, l.semi2 = 7;
             l.cutoff = 3000, l.fenv = 0.8f;
+            l.gain = 1.0f;
             break;
         }
         l.attack = 0.01f, l.decay = 0.3f, l.sustain = 0.65f, l.release = 0.12f;
@@ -399,7 +463,7 @@ private:
         p.key_track = 0.2f;
 
         // mix (levels tuned by ear on offline renders, see docs/14-audio.md)
-        const float g[num_channels] = {0.72f, 0.8f, 0.5f, 0.62f, 0.6f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f};
+        const float g[num_channels] = {0.72f, 0.8f, 0.5f, 0.62f, 0.36f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f};
         const float pan[num_channels] = {0.0f, 0.05f, 0.3f, 0.0f, 0.15f, -0.4f, -0.05f, 0.0f};
         const float dly[num_channels] = {0.0f, 0.04f, 0.06f, 0.0f, 0.28f, 0.32f, 0.12f, 0.1f};
         const float rev[num_channels] = {0.02f, 0.18f, 0.06f, 0.0f, 0.2f, 0.15f, 0.35f, 0.35f};
@@ -573,13 +637,25 @@ private:
         std::vector<item> form = forms[r_.next() % 4];
         const double bar_s = 240.0 / static_cast<double>(s_.bpm);
         const double target = r_.range(140.0f, 165.0f);
+        // About one song in four is a short intermission (30-80 s). Its own
+        // generator, so a full-length song's basics do not depend on it.
+        rng ir(s_.seed ^ 0x3C6EF372FE94F82Bull);
+        if(ir.chance(0.25f)) {
+            static const std::vector<item> short_forms[] = {
+                {{K::intro, 4}, {K::verse, 8}, {K::outro, 4}},
+                {{K::intro, 4}, {K::verse, 8}, {K::chorus, 8}, {K::outro, 4}},
+                {{K::intro, 8}, {K::chorus, 8}, {K::breakdown, 8}, {K::drop, 8}, {K::outro, 4}},
+            };
+            form = short_forms[ir.next() % 3];
+        }
+        const bool intermission = form.size() <= 5 && form.back().bars == 4;
         auto total = [&] {
             int b = 0;
             for(auto const& it : form) b += it.bars;
             return b;
         };
         // Fit 2-3 minutes: shorten long sections, or extend the drop.
-        for(int guard = 0; guard < 8 && total() * bar_s > target + 10; ++guard) {
+        for(int guard = 0; guard < 8 && !intermission && total() * bar_s > target + 10; ++guard) {
             bool done = false;
             for(auto& it : form) {
                 if(it.bars == 16 && (it.k == K::intro || it.k == K::breakdown)) {
@@ -599,7 +675,7 @@ private:
             }
             if(!done) break;
         }
-        for(int guard = 0; guard < 4 && total() * bar_s < target - 15; ++guard) {
+        for(int guard = 0; guard < 4 && !intermission && total() * bar_s < target - 15; ++guard) {
             for(std::size_t i = 0; i < form.size(); ++i) {
                 if(form[i].k == K::drop) {
                     form.insert(form.begin() + static_cast<std::ptrdiff_t>(i) + 1, item{K::chorus, 8});
@@ -630,6 +706,134 @@ private:
         s_.total_bars = bar;
     }
 
+    // --- arrangement: transitions and melodic development (tr_) -----------
+    // Section boundaries get one of several hand-overs, picked per seed and
+    // per context, so a riser is one option among many (docs/14-audio.md#transitions).
+    enum tr_kind : uint8_t {
+        tr_plain,        // straight cut, crash on the next downbeat
+        tr_fill,         // snare fill on the last 2 beats
+        tr_toms,         // tom fill on the last beat
+        tr_roll,         // snare roll build-up (8ths, 16ths, then 32nds)
+        tr_riser,        // noise riser (2 bars, 4 out of a breakdown)
+        tr_short_riser,  // one-bar sweep up
+        tr_filter_close, // bus low-pass closes over the last 2 bars
+        tr_filter_open,  // the section starts dark and the low-pass opens across it
+        tr_kick_out,     // the kick drops out for the last bar
+        tr_stop,         // everything but the lead stops for the last beats
+        tr_kick_return,  // breakdown: the kick comes back for its last bars, with a roll
+        tr_drum_break,   // the melody, arp and chords drop out for the last 4 bars: drums and bass only
+    };
+    static char const* tr_name(uint8_t k) {
+        static char const* const names[] = {"cut", "fill", "toms", "roll", "riser", "sweep", "filter-close", "filter-open", "kick-out", "stop", "kick-return", "drum-break"};
+        return k < sizeof names / sizeof names[0] ? names[k] : "?";
+    }
+
+    void choose_arrangement() {
+        using K = section_kind;
+        seq_step_ = tr_.chance(0.45f) ? 1 : tr_.chance(0.5f) ? 2 : -1;
+        dev_invert_ = tr_.chance(0.5f);
+        dev_steps_ = tr_.chance(0.5f) ? -2 : 3;
+        risers_left_ = tr_.chance(0.4f) ? 1 : 0; // most songs have no long riser at all
+        int sweeps_left = 1;
+        hard_drop_ = bass_ != bass_style::offbeat && tr_.chance(s_.m == mood::calm ? 0.35f : 0.55f);
+        // trance gates over a bar of 16ths (bit r = row r)
+        static constexpr uint16_t gates[] = {0xB6DB /* x.xx.xx.xx.x.xx.x */, 0x6DB6, 0xDDDD /* x.xxx.xx... */, 0x5555, 0xF6F6};
+        gate_mask_ = tr_.chance(0.4f) ? tr_.pick(gates) : 0;
+        beat_intro_ = tr_.chance(0.3f); // 90s style: the intro opens on drums and bass, the chords come in halfway
+        plan_.back().cadence = true;
+        cad_steps_ = tr_.chance(0.4f) ? 2 : tr_.chance(0.5f) ? -1 : 1;
+        // Sections end on a chord that holds a tonic-triad tone, so the
+        // closing phrase can land on a stable note: II (lydian), bVII, bII,
+        // ii... at the very end become a modal cadence onto I for one bar.
+        for(plan_item& p : plan_) {
+            if(p.sec.kind == K::intro || p.cadence) continue;
+            const int last = p.prog[((static_cast<int>(p.sec.bars) - 1) / p.bars_per_chord) % 4];
+            p.end_tonic = !is_chord_tone(0, last) && !is_chord_tone(4, last) && !is_chord_tone(2, last);
+        }
+        uint8_t prev = 255;
+        for(std::size_t i = 0; i + 1 < plan_.size(); ++i) {
+            plan_item& p = plan_[i];
+            const K k = p.sec.kind, next = plan_[i + 1].sec.kind;
+            struct opt {
+                uint8_t k;
+                float w;
+            };
+            std::vector<opt> o;
+            const float R = risers_left_ > 0 ? 1.0f : 0.0f, S = sweeps_left > 0 ? 1.0f : 0.0f;
+            if(k == K::breakdown) {
+                o = {{tr_roll, 1.2f}, {tr_riser, 1.8f * R}, {tr_filter_open, 1.2f}, {tr_kick_return, 1.0f}, {tr_short_riser, 0.7f * S}, {tr_stop, 0.9f}};
+            } else if(next == K::chorus || next == K::drop) {
+                o = {{tr_roll, 1.3f}, {tr_fill, 1.2f},      {tr_toms, 0.5f}, {tr_riser, 1.6f * R}, {tr_drum_break, k != K::intro && p.sec.bars >= 16 ? 0.7f : 0.0f},
+                     {tr_short_riser, 0.6f * S}, {tr_kick_out, 0.9f}, {tr_stop, 0.6f}, {tr_plain, 0.4f}};
+            } else if(next == K::breakdown) {
+                o = {{tr_filter_close, 1.6f}, {tr_fill, 0.7f}, {tr_toms, 0.5f}, {tr_stop, 0.6f}, {tr_plain, 0.6f}};
+            } else if(next == K::outro) {
+                o = {{tr_fill, 1.0f}, {tr_toms, 0.7f}, {tr_plain, 0.8f}, {tr_filter_close, 0.6f}, {tr_kick_out, 0.6f}};
+            } else if(k == K::intro) {
+                o = {{tr_filter_open, 1.0f}, {tr_fill, 1.0f}, {tr_toms, 0.6f}, {tr_plain, 0.8f}, {tr_kick_out, 0.4f}};
+            } else {
+                o = {{tr_fill, 1.2f}, {tr_toms, 0.8f}, {tr_plain, 0.9f}, {tr_kick_out, 0.6f}, {tr_stop, 0.4f}, {tr_drum_break, p.sec.bars >= 16 ? 0.6f : 0.0f}};
+            }
+            auto pick = [&] {
+                float total = 0;
+                for(auto const& x : o) total += x.w;
+                float x = tr_.uniform() * total;
+                for(auto const& c : o) {
+                    if(c.w <= 0) continue;
+                    x -= c.w;
+                    if(x <= 0) return c.k;
+                }
+                return o.front().k;
+            };
+            uint8_t t = pick();
+            if(t == prev) t = pick(); // vary consecutive hand-overs
+            if(t == tr_riser) --risers_left_;
+            if(t == tr_short_riser) --sweeps_left;
+            p.out = t;
+            prev = t;
+            const bool up = next == K::chorus || next == K::drop;
+            p.reverse = t != tr_riser && tr_.chance(t == tr_stop ? 0.6f : up ? 0.3f : 0.15f);
+            p.downlift = !up && next != K::verse && tr_.chance(0.45f);
+            p.impact = next == K::drop && (t == tr_stop || tr_.chance(0.6f));
+            if(!transitions_.empty()) transitions_ += ", ";
+            transitions_ += tr_name(t);
+            if(p.reverse) transitions_ += "+reverse";
+            if(p.downlift) transitions_ += "+downlifter";
+        }
+    }
+
+    // Removes or shortens the events under a stop / kick drop-out.
+    void apply_mutes() {
+        if(mutes_.empty()) return;
+        std::vector<note_event> kept;
+        kept.reserve(s_.events.size());
+        for(note_event e : s_.events) {
+            bool drop = false;
+            for(mute const& m : mutes_) {
+                if(!((m.channels >> e.ch) & 1u)) continue;
+                if(e.tick >= m.from && e.tick < m.to) drop = true;
+                else if(e.tick < m.from && e.tick + e.len > m.from && !s_.patches[e.ch].kit) e.len = static_cast<uint16_t>(m.from - e.tick);
+            }
+            if(!drop) kept.push_back(e);
+        }
+        s_.events.swap(kept);
+    }
+
+    // A snare roll from `bar0` over `bars` bars, ending `gap_rows` before
+    // the boundary: 8ths, then 16ths, the last beat in 32nds, crescendo.
+    void snare_roll(uint32_t bar0, int bars, int gap_rows) {
+        const int total = bars * 16 - gap_rows;
+        for(int r = 0; r < total; ++r) {
+            const bool second_half = r >= total / 2;
+            const bool last_beat = r >= total - 4 && bars >= 2;
+            if(!second_half && (r & 1)) continue;
+            const int vel = 46 + 70 * r / std::max(1, total);
+            const uint32_t tick = (bar0 + static_cast<uint32_t>(r / 16)) * ticks_per_bar + static_cast<uint32_t>((r % 16) * ticks_per_row);
+            add_ticks(tick, ch_snare, dr_snare, 2, vel);
+            if(last_beat) add_ticks(tick + 3, ch_snare, dr_snare, 2, vel - 6);
+        }
+    }
+
     // --- section rendering --------------------------------------------------
     void render_section(std::size_t index) {
         using K = section_kind;
@@ -640,38 +844,62 @@ private:
         const int bars = static_cast<int>(p.sec.bars);
         const uint32_t b0 = p.sec.start_bar;
         const bool into_big = next == K::chorus || next == K::drop;
+        const uint8_t T = last_section ? static_cast<uint8_t>(tr_plain) : p.out;
+        plan_item const* prev = index > 0 ? &plan_[index - 1] : nullptr;
+        const uint32_t end_tick = (b0 + static_cast<uint32_t>(bars)) * ticks_per_bar;
+        constexpr uint32_t all_but_lead_fx = (1u << ch_kick) | (1u << ch_snare) | (1u << ch_hats) | (1u << ch_bass) | (1u << ch_arp) | (1u << ch_pad);
+
+        // the hand-over at the end of this section
+        int gap_rows = 0; // silence (but the lead and fx tails) before the next downbeat
+        int roll_bars = 0;
+        if(!last_section) {
+            switch(T) {
+            case tr_roll: roll_bars = k == K::breakdown ? std::min(4, bars / 2) : bars >= 8 ? 2 : 1; break;
+            case tr_riser: roll_bars = k == K::breakdown ? 2 : 0; break;
+            case tr_filter_open:
+            case tr_kick_return: roll_bars = k == K::breakdown ? std::min(2, bars / 2) : 0; break;
+            default: break;
+            }
+            if(k == K::breakdown && (T == tr_roll || T == tr_riser)) gap_rows = 4;
+            if(T == tr_stop) gap_rows = bars >= 16 || k == K::breakdown ? 16 : 8;
+            if(gap_rows > 0) mutes_.push_back({end_tick - static_cast<uint32_t>(gap_rows * ticks_per_row), end_tick, all_but_lead_fx});
+            if(T == tr_drum_break) mutes_.push_back({end_tick - 4 * ticks_per_bar, end_tick, (1u << ch_lead) | (1u << ch_arp) | (1u << ch_pad)});
+            if(T == tr_kick_out) mutes_.push_back({end_tick - ticks_per_bar, end_tick, (1u << ch_kick) | (bars >= 16 ? (1u << ch_bass) : 0u)});
+        }
+        const int kick_return_from = T == tr_kick_return ? bars - std::min(4, bars / 2) : bars;
 
         for(int bi = 0; bi < bars; ++bi) {
             const uint32_t bar = b0 + static_cast<uint32_t>(bi);
             const bool last_bar = bi == bars - 1;
+            const bool final_bar = last_section && last_bar;
             const bool phrase_end = (bi % 8) == 7;
             const int root = chord_at(p, bi);
             const int next_root = last_bar ? (last_section ? 0 : chord_at(plan_[index + 1], 0)) : chord_at(p, bi + 1);
             const bool chord_change = next_root != root;
-            const bool fill = last_bar && !last_section && k != K::breakdown;
-            const bool drop_gap = k == K::breakdown && last_bar; // silence on the last beat before the drop
+            const bool fill = last_bar && !last_section && (T == tr_fill || T == tr_toms) && k != K::breakdown;
+            const bool rolling = k != K::breakdown && roll_bars > 0 && bi >= bars - roll_bars;
 
             // kick
-            bool kick = k != K::breakdown;
-            if(k == K::intro && s_.m == mood::calm && bi < bars / 2) kick = false;
+            bool kick = k != K::breakdown || bi >= kick_return_from;
+            if(k == K::intro && s_.m == mood::calm && bi < bars / 2 && !beat_intro_) kick = false;
             if(k == K::outro && bi >= bars - 1) kick = false;
-            if(k == K::breakdown && bi >= bars - 1 && bars >= 8) kick = false;
             if(kick) {
-                if(broken_kick_ && k != K::drop && k != K::chorus) {
+                if(broken_kick_ && k != K::drop && k != K::chorus && k != K::breakdown) {
                     for(int row : {0, 7, 10}) add(bar, row, ch_kick, {dr_kick}, 2, row == 0 ? 120 : 105);
                 } else {
                     for(int row = 0; row < 16; row += 4) {
                         if(fill && row == 12 && into_big) continue; // leave room for the fill
-                        add(bar, row, ch_kick, {dr_kick}, 2, 120);
+                        const int vel = k == K::breakdown ? 96 + 6 * (bi - kick_return_from) : 120;
+                        add(bar, row, ch_kick, {dr_kick}, 2, vel);
                     }
                 }
-                if(phrase_end && kick_pickup_ && !fill) add(bar, 14, ch_kick, {dr_kick}, 1, 90);
+                if(phrase_end && kick_pickup_ && !fill && !last_bar) add(bar, 14, ch_kick, {dr_kick}, 1, 90);
             }
-            if(last_section && last_bar) add(bar, 0, ch_kick, {dr_kick}, 2, 120);
+            if(final_bar) add(bar, 0, ch_kick, {dr_kick}, 2, 120);
 
             // backbeat, ghosts, fills
-            const bool backbeat = k != K::intro || bi >= bars / 2;
-            if(backbeat && k != K::breakdown && !(last_section && last_bar)) {
+            const bool backbeat = (k != K::intro || bi >= bars / 2) && !rolling;
+            if(backbeat && k != K::breakdown && !final_bar) {
                 for(int row : {4, 12}) {
                     if(fill && row == 12) continue;
                     add(bar, row, ch_snare, {backbeat_}, 2, 112);
@@ -685,7 +913,7 @@ private:
                 }
             }
             if(fill) {
-                if(into_big || r_.chance(0.5f)) {
+                if(T == tr_fill) {
                     for(int row = 8; row < 16; ++row) {
                         if(row < 12 && (row & 1)) continue;
                         add(bar, row, ch_snare, {dr_snare}, 1, 60 + (row - 8) * 8);
@@ -695,16 +923,13 @@ private:
                     for(int i = 0; i < 4; ++i) add(bar, 12 + i, ch_fx, {toms[i]}, 2, 85 + i * 6);
                 }
             }
-            if(k == K::breakdown && bi >= bars - 2) { // snare roll: 8ths, then 16ths, then the drop gap
-                const bool final = bi == bars - 1;
-                for(int row = 0; row < (final ? 12 : 16); row += final ? 1 : 2) {
-                    const int pos = (final ? 16 : 0) + row;
-                    add(bar, row, ch_snare, {dr_snare}, 1, 50 + pos * 2);
-                }
+            if(T == tr_kick_out && last_bar && !last_section) {
+                for(int row = 12; row < 16; ++row) add(bar, row, ch_snare, {dr_snare}, 1, 70 + (row - 12) * 10);
             }
+            if(roll_bars > 0 && bi == bars - roll_bars) snare_roll(bar, roll_bars, gap_rows);
 
             // hats
-            const bool hats = k != K::breakdown && !(k == K::outro && bi >= bars - 2) && !(last_section && last_bar);
+            const bool hats = k != K::breakdown && !(k == K::outro && bi >= bars - 2) && !final_bar;
             if(hats) {
                 const bool open = k == K::chorus || k == K::drop || k == K::bridge || (k == K::verse && p.variant == 1);
                 for(int row = 0; row < 16; ++row) {
@@ -723,32 +948,35 @@ private:
                     for(int row = 0; row < 16; ++row) add(bar, row, ch_fx, {row % 4 == 2 ? dr_rim : dr_shaker}, 1, row % 4 == 2 ? 55 : 40, layer_min_high);
                 }
             }
-            if(k == K::breakdown && bi < bars - 2 && s_.m != mood::calm) {
+            if(k == K::breakdown && (bi < bars - 2 || bi >= kick_return_from) && s_.m != mood::calm) {
                 for(int row = 2; row < 16; row += 4) add(bar, row, ch_hats, {dr_hat_closed}, 1, 45, layer_min_mid);
             }
 
-            // bass
-            bool bass = k != K::intro || (bars >= 16 && bi >= bars - 4);
+            // bass (the hardtrance drop: off-beat roots, octave on top at high intensity)
+            const bool offbeat_drop = k == K::drop && hard_drop_;
+            const uint16_t bmask = offbeat_drop ? 0x4444 : bass_mask_;
+            bool bass = k != K::intro || (bars >= 16 && bi >= bars - 4) || beat_intro_;
             if(k == K::breakdown || (k == K::outro && bi >= bars - 3)) bass = false;
             if(bass) {
                 for(int row = 0; row < 16; ++row) {
-                    if(!(bass_mask_ & (1u << row))) continue;
+                    if(!(bmask & (1u << row))) continue;
                     if(fill && row >= 12 && into_big) continue;
                     int next_hit = row + 1;
-                    while(next_hit < 16 && !(bass_mask_ & (1u << next_hit))) ++next_hit;
+                    while(next_hit < 16 && !(bmask & (1u << next_hit))) ++next_hit;
                     const int len = std::max(1, std::min(next_hit - row, 4) * 3 / 4);
+                    const int role = offbeat_drop ? 0 : bass_role_[row];
                     int deg = root;
-                    switch(bass_role_[row]) {
+                    switch(role) {
                     case 1: deg = root + 7; break;
                     case 2: deg = root + 4; break;
                     case 3: deg = root - 1; break;
                     default: break;
                     }
-                    if(chord_change && next_hit >= 16 && row >= 10) deg = next_root + (next_root > root ? -1 : 1); // approach tone
+                    if(chord_change && next_hit >= 16 && row >= 10 && !offbeat_drop) deg = next_root + (next_root > root ? -1 : 1); // approach tone
                     const int n = pitch(key_ - 12, deg);
                     // at high intensity root notes gain an octave (an alternative event, not an extra one)
-                    const bool root_hit = bass_role_[row] == 0;
-                    add(bar, row, ch_bass, {n}, len, row % 4 == 0 ? 112 : 100, root_hit ? layer_max_high : layer_always);
+                    const bool root_hit = role == 0;
+                    add(bar, row, ch_bass, {n}, len, row % 4 == 0 ? 112 : 104, root_hit ? layer_max_high : layer_always);
                     if(root_hit) add(bar, row, ch_bass, {n, n + 12}, len, 104, layer_min_high);
                 }
             }
@@ -756,39 +984,50 @@ private:
                 // a soft sub note under the breakdown pads
                 add(bar, 0, ch_bass, {pitch(key_ - 12, root)}, p.bars_per_chord * 16 - 2, 70, layer_min_mid);
             }
-            if(last_section && last_bar) add(bar, 0, ch_bass, {pitch(key_ - 12, 0)}, 12, 110);
+            if(k == K::outro && bi == bars - 2) add(bar, 0, ch_bass, {pitch(key_ - 12, root)}, 14, 96); // the cadence chord's root
+            if(final_bar) add(bar, 0, ch_bass, {pitch(key_ - 12, 0)}, 16, 110);
 
-            // pads
-            const bool pad_sustain = k == K::intro || k == K::breakdown || k == K::bridge || k == K::outro || k == K::verse;
-            if(!drop_gap || bi < bars - 1) {
-                if(pad_sustain && (bi % p.bars_per_chord) == 0) {
-                    const int len = p.bars_per_chord * 16 - 1;
-                    const int vel = k == K::verse ? 62 : k == K::intro ? 70 : 85;
-                    const uint8_t lay = k == K::verse ? layer_max_high : layer_always;
-                    emit_chord(bar, 0, root, len, vel, lay, drop_gap ? 12 : 0);
-                }
-                if(k == K::chorus || k == K::drop || (k == K::verse && p.variant == 1)) {
-                    for(int row = 0; row < 16; ++row) {
-                        if(!(stab_mask_ & (1u << row))) continue;
-                        if(fill && row >= 12) continue;
-                        emit_chord(bar, row, root, 1, 92, k == K::verse ? layer_min_high : layer_always, 0, true);
-                    }
-                    if(k == K::verse) {
-                        // keep the sustained pad at high intensity too, quieter
-                    } else if(bi % p.bars_per_chord == 0) {
-                        emit_chord(bar, 0, root, p.bars_per_chord * 16 - 1, 50, layer_max_mid);
-                    }
-                }
+            // pads (a new chord at each chord change; gated in the breakdown when the song has a gate)
+            const bool pad_sustain = (k == K::intro && !(beat_intro_ && bi < bars / 2)) || k == K::breakdown || k == K::bridge || k == K::outro || k == K::verse;
+            const bool new_chord = bi % p.bars_per_chord == 0 || chord_at(p, bi - 1) != root;
+            int chord_rows = 0;
+            for(int b = bi; b < bars && (b == bi || (b % p.bars_per_chord != 0 && chord_at(p, b) == root)); ++b) chord_rows += 16;
+            if(final_bar) {
+                emit_chord(bar, 0, 0, 16, 92, layer_always);
+            } else if(new_chord && pad_sustain) {
+                const int vel = k == K::verse ? 62 : k == K::intro ? 70 : 85;
+                const uint8_t lay = k == K::verse ? layer_max_high : layer_always;
+                const uint16_t gate = k == K::breakdown ? gate_mask_ : 0;
+                emit_chord(bar, 0, root, chord_rows - 1, vel, lay, 0, false, gate);
             }
-            if(last_section && last_bar) emit_chord(bar, 0, 0, 15, 90, layer_always);
+            if(!final_bar && (k == K::chorus || k == K::drop || (k == K::verse && p.variant == 1))) {
+                for(int row = 0; row < 16; ++row) {
+                    if(!(stab_mask_ & (1u << row))) continue;
+                    if(fill && row >= 12) continue;
+                    emit_chord(bar, row, root, 1, 92, k == K::verse ? layer_min_high : layer_always, 0, true);
+                }
+                if(k != K::verse && new_chord) emit_chord(bar, 0, root, chord_rows - 1, 50, layer_max_mid, 0, false, offbeat_drop ? gate_mask_ : 0);
+            }
 
-            // fx: crashes, impacts, risers
-            if(bi == 0 && (k == K::chorus || k == K::drop || (k == K::verse && index > 1) || k == K::outro)) add(bar, 0, ch_fx, {dr_crash}, 16, 100);
-            if(bi == 0 && k == K::drop) add(bar, 0, ch_fx, {dr_impact}, 16, 110);
-            if(k == K::breakdown && bi == bars - 4 && bars >= 4) add(bar, 0, ch_fx, {dr_riser}, 64, 100);
-            if(into_big && k != K::breakdown && bi == bars - 2) add(bar, 0, ch_fx, {dr_riser}, 32, 80, layer_min_mid);
-            if(k == K::intro && last_bar) add(bar, 0, ch_fx, {dr_swell}, 16, 90);
-            if(last_section && last_bar) add(bar, 0, ch_fx, {dr_crash}, 16, 105);
+            // fx: crashes, impacts, risers, sweeps
+            const bool entry = bi == 0 && (k == K::chorus || k == K::drop || (k == K::verse && index > 1) || k == K::outro || (prev && prev->downlift));
+            if(entry) add(bar, 0, ch_fx, {dr_crash}, 16, 100);
+            if(bi == 0 && prev && prev->impact) add(bar, 0, ch_fx, {dr_impact}, 16, 110);
+            if(bi == 0 && prev && prev->downlift) add(bar, 0, ch_fx, {dr_downlifter}, 32, 96);
+            if(bi == 0 && T == tr_filter_open && !last_section) add(bar, 0, ch_fx, {dr_lp_open}, bars * 16 - 1, 100);
+            if(!last_section && last_bar) {
+                if(T == tr_short_riser) add(bar, 0, ch_fx, {dr_riser}, 16, 92);
+                if(p.reverse) add(bar, 16 - std::max(8, gap_rows), ch_fx, {dr_swell}, std::max(8, gap_rows), 96);
+            }
+            if(T == tr_riser && !last_section) {
+                const int len_bars = k == K::breakdown ? std::min(4, bars) : 2;
+                if(bi == bars - len_bars) add(bar, 0, ch_fx, {dr_riser}, len_bars * 16, k == K::breakdown ? 100 : 88);
+            }
+            if(T == tr_filter_close && !last_section) {
+                const int len_bars = bars >= 8 ? 2 : 1;
+                if(bi == bars - len_bars) add(bar, 0, ch_fx, {dr_lp_close}, len_bars * 16, 100);
+            }
+            if(final_bar) add(bar, 0, ch_fx, {dr_crash}, 16, 105);
         }
 
         render_melody(index);
@@ -796,12 +1035,12 @@ private:
 
     // Chord voicing with smooth voice leading: of all inversions/octaves
     // inside the pad register, take the one closest to the previous voicing.
-    void emit_chord(uint32_t bar, int row, int root, int len, int vel, uint8_t lay, int cut_rows = 0, bool stab = false) {
+    void emit_chord(uint32_t bar, int row, int root, int len, int vel, uint8_t lay, int cut_rows = 0, bool stab = false, uint16_t gate = 0) {
         const int tones = seventh_ && !stab ? 4 : 3;
         int pcs[4];
         for(int i = 0; i < tones; ++i) pcs[i] = pitch(key_, root + 2 * i);
         int best[4] = {}, best_cost = 1 << 30;
-        const int lo = key_ + 7, hi = key_ + 26;
+        const int lo = pad_lo_, hi = pad_hi_;
         for(int inv = 0; inv < tones; ++inv) {
             for(int oct = -1; oct <= 1; ++oct) {
                 int v[4];
@@ -832,50 +1071,181 @@ private:
             voicing_n_ = tones;
         }
         const int l = cut_rows > 0 ? std::min(len, cut_rows) : len;
-        const note_fx fx = chip_chords_ ? note_fx::arp : note_fx::none;
+        const note_fx fx = chip_chords_ ? note_fx::arp : stab ? note_fx::stab : note_fx::none;
         if(tones == 4) add(bar, row, ch_pad, {best[0], best[1], best[2], best[3]}, l, vel, lay, fx);
         else add(bar, row, ch_pad, {best[0], best[1], best[2]}, l, vel, lay, fx);
+        s_.events.back().gate = gate;
     }
 
-    // Place a motif on the harmony from `bar`: degrees shift with the
-    // chord root (diatonic sequence, wrapped to +-3 steps), strong-beat
-    // notes snap to chord tones, the ending is chosen by phrase position.
+    // --- melody -------------------------------------------------------------
+    // A 2-bar cell of a motif, placed on the harmony from bar `bi`: degrees
+    // shift with the chord root (diatonic sequence, wrapped to +-3 steps),
+    // plus `steps` (melodic sequence); strong-beat notes snap to chord tones;
+    // the ending is chosen by phrase position. Notes go to phrase_, which
+    // flush_phrase() fits into the lead's register.
     enum class ending : uint8_t { keep, open, close };
-    void place_motif(motif const& mt, int motif_root, plan_item const& p, int bi, int base, uint8_t ch, int vel, ending end, int stretch = 1,
-                     int octave_layer = -1, bool vary = false) {
-        const uint32_t bar0 = p.sec.start_bar + static_cast<uint32_t>(bi);
+    enum class cell_op : uint8_t {
+        keep,       // as written
+        invert,     // contour mirrored around the first note
+        retro_tail, // bar 2 sings bar 2's pitches backwards
+        cadence,    // bar 1 of the motif, then a long resolving note
+    };
+    struct cell {
+        int steps = 0;
+        cell_op op = cell_op::keep;
+        ending end = ending::keep;
+        bool vary = false; // drop an inner note
+    };
+
+    // A stable resolution near `deg` that belongs to the chord on `root`:
+    // the tonic, else the key's fifth, else its third (else any chord tone).
+    [[nodiscard]] int resolve(int deg, int root, bool final = false) const {
+        int best = nearest_chord_tone(deg, root), best_v = -100;
+        for(int d = -4; d <= 4; ++d) {
+            const int c = deg + d;
+            if(!is_chord_tone(c, root)) continue;
+            const int pc = ((c % 7) + 7) % 7;
+            const int stable = pc == 0 ? (final ? 5 : 3) : pc == 4 ? 2 : pc == 2 ? 1 : 0;
+            if(!stable) continue;
+            const int v = stable * 2 - std::abs(d);
+            if(v > best_v) best_v = v, best = c;
+        }
+        return best;
+    }
+
+    void place_motif(motif const& mt, int motif_root, plan_item const& p, int bi, int vel, cell c, int stretch = 1, bool dbl = false) {
+        const int bars = static_cast<int>(p.sec.bars);
+        if(bi >= bars || mt.empty()) return;
         const int root = chord_at(p, bi);
         int shift = ((root - motif_root) % 7 + 7) % 7;
         if(shift > 3) shift -= 7;
-        const std::size_t n = mt.size();
-        for(std::size_t i = 0; i < n; ++i) {
+        struct pn {
+            int row, len, deg; // row from the cell start (stretched)
+        };
+        std::vector<pn> notes;
+        std::vector<int> tail;
+        for(auto const& mn : mt) {
+            if(mn.row >= 16) tail.push_back(mn.deg);
+        }
+        std::size_t tail_i = tail.size();
+        int last_row = -1;
+        for(std::size_t i = 0; i < mt.size(); ++i) {
             motif_note const& mn = mt[i];
-            if(vary && i == n / 2 && n > 3) continue; // rhythmic variation: drop an inner note
-            const int row_abs = mn.row * stretch;
-            const int bar_off = row_abs / 16;
-            if(bi + bar_off >= static_cast<int>(p.sec.bars)) break;
-            const int row = row_abs % 16;
-            const int croot = chord_at(p, bi + bar_off);
-            int deg = mn.deg + motif_root + shift;
-            if(row % 4 == 0) deg = nearest_chord_tone(deg, croot);
-            if(i + 1 == n && end != ending::keep) {
-                if(end == ending::close) {
-                    // resolve: the tonic if it is a chord tone, else the chord tone nearest it
-                    const int tonic = 7 * static_cast<int>(std::floor(deg / 7.0 + 0.5));
-                    deg = is_chord_tone(tonic, croot) ? tonic : nearest_chord_tone(tonic, croot);
-                } else {
-                    deg = nearest_chord_tone(deg, croot, 1); // a non-root chord tone: leaves the phrase open
-                }
-            }
-            const int note = pitch(base, deg);
-            const int len = mn.len * stretch;
-            if(octave_layer >= 0) {
-                add(bar0 + static_cast<uint32_t>(bar_off), row, ch, {note}, len, vel, layer_max_high);
-                add(bar0 + static_cast<uint32_t>(bar_off), row, ch, {note, note + 12}, len, vel, static_cast<uint8_t>(octave_layer));
-            } else {
-                add(bar0 + static_cast<uint32_t>(bar_off), row, ch, {note}, len, vel);
+            if(c.vary && i == mt.size() / 2 && mt.size() > 3) continue;
+            if(c.op == cell_op::cadence && mn.row >= 16) break;
+            int d = mn.deg;
+            if(c.op == cell_op::invert && i > 0) d = 2 * mt[0].deg - d;
+            if(c.op == cell_op::retro_tail && mn.row >= 16 && tail_i > 0) d = tail[--tail_i];
+            const int row = mn.row * stretch;
+            if(bi + row / 16 >= bars) break; // the section ends: the last placed note takes the ending
+            notes.push_back({row, mn.len * stretch, d + motif_root + shift + c.steps});
+            last_row = mn.row;
+        }
+        // A transformed cell stays in the register of the plain one: an
+        // inversion or a sequence never drifts by more than half an octave.
+        if(!notes.empty()) {
+            float mean = 0, ref = 0;
+            for(pn const& n : notes) mean += static_cast<float>(n.deg);
+            for(motif_note const& mn : mt) ref += static_cast<float>(mn.deg + motif_root + shift);
+            mean /= static_cast<float>(notes.size());
+            ref /= static_cast<float>(mt.size());
+            const int oct = mean - ref > 3.5f ? -7 : mean - ref < -3.5f ? 7 : 0;
+            for(pn& n : notes) n.deg += oct;
+        }
+        if(c.op == cell_op::cadence) {
+            const int r_end = last_row <= 13 ? 16 : 20;
+            if(bi + (r_end * stretch) / 16 < bars) {
+                const int prev = notes.empty() ? motif_root + shift + c.steps : notes.back().deg;
+                if(!notes.empty()) notes.back().len = std::min(notes.back().len, r_end * stretch - notes.back().row);
+                notes.push_back({r_end * stretch, (30 - r_end) * stretch, prev});
             }
         }
+        for(std::size_t i = 0; i < notes.size(); ++i) {
+            pn& n = notes[i];
+            const int croot = chord_at(p, bi + n.row / 16);
+            const bool strong = (n.row % 16) % 4 == 0;
+            if(strong) n.deg = nearest_chord_tone(n.deg, croot);
+            // augmented cells: no repeated pitch, move to a neighbour / another chord tone
+            if(stretch > 1 && i > 0 && n.deg == notes[i - 1].deg) {
+                const int dir = i + 1 < notes.size() && notes[i + 1].deg < n.deg ? -1 : 1;
+                n.deg = strong ? nearest_chord_tone(n.deg + 2 * dir, croot) : n.deg + dir;
+            }
+            if(i + 1 == notes.size() && c.end != ending::keep) {
+                const bool section_end = bi + (n.row + n.len) / 16 >= bars - 1;
+                if(c.end == ending::close) {
+                    n.deg = resolve(n.deg, croot, section_end);
+                    n.len = std::max(n.len, 30 * stretch - n.row); // hold the resolution to the cell's end
+                } else {
+                    // a non-root chord tone leaves the phrase open; not the note just sung
+                    const int prev = i > 0 ? notes[i - 1].deg : 1000;
+                    for(int d = 0; d <= 3; ++d) {
+                        const int a = n.deg + d, b = n.deg - d;
+                        auto ok = [&](int x) { return is_chord_tone(x, croot) && ((x - croot) % 7 + 7) % 7 != 0 && x != prev; };
+                        if(ok(a)) {
+                            n.deg = a;
+                            break;
+                        }
+                        if(ok(b)) {
+                            n.deg = b;
+                            break;
+                        }
+                    }
+                    n.len = std::max(n.len, std::min(8 * stretch, 30 * stretch - n.row));
+                }
+            }
+            const int room = (bars - bi) * 16 - n.row; // never past the section's end
+            n.len = std::clamp(n.len, 1, std::max(1, room));
+        }
+        ++cell_id_;
+        for(pn const& n : notes) {
+            phrase_.push_back({p.sec.start_bar + static_cast<uint32_t>(bi + n.row / 16), n.row % 16, n.len, pitch(lead_base_, n.deg), vel, dbl, cell_id_});
+        }
+    }
+
+    // Emits phrase_ on the lead: the whole phrase moves by octaves into the
+    // lead's window (its contour stays), single stray notes fold in by an
+    // octave. `high` asks for the window an octave up (second half of a
+    // drop); a phrase that would go above C7 there stays in the normal window.
+    void flush_phrase(bool high = false) {
+        if(phrase_.empty()) return;
+        // Each cell takes the octave that keeps its notes in the window and
+        // joins the previous note smoothly; a phrase never jumps registers
+        // in the middle of a cell.
+        const int lo = lead_lo_, hi = lead_hi_;
+        std::size_t i = 0;
+        int mx = 0;
+        while(i < phrase_.size()) {
+            std::size_t j = i;
+            while(j < phrase_.size() && phrase_[j].cell == phrase_[i].cell) ++j;
+            int best = 0, best_cost = 1 << 30;
+            for(int sh : {0, 12, -12, 24, -24}) {
+                int cost = std::abs(sh) / 12;
+                for(std::size_t k = i; k < j; ++k) cost += 100 * (phrase_[k].note + sh < lo - 2 || phrase_[k].note + sh > hi + 3);
+                if(last_lead_ >= 0) cost += 3 * std::max(0, std::abs(phrase_[i].note + sh - last_lead_) - 7);
+                if(cost < best_cost) best_cost = cost, best = sh;
+            }
+            for(std::size_t k = i; k < j; ++k) {
+                int& note = phrase_[k].note;
+                note += best;
+                while(note < lo - 2) note += 12; // a stray note folds in
+                while(note > hi + 3) note -= 12;
+                mx = std::max(mx, note);
+            }
+            last_lead_ = phrase_[j - 1].note;
+            i = j;
+        }
+        const int up = high && mx + 12 <= 96 ? 12 : 0; // the drop's second half, an octave up
+        for(lead_note const& n : phrase_) {
+            const int note = n.note + up;
+            if(n.dbl && note + 12 <= 96) {
+                add(n.bar, n.row, ch_lead, {note}, n.len, n.vel, layer_max_high);
+                add(n.bar, n.row, ch_lead, {note, note + 12}, n.len, n.vel, layer_min_high);
+            } else {
+                add(n.bar, n.row, ch_lead, {note}, n.len, n.vel);
+            }
+        }
+        if(up) last_lead_ = -1;
+        phrase_.clear();
     }
 
     // Arpeggio over the chord tones, `bars` bars from `bi`, starting from
@@ -895,12 +1265,17 @@ private:
         }
     }
 
+    // Phrase plans. A 4-cell (8-bar) phrase is statement, sequence,
+    // restatement or development, cadence; the last cell of a section always
+    // resolves on a held stable tone.
     void render_melody(std::size_t index) {
         using K = section_kind;
         plan_item const& p = plan_[index];
-        const int bars = static_cast<int>(p.sec.bars);
-        const int lead_base = key_ + 12;
+        // before a drum break the melody ends (with its cadence) 4 bars early
+        const int bars = static_cast<int>(p.sec.bars) - (index + 1 < plan_.size() && p.out == tr_drum_break ? 4 : 0);
         const int root_a = prog_a_[0], root_b = prog_b_[0];
+        const cell develop = dev_invert_ ? cell{0, cell_op::invert, ending::keep, false} : cell{dev_steps_, cell_op::retro_tail, ending::keep, false};
+        const cell cadence{cad_steps_, cell_op::cadence, ending::close, false};
         switch(p.sec.kind) {
         case K::intro:
             if(bars >= 8) place_arp(p, bars - 4, 4, 0, 58, layer_min_mid);
@@ -908,43 +1283,91 @@ private:
         case K::verse:
             // call (lead, bars 1-2) and response (arp, bars 3-4)
             for(int ph = 0; ph < bars; ph += 4) {
-                const bool second = (ph / 4) % 2 == 1;
-                place_motif(motif_a_, root_a, p, ph, lead_base, ch_lead, 96, ph + 4 >= bars || second ? ending::close : ending::open, 1, -1,
-                            p.variant == 1 && second);
+                const int c = (ph / 4) % 4;
+                const bool last = ph + 4 >= bars;
+                cell cl;
+                switch(c) {
+                case 0: cl = {0, cell_op::keep, ending::open, false}; break;
+                case 1: cl = {0, cell_op::keep, ending::close, p.variant == 1}; break;
+                case 2: cl = {seq_step_, cell_op::keep, ending::open, false}; break;
+                default: cl = cadence; break;
+                }
+                if(last) cl = cadence;
+                place_motif(motif_a_, root_a, p, ph, 96, cl);
                 place_arp(p, ph + 2, 2, 0, 66, layer_always);
+                if(c % 2 == 1 || last) flush_phrase();
             }
             break;
         case K::chorus:
         case K::drop:
-            // full 8-bar melody: motif, open answer, motif, closed answer
+            // 8-bar melody: motif, its sequence (open), motif or its development, cadence
             for(int ph = 0; ph < bars; ph += 8) {
                 const bool high = p.sec.kind == K::drop && ph >= 8;
-                const int base = lead_base + (high ? 12 : 0);
-                const int oct_layer = high ? -1 : layer_min_high;
-                place_motif(motif_b_, root_b, p, ph, base, ch_lead, 100, ending::keep, 1, oct_layer);
-                place_motif(motif_b_, root_b, p, ph + 2, base, ch_lead, 94, ending::open, 1, oct_layer, true);
-                place_motif(motif_b_, root_b, p, ph + 4, base, ch_lead, 100, ending::keep, 1, oct_layer, p.variant == 1);
-                place_motif(motif_b_, root_b, p, ph + 6, base, ch_lead, 94, ending::close, 1, oct_layer, true);
+                const bool second = ph >= 8 || p.variant == 1;
+                cell cells[4] = {{0, cell_op::keep, ending::keep, false}, {seq_step_, cell_op::keep, ending::open, true},
+                                 second ? develop : cell{0, cell_op::keep, ending::keep, false}, cadence};
+                const int n = std::clamp((bars - ph) / 2, 0, 4); // fewer cells before a drum break
+                if(n > 0 && n < 4) cells[n - 1] = cadence;          // ... and the last one still resolves
+                for(int c = 0; c < n; ++c) place_motif(motif_b_, root_b, p, ph + 2 * c, c % 2 ? 94 : 100, cells[c], 1, true);
+                flush_phrase(high);
                 place_arp(p, ph, std::min(8, bars - ph), 0, 50, layer_min_mid, -12);
             }
             break;
         case K::bridge:
-            // the arp takes the call with motif A, the lead answers
+            // the arp takes the call, the lead answers with sequences of motif A
             for(int ph = 0; ph < bars; ph += 4) {
                 place_arp(p, ph, 2, 0, 70, layer_always);
-                place_motif(motif_a_, root_a, p, ph + 2, lead_base, ch_lead, 88, ph + 4 >= bars ? ending::close : ending::open, 1, -1, true);
+                const bool last = ph + 4 >= bars;
+                const int j = ph / 4;
+                const cell cl = last ? cadence : j % 2 == 0 ? cell{seq_step_, cell_op::keep, ending::open, true} : cell{dev_steps_, cell_op::invert, ending::open, false};
+                place_motif(motif_a_, root_a, p, ph + 2, 88, cl);
+                if(j % 2 == 1 || last) flush_phrase();
             }
             break;
-        case K::breakdown:
-            // motif A in augmentation over the pads
-            for(int ph = (bars >= 16 ? 8 : 0); ph + 4 <= bars; ph += 4) {
-                place_motif(motif_a_, root_a, p, ph, lead_base, ch_lead, 80, ph + 8 > bars ? ending::close : ending::open, 2);
+        case K::breakdown: {
+            // the theme of the harmony it borrows, augmented: a statement,
+            // then a sequence a third higher that resolves
+            const bool b_theme = p.prog == prog_b_;
+            motif const& mt = b_theme ? motif_b_ : motif_a_;
+            const int mroot = b_theme ? root_b : root_a;
+            const int start = bars >= 16 ? 8 : 0;
+            for(int ph = start; ph + 4 <= bars; ph += 4) {
+                const int j = (ph - start) / 4;
+                const bool last = ph + 8 > bars;
+                const cell cl = last ? cell{j == 0 ? 0 : 2, cell_op::cadence, ending::close, false} : cell{j == 0 ? 0 : seq_step_, cell_op::keep, ending::open, false};
+                place_motif(mt, mroot, p, ph, 82, cl, 2);
             }
+            flush_phrase();
             if(bars >= 16) place_arp(p, 0, 8, 0, 54, layer_min_mid);
             break;
-        case K::outro:
+        }
+        case K::outro: {
             place_arp(p, 0, std::max(0, bars - 4), 0, 56, layer_min_mid);
+            if(bars < 4) break;
+            // a last statement, then the cadence: a step onto the tonic, held
+            place_motif(motif_a_, root_a, p, bars - 4, 80, {0, cell_op::keep, ending::open, false});
+            const int prev_note = phrase_.empty() ? pitch(lead_base_, 0) : phrase_.back().note;
+            int approach = cad_deg_ + 2; // the cadence chord's tone nearest the tonic by step
+            for(int d : {1, -1, 3, 4}) {
+                if(is_chord_tone(d, cad_deg_) && ((pitch(lead_base_, d) - prev_note) % 12 + 12) % 12 != 0) {
+                    approach = d;
+                    break;
+                }
+            }
+            const int final_deg = approach == 3 || approach == 4 ? 2 : 0;
+            int final_note = pitch(lead_base_, final_deg);
+            while(final_note < prev_note - 6) final_note += 12;
+            while(final_note > prev_note + 6) final_note -= 12;
+            int approach_note = pitch(lead_base_, approach) + 12 * ((final_note - pitch(lead_base_, final_deg)) / 12);
+            if(approach_note - final_note > 6) approach_note -= 12;
+            if(final_note - approach_note > 6) approach_note += 12;
+            const uint32_t b = p.sec.start_bar + static_cast<uint32_t>(bars);
+            ++cell_id_;
+            phrase_.push_back({b - 2, 0, 14, approach_note, 84, false, cell_id_});
+            phrase_.push_back({b - 1, 0, 16, final_note, 88, false, cell_id_});
+            flush_phrase();
             break;
+        }
         }
     }
 
@@ -966,7 +1389,7 @@ private:
                       deg_a[1] + 1, deg_a[2] + 1, deg_a[3] + 1, deg_b[0] + 1, deg_b[1] + 1, deg_b[2] + 1, deg_b[3] + 1,
                       bass_names[static_cast<int>(bass_)], swing_ ? ", swing" : "", chip_chords_ ? ", chip chords" : "", s_.total_bars,
                       s_.duration_seconds());
-        s_.description = buf + form;
+        s_.description = buf + form + "; transitions: " + (transitions_.empty() ? std::string("none") : transitions_);
     }
 };
 
