@@ -1,6 +1,6 @@
 // Procedural music (docs/14-audio.md): composition is deterministic, songs
-// last 2-3 minutes with a sane score, and the player's output is finite and
-// below 0 dBFS.
+// last 2-3 minutes (intermissions 30-80 s) with a sane score that ends on the
+// tonic, and the player's output is finite and below 0 dBFS.
 
 #include "client/audio/composer.hpp"
 #include "client/audio/synth.hpp"
@@ -27,13 +27,14 @@ int main() {
     std::vector<float> buf(2 * 512);
     for(int mi = 0; mi < mood_count; ++mi) {
         const mood m = static_cast<mood>(mi);
-        for(uint64_t seed : {1ull, 7ull, 123456789ull}) {
+        for(uint64_t seed : {1ull, 3ull, 7ull, 9ull, 123456789ull, 6509162505067969530ull, 13761442689889167167ull}) {
             const song a = compose(seed, m), b = compose(seed, m);
             check(a.events.size() == b.events.size() && a.description == b.description, "same seed, same song", seed, m);
             bool same = a.events.size() == b.events.size();
             for(std::size_t i = 0; same && i < a.events.size(); ++i) same = a.events[i].tick == b.events[i].tick && a.events[i].notes[0] == b.events[i].notes[0];
             check(same, "same seed, same events", seed, m);
-            check(a.duration_seconds() >= 120.0 && a.duration_seconds() <= 180.0, "duration 2-3 min", seed, m);
+            check(a.duration_seconds() >= 30.0 && a.duration_seconds() <= 180.0, "duration 30 s - 3 min", seed, m);
+            if(a.sections.size() > 5) check(a.duration_seconds() >= 120.0, "full songs last 2-3 min", seed, m);
             check(a.bpm >= 110.0f && a.bpm <= 128.0f, "BPM 110-128", seed, m);
             bool sorted = true, in_range = true;
             for(std::size_t i = 0; i < a.events.size(); ++i) {
@@ -42,6 +43,19 @@ int main() {
             }
             check(sorted && in_range, "events sorted and inside the song", seed, m);
             check(!a.sections.empty() && a.sections.front().kind == section_kind::intro && a.sections.back().kind == section_kind::outro, "intro ... outro", seed, m);
+            // the song ends on a tonic chord, and the lead's last note is the
+            // tonic (or its third), held into the last bar
+            const uint32_t last_bar = (a.total_bars - 1) * ticks_per_bar;
+            bool tonic_chord = false, lead_end = false;
+            for(note_event const& e : a.events) {
+                if(e.ch == ch_pad && e.tick == last_bar) tonic_chord = (e.notes[0] - a.key) % 12 == 0 || (e.notes[1] - a.key) % 12 == 0 || (e.notes[2] - a.key) % 12 == 0;
+                if(e.ch == ch_lead && e.tick >= last_bar) {
+                    const int pc = ((e.notes[0] - a.key) % 12 + 12) % 12;
+                    lead_end = (pc == 0 || pc == 3 || pc == 4) && e.tick + e.len == a.total_ticks();
+                }
+            }
+            check(tonic_chord, "final tonic chord", seed, m);
+            check(lead_end, "lead ends on a held tonic", seed, m);
 
             // 40 s of audio at full intensity: finite, below 0 dBFS
             p->set_song(&a);
