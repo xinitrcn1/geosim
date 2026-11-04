@@ -170,10 +170,11 @@ partner; `geopolitics.cpp`, 28 days):
   Corsetti, Guimaraes & Roubini 2006) and the executive must consolidate
   (conditionality; Dreher 2006), for three years.
 
-**Planned:** treaty objects with terms vectors and compliance history
-(reputation costs; Tomz 2007), aid (conditional/unconditional), loans and debt
-relief, arms transfers, recognition and UN votes, World Bank programmes,
-climate agreements and migration deals.
+**Planned:** treaty objects with terms vectors and compliance history beyond
+alliances, conditional aid and debt relief, recognition and UN votes, World
+Bank programmes, climate agreements and migration deals (see
+[Coercion, aid, arms and treaties](#coercion-aid-arms-and-treaties) for what is
+implemented).
 
 **Systemic effects** implemented as war-hazard modifiers:
 
@@ -252,6 +253,55 @@ GDP).
 armed rebellion where the state is weak, groups are excluded and the young
 lack jobs (Fearon & Laitin 2003; Cederman, Wimmer & Min 2010; Collier &
 Hoeffler 2004), with deaths and destruction in the region.
+
+### Disputes and crisis bargaining
+
+**Implemented** (`diplomacy.cpp`, monthly per pair). Wars are the rare end of
+an escalation ladder, the Correlates of War MID hostility levels (2 threat,
+3 display, 4 use of force, 5 war; Jones, Bremer & Singer 1996). The war
+hazard above opens **militarised disputes** `mid_ratio` times as often, more
+among rivals. Each month an open dispute escalates, ends when one side backs
+down, or is settled (one outcome per month; hazards normalised):
+
+- **Escalation** rises with the stakes (claims, resource rents, rivalry) and
+  poor information, and is lower in democratic pairs (Fearon 1995; Senese &
+  Vasquez 2008).
+- **Nuclear deterrence**: two nuclear powers almost never take the last step to
+  war (`nuclear_war_factor`) but skirmish more below it - the
+  stability-instability paradox (Snyder 1965; Jervis 1989). A nuclear
+  defender deters the final step against a non-nuclear challenger. Arsenals
+  come from SIPRI 2020 (`conflict_curated.csv`).
+- **Audience costs**: the weaker side (by CINC) backs down more often; a
+  democratic leader backs down less once she has escalated publicly, and her
+  opponent more (tying hands; Fearon 1994; Schultz 2001; Weeks 2008 on
+  autocratic audiences). Backing down costs legitimacy and some credibility.
+- **Mediation**: settlement grows with the best third party trusted by both
+  and with leverage (Beardsley 2011; Kydd 2003). Mediation also speeds the
+  settlement of wars.
+- **Rivalry**: every dispute deepens the pair's rivalry (strategic rivalries
+  from Thompson & Dreyer 2012 in `rivalries_curated.csv`), which raises future
+  dispute hazards, lowers trust and drives **arms races** (rivals' build-ups
+  are matched in `decide_defense`; Richardson 1960); rivalry decays over
+  decades (Diehl & Goertz 2000).
+
+### Coercion, aid, arms and treaties
+
+- **Sanctions bargaining**: a target concedes with a hazard that grows with its
+  export dependence on the sender, more readily to friends (the sanctions
+  paradox; Drezner 1999) and as a democracy (Lektzian & Souva 2007); the
+  sender lifts them and trusts it more (Hufbauer et al. 2007).
+- **Intervention in civil wars**: strong allies and trusting partners back the
+  government (faster insurgency end), rivals back the rebels (slower) (Regan
+  2002; Cunningham 2010; Salehyan 2009).
+- **Crisis aid**: rich donors (`aid_income`) give to trusted partners in need -
+  occupation, insurgency, IMF programmes, disasters - through the
+  rest-of-world accounts (`flow::aid`; Alesina & Dollar 2000; Strömberg 2007).
+- **Arms transfers**: a share of procurement above baseline buys abroad from
+  suppliers weighted by capability, trust and alliance; sanctions and war
+  exclude suppliers (`flow::arms`; SIPRI arms transfers; Kinsella 1994).
+- **FTA ratification** (two-level game; Putnam 1988; Milner 1997): an FTA
+  signed by executives must pass both legislatures, where protectionist
+  lobbies narrow the win-set; failures are journalled.
 
 **Implemented:**
 

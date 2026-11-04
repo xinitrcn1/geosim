@@ -52,6 +52,9 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out);
 void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out);
 // Chokepoints (state, incidents, queues) and the container freight market.
 void write_logistics(game_state const& state, std::ostream& out);
+// Journal event counts by kind (wars, disputes, coups, goals, treaties...) and the
+// war / dispute pairs, for checking event rates.
+void write_journal_counts(game_state const& state, std::ostream& out);
 
 void write_daily_header(std::ostream& out);
 void write_daily_rows(game_state const& state, std::ostream& out);

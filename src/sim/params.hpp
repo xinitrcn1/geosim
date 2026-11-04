@@ -469,6 +469,26 @@
     X(supply_km, 3000.0, "distance (km) halving power projection (loss-of-strength gradient; Boulding 1962)") \
     X(occupation_settle, 3.0, "settlement hazard gain per unit occupied share (Slantchev 2003; Reiter 2009)") \
     X(refugee_occupation, 4.0, "refugee push gain per unit occupied share")                               \
+    /* ---- disputes and diplomacy (docs/06) ---- */                                                     \
+    X(mid_ratio, 10.0, "militarised disputes per war at equal hazard (Jones, Bremer & Singer 1996)")       \
+    X(escalate_rate, 2.0, "annual escalation hazard of an open dispute per hostility step")             \
+    X(backdown_rate, 1.5, "annual hazard that the weaker side backs down")                                \
+    X(dispute_settle_rate, 1.0, "annual hazard of a negotiated settlement of a dispute")                  \
+    X(audience_cost, 0.6, "share by which a democratic leader's back-down hazard falls (tying hands; Fearon 1994, Schultz 2001)") \
+    X(audience_approval, 0.1, "approval lost by backing down at full escalation, democracies (Tomz 2007; Weeks 2008)") \
+    X(nuclear_war_factor, 0.02, "escalation hazard to war between two nuclear powers (Jervis 1989; Snyder 1965)") \
+    X(stability_instability, 0.5, "extra low-level escalation between nuclear powers (Snyder 1965)")        \
+    X(rivalry_gain, 3.0, "dispute hazard gain per unit rivalry (Diehl & Goertz 2000)")                   \
+    X(rivalry_years, 20.0, "rivalry decay time (years)")                                                  \
+    X(rivalry_dispute, 0.2, "rivalry added per dispute (Senese & Vasquez 2008: steps to war)")            \
+    X(mediation_gain, 2.0, "settlement hazard gain from the best available mediator (Beardsley 2011)")   \
+    X(richardson, 0.5, "defence share matched per unit rival build-up (Richardson 1960)")                 \
+    X(concede_rate, 2.0, "annual concession hazard per unit sanction cost to the target (Hufbauer et al. 2007)") \
+    X(intervention_gain, 1.0, "insurgency end-hazard gain from outside support for the government (Regan 2002)") \
+    X(rebel_support, 1.0, "insurgency end-hazard divisor from rivals' support for rebels (Cunningham 2010)") \
+    X(aid_rate, 0.002, "crisis aid per year (share of donor GDP) per unit recipient need (Alesina & Dollar 2000)") \
+    X(aid_income, 25000.0, "GDP per capita (USD) above which nations give crisis aid")                   \
+    X(fta_ratification, 1.0, "ratification hurdle: lobby pressure x 10 against the governing seat share (Putnam 1988)") \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

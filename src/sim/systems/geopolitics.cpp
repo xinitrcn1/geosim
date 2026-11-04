@@ -84,6 +84,10 @@ void log_event(game_state& state, dcon::nation_id n, dcon::nation_id other, uint
 
 } // namespace
 
+float claim_of(game_state const& state, dcon::nation_id claimant, dcon::nation_id holder) {
+    return claim_strength(state, claimant, holder);
+}
+
 // Effective trade distance: sea route for seaborne trade, roads for overland trade
 // (logistics.cpp), or the great circle when there is no shipping network.
 static float effective_distance(game_state const& state, dcon::nation_id a, dcon::nation_id b) {
@@ -270,7 +274,12 @@ static void update_insurgency(game_state& state, dcon::nation_id n, float years)
             w.region_set_war_deaths(r.id, r.get_war_deaths() + r.get_population() * static_cast<float>(P.war_casualty_rate) * 0.5f * years);
             for(uint8_t s = 0; s < state.derived.sector_count; ++s) r.set_va0(s, r.get_va0(s) * (1.0f - static_cast<float>(P.war_destruction_rate) * 0.5f * years));
             w.nation_set_state_capacity(n, std::max(0.05f, w.nation_get_state_capacity(n) - 0.02f * years));
-            const float end = static_cast<float>(P.insurgency_end_rate) * years * w.nation_get_state_capacity(n) * (r.get_unrest() < 2.0f ? 3.0f : 1.0f);
+            // Outside support for either side (diplomacy.cpp).
+            float pro = 0.0f, anti = 0.0f;
+            insurgency_support(state, n, pro, anti);
+            w.nation_set_intervention(n, pro - anti);
+            const float end = static_cast<float>(P.insurgency_end_rate) * years * w.nation_get_state_capacity(n) * (r.get_unrest() < 2.0f ? 3.0f : 1.0f)
+                              * (1.0f + static_cast<float>(P.intervention_gain) * pro) / (1.0f + static_cast<float>(P.rebel_support) * anti);
             if(u < end) {
                 r.set_insurgency(0.0f);
                 log_event(state, n, n, journal_insurgency, 1.0f, 0.0f);
@@ -293,7 +302,7 @@ void call_allies(game_state& state, dcon::nation_id victim, dcon::nation_id enem
         const float p = std::clamp(static_cast<float>(P.alliance_honor) * (0.7f + 0.3f * a.get_electoral()) * (1.0f + a.get_threat_to(ke))
                                        * (0.5f + strength) * a.get_credibility(), 0.0f, 0.95f);
         const bool join = core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
-                                          0x40000000u + static_cast<uint32_t>(a.id.index()) * 1024u + ke) < p;
+                                          0x50000000u + static_cast<uint32_t>(a.id.index()) * 1024u + ke) < p;
         if(join) {
             a.set_at_war(ke, 1.0f);
             w.nation_set_at_war(enemy, static_cast<uint16_t>(a.id.index()), 1.0f);
@@ -384,7 +393,8 @@ void update_geopolitics(game_state& state) {
             const float trust_target = std::clamp(0.5f + 0.25f * n.get_alliance(k) - 0.4f * regime_distance(state, n.id, m.id)
                                                       - 0.3f * sanctioned - 0.5f * war - 0.2f * claims
                                                       - static_cast<float>(P.credibility_trust) * (1.0f - m.get_credibility())
-                                                      + static_cast<float>(P.affinity_trust) * ties, 0.0f, 1.0f);
+                                                      + static_cast<float>(P.affinity_trust) * ties
+                                                      - 0.2f * n.get_rivalry(k) - 0.1f * std::max(0.0f, n.get_hostility(k) - 1.0f), 0.0f, 1.0f);
             float trust = n.get_trust(k);
             trust += (trust_target - trust) * std::min(1.0f, years / static_cast<float>(P.trust_years));
             n.set_trust(k, trust);
@@ -420,7 +430,7 @@ void update_geopolitics(game_state& state) {
 
             // War onset (bargaining failure) and settlement; each pair handled by the lower index.
             if(n.id.index() < m.id.index()) {
-                if(war <= 0.0f && n.get_alliance(k) <= 0.0f) {
+                if(war <= 0.0f && n.get_alliance(k) <= 0.0f && n.get_hostility(k) < 2.0f) {
                     const float democratic = n.get_electoral() * m.get_electoral();
                     const float commerce = std::min(1.0f, 5.0f * (n.get_trade_share(k) + m.get_trade_share(kn)));
                     const float shift = std::abs(n.get_trend_growth() - m.get_trend_growth()) * 10.0f;
@@ -448,14 +458,11 @@ void update_geopolitics(game_state& state) {
                                     * (1.0f + rents) * (1.0f + diversion)
                                     * (1.0f - 0.8f * democratic) * (1.0f - 0.7f * commerce) * std::max(threat, m.get_threat_to(kn));
                     if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
-                                       static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index())) < p) {
-                        n.set_at_war(k, 1.0f);
-                        m.set_at_war(kn, 1.0f);
-                        n.set_sanction(k, 1.0f);
-                        m.set_sanction(kn, 1.0f);
-                        log_event(state, n.id, m.id, journal_war, 0.0f, 1.0f);
-                        call_allies(state, n.id, m.id);
-                        call_allies(state, m.id, n.id);
+                                       static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index()))
+                       < p * static_cast<float>(P.mid_ratio) * (1.0f + static_cast<float>(P.rivalry_gain) * n.get_rivalry(k))) {
+                        // The bargaining failure opens a militarised dispute; war is its
+                        // last rung (diplomacy.cpp).
+                        start_dispute(state, n.id, m.id);
                     }
                 } else if(war > 0.0f) {
                     // Costs: casualties and destruction in the front regions (capital or claimed),
@@ -488,13 +495,16 @@ void update_geopolitics(game_state& state) {
                     // wars (bargaining model: Fearon 1995; Slantchev 2003; Reiter 2009).
                     const float decisive = std::max(n.get_control(k), m.get_control(kn));
                     const float settle = static_cast<float>(P.peace_base_rate) * years * (1.0f + 10.0f * (n.get_war_cost() + m.get_war_cost()))
-                                         * (1.0f + static_cast<float>(P.occupation_settle) * decisive);
+                                         * (1.0f + static_cast<float>(P.occupation_settle) * decisive)
+                                         * (1.0f + static_cast<float>(P.mediation_gain) * mediation_score(state, n.id, m.id));
                     if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::conflict), static_cast<uint32_t>(state.current_tick),
                                        0x80000000u + static_cast<uint32_t>(n.id.index()) * 1024u + static_cast<uint32_t>(m.id.index())) < settle) {
                         n.set_at_war(k, 0.0f);
                         m.set_at_war(kn, 0.0f);
                         n.set_sanction(k, 0.5f); // lingering hostility
                         m.set_sanction(kn, 0.5f);
+                        n.set_hostility(k, 0.0f);
+                        m.set_hostility(kn, 0.0f);
                         // Occupied land is returned unless the occupier claims it (then the
                         // line freezes: Fortna 2004 on fragile ceasefires; Vasquez 1993).
                         if(claim_strength(state, m.id, n.id) <= 0.0f) n.set_control(k, 0.0f);

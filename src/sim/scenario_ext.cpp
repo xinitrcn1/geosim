@@ -231,6 +231,30 @@ void load_technology_defs(game_state& state, std::string const& assets_dir, core
     }
 }
 
+void load_conflict_tables(game_state& state, std::string const& dir, core::diagnostics& diag) {
+    auto& w = state.world;
+    if(exists(dir + "/conflict_curated.csv")) {
+        const auto t = core::csv_table::load(dir + "/conflict_curated.csv", diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            if(const auto n = find_nation(state, t.get(row, "iso3"))) w.nation_set_nuclear(n, static_cast<float>(t.number_or(row, "nuclear_warheads", 0.0)));
+        }
+    }
+    if(exists(dir + "/rivalries_curated.csv")) {
+        const auto t = core::csv_table::load(dir + "/rivalries_curated.csv", diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const auto a = find_nation(state, t.get(row, "a"));
+            const auto b = find_nation(state, t.get(row, "b"));
+            if(!a || !b) continue;
+            const auto r = static_cast<float>(std::clamp(t.number_or(row, "rivalry", 0.0), 0.0, 1.0));
+            w.nation_set_rivalry(a, static_cast<uint16_t>(b.index()), r);
+            w.nation_set_rivalry(b, static_cast<uint16_t>(a.index()), r);
+        }
+    }
+    // Arms imports: the share of procurement bought abroad falls with industrial
+    // capability (SIPRI arms transfers; large producers import little).
+    for(auto n : w.in_nation) n.set_arms_import_share(0.3f);
+}
+
 void load_trade_tables(game_state& state, std::string const& dir, core::diagnostics& diag) {
     auto& w = state.world;
     // Great-circle distances between capitals (the gravity fallback; logistics refines them).

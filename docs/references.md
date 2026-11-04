@@ -320,6 +320,32 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Reiter, D. (2009). *How Wars End.* Princeton UP.
 - Fortna, V. P. (2004). *Peace Time: Cease-Fire Agreements and the Durability of Peace.* Princeton UP.
 - Vasquez, J. (1993). *The War Puzzle.* Cambridge UP. — Territorial issues.
+- Jones, D., Bremer, S. & Singer, J. D. (1996). Militarized interstate disputes, 1816–1992. *Conflict Management and Peace Science* 15(2).
+- Senese, P. & Vasquez, J. (2008). *The Steps to War.* Princeton UP.
+- Snyder, G. (1965). The balance of power and the balance of terror. In *The Balance of Power* (Seabury, ed.). — Stability-instability paradox.
+- Jervis, R. (1989). *The Meaning of the Nuclear Revolution.* Cornell UP.
+- SIPRI (2020). *SIPRI Yearbook 2020*, ch. 10 World nuclear forces. — Arsenals.
+- Fearon, J. (1994). Domestic political audiences and the escalation of international disputes. *APSR* 88(3).
+- Schultz, K. (2001). *Democracy and Coercive Diplomacy.* Cambridge UP.
+- Weeks, J. (2008). Autocratic audience costs. *International Organization* 62(1).
+- Tomz, M. (2007). Domestic audience costs in international relations: an experimental approach. *International Organization* 61(4).
+- Beardsley, K. (2011). *The Mediation Dilemma.* Cornell UP.
+- Kydd, A. (2003). Which side are you on? Bias, credibility, and mediation. *AJPS* 47(4).
+- Diehl, P. & Goertz, G. (2000). *War and Peace in International Rivalry.* Michigan UP.
+- Thompson, W. & Dreyer, D. (2012). *Handbook of International Rivalries, 1494–2010.* CQ Press.
+- Colaresi, M., Rasler, K. & Thompson, W. (2007). *Strategic Rivalries in World Politics.* Cambridge UP.
+- Richardson, L. F. (1960). *Arms and Insecurity.* Boxwood. — Arms races.
+- Hufbauer, G., Schott, J., Elliott, K. & Oegg, B. (2007). *Economic Sanctions Reconsidered*, 3rd ed. PIIE.
+- Drezner, D. (1999). *The Sanctions Paradox.* Cambridge UP.
+- Lektzian, D. & Souva, M. (2007). An institutional theory of sanctions onset and success. *JCR* 51(6).
+- Regan, P. (2002). Third-party interventions and the duration of intrastate conflicts. *JCR* 46(1).
+- Cunningham, D. (2010). Blocking resolution: how external states can prolong civil wars. *JPR* 47(2).
+- Salehyan, I. (2009). *Rebels Without Borders.* Cornell UP.
+- Alesina, A. & Dollar, D. (2000). Who gives foreign aid to whom and why? *J. Economic Growth* 5(1).
+- Strömberg, D. (2007). Natural disasters, economic development, and humanitarian aid. *J. Economic Perspectives* 21(3).
+- Kinsella, D. (1994). Conflict in context: arms transfers and Third World rivalries during the Cold War. *AJPS* 38(3).
+- Putnam, R. (1988). Diplomacy and domestic politics: the logic of two-level games. *International Organization* 42(3).
+- Milner, H. (1997). *Interests, Institutions, and Information.* Princeton UP.
 
 ## Internet, cyber, war economics ([06](06-geopolitics-ai.md))
 

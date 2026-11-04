@@ -140,6 +140,14 @@ void lose_credibility(game_state& state, dcon::nation_id n, float amount);
 // War (geopolitics.cpp): alliance calls at onset, Lanchester fronts (monthly).
 void call_allies(game_state& state, dcon::nation_id victim, dcon::nation_id enemy);
 void update_front(game_state& state, dcon::nation_id n, dcon::nation_id m, float years);
+[[nodiscard]] float claim_of(game_state const& state, dcon::nation_id claimant, dcon::nation_id holder);
+// Disputes and diplomacy (diplomacy.cpp, monthly): escalation ladder, audience costs,
+// rivalry, nuclear deterrence, mediation, sanction concessions, crisis aid, arms.
+void start_dispute(game_state& state, dcon::nation_id n, dcon::nation_id m);
+void start_war(game_state& state, dcon::nation_id n, dcon::nation_id m);
+void update_diplomacy(game_state& state);
+[[nodiscard]] float mediation_score(game_state const& state, dcon::nation_id n, dcon::nation_id m);
+void insurgency_support(game_state const& state, dcon::nation_id n, float& for_government, float& for_rebels);
 [[nodiscard]] float minister_position(game_state const& state, dcon::nation_id n, portfolio pf, value_axis axis);
 void init_frontier_gaps(game_state& state);
 [[nodiscard]] float carbon_cost_share(game_state const& state, dcon::nation_id n);

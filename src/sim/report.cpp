@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include <cmath>
+#include <map>
 
 namespace geosim::sim {
 
@@ -92,7 +93,7 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     static constexpr char const* names[] = {"consumption", "gov_purchases", "exports", "imports", "wages_private",
         "wages_public", "job_retention_pay", "unemployment_benefits", "pensions", "fiscal_households", "fiscal_firms",
         "tax_households", "tax_indirect", "tax_firms", "tax_resource", "dividends", "interest_gov", "interest_households", "household_transfers", "remittances_in", "remittances_out", "sovereign_default",
-        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio", "public_services"};
+        "credit", "credit_deposits", "interest_loans", "credit_guarantee", "commodity_terms", "network_transfers", "war_spending", "tariffs", "public_investment", "defense", "imf_lending", "carbon_tax", "fdi", "portfolio", "public_services", "aid", "arms"};
     static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(flow::count));
     auto const& w = state.world;
     const double days = std::max(1.0, w.nation_get_acc_days(n));
@@ -154,6 +155,33 @@ void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out)
                       g.get_pop_share(), g.get_income_rel0(), g.get_income_rel(), g.get_unemployment() * 100.0f,
                       size > 0.0 ? informal / size : 0.0, g.get_excluded(), g.get_grievance(), g.get_mobilisation());
         out << line;
+    }
+}
+
+void write_journal_counts(game_state const& state, std::ostream& out) {
+    auto const& w = state.world;
+    struct kind {
+        uint8_t code;
+        char const* name;
+    };
+    static constexpr kind kinds[] = {{journal_election, "election"},   {journal_coup, "coup"},           {journal_war, "war"},
+                                     {journal_peace, "peace"},         {journal_sanction, "sanction"},   {journal_default, "default"},
+                                     {journal_chokepoint, "chokepoint"}, {journal_party_entry, "party_entry"}, {journal_party_exit, "party_exit"},
+                                     {journal_cyber, "cyber"},         {journal_insurgency, "insurgency"}, {journal_bill, "bill"},
+                                     {journal_no_confidence, "no_confidence"}, {journal_court, "court"}, {journal_regime_change, "regime_change"},
+                                     {journal_treaty, "treaty"},       {journal_disaster, "disaster"},   {journal_goal, "goal"},
+                                     {journal_alliance_call, "alliance_call"}, {journal_dispute, "dispute"}, {journal_concession, "concession"}};
+    std::map<uint8_t, int> counts;
+    for(auto d : w.in_decision) ++counts[d.get_lever()];
+    out << "journal events (" << state.current_tick << " days)\n";
+    for(auto const& k : kinds) out << "  " << k.name << ": " << counts[k.code] << "\n";
+    out << "dispute / war log (day, nation, partner, before -> after)\n";
+    for(auto d : w.in_decision) {
+        const auto code = d.get_lever();
+        if(code != journal_dispute && code != journal_war && code != journal_peace && code != journal_alliance_call && code != journal_concession) continue;
+        const auto partner = std::isnan(d.get_pragmatic()) ? dcon::nation_id{} : dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(d.get_pragmatic())};
+        out << "  " << d.get_tick() << " " << core::unpack_key(w.nation_get_iso3(d.get_target())) << " "
+            << (partner ? core::unpack_key(w.nation_get_iso3(partner)) : std::string("-")) << " " << d.get_before() << " -> " << d.get_after() << "\n";
     }
 }
 

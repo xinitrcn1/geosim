@@ -84,8 +84,19 @@ void update_treaties(game_state& state) {
                 const float sanction = std::max(n.get_sanction(km), m.get_sanction(kn));
                 const float hazard = static_cast<float>(P.fta_rate) * years * dependence * trust * (1.0f - distance) * (1.0f - sanction);
                 if(u < hazard && sanction < 0.1f) {
-                    fta = 0.01f;
-                    log_treaty(state, n.id, m.id, 1.0f, 1.0f);
+                    // Two-level game (Putnam 1988): each side's legislature must ratify;
+                    // protectionist lobbies narrow the win-set (Milner 1997).
+                    auto ratifies = [&](dcon::nation_id x) {
+                        if(!w.nation_get_competitive(x)) return true;
+                        const float support = w.nation_get_gov_seat_share(x) + 0.3f - static_cast<float>(P.fta_ratification) * 10.0f * w.nation_get_lobby_pressure(x);
+                        return support > 0.5f;
+                    };
+                    if(ratifies(n.id) && ratifies(m.id)) {
+                        fta = 0.01f;
+                        log_treaty(state, n.id, m.id, 1.0f, 1.0f);
+                    } else {
+                        log_treaty(state, n.id, m.id, 1.0f, -1.0f); // signed, not ratified
+                    }
                 }
             } else {
                 fta = std::min(1.0f, fta + years / static_cast<float>(P.fta_years));

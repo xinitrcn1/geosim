@@ -364,6 +364,14 @@ object{
 	property{ name{cinc} type{float} }
 	property{ name{control} type{array{uint16_t}{float}} }
 	property{ name{occupied} type{float} }
+	property{ name{hostility} type{array{uint16_t}{float}} }
+	property{ name{rivalry} type{array{uint16_t}{float}} }
+	property{ name{nuclear} type{float} }
+	property{ name{arms_import_share} type{float} }
+	property{ name{arms_exports} type{float} }
+	property{ name{aid_received} type{float} }
+	property{ name{disaster_seen} type{float} }
+	property{ name{intervention} type{float} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }

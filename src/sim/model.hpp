@@ -147,6 +147,8 @@ inline constexpr uint8_t journal_regime_change = 0xFE;
 inline constexpr uint8_t journal_treaty = 0xEF;
 inline constexpr uint8_t journal_goal = 0xED;          // before = old goal, after = new goal
 inline constexpr uint8_t journal_alliance_call = 0xEC; // pragmatic = ally index, after = 1 joined / 0 declined
+inline constexpr uint8_t journal_dispute = 0xEB;       // pragmatic = partner, before/after = hostility level (0 ends; 2..5)
+inline constexpr uint8_t journal_concession = 0xEA;    // target concedes to sanctions; pragmatic = sender
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
@@ -188,6 +190,8 @@ enum class flow : uint8_t {
     fdi,                   // foreign direct investment inflows (net, above baseline)
     portfolio,             // portfolio inflows (net, above baseline)
     public_services,       // education and health spending above baseline
+    aid,                   // crisis aid between governments (via the rest of the world)
+    arms,                  // arms imports: buyer's firms to the seller's firms
     count
 };
 

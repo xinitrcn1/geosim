@@ -193,7 +193,17 @@ void decide_defense(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float base = w.nation_get_defense_share0(n);
     // The 2019 budget answers the threats of 2019; spending rises with threat beyond a
     // moderate level and on a war footing.
-    const float pragmatic = (base * (1.0f + static_cast<float>(P.defense_threat) * 40.0f * std::max(0.0f, threat - 0.3f)) + 3.0f * w.nation_get_war_effort(n))
+    // Arms races (Richardson 1960): rivals' build-ups beyond their 2019 budgets are
+    // matched, and open disputes add urgency (diplomacy.cpp).
+    float race = 0.0f;
+    for(auto m : w.in_nation) {
+        if(m.id == n) continue;
+        const auto k = static_cast<uint16_t>(m.id.index());
+        race += w.nation_get_rivalry(n, k) * std::max(0.0f, m.get_defense_share() - m.get_defense_share0())
+                + 0.1f * base * std::max(0.0f, w.nation_get_hostility(n, k) - 2.0f);
+    }
+    const float pragmatic = (base * (1.0f + static_cast<float>(P.defense_threat) * 40.0f * std::max(0.0f, threat - 0.3f)) + 3.0f * w.nation_get_war_effort(n)
+                             + static_cast<float>(P.richardson) * race)
                             * (1.0f + goal_bias(state, n, goal::deter_threat));
     const float ideal = pragmatic * (1.0f + 0.5f * (w.agent_get_order_ideal(a) - 0.2f));
     const float rho = w.agent_get_rho_base(a);

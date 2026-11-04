@@ -435,6 +435,25 @@ defender_advantage{1.5}                  # force multiplier of defending own ter
 supply_km{3000}                          # distance (km) halving power projection (loss-of-strength gradient; Boulding 1962)
 occupation_settle{3}                     # settlement hazard gain per unit occupied share (Slantchev 2003; Reiter 2009)
 refugee_occupation{4}                    # refugee push gain per unit occupied share
+mid_ratio{10}                            # militarised disputes per war at equal hazard (Jones, Bremer & Singer 1996)
+escalate_rate{2}                         # annual escalation hazard of an open dispute per hostility step
+backdown_rate{1.5}                       # annual hazard that the weaker side backs down
+dispute_settle_rate{1}                   # annual hazard of a negotiated settlement of a dispute
+audience_cost{0.6}                       # share by which a democratic leader's back-down hazard falls (tying hands; Fearon 1994, Schultz 2001)
+audience_approval{0.1}                   # approval lost by backing down at full escalation, democracies (Tomz 2007; Weeks 2008)
+nuclear_war_factor{0.02}                 # escalation hazard to war between two nuclear powers (Jervis 1989; Snyder 1965)
+stability_instability{0.5}               # extra low-level escalation between nuclear powers (Snyder 1965)
+rivalry_gain{3}                          # dispute hazard gain per unit rivalry (Diehl & Goertz 2000)
+rivalry_years{20}                        # rivalry decay time (years)
+rivalry_dispute{0.2}                     # rivalry added per dispute (Senese & Vasquez 2008: steps to war)
+mediation_gain{2}                        # settlement hazard gain from the best available mediator (Beardsley 2011)
+richardson{0.5}                          # defence share matched per unit rival build-up (Richardson 1960)
+concede_rate{2}                          # annual concession hazard per unit sanction cost to the target (Hufbauer et al. 2007)
+intervention_gain{1}                     # insurgency end-hazard gain from outside support for the government (Regan 2002)
+rebel_support{1}                         # insurgency end-hazard divisor from rivals' support for rebels (Cunningham 2010)
+aid_rate{0.002}                          # crisis aid per year (share of donor GDP) per unit recipient need (Alesina & Dollar 2000)
+aid_income{25000}                        # GDP per capita (USD) above which nations give crisis aid
+fta_ratification{1}                      # ratification hurdle: lobby pressure x 10 against the governing seat share (Putnam 1988)
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

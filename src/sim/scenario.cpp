@@ -1612,6 +1612,8 @@ struct builder {
         w.nation_resize_energy_dependence(N);
         w.nation_resize_energy_dependence0(N);
         w.nation_resize_control(N);
+        w.nation_resize_hostility(N);
+        w.nation_resize_rivalry(N);
         w.nation_resize_portfolio_party(static_cast<uint32_t>(portfolio::count));
         w.nation_resize_trade_share(N);
         w.nation_resize_sanction(N);
@@ -1733,6 +1735,7 @@ struct builder {
             n.set_spread(n.get_spread0());
         }
         load_trade_tables(state, assets + "/scenario/" + scenario, diag);
+        load_conflict_tables(state, assets + "/scenario/" + scenario, diag);
         init_logistics_routes(state); // sea distances feed gravity trade shares
         init_geopolitics(state);
         init_logistics_flows(state);

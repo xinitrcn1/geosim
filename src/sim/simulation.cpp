@@ -39,6 +39,7 @@ void advance_day(game_state& state) {
     update_climate_policy(state);
     update_policy(state);
     update_strategy(state);
+    update_diplomacy(state);
     update_strata(state);
     update_indicators(state);
     ++state.current_tick;

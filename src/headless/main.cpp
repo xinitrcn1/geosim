@@ -182,6 +182,9 @@ int main(int argc, char** argv) {
     if(opt.count("logistics")) {
         geosim::sim::write_logistics(*state, std::cout);
     }
+    if(opt.count("journal")) {
+        geosim::sim::write_journal_counts(*state, std::cout);
+    }
     if(cmd == "backtest") {
         const auto result = geosim::sim::run_backtest(summary, assets, scenario, std::cout);
         return result.ok() ? 0 : 1;
