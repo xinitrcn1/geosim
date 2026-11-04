@@ -1,0 +1,185 @@
+# Party systems of the 2020 slice nations as of 2020-01-01 (hand-written; rounded).
+# Replaces the three generic parties per nation. Parties and voters live in a two-dimensional
+# value space; parties adapt (Laver & Sergenti 2011) inside an Overton window. No rows for ROW.
+#
+#  iso3          nation
+#  party         short key (1-4 ASCII chars), unique within the nation; OTH = residual of all
+#                smaller parties and independents
+#  name          full party name (English or usual romanised form)
+#  econ          economic left-right, -1 (state control, redistribution) .. +1 (free market)
+#  social        GAL-TAN, -1 (green/alternative/libertarian, secular) .. +1 (traditional/
+#                authoritarian/nationalist)
+#                both from 0-10 expert scales as (x-5)/5, two decimals
+#  vote_share    share of the vote in the most recent lower-house (or unicameral) election
+#                before 2020-01-01 (PR tier / party list vote where mixed systems have one)
+#  seat_share    share of lower-house seats after that election
+#  in_government 1 if in the national cabinet on 2020-01-01 (presidential systems: president's
+#                party and formal coalition partners)
+#  family        soc con lib chr grn rad_right rad_left com reg agr oth
+#
+# Sources:
+#  positions, Europe + TUR: Chapel Hill Expert Survey 2019, LRECON and GALTAN
+#                           (Jolly et al. 2022, Electoral Studies 75)
+#  positions, elsewhere:    Global Party Survey 2019 (Norris 2020) and V-Party
+#                           (Lührmann et al. 2020, v2pariglef and cultural items), rescaled
+#  election results:        ParlGov (Döring & Manow) and national electoral commissions
+#
+# Values are rounded. Expert judgement (not a survey reading) for: CHN (CPC: no competitive
+# survey placement; econ -0.20, social +0.70), SAU (no parties; royal establishment placed
+# at econ +0.20, social +0.90), all OTH residual positions, and the smaller parties of
+# BRA, IDN, IND, MEX, ARG, JPN, KOR. Approximate (shares or composition less certain):
+# ARG, BRA, IND, MEX, IDN.
+#
+# Notes per nation:
+#  USA 2018 House. DEM/REP only plus OTH; vacant NC-9 counted for REP.
+#  CHN one-party state; the eight minor "democratic parties" are omitted.
+#  JPN 2017 House of Representatives, PR-tier votes. Kibo no To merged into the Democratic
+#      Party for the People in 2018; kept under its 2017 label. Independents in OTH.
+#  DEU 2017 Bundestag, second votes. CDU and CSU listed separately.
+#  GBR December 2019. OTH seats: DUP, Sinn Fein, Plaid Cymru, SDLP, Alliance, Green, Speaker.
+#  FRA 2017 National Assembly, first-round votes. FN renamed Rassemblement National (2018).
+#  ITA 2018 Chamber. Conte II cabinet: M5S, PD, LeU (Italia Viva split from PD in 2019).
+#  ESP November 2019. PSOE caretaker government on 2020-01-01 (PSOE-UP coalition took office
+#      13 January 2020), so UP = 0.
+#  CAN 2019. KOR 2016 National Assembly, PR votes; Saenuri became Liberty Korea Party, the
+#      People's Party had split by 2020 (kept under 2016 labels).
+#  AUS 2019 House, first-preference votes; LIB includes the Queensland LNP and CLP.
+#  BRA 2018 Chamber, parties with >= 3% of seats. Bolsonaro left PSL in November 2019 and has
+#      no party; PSL (his election vehicle) and DEM (three ministries) marked as government.
+#      PR renamed Partido Liberal, PRB renamed Republicanos (2019).
+#  MEX 2018 Chamber, seats after group realignment. Juntos Haremos Historia: MORENA, PT, PES.
+#  IND 2019 Lok Sabha. Shiv Sena left the NDA in November 2019 (0). NDA cabinet partners
+#      (LJP, SAD) are in OTH. Large residual: many small regional parties.
+#  RUS 2016 Duma. Elections are not free or fair; shares are as officially reported.
+#  TUR June 2018 TBMM. MHP is AKP's alliance partner but holds no cabinet post (0).
+#  IDN 2019 DPR. Onward Indonesia cabinet: PDI-P, Gerindra, Golkar, PKB, NasDem, PPP.
+#  SAU no parties or elected legislature.
+#  ZAF 2019 National Assembly.
+#  ARG 2019 Chamber: votes by alliance; seat shares are the whole chamber composition by bloc
+#      after 10 December 2019 (half the chamber is renewed per election).
+iso3,party,name,econ,social,vote_share,seat_share,in_government,family
+USA,DEM,Democratic Party,-0.25,-0.40,0.534,0.540,0,lib
+USA,REP,Republican Party,0.65,0.70,0.448,0.460,1,con
+USA,OTH,Other parties and independents,0.20,0.00,0.018,0.000,0,oth
+CHN,CPC,Communist Party of China,-0.20,0.70,1.000,1.000,1,com
+JPN,LDP,Liberal Democratic Party,0.40,0.60,0.333,0.611,1,con
+JPN,CDP,Constitutional Democratic Party of Japan,-0.30,-0.30,0.199,0.118,0,soc
+JPN,KIBO,Kibo no To (Party of Hope),0.20,0.30,0.174,0.108,0,con
+JPN,KMT,Komeito,0.00,0.30,0.125,0.062,1,oth
+JPN,JCP,Japanese Communist Party,-0.80,-0.40,0.079,0.026,0,com
+JPN,ISHN,Nippon Ishin no Kai,0.50,0.40,0.061,0.024,0,con
+JPN,OTH,Other parties and independents,0.20,0.20,0.029,0.051,0,oth
+DEU,CDU,Christian Democratic Union,0.18,0.18,0.268,0.282,1,chr
+DEU,CSU,Christian Social Union in Bavaria,0.20,0.46,0.062,0.065,1,chr
+DEU,SPD,Social Democratic Party,-0.28,-0.32,0.205,0.216,1,soc
+DEU,AFD,Alternative for Germany,0.48,0.84,0.126,0.133,0,rad_right
+DEU,FDP,Free Democratic Party,0.64,-0.32,0.107,0.113,0,lib
+DEU,LINK,The Left (Die Linke),-0.72,-0.50,0.092,0.097,0,rad_left
+DEU,GRUE,Alliance 90/The Greens,-0.32,-0.72,0.089,0.094,0,grn
+DEU,OTH,Other parties,0.00,0.20,0.051,0.000,0,oth
+GBR,CON,Conservative Party,0.44,0.44,0.436,0.562,1,con
+GBR,LAB,Labour Party,-0.60,-0.32,0.321,0.311,0,soc
+GBR,LD,Liberal Democrats,-0.02,-0.60,0.116,0.017,0,lib
+GBR,SNP,Scottish National Party,-0.40,-0.48,0.039,0.074,0,reg
+GBR,OTH,Other parties (Brexit Party; Green; NI parties; Plaid Cymru),0.10,0.20,0.088,0.036,0,oth
+FRA,LREM,La Republique En Marche,0.26,-0.24,0.282,0.534,1,lib
+FRA,MODM,Mouvement Democrate,0.16,-0.20,0.041,0.073,1,lib
+FRA,LR,Les Republicains,0.54,0.52,0.158,0.194,0,con
+FRA,RN,Rassemblement National (Front National),-0.08,0.88,0.132,0.014,0,rad_right
+FRA,LFI,La France Insoumise,-0.80,-0.42,0.110,0.029,0,rad_left
+FRA,PS,Parti Socialiste,-0.32,-0.40,0.074,0.052,0,soc
+FRA,EELV,Europe Ecologie Les Verts,-0.44,-0.80,0.043,0.002,0,grn
+FRA,UDI,Union des Democrates et Independants,0.32,-0.08,0.030,0.031,0,lib
+FRA,OTH,"Other parties (PCF, miscellaneous left and right, regionalists)",-0.10,0.10,0.130,0.071,0,oth
+ITA,M5S,Five Star Movement,-0.22,0.12,0.327,0.360,1,oth
+ITA,PD,Democratic Party,-0.12,-0.32,0.188,0.178,1,soc
+ITA,LEGA,Lega,0.30,0.84,0.174,0.198,0,rad_right
+ITA,FI,Forza Italia,0.44,0.32,0.140,0.165,0,con
+ITA,FDI,Brothers of Italy,0.18,0.80,0.044,0.051,0,rad_right
+ITA,LEU,Free and Equal (Liberi e Uguali),-0.68,-0.60,0.034,0.022,1,rad_left
+ITA,OTH,"Other parties (+Europa, Potere al Popolo, SVP, centrist lists)",0.00,0.00,0.093,0.026,0,oth
+ESP,PSOE,Spanish Socialist Workers' Party,-0.28,-0.40,0.280,0.343,1,soc
+ESP,PP,People's Party,0.52,0.48,0.208,0.254,0,con
+ESP,VOX,Vox,0.60,0.92,0.151,0.149,0,rad_right
+ESP,UP,Unidas Podemos,-0.72,-0.64,0.129,0.100,0,rad_left
+ESP,CS,Citizens (Ciudadanos),0.48,-0.12,0.068,0.029,0,lib
+ESP,ERC,Republican Left of Catalonia,-0.44,-0.48,0.036,0.037,0,reg
+ESP,OTH,"Other parties (JxCat, PNV, EH Bildu, Mas Pais, CUP, CC, NA+, BNG, PRC, Teruel Existe)",-0.10,-0.20,0.128,0.088,0,oth
+CAN,LPC,Liberal Party of Canada,-0.10,-0.40,0.331,0.464,1,lib
+CAN,CPC,Conservative Party of Canada,0.55,0.45,0.343,0.358,0,con
+CAN,BQ,Bloc Quebecois,-0.20,-0.10,0.076,0.095,0,reg
+CAN,NDP,New Democratic Party,-0.50,-0.50,0.160,0.071,0,soc
+CAN,GPC,Green Party of Canada,-0.40,-0.70,0.065,0.009,0,grn
+CAN,OTH,Other parties and independents (incl. People's Party),0.40,0.50,0.025,0.003,0,oth
+KOR,DPK,Democratic Party of Korea (Minjoo),-0.20,-0.10,0.255,0.410,1,lib
+KOR,LKP,Liberty Korea Party (Saenuri in 2016),0.50,0.60,0.335,0.407,0,con
+KOR,PP,People's Party,0.10,0.10,0.267,0.127,0,lib
+KOR,JP,Justice Party,-0.60,-0.50,0.072,0.020,0,soc
+KOR,OTH,Other parties and independents,0.20,0.30,0.071,0.036,0,oth
+AUS,LIB,Liberal Party (incl. LNP and CLP),0.55,0.45,0.369,0.444,1,con
+AUS,NAT,National Party,0.40,0.65,0.045,0.066,1,agr
+AUS,ALP,Australian Labor Party,-0.25,-0.30,0.333,0.450,0,soc
+AUS,GRN,Australian Greens,-0.60,-0.80,0.104,0.007,0,grn
+AUS,ONP,Pauline Hanson's One Nation,0.20,0.90,0.031,0.000,0,rad_right
+AUS,UAP,United Australia Party,0.40,0.60,0.034,0.000,0,oth
+AUS,OTH,Other parties and independents,0.00,0.00,0.084,0.033,0,oth
+BRA,PT,Workers' Party,-0.50,-0.20,0.103,0.109,0,soc
+BRA,PSL,Social Liberal Party,0.60,0.90,0.117,0.101,1,rad_right
+BRA,PP,Progressistas,0.40,0.50,0.056,0.072,0,con
+BRA,MDB,Brazilian Democratic Movement,0.30,0.30,0.055,0.066,0,oth
+BRA,PSD,Social Democratic Party,0.30,0.30,0.056,0.066,0,con
+BRA,PR,Partido Liberal (PR in 2018),0.30,0.50,0.053,0.064,0,con
+BRA,PSB,Brazilian Socialist Party,-0.30,-0.20,0.062,0.062,0,soc
+BRA,PRB,Republicanos (PRB in 2018),0.30,0.80,0.048,0.058,0,con
+BRA,DEM,Democratas,0.60,0.50,0.044,0.057,1,con
+BRA,PSDB,Brazilian Social Democracy Party,0.40,0.10,0.060,0.057,0,lib
+BRA,PDT,Democratic Labour Party,-0.40,-0.10,0.046,0.055,0,soc
+BRA,OTH,Other parties (19 smaller parties),0.10,0.30,0.300,0.233,0,oth
+MEX,MRN,National Regeneration Movement (MORENA),-0.40,0.10,0.373,0.382,1,soc
+MEX,PAN,National Action Party,0.50,0.40,0.179,0.162,0,chr
+MEX,PRI,Institutional Revolutionary Party,0.20,0.20,0.165,0.090,0,oth
+MEX,PT,Labor Party,-0.60,0.00,0.039,0.122,1,rad_left
+MEX,PES,Social Encounter Party,0.00,0.80,0.024,0.112,1,con
+MEX,MC,Citizens' Movement,0.00,-0.30,0.044,0.054,0,lib
+MEX,PRD,Party of the Democratic Revolution,-0.40,-0.40,0.053,0.042,0,soc
+MEX,PVEM,Ecologist Green Party of Mexico,0.10,0.10,0.048,0.032,0,grn
+MEX,OTH,Other parties and independents (incl. Nueva Alianza),0.00,0.10,0.075,0.004,0,oth
+IND,BJP,Bharatiya Janata Party,0.30,0.80,0.374,0.558,1,rad_right
+IND,INC,Indian National Congress,-0.10,-0.20,0.195,0.096,0,lib
+IND,DMK,Dravida Munnetra Kazhagam,-0.40,-0.30,0.023,0.044,0,reg
+IND,AITC,All India Trinamool Congress,-0.30,0.00,0.041,0.041,0,reg
+IND,YSRC,YSR Congress Party,-0.10,0.10,0.025,0.041,0,reg
+IND,SS,Shiv Sena,0.20,0.90,0.021,0.033,0,reg
+IND,BSP,Bahujan Samaj Party,-0.30,-0.10,0.036,0.018,0,oth
+IND,OTH,"Other parties and independents (JD(U), BJD, TRS, SP, LJP, NCP, Left, etc.)",-0.10,0.10,0.285,0.169,0,oth
+RUS,UR,United Russia,0.10,0.70,0.542,0.762,1,con
+RUS,CPRF,Communist Party of the Russian Federation,-0.70,0.60,0.133,0.093,0,com
+RUS,LDPR,Liberal Democratic Party of Russia,0.00,0.80,0.131,0.087,0,rad_right
+RUS,SR,A Just Russia,-0.40,0.30,0.062,0.051,0,soc
+RUS,OTH,"Other parties (Yabloko, Communists of Russia, Rodina, etc.)",-0.10,0.30,0.132,0.007,0,oth
+TUR,AKP,Justice and Development Party,0.20,0.76,0.426,0.492,1,con
+TUR,CHP,Republican People's Party,-0.28,-0.20,0.226,0.243,0,soc
+TUR,HDP,Peoples' Democratic Party,-0.64,-0.68,0.117,0.112,0,reg
+TUR,MHP,Nationalist Movement Party,0.12,0.92,0.111,0.082,0,rad_right
+TUR,IYI,Good Party (IYI Parti),0.28,0.52,0.100,0.072,0,con
+TUR,OTH,Other parties (Saadet etc.),-0.10,0.80,0.020,0.000,0,oth
+IDN,PDIP,Indonesian Democratic Party of Struggle,-0.20,-0.10,0.193,0.223,1,soc
+IDN,GER,Great Indonesia Movement Party (Gerindra),0.10,0.60,0.126,0.136,1,rad_right
+IDN,GOLK,Golkar,0.30,0.30,0.123,0.148,1,con
+IDN,PKB,National Awakening Party,0.00,0.50,0.097,0.101,1,oth
+IDN,NSDM,NasDem Party,0.10,0.10,0.091,0.103,1,lib
+IDN,PKS,Prosperous Justice Party,0.20,0.90,0.082,0.087,0,oth
+IDN,PD,Democratic Party (Demokrat),0.20,0.30,0.078,0.094,0,con
+IDN,PAN,National Mandate Party,0.20,0.60,0.068,0.077,0,con
+IDN,PPP,United Development Party,0.00,0.80,0.045,0.033,1,oth
+IDN,OTH,"Other parties (Perindo, Berkarya, PSI, Hanura, etc.)",0.10,0.30,0.097,0.000,0,oth
+SAU,RUL,Royal establishment (no parties),0.20,0.90,1.000,1.000,1,oth
+ZAF,ANC,African National Congress,-0.30,0.20,0.575,0.575,1,soc
+ZAF,DA,Democratic Alliance,0.40,-0.20,0.208,0.210,0,lib
+ZAF,EFF,Economic Freedom Fighters,-0.90,0.30,0.108,0.110,0,rad_left
+ZAF,IFP,Inkatha Freedom Party,0.20,0.60,0.034,0.035,0,reg
+ZAF,OTH,"Other parties (FF+, ACDP, UDM, etc.)",0.20,0.40,0.075,0.070,0,oth
+ARG,FDT,Frente de Todos,-0.40,-0.10,0.453,0.467,1,soc
+ARG,JXC,Juntos por el Cambio,0.50,0.10,0.407,0.451,0,con
+ARG,CF,Consenso Federal,0.10,0.20,0.059,0.043,0,oth
+ARG,OTH,"Other parties (FIT-U, provincial parties, etc.)",-0.30,0.00,0.081,0.039,0,oth
