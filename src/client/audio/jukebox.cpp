@@ -10,6 +10,7 @@ float default_intensity(mood m) noexcept {
     case mood::tense: return 0.55f;
     case mood::crisis: return 0.85f;
     case mood::triumph: return 0.72f;
+    case mood::wartime: return 0.9f;
     }
     return 0.5f;
 }
@@ -37,8 +38,11 @@ void jukebox::render(float* out, int frames) noexcept {
     } else {
         // A mood different from the song's, held long enough, wraps the
         // song up: the player jumps to the outro at the next 8-bar line.
+        // War starting or ending is an event, not noise: it wraps up at once
+        // (still at the next 8-bar line).
         mood_held_ = current_->m != mood_ ? mood_held_ + dt : 0.0;
-        if(mood_held_ >= static_cast<double>(wrap_after_seconds)) player_.request_outro();
+        const bool war_change = current_->m != mood_ && (current_->m == mood::wartime || mood_ == mood::wartime);
+        if(mood_held_ >= static_cast<double>(war_change ? 0.0f : wrap_after_seconds) && current_->m != mood_) player_.request_outro();
     }
     player_.render(out, frames);
     if(current_ && player_.finished()) {

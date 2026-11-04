@@ -1,5 +1,7 @@
 #include "sim_runner.hpp"
 
+#include "core/csv.hpp"
+#include "core/diagnostics.hpp"
 #include "core/keys.hpp"
 #include "sim/model.hpp"
 #include "sim/report.hpp"
@@ -74,12 +76,33 @@ bool is_alert_code(uint8_t c) {
 sim_runner::sim_runner() = default;
 sim_runner::~sim_runner() { stop(); }
 
-void sim_runner::start(std::string assets_dir, std::string scenario, std::string nation_iso3) {
+void sim_runner::start(std::string assets_dir, std::string scenario, std::string nations) {
     assets_ = std::move(assets_dir);
     scenario_ = std::move(scenario);
-    iso3_ = std::move(nation_iso3);
-    flag_ = flag_for(iso3_);
+    iso3s_.clear();
+    std::size_t at = 0;
+    while(at <= nations.size()) {
+        const std::size_t comma = std::min(nations.find(',', at), nations.size());
+        std::string iso = nations.substr(at, comma - at);
+        if(!iso.empty() && std::find(iso3s_.begin(), iso3s_.end(), iso) == iso3s_.end()) iso3s_.push_back(std::move(iso));
+        at = comma + 1;
+    }
     thread_ = std::jthread([this] { run(); });
+}
+
+bool sim_runner::controls(std::string const& iso3) const noexcept { return std::find(iso3s_.begin(), iso3s_.end(), iso3) != iso3s_.end(); }
+
+bool sim_runner::player_at_war() const noexcept {
+    if(status() != sim_status::running) return false;
+    auto const& w = state_->world;
+    const auto count = static_cast<uint16_t>(w.nation_size());
+    for(controlled const& c : controlled_) {
+        const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(c.index)};
+        for(uint16_t k = 0; k < count; ++k) {
+            if(k != c.index && w.nation_get_at_war(n, k) > 0.0f) return true;
+        }
+    }
+    return false;
 }
 
 void sim_runner::stop() {
@@ -151,14 +174,31 @@ void sim_runner::run() {
     }
     SDL_Log("scenario %s: %zu events, %zu warnings", scenario_.c_str(), report.events, report.warnings.size());
     sim::begin_measurement(*state);
-    const auto n = sim::find_nation(*state, iso3_);
-    if(n) {
-        nation_ = n.index();
-        has_nation_ = true;
-        unemployment0_ = state->world.nation_get_unemployment(n);
-        yield0_ = state->world.nation_get_yield10(n);
-    } else {
-        SDL_Log("nation %s not in scenario %s; indicators disabled", iso3_.c_str(), scenario_.c_str());
+    // Display names from the scenario's nations.csv ("Korea, Rep." -> "Korea").
+    core::diagnostics names_diag;
+    const auto names = core::csv_table::load(assets_ + "/scenario/" + scenario_ + "/nations.csv", names_diag);
+    const auto iso_col = names.column("iso3"), name_col = names.column("name");
+    for(std::string const& iso : iso3s_) {
+        const auto n = sim::find_nation(*state, iso);
+        if(!n) {
+            SDL_Log("nation %s not in scenario %s; its indicators are disabled", iso.c_str(), scenario_.c_str());
+            continue;
+        }
+        controlled c;
+        c.index = n.index();
+        c.iso3 = iso;
+        c.flag = flag_for(iso);
+        c.name = iso;
+        for(std::size_t r = 0; iso_col && name_col && r < names.rows(); ++r) {
+            if(names.get(r, *iso_col) != iso) continue;
+            std::string full(names.get(r, *name_col));
+            const std::size_t comma = full.find(',');
+            if(comma != std::string::npos && comma > 0) full.resize(comma);
+            if(!full.empty()) c.name = full;
+        }
+        c.unemployment0 = state->world.nation_get_unemployment(n);
+        c.yield0 = state->world.nation_get_yield10(n);
+        controlled_.push_back(std::move(c));
     }
     epoch_days_ = state->epoch_days;
     tick_.store(state->current_tick);
@@ -219,9 +259,16 @@ void sim_runner::run() {
 
 std::vector<agent_panel> sim_runner::read_agents() {
     std::vector<agent_panel> out;
-    if(status() != sim_status::running || !has_nation_) return out;
+    if(status() != sim_status::running) return out;
+    for(controlled& c : controlled_) read_nation(c, out);
+    return out;
+}
+
+void sim_runner::read_nation(controlled& c, std::vector<agent_panel>& out) {
     auto const& w = state_->world;
-    const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(nation_)};
+    const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(c.index)};
+    auto& history_ = c.history;
+    const float unemployment0_ = c.unemployment0, yield0_ = c.yield0;
     const int32_t t = tick();
 
     // Trailing-year means from the sim's running accumulators (acc_*), sampled
@@ -281,8 +328,9 @@ std::vector<agent_panel> sim_runner::read_agents() {
     auto tone_of = [](bool good, bool bad) { return bad ? tone::bad : (good ? tone::good : tone::neutral); };
 
     agent_panel gov;
+    gov.flag = c.flag;
     gov.icon = "\xF0\x9F\x8F\x9B"; // U+1F3DB classical building
-    gov.title = "Government";
+    gov.title = c.name + " Government";
     gov.items.push_back({"Support", valued(support, "%.1f%%"), tone_of(support > support0 + 1.0, support < support0 - 1.0),
                          "Incumbent's vote share now (start of the run: " + fmt("%.1f%%", support0) + ")"});
     gov.items.push_back({"GDP", valued(growth, "%+.1f%%"), tone_of(growth > 1.0, growth < 0.0),
@@ -301,8 +349,9 @@ std::vector<agent_panel> sim_runner::read_agents() {
     out.push_back(std::move(gov));
 
     agent_panel cb;
+    cb.flag = c.flag;
     cb.icon = "\xF0\x9F\x8F\xA6"; // U+1F3E6 bank
-    cb.title = "Central bank";
+    cb.title = c.name + " Central Bank";
     const double gap = inflation - trend_infl;
     cb.items.push_back({"Inflation", valued(inflation, "%.1f%%"), tone_of(std::fabs(gap) < 1.0, std::fabs(gap) > 2.5),
                         "CPI inflation (same window as GDP); trend " + fmt("%.1f%%", trend_infl)});
@@ -313,7 +362,6 @@ std::vector<agent_panel> sim_runner::read_agents() {
     const double fx = (w.nation_get_exchange_rate(n) - 1.0) * 100.0;
     cb.items.push_back({"FX", valued(fx, "%+.1f%%"), tone::neutral, "Real exchange rate vs the start"});
     out.push_back(std::move(cb));
-    return out;
 }
 
 } // namespace geosim::client

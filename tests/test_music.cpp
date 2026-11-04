@@ -35,7 +35,9 @@ int main() {
             check(same, "same seed, same events", seed, m);
             check(a.duration_seconds() >= 30.0 && a.duration_seconds() <= 180.0, "duration 30 s - 3 min", seed, m);
             if(a.sections.size() > 5) check(a.duration_seconds() >= 120.0, "full songs last 2-3 min", seed, m);
-            check(a.bpm >= 110.0f && a.bpm <= 128.0f, "BPM 110-128", seed, m);
+            if(m == mood::wartime) check(a.bpm >= 132.0f && a.bpm <= 140.0f, "wartime BPM 132-140", seed, m);
+            else check(a.bpm >= 110.0f && a.bpm <= 128.0f, "BPM 110-128", seed, m);
+            if(m == mood::wartime) check(a.duration_seconds() >= 120.0, "wartime songs are full length", seed, m);
             bool sorted = true, in_range = true;
             for(std::size_t i = 0; i < a.events.size(); ++i) {
                 if(i && a.events[i].tick < a.events[i - 1].tick) sorted = false;

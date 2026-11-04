@@ -28,6 +28,7 @@ char const* mood_name(mood m) noexcept {
     case mood::tense: return "tense";
     case mood::crisis: return "crisis";
     case mood::triumph: return "triumph";
+    case mood::wartime: return "wartime";
     }
     return "?";
 }
@@ -168,6 +169,7 @@ public:
         choose_arrangement();
         for(std::size_t i = 0; i < plan_.size(); ++i) render_section(i);
         apply_mutes();
+        s_.events.insert(s_.events.end(), post_.begin(), post_.end());
         std::stable_sort(s_.events.begin(), s_.events.end(), [](note_event const& a, note_event const& b) { return a.tick < b.tick; });
         describe();
         return std::move(s_);
@@ -234,6 +236,7 @@ private:
         uint32_t channels; // bit per channel
     };
     std::vector<mute> mutes_;
+    std::vector<note_event> post_; // device events added after the mutes
     std::string transitions_;
     // the lead's notes for the current phrase, fitted to the register before emission
     struct lead_note {
@@ -311,6 +314,9 @@ private:
         if(m == mood::tense) lo = 116, hi = 122;
         if(m == mood::crisis) lo = 122, hi = 128;
         if(m == mood::triumph) lo = 120, hi = 126;
+        // Wartime is trance / hardtrance: the references run 140-160 BPM; the
+        // game caps the style at 140, so it sits at the genre's lower end.
+        if(m == mood::wartime) lo = 132, hi = 140;
         s_.bpm = std::min(hi, std::round(r_.range(lo, hi + 0.99f))); // (rounding could give hi + 1)
         key_ = 45 + r_.range(0, 11); // tonic between A2 and G#3
         s_.key = key_;
@@ -318,12 +324,14 @@ private:
         static constexpr int tense_modes[] = {m_dorian, m_aeolian, m_aeolian, m_dorian};
         static constexpr int crisis_modes[] = {m_aeolian, m_phrygian, m_harmonic, m_aeolian};
         static constexpr int triumph_modes[] = {m_ionian, m_mixolydian, m_ionian, m_lydian};
+        static constexpr int wartime_modes[] = {m_aeolian, m_phrygian, m_harmonic, m_aeolian, m_dorian};
         int mode = m_ionian;
         switch(m) {
         case mood::calm: mode = r_.pick(calm_modes); break;
         case mood::tense: mode = r_.pick(tense_modes); break;
         case mood::crisis: mode = r_.pick(crisis_modes); break;
         case mood::triumph: mode = r_.pick(triumph_modes); break;
+        case mood::wartime: mode = r_.pick(wartime_modes); break;
         }
         s_.mode = mode;
         mode_ = &modes[mode];
@@ -356,7 +364,7 @@ private:
         prog_c_ = fit[r_.next() % fit.size()];
         bpc_a_ = r_.chance(0.6f) ? 2 : 1;
         bpc_b_ = r_.chance(0.6f) ? 1 : 2;
-        const float swing_p = m == mood::calm ? 0.6f : m == mood::crisis ? 0.1f : 0.35f;
+        const float swing_p = m == mood::calm ? 0.6f : m == mood::crisis ? 0.1f : m == mood::wartime ? 0.0f : 0.35f; // trance is straight
         swing_ = r_.chance(swing_p) ? 1 : 0;
         seventh_ = (m == mood::calm || m == mood::triumph) ? r_.chance(0.6f) : r_.chance(0.25f);
     }
@@ -382,7 +390,7 @@ private:
 
         // bass
         patch& b = P[ch_bass];
-        const int bass_kind = m == mood::calm ? r_.range(0, 2) : m == mood::crisis ? r_.range(2, 3) : r_.range(0, 3);
+        const int bass_kind = m == mood::calm ? r_.range(0, 2) : (m == mood::crisis || m == mood::wartime) ? r_.range(2, 3) : r_.range(0, 3);
         b.glide = 0.0f;
         switch(bass_kind) {
         case 0: // warm triangle + sine sub
@@ -433,7 +441,7 @@ private:
         l.vib_depth = r_.range(0.08f, 0.2f), l.vib_rate = r_.range(4.5f, 6.0f), l.vib_delay = 0.18f;
         l.glide = r_.chance(0.5f) ? 0.04f : 0.0f;
         l.fdecay = 0.25f;
-        staccato_ = r_.chance(m == mood::crisis ? 0.6f : 0.3f);
+        staccato_ = r_.chance(m == mood::crisis ? 0.6f : m == mood::wartime ? 0.45f : 0.3f);
 
         // arp: short plucks
         patch& a = P[ch_arp];
@@ -448,7 +456,7 @@ private:
 
         // pad / chords
         patch& p = P[ch_pad];
-        chip_chords_ = r_.chance(m == mood::calm ? 0.25f : 0.4f);
+        chip_chords_ = r_.chance(m == mood::calm ? 0.25f : 0.4f) && m != mood::wartime; // wartime: always the supersaw-like pad
         if(chip_chords_) { // tracker arpeggio chord on a pulse
             p.w1 = wave::pulse, p.duty = 0.25f, p.w2 = wave::pulse, p.mix2 = 0.0f;
             p.cutoff = 2400, p.resonance = 0.1f;
@@ -456,6 +464,12 @@ private:
         } else {
             p.w1 = wave::saw, p.w2 = wave::saw, p.mix2 = 0.9f, p.detune = r_.range(8.0f, 14.0f);
             p.cutoff = m == mood::crisis ? 900.0f : 1400.0f, p.resonance = 0.15f, p.fenv = 0.6f, p.fdecay = 0.6f;
+            if(m == mood::wartime) { // wider, brighter detuned saws: supersaw-like pads and stabs
+                p.detune *= 1.6f;
+                p.mix2 = 1.0f;
+                p.cutoff = 2000.0f;
+                p.fenv = 1.0f;
+            }
             p.attack = 0.08f, p.decay = 0.6f, p.sustain = 0.8f, p.release = 0.6f;
             p.pwm_depth = 0.0f;
         }
@@ -486,7 +500,7 @@ private:
         const mood m = s_.m;
         broken_kick_ = m == mood::calm && r_.chance(0.3f);
         kick_pickup_ = r_.chance(0.5f);
-        backbeat_ = r_.chance(m == mood::crisis ? 0.5f : 0.7f) ? dr_clap : dr_snare;
+        backbeat_ = r_.chance(m == mood::crisis ? 0.5f : m == mood::wartime ? 0.85f : 0.7f) ? dr_clap : dr_snare;
         static constexpr int ghost_sets[][3] = {{7, -1, -1}, {15, -1, -1}, {10, 15, -1}, {7, 14, -1}, {-1, -1, -1}, {3, 11, 15}};
         for(int g : ghost_sets[r_.next() % 6]) {
             if(g >= 0) ghosts_.push_back(g);
@@ -499,6 +513,7 @@ private:
 
         // bass rhythm
         if(m == mood::crisis) bass_ = r_.chance(0.6f) ? bass_style::rolling : bass_style::offbeat;
+        else if(m == mood::wartime) bass_ = r_.chance(0.65f) ? bass_style::offbeat : bass_style::rolling;
         else if(m == mood::calm) bass_ = r_.chance(0.5f) ? bass_style::house : bass_style::octaves;
         else {
             static constexpr bass_style all[] = {bass_style::offbeat, bass_style::rolling, bass_style::house, bass_style::octaves};
@@ -543,7 +558,7 @@ private:
         stab_mask_ = r_.pick(stabs);
 
         // motifs
-        const float density = m == mood::calm ? 0.8f : m == mood::crisis ? 1.3f : 1.0f;
+        const float density = m == mood::calm ? 0.8f : m == mood::crisis ? 1.3f : m == mood::wartime ? 1.15f : 1.0f;
         motif_a_ = make_motif(density, prog_a_[0], prog_a_[bpc_a_ == 1 ? 1 : 0]);
         motif_b_ = make_motif(density * 1.2f, prog_b_[0], prog_b_[bpc_b_ == 1 ? 1 : 0]);
     }
@@ -634,13 +649,21 @@ private:
             {{K::intro, 16}, {K::verse, 16}, {K::chorus, 16}, {K::breakdown, 8}, {K::verse, 8}, {K::drop, 16}, {K::outro, 8}},
             {{K::intro, 8}, {K::verse, 16}, {K::chorus, 8}, {K::verse, 8}, {K::chorus, 16}, {K::breakdown, 8}, {K::drop, 16}, {K::outro, 8}},
         };
-        std::vector<item> form = forms[r_.next() % 4];
+        // wartime: trance forms with long (16/32-bar) breakdowns and builds, always full length
+        static const std::vector<item> war_forms[] = {
+            {{K::intro, 16}, {K::verse, 16}, {K::breakdown, 16}, {K::drop, 32}, {K::outro, 8}},
+            {{K::intro, 8}, {K::verse, 16}, {K::chorus, 16}, {K::breakdown, 16}, {K::drop, 16}, {K::outro, 8}},
+            {{K::intro, 16}, {K::chorus, 16}, {K::breakdown, 32}, {K::drop, 16}, {K::outro, 8}},
+            {{K::intro, 8}, {K::verse, 16}, {K::breakdown, 16}, {K::drop, 16}, {K::breakdown, 8}, {K::drop, 16}, {K::outro, 8}},
+        };
+        const bool war = s_.m == mood::wartime;
+        std::vector<item> form = war ? war_forms[r_.next() % 4] : forms[r_.next() % 4];
         const double bar_s = 240.0 / static_cast<double>(s_.bpm);
         const double target = r_.range(140.0f, 165.0f);
         // About one song in four is a short intermission (30-80 s). Its own
         // generator, so a full-length song's basics do not depend on it.
         rng ir(s_.seed ^ 0x3C6EF372FE94F82Bull);
-        if(ir.chance(0.25f)) {
+        if(ir.chance(0.25f) && !war) {
             static const std::vector<item> short_forms[] = {
                 {{K::intro, 4}, {K::verse, 8}, {K::outro, 4}},
                 {{K::intro, 4}, {K::verse, 8}, {K::chorus, 8}, {K::outro, 4}},
@@ -658,8 +681,8 @@ private:
         for(int guard = 0; guard < 8 && !intermission && total() * bar_s > target + 10; ++guard) {
             bool done = false;
             for(auto& it : form) {
-                if(it.bars == 16 && (it.k == K::intro || it.k == K::breakdown)) {
-                    it.bars = 8;
+                if((it.bars == 16 && (it.k == K::intro || (it.k == K::breakdown && !war))) || (war && it.k == K::breakdown && it.bars == 32)) {
+                    it.bars /= 2;
                     done = true;
                     break;
                 }
@@ -722,9 +745,27 @@ private:
         tr_stop,         // everything but the lead stops for the last beats
         tr_kick_return,  // breakdown: the kick comes back for its last bars, with a roll
         tr_drum_break,   // the melody, arp and chords drop out for the last 4 bars: drums and bass only
+        // crescendo devices (builds into a chorus / drop, or out of a breakdown)
+        tr_clap_roll,    // accelerating clap roll (8ths, 16ths, 32nds), crescendo
+        tr_tom_cascade,  // descending tom cascades, 8ths then 16ths
+        tr_layer_in,     // breakdown / intro: hats, kick, bass, snare enter one by one
+        tr_hat_ramp,     // hats densify and open: 8ths, 16ths, open 8ths, rising
+        tr_arp_climb,    // the arpeggio speeds up and climbs an octave per bar
+        tr_stab_ramp,    // chord stabs: quarters, 8ths, 16ths, rising
+        tr_pad_swell,    // one pad chord swells from silence over the build
+        tr_kick_double,  // the kick doubles: quarters to 8ths, the last beat in 16ths
+        tr_lead_climb,   // the melody ends early; the lead runs up a scale and bends into the downbeat
+        tr_count
     };
+    // build length in bars for a crescendo device out of section `p`
+    [[nodiscard]] int build_bars(plan_item const& p) const {
+        const int bars = static_cast<int>(p.sec.bars);
+        if(p.sec.kind == section_kind::breakdown || p.sec.kind == section_kind::intro) return std::min(s_.m == mood::wartime ? 8 : 4, bars / 2);
+        return std::min(s_.m == mood::wartime ? 4 : 2, bars / 4);
+    }
     static char const* tr_name(uint8_t k) {
-        static char const* const names[] = {"cut", "fill", "toms", "roll", "riser", "sweep", "filter-close", "filter-open", "kick-out", "stop", "kick-return", "drum-break"};
+        static char const* const names[] = {"cut", "fill", "toms", "roll", "riser", "sweep", "filter-close", "filter-open", "kick-out", "stop", "kick-return", "drum-break",
+                                             "clap-roll", "tom-cascade", "layer-in", "hat-ramp", "arp-climb", "stab-ramp", "pad-swell", "kick-double", "lead-climb"};
         return k < sizeof names / sizeof names[0] ? names[k] : "?";
     }
 
@@ -733,13 +774,17 @@ private:
         seq_step_ = tr_.chance(0.45f) ? 1 : tr_.chance(0.5f) ? 2 : -1;
         dev_invert_ = tr_.chance(0.5f);
         dev_steps_ = tr_.chance(0.5f) ? -2 : 3;
-        risers_left_ = tr_.chance(0.4f) ? 1 : 0; // most songs have no long riser at all
-        int sweeps_left = 1;
-        hard_drop_ = bass_ != bass_style::offbeat && tr_.chance(s_.m == mood::calm ? 0.35f : 0.55f);
+        risers_left_ = tr_.chance(0.25f) ? 1 : 0; // most songs have no long riser at all
+        int sweeps_left = tr_.chance(0.5f) ? 1 : 0;
+        const bool war = s_.m == mood::wartime;
+        hard_drop_ = war || (bass_ != bass_style::offbeat && tr_.chance(s_.m == mood::calm ? 0.35f : 0.55f));
         // trance gates over a bar of 16ths (bit r = row r)
         static constexpr uint16_t gates[] = {0xB6DB /* x.xx.xx.xx.x.xx.x */, 0x6DB6, 0xDDDD /* x.xxx.xx... */, 0x5555, 0xF6F6};
-        gate_mask_ = tr_.chance(0.4f) ? tr_.pick(gates) : 0;
+        gate_mask_ = tr_.chance(war ? 1.0f : 0.4f) ? tr_.pick(gates) : 0;
         beat_intro_ = tr_.chance(0.3f); // 90s style: the intro opens on drums and bass, the chords come in halfway
+        // this song's taste: every device weight scaled by 0.4-1.6
+        float taste[tr_count];
+        for(float& t : taste) t = tr_.range(0.4f, 1.6f);
         plan_.back().cadence = true;
         cad_steps_ = tr_.chance(0.4f) ? 2 : tr_.chance(0.5f) ? -1 : 1;
         // Sections end on a chord that holds a tonic-triad tone, so the
@@ -760,19 +805,32 @@ private:
             };
             std::vector<opt> o;
             const float R = risers_left_ > 0 ? 1.0f : 0.0f, S = sweeps_left > 0 ? 1.0f : 0.0f;
+            const bool melodic = k == K::verse || k == K::chorus || k == K::drop || k == K::bridge || k == K::breakdown;
+            const float L = melodic && p.sec.bars >= 8 ? 1.0f : 0.0f;
             if(k == K::breakdown) {
-                o = {{tr_roll, 1.2f}, {tr_riser, 1.8f * R}, {tr_filter_open, 1.2f}, {tr_kick_return, 1.0f}, {tr_short_riser, 0.7f * S}, {tr_stop, 0.9f}};
+                o = {{tr_roll, 1.0f},       {tr_clap_roll, 0.8f},   {tr_riser, 1.8f * R},  {tr_filter_open, 1.0f}, {tr_kick_return, 1.0f},
+                     {tr_short_riser, 0.9f * S}, {tr_stop, 0.7f},   {tr_layer_in, 1.2f},   {tr_hat_ramp, 0.9f},    {tr_arp_climb, 0.9f},
+                     {tr_pad_swell, 1.0f},  {tr_lead_climb, 0.8f},  {tr_tom_cascade, 0.6f}, {tr_stab_ramp, 0.7f}};
             } else if(next == K::chorus || next == K::drop) {
-                o = {{tr_roll, 1.3f}, {tr_fill, 1.2f},      {tr_toms, 0.5f}, {tr_riser, 1.6f * R}, {tr_drum_break, k != K::intro && p.sec.bars >= 16 ? 0.7f : 0.0f},
-                     {tr_short_riser, 0.6f * S}, {tr_kick_out, 0.9f}, {tr_stop, 0.6f}, {tr_plain, 0.4f}};
+                o = {{tr_roll, 1.0f},        {tr_clap_roll, 0.8f}, {tr_fill, 1.0f},      {tr_toms, 0.4f},       {tr_tom_cascade, 1.0f},
+                     {tr_riser, 1.6f * R},   {tr_short_riser, 0.8f * S}, {tr_kick_out, 0.7f}, {tr_stop, 0.5f}, {tr_plain, 0.3f},
+                     {tr_drum_break, k != K::intro && p.sec.bars >= 16 ? 0.6f : 0.0f}, {tr_hat_ramp, 0.9f}, {tr_arp_climb, 0.8f},
+                     {tr_stab_ramp, 0.8f},   {tr_pad_swell, 0.6f}, {tr_kick_double, 1.4f}, {tr_lead_climb, 0.9f * L},
+                     {tr_layer_in, k == K::intro ? 1.0f : 0.0f}, {tr_filter_open, k == K::intro ? 0.8f : 0.0f}};
             } else if(next == K::breakdown) {
                 o = {{tr_filter_close, 1.6f}, {tr_fill, 0.7f}, {tr_toms, 0.5f}, {tr_stop, 0.6f}, {tr_plain, 0.6f}};
             } else if(next == K::outro) {
                 o = {{tr_fill, 1.0f}, {tr_toms, 0.7f}, {tr_plain, 0.8f}, {tr_filter_close, 0.6f}, {tr_kick_out, 0.6f}};
             } else if(k == K::intro) {
-                o = {{tr_filter_open, 1.0f}, {tr_fill, 1.0f}, {tr_toms, 0.6f}, {tr_plain, 0.8f}, {tr_kick_out, 0.4f}};
+                o = {{tr_filter_open, 1.0f}, {tr_fill, 0.8f}, {tr_toms, 0.5f}, {tr_plain, 0.6f}, {tr_kick_out, 0.4f},
+                     {tr_layer_in, 0.9f},    {tr_hat_ramp, 0.7f}, {tr_arp_climb, 0.7f}, {tr_pad_swell, 0.5f}};
             } else {
-                o = {{tr_fill, 1.2f}, {tr_toms, 0.8f}, {tr_plain, 0.9f}, {tr_kick_out, 0.6f}, {tr_stop, 0.4f}, {tr_drum_break, p.sec.bars >= 16 ? 0.6f : 0.0f}};
+                o = {{tr_fill, 1.2f}, {tr_toms, 0.8f}, {tr_plain, 0.9f}, {tr_kick_out, 0.6f}, {tr_stop, 0.4f},
+                     {tr_drum_break, p.sec.bars >= 16 ? 0.6f : 0.0f}, {tr_hat_ramp, 0.5f}, {tr_tom_cascade, 0.4f}};
+            }
+            for(opt& x : o) {
+                x.w *= taste[x.k];
+                if(x.k == prev) x.w = 0.0f; // never the same hand-over twice in a row
             }
             auto pick = [&] {
                 float total = 0;
@@ -783,16 +841,18 @@ private:
                     x -= c.w;
                     if(x <= 0) return c.k;
                 }
-                return o.front().k;
+                for(auto const& c : o) {
+                    if(c.w > 0) return c.k;
+                }
+                return static_cast<uint8_t>(tr_plain);
             };
-            uint8_t t = pick();
-            if(t == prev) t = pick(); // vary consecutive hand-overs
+            const uint8_t t = pick();
             if(t == tr_riser) --risers_left_;
             if(t == tr_short_riser) --sweeps_left;
             p.out = t;
             prev = t;
             const bool up = next == K::chorus || next == K::drop;
-            p.reverse = t != tr_riser && tr_.chance(t == tr_stop ? 0.6f : up ? 0.3f : 0.15f);
+            p.reverse = t != tr_riser && t != tr_pad_swell && tr_.chance(t == tr_stop ? 0.5f : up ? 0.15f : 0.08f);
             p.downlift = !up && next != K::verse && tr_.chance(0.45f);
             p.impact = next == K::drop && (t == tr_stop || tr_.chance(0.6f));
             if(!transitions_.empty()) transitions_ += ", ";
@@ -819,19 +879,140 @@ private:
         s_.events.swap(kept);
     }
 
-    // A snare roll from `bar0` over `bars` bars, ending `gap_rows` before
-    // the boundary: 8ths, then 16ths, the last beat in 32nds, crescendo.
-    void snare_roll(uint32_t bar0, int bars, int gap_rows) {
+    // An accelerating roll from `bar0` over `bars` bars, ending `gap_rows`
+    // before the boundary: 8ths for the first third, 16ths for the second,
+    // 32nds for the rest, crescendo from soft to accented.
+    void snare_roll(uint32_t bar0, int bars, int gap_rows, uint8_t drum = dr_snare) {
         const int total = bars * 16 - gap_rows;
         for(int r = 0; r < total; ++r) {
-            const bool second_half = r >= total / 2;
-            const bool last_beat = r >= total - 4 && bars >= 2;
-            if(!second_half && (r & 1)) continue;
-            const int vel = 46 + 70 * r / std::max(1, total);
+            const int stage = r * 3 / std::max(1, total);
+            if(stage == 0 && (r & 1)) continue;
+            const int vel = 40 + 80 * r / std::max(1, total);
             const uint32_t tick = (bar0 + static_cast<uint32_t>(r / 16)) * ticks_per_bar + static_cast<uint32_t>((r % 16) * ticks_per_row);
-            add_ticks(tick, ch_snare, dr_snare, 2, vel);
-            if(last_beat) add_ticks(tick + 3, ch_snare, dr_snare, 2, vel - 6);
+            add_ticks(tick, ch_snare, drum, 2, vel);
+            if(stage == 2) add_ticks(tick + 3, ch_snare, drum, 2, vel - 6);
         }
+    }
+
+    // The crescendo devices that need their own events (the rolls, risers
+    // and filter sweeps are emitted in render_section's bar loop).
+    void render_build(std::size_t index) {
+        plan_item const& p = plan_[index];
+        if(index + 1 >= plan_.size()) return;
+        const uint8_t T = p.out;
+        const int bars = static_cast<int>(p.sec.bars);
+        const int nb = std::max(1, build_bars(p));
+        const int from = bars - nb;
+        const uint32_t b0 = p.sec.start_bar;
+        const uint32_t t0 = (b0 + static_cast<uint32_t>(from)) * ticks_per_bar, t1 = (b0 + static_cast<uint32_t>(bars)) * ticks_per_bar;
+        auto mute = [&](uint32_t chans) { mutes_.push_back({t0, t1, chans}); };
+        const std::size_t mark = s_.events.size(); // everything from here goes to post_
+        switch(T) {
+        case tr_tom_cascade:
+            // 8ths high-mid in the first bars, then 16th cascades high -> low each beat
+            for(int bi = from; bi < bars; ++bi) {
+                const bool last = bi == bars - 1;
+                for(int row = 0; row < 16; row += last ? 1 : 2) {
+                    static constexpr uint8_t casc[4] = {dr_tom_high, dr_tom_high, dr_tom_mid, dr_tom_low};
+                    const uint8_t tom = last ? casc[row % 4] : static_cast<uint8_t>(row % 4 == 0 ? dr_tom_high : dr_tom_mid);
+                    add(b0 + static_cast<uint32_t>(bi), row, ch_fx, {tom}, 2, 60 + 50 * ((bi - from) * 16 + row) / (nb * 16));
+                }
+            }
+            break;
+        case tr_layer_in: {
+            // instruments enter one by one: hats, then kick, then off-beat bass, then a snare roll
+            mute((1u << ch_kick) | (1u << ch_hats) | (1u << ch_bass) | (1u << ch_snare));
+            for(int bi = from; bi < bars; ++bi) {
+                const int stage = (bi - from) * 4 / nb;
+                const uint32_t bar = b0 + static_cast<uint32_t>(bi);
+                const int root = chord_at(p, bi);
+                for(int row = 0; row < 16; row += 2) add(bar, row, ch_hats, {row % 4 == 2 ? dr_hat_open : dr_hat_closed}, 1, 60 + 6 * stage);
+                if(stage >= 1) {
+                    for(int row = 0; row < 16; row += 4) add(bar, row, ch_kick, {dr_kick}, 2, 104 + 4 * stage);
+                }
+                if(stage >= 2) {
+                    for(int row = 2; row < 16; row += 4) add(bar, row, ch_bass, {pitch(key_ - 12, root)}, 2, 100);
+                }
+            }
+            snare_roll(b0 + static_cast<uint32_t>(bars - std::max(1, nb / 4)), std::max(1, nb / 4), 0);
+            break;
+        }
+        case tr_hat_ramp:
+            mute(1u << ch_hats);
+            for(int bi = from; bi < bars; ++bi) {
+                const int stage = (bi - from) * 3 / nb; // 8ths, 16ths, 16ths + open 8ths
+                for(int row = 0; row < 16; row += stage == 0 ? 2 : 1) {
+                    const int vel = 50 + 60 * ((bi - from) * 16 + row) / (nb * 16);
+                    add(b0 + static_cast<uint32_t>(bi), row, ch_hats, {stage == 2 && row % 2 == 0 ? dr_hat_open : dr_hat_closed}, 1, vel);
+                }
+            }
+            break;
+        case tr_arp_climb:
+            mute(1u << ch_arp);
+            for(int bi = from; bi < bars; ++bi) {
+                const int k = bi - from;
+                const int rate = k * 2 < nb ? 2 : 1; // 8ths, then 16ths
+                const int root = chord_at(p, bi);
+                const int shift = 12 * (k * 2 / std::max(1, nb)) - 12; // an octave up halfway
+                int idx = 0;
+                for(int row = 0; row < 16; row += rate) {
+                    const int tone = arp_order_[static_cast<std::size_t>(idx++) % arp_order_.size()];
+                    const int deg = root + (tone == 3 ? 7 : tone == 4 ? 9 : tone * 2) + (row / 4) % 2;
+                    const int vel = 56 + 50 * (k * 16 + row) / (nb * 16);
+                    add(b0 + static_cast<uint32_t>(bi), row, ch_arp, {pitch(key_ + 24 + shift, deg)}, 1, vel);
+                }
+            }
+            break;
+        case tr_stab_ramp:
+            mute(1u << ch_pad);
+            for(int bi = from; bi < bars; ++bi) {
+                const int stage = (bi - from) * 3 / nb; // quarters, 8ths, 16ths
+                const int step = stage == 0 ? 4 : stage == 1 ? 2 : 1;
+                for(int row = 0; row < 16; row += step) {
+                    emit_chord(b0 + static_cast<uint32_t>(bi), row, chord_at(p, bi), 1, 64 + 50 * ((bi - from) * 16 + row) / (nb * 16), layer_always, 0, true);
+                }
+            }
+            break;
+        case tr_pad_swell:
+            mute(1u << ch_pad);
+            emit_chord(b0 + static_cast<uint32_t>(from), 0, chord_at(p, from), nb * 16, 110, layer_always);
+            s_.events.back().fx = note_fx::swell;
+            break;
+        case tr_kick_double: {
+            const int kb = std::min(nb, 2);
+            mutes_.push_back({t1 - static_cast<uint32_t>(kb) * ticks_per_bar, t1, 1u << ch_kick});
+            for(int bi = bars - kb; bi < bars; ++bi) {
+                const bool last = bi == bars - 1;
+                for(int row = 0; row < 16; row += (last && row >= 12) ? 1 : 2) {
+                    add(b0 + static_cast<uint32_t>(bi), row, ch_kick, {dr_kick}, 1, row % 4 == 0 ? 120 : 100 + row);
+                }
+            }
+            break;
+        }
+        case tr_lead_climb: {
+            // the melody stopped nb bars early (render_melody): a scale run up
+            // in 8ths, then the dominant held and bent up a fourth onto the tonic
+            const int run_bars = std::max(1, nb - 1);
+            const int start = last_lead_ >= 0 ? last_lead_ : pitch(lead_base_, 0);
+            int deg = 0;
+            int base = pitch(lead_base_, 0);
+            while(base > start + 2) base -= 12;
+            while(base < start - 9) base += 12;
+            const int steps = run_bars * 8;
+            for(int i = 0; i < steps; ++i) {
+                const int bi = from + i / 8;
+                deg = i * 7 / steps; // one octave over the run
+                const int note = pitch(base, deg);
+                add(b0 + static_cast<uint32_t>(bi), (i % 8) * 2, ch_lead, {std::min(note, 96)}, 2, 70 + 30 * i / steps);
+            }
+            const int dom = pitch(base, 4); // bends a fourth up, onto the tonic an octave above the run's start
+            add(b0 + static_cast<uint32_t>(bars - 1), 0, ch_lead, {dom, dom + 5}, 16, 100, layer_always, note_fx::slide_up);
+            break;
+        }
+        default: break;
+        }
+        post_.insert(post_.end(), s_.events.begin() + static_cast<std::ptrdiff_t>(mark), s_.events.end());
+        s_.events.resize(mark);
     }
 
     // --- section rendering --------------------------------------------------
@@ -854,13 +1035,14 @@ private:
         int roll_bars = 0;
         if(!last_section) {
             switch(T) {
-            case tr_roll: roll_bars = k == K::breakdown ? std::min(4, bars / 2) : bars >= 8 ? 2 : 1; break;
+            case tr_roll:
+            case tr_clap_roll: roll_bars = std::max(1, build_bars(p)); break;
             case tr_riser: roll_bars = k == K::breakdown ? 2 : 0; break;
             case tr_filter_open:
             case tr_kick_return: roll_bars = k == K::breakdown ? std::min(2, bars / 2) : 0; break;
             default: break;
             }
-            if(k == K::breakdown && (T == tr_roll || T == tr_riser)) gap_rows = 4;
+            if(k == K::breakdown && (T == tr_roll || T == tr_clap_roll || T == tr_riser)) gap_rows = 4;
             if(T == tr_stop) gap_rows = bars >= 16 || k == K::breakdown ? 16 : 8;
             if(gap_rows > 0) mutes_.push_back({end_tick - static_cast<uint32_t>(gap_rows * ticks_per_row), end_tick, all_but_lead_fx});
             if(T == tr_drum_break) mutes_.push_back({end_tick - 4 * ticks_per_bar, end_tick, (1u << ch_lead) | (1u << ch_arp) | (1u << ch_pad)});
@@ -926,7 +1108,7 @@ private:
             if(T == tr_kick_out && last_bar && !last_section) {
                 for(int row = 12; row < 16; ++row) add(bar, row, ch_snare, {dr_snare}, 1, 70 + (row - 12) * 10);
             }
-            if(roll_bars > 0 && bi == bars - roll_bars) snare_roll(bar, roll_bars, gap_rows);
+            if(roll_bars > 0 && bi == bars - roll_bars) snare_roll(bar, roll_bars, gap_rows, T == tr_clap_roll ? dr_clap : dr_snare);
 
             // hats
             const bool hats = k != K::breakdown && !(k == K::outro && bi >= bars - 2) && !final_bar;
@@ -1031,6 +1213,7 @@ private:
         }
 
         render_melody(index);
+        render_build(index);
     }
 
     // Chord voicing with smooth voice leading: of all inversions/octaves
@@ -1272,7 +1455,8 @@ private:
         using K = section_kind;
         plan_item const& p = plan_[index];
         // before a drum break the melody ends (with its cadence) 4 bars early
-        const int bars = static_cast<int>(p.sec.bars) - (index + 1 < plan_.size() && p.out == tr_drum_break ? 4 : 0);
+        const bool more = index + 1 < plan_.size();
+        const int bars = static_cast<int>(p.sec.bars) - (more && p.out == tr_drum_break ? 4 : more && p.out == tr_lead_climb ? std::max(1, build_bars(p)) : 0);
         const int root_a = prog_a_[0], root_b = prog_b_[0];
         const cell develop = dev_invert_ ? cell{0, cell_op::invert, ending::keep, false} : cell{dev_steps_, cell_op::retro_tail, ending::keep, false};
         const cell cadence{cad_steps_, cell_op::cadence, ending::close, false};
@@ -1334,8 +1518,13 @@ private:
             for(int ph = start; ph + 4 <= bars; ph += 4) {
                 const int j = (ph - start) / 4;
                 const bool last = ph + 8 > bars;
-                const cell cl = last ? cell{j == 0 ? 0 : 2, cell_op::cadence, ending::close, false} : cell{j == 0 ? 0 : seq_step_, cell_op::keep, ending::open, false};
-                place_motif(mt, mroot, p, ph, 82, cl, 2);
+                // long (wartime) breakdowns keep developing: plain, sequence, inversion, ...
+                static constexpr int steps[6] = {0, 0, -1, 2, 1, 0};
+                const int st = j == 1 ? seq_step_ : steps[j % 6];
+                const cell_op op = j % 3 == 2 ? cell_op::invert : j % 3 == 0 && j > 0 ? cell_op::retro_tail : cell_op::keep;
+                const cell cl = last ? cell{j == 0 ? 0 : 2, cell_op::cadence, ending::close, false} : cell{st, op, ending::open, false};
+                place_motif(mt, mroot, p, ph, 82 + std::min(j, 4) * 3, cl, 2);
+                if(j % 2 == 1) flush_phrase();
             }
             flush_phrase();
             if(bars >= 16) place_arp(p, 0, 8, 0, 54, layer_min_mid);

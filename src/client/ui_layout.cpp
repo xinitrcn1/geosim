@@ -87,7 +87,7 @@ void alert_feed::poll(sim_runner& sim) {
         journal_batch batch = pending_.get();
         // Oldest first so that the newest ends up on top.
         std::sort(batch.entries.begin(), batch.entries.end(), [](auto const& a, auto const& b) { return a.tick < b.tick; });
-        for(auto const& e : batch.entries) add(e, sim.nation_iso3());
+        for(auto const& e : batch.entries) add(e, sim);
         scanned_to_ = std::max(scanned_to_, batch.scanned_to - 1); // re-scan the boundary day; keys dedupe
         if(items_.size() > 200) items_.resize(200);
     }
@@ -98,11 +98,11 @@ void alert_feed::poll(sim_runner& sim) {
     }
 }
 
-void alert_feed::add(journal_entry const& e, std::string const& player) {
+void alert_feed::add(journal_entry const& e, sim_runner const& sim) {
     const uint64_t key = key_of(e);
     if(!seen_.insert(key).second) return;
     using namespace sim;
-    const bool mine = e.nation == player || e.partner == player;
+    const bool mine = sim.controls(e.nation) || sim.controls(e.partner);
     const std::string pair = e.partner.empty() ? e.nation : e.nation + " – " + e.partner;
     alert a;
     a.key = key;
@@ -139,7 +139,7 @@ void alert_feed::add(journal_entry const& e, std::string const& player) {
         break;
     case journal_concession:
         if(!mine) return;
-        a.icon = "🏳"; a.title = "Concession: " + pair; a.t = e.nation == player ? tone::bad : tone::good; break;
+        a.icon = "🏳"; a.title = "Concession: " + pair; a.t = sim.controls(e.nation) ? tone::bad : tone::good; break;
     case journal_alliance_call:
         if(!mine) return;
         a.icon = "📯"; a.title = (e.after > 0.5f ? "Ally joined: " : "Ally declined: ") + pair; a.t = e.after > 0.5f ? tone::good : tone::bad;
@@ -179,24 +179,16 @@ rect top_bar(ui_context& ui, sim_runner& sim, hud_state& st) {
     const float pad = ui.px(style::pad);
     const float gap = ui.px(2);
 
-    // Measure first (the panel goes under its contents).
-    const float flag_w = ui.text_width(sim.nation_flag(), icon) + ui.px(6) + ui.text_width(sim.nation_iso3(), font, font_weight::semibold);
+    // Measure first (the panel goes under its contents). No flag or nation
+    // here: the player may control several nations; each agent bar names its own.
     const float date_w = ui.text_width("Wed 30 Sep 2020", font, font_weight::semibold);
     const float buttons = static_cast<float>(1 + max_speed) * (b + gap) + static_cast<float>(std::size(action_buttons) + std::size(filter_buttons)) * (b + gap);
-    const float w = pad + flag_w + pad * 2 + date_w + pad * 2 + buttons + pad * 4;
+    const float w = pad + date_w + pad * 2 + buttons + pad * 4;
     rect bar{0, 0, std::round(w), std::round(h)}; // flush with the window's top-left corner
     ui.panel(bar, panel_kind::opaque);
 
     float x = bar.x + pad;
     const float by = bar.y + (h - b) * 0.5f;
-    // Flag / symbol of the controlled agent's nation.
-    x += ui.text_in(layer::scene, {x, bar.y, flag_w, h}, sim.nation_flag(), icon, style::text);
-    x += ui.px(6);
-    x += ui.text_in(layer::scene, {x, bar.y, flag_w, h}, sim.nation_iso3(), font, style::text, align::left, font_weight::semibold);
-    x += pad;
-    separator(ui, x, bar);
-    x += pad;
-
     // Date (fixed width so the controls do not jitter).
     std::string date = sim.status() == sim_status::running ? format_long_date(sim.date()) : (sim.status() == sim_status::loading ? "Loading…" : "No simulation");
     ui.text_in(layer::scene, {x, bar.y, date_w, h}, date, font, style::text, align::left, font_weight::semibold);
@@ -259,7 +251,9 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w) {
     const float icon = ui.px(style::icon_size);
     for(auto const& panel : sim.read_agents()) {
         // Measure.
-        float w = pad + ui.text_width(panel.icon, icon) + ui.px(6) + ui.text_width(panel.title, font, font_weight::semibold) + pad * 2;
+        // flag of the agent's nation, the agent's icon, "<Nation> <agent>"
+        float w = pad + ui.text_width(panel.flag, icon) + ui.px(6) + ui.text_width(panel.icon, icon) + ui.px(6) +
+                  ui.text_width(panel.title, font, font_weight::semibold) + pad * 2;
         for(auto const& it : panel.items) {
             w += ui.text_width(it.label, small) + ui.px(5) + ui.text_width(it.value, font, font_weight::semibold) + pad * 2;
         }
@@ -268,6 +262,8 @@ float agent_bars(ui_context& ui, sim_runner& sim, float y, float above_w) {
         ui.fill(layer::overlay, {0, y, std::min(above_w, bar.w), strip}, style::glass_separator);
         above_w = bar.w;
         float x = bar.x + pad;
+        x += ui.text_in(layer::overlay, {x, bar.y, w, h}, panel.flag, icon, style::text);
+        x += ui.px(6);
         x += ui.text_in(layer::overlay, {x, bar.y, w, h}, panel.icon, icon, style::text);
         x += ui.px(6);
         x += ui.text_in(layer::overlay, {x, bar.y, w, h}, panel.title, font, style::text, align::left, font_weight::semibold);

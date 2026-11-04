@@ -94,7 +94,8 @@ void inject_events(SDL_Window* window, std::string const& script, int frame) {
 
 // Music mood from what the HUD already shows (docs/14-audio.md#mood-mapping):
 // the share of indicators coloured bad / good for the player and the bad
-// alerts of the last ~4 months (a war involving the player forces "crisis").
+// alerts of the last ~4 months (a war alert involving the player forces
+// "crisis"); any controlled nation at war in the simulation means "wartime".
 struct music_mood {
     audio::mood m = audio::mood::calm;
     float intensity = 0.3f;
@@ -125,12 +126,14 @@ music_mood derive_music_mood(sim_runner& sim, alert_feed const& alerts) {
     const float bad_share = total > 0 ? static_cast<float>(bad) / static_cast<float>(total) : 0.0f;
     const float good_share = total > 0 ? static_cast<float>(good) / static_cast<float>(total) : 0.0f;
     const float stress = bad_share + 0.15f * static_cast<float>(std::min(bad_alerts, 4)) + (war ? 0.4f : 0.0f);
-    if(war || stress >= 0.65f) out.m = audio::mood::crisis;
+    if(sim.player_at_war()) out.m = audio::mood::wartime; // any controlled nation at war (the sim's at_war state) overrides
+    else if(war || stress >= 0.65f) out.m = audio::mood::crisis;
     else if(stress >= 0.3f) out.m = audio::mood::tense;
     else if((good_share >= 0.4f && bad == 0) || (peace > 0 && stress < 0.15f)) out.m = audio::mood::triumph;
     else out.m = audio::mood::calm;
     float intensity = 0.25f + 0.65f * stress;
     if(out.m == audio::mood::triumph) intensity = 0.55f + 0.3f * good_share;
+    if(out.m == audio::mood::wartime) intensity = std::max(intensity, 0.75f);
     if(sim.speed() >= 4) intensity += 0.1f; // fast time feels busier
     out.intensity = std::clamp(intensity, 0.15f, 1.0f);
     return out;

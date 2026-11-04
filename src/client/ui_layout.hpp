@@ -36,7 +36,7 @@ public:
     [[nodiscard]] std::vector<alert> const& items() const noexcept { return items_; }
 
 private:
-    void add(journal_entry const& e, std::string const& player);
+    void add(journal_entry const& e, sim_runner const& sim); // "mine" = involves any nation the player controls
 
     std::vector<alert> items_; // newest first
     std::unordered_set<uint64_t> seen_;

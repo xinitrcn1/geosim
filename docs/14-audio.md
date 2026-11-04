@@ -173,16 +173,17 @@ no `std::` distributions, so the same seed and mood give a byte-identical
 WAV.
 
 1. **Basics.** BPM is fixed for the song: calm 112–118, tense 116–122,
-   triumph 120–126, crisis 122–128. The tonic is A2–G#3. The mode depends on
-   the mood (calm: ionian / lydian / mixolydian / dorian; tense: dorian /
-   aeolian; crisis: aeolian / phrygian / harmonic minor; triumph: ionian /
-   mixolydian / lydian). There are three diatonic 4-chord progressions (A,
+   triumph 120–126, crisis 122–128, wartime 132–140. The tonic is A2–G#3.
+   The mode depends on the mood (calm: ionian / lydian / mixolydian /
+   dorian; tense: dorian / aeolian; crisis: aeolian / phrygian / harmonic
+   minor; triumph: ionian / mixolydian / lydian; wartime: aeolian /
+   phrygian / harmonic minor / dorian). There are three diatonic 4-chord progressions (A,
    B, bridge), taken from a table of progressions that only use major or
    minor triads of the mode (e.g. I–V–vi–IV, i–VI–III–VII, i–i–VII–VI,
    i–bII–i–bVII). Harmonic rhythm is 1 or 2 bars per chord. Crisis BPM is
    clamped to 128 (rounding could give 129). Swing is 0 or 1
-   tick (≈ 58 %) on odd 16ths and is likelier when calm. Calm and triumph
-   songs often use 7th chords.
+   tick (≈ 58 %) on odd 16ths and is likelier when calm (never in wartime:
+   trance is straight). Calm and triumph songs often use 7th chords.
 2. **Sounds.** A patch is picked per song, per mood, from a few designs per
    role. Bass: triangle + sub, chip pulse, 8-bit "sample", resonant saw.
    Lead: PWM pulse, detuned saws, chip sample, square + fifth. Arp: plucks.
@@ -277,8 +278,8 @@ WAV.
    | fill | snare fill on the last 2 beats (the kick leaves beat 4) | anywhere |
    | toms | tom fill on the last beat | anywhere |
    | roll | snare roll: 8ths, then 16ths, the last beat in 32nds, crescendo (2 bars; 4 out of a breakdown) | into chorus / drop, out of a breakdown |
-   | riser | noise riser, 2 bars (4 out of a breakdown, with a roll) | at most once per song, in ~40 % of songs |
-   | sweep | one-bar pitched sweep up | at most once per song |
+   | riser | noise riser, 2 bars (4 out of a breakdown, with a roll) | at most once per song, possible in 25 % of songs |
+   | sweep | one-bar pitched sweep up | at most once per song, possible in 50 % |
    | filter-close | the bus low-pass closes over the last 2 bars | into a breakdown or outro |
    | filter-open | the section starts dark and the low-pass opens across it | intro, breakdown |
    | kick-out | the kick (and the bass in long sections) drops out for the last bar, with a short snare pickup | into chorus / drop, verse, outro |
@@ -286,11 +287,60 @@ WAV.
    | kick-return | the breakdown's kick comes back for its last bars, with a roll | out of a breakdown |
    | drum-break | lead, arp and chords drop out for the last 4 bars (the melody ends with its cadence before); drums and bass only | 16-bar verse / chorus / drop |
 
+   **Crescendo devices.** Builds into a chorus or drop, and out of an intro
+   or breakdown, choose among these too (the build lasts 2 bars, 4 out of an
+   intro / breakdown; in wartime 4 and 8). Each song draws its own "taste"
+   (every weight × 0.4–1.6), and the previous hand-over is excluded, so the
+   same device never comes twice in a row. A device that replaces a
+   channel's part mutes that channel over the build and adds its own events
+   after the mutes.
+
+   | Device | What happens | Used for |
+   |---|---|---|
+   | roll / clap-roll | accelerating snare or clap roll: 8ths for the first third, 16ths, then 32nds, 40 → 120 velocity | builds |
+   | tom-cascade | toms in 8ths (high / mid), the last bar 16th cascades high → low each beat, crescendo | builds, verse ends |
+   | layer-in | the drums are rebuilt one by one: hats, then the kick, then off-beat bass roots, then a snare roll | intro, breakdown |
+   | hat-ramp | hats replaced by 8ths, then 16ths, then 16ths with open 8ths, rising | builds |
+   | arp-climb | the arp in 8ths then 16ths, an octave up halfway, with passing tones, rising | builds |
+   | stab-ramp | chord stabs in quarters, 8ths, then 16ths, rising | builds |
+   | pad-swell | one pad chord whose attack lasts the whole build (`note_fx::swell`) | builds |
+   | kick-double | the kick in 8ths for the last 1–2 bars, its last beat in 16ths | into chorus / drop |
+   | lead-climb | the melody ends (with its cadence) a build early; the lead runs an octave up a scale in 8ths, then holds the fifth and bends a fourth up onto the tonic into the downbeat (`note_fx::slide_up`) | melodic sections, breakdown |
+
+   Risers are now occasional: a long riser is possible in 25 % of songs and
+   a one-bar sweep in 50 %, and both compete with every device above.
+
    Extras: a reverse cymbal into the next downbeat, a downlifter (and a
    crash) at the start of a calmer section, an impact on the drop. The
    chosen hand-overs are listed at the end of the song's description.
 8. **Voice leading.** Each pad chord takes the inversion and octave, within
    the pad register, closest to the previous voicing.
+
+### Wartime (trance / hardtrance)
+
+The fifth mood, for a player at war. **132–140 BPM**: the hardtrance
+references run 140 (the XM), 146 (the Symphonie module) and 160 BPM (the
+MP3); the game keeps every mood at or below 140, so wartime sits at the
+genre's lower end, clearly above crisis (122–128). Minor modes (aeolian,
+phrygian, harmonic minor, dorian), no swing, no broken kick, clap backbeat
+in 85 % of songs, an off-beat (65 %) or rolling bass with a resonant saw or
+8-bit bass, and the **hardtrance drop** always (off-beat roots). The pad is
+always the detuned saw, wider (detune × 1.6, both oscillators equal,
+cutoff 2 kHz) so pads and stabs sound supersaw-like, and every wartime song
+has a **trance gate** on its breakdown pads and drop pad layer. Forms are
+always full length (no intermissions) with long breakdowns and builds:
+
+- intro 16 → verse 16 → breakdown 16 → drop 32 → outro 8
+- intro 8 → verse 16 → chorus 16 → breakdown 16 → drop 16 → outro 8
+- intro 16 → chorus 16 → breakdown 32 → drop 16 → outro 8
+- intro 8 → verse 16 → breakdown 16 → drop 16 → breakdown 8 → drop 16 → outro 8
+
+(the fit to 2–3 minutes halves a 16-bar intro or a 32-bar breakdown, never
+a 16-bar breakdown). Long breakdowns keep developing their theme (plain,
+sequence, inversion, retro-tail, rising velocity) instead of repeating it.
+Builds last 8 bars out of an intro or breakdown and 4 bars elsewhere. The
+cadences, the final tonic and every other guarantee are the same as for
+the other moods.
 
 ### Intensity layers
 
@@ -316,7 +366,11 @@ constant, which gives gentle cross-fades.
 
 - `stress` = share of indicators coloured *bad* + 0.15 × bad alerts of the
   last 120 days (max 4) + 0.4 if a war alert involves the player;
-- **crisis** if there is a war or stress ≥ 0.65; **tense** if ≥ 0.3;
+- **wartime** whenever any nation the player controls is at war in the
+  simulation (`sim_runner::player_at_war`: the nation's `at_war` array in
+  the DCON container, read directly like the indicators); it overrides
+  every other mood, with intensity at least 0.75;
+- otherwise **crisis** if there is a war alert or stress ≥ 0.65; **tense** if ≥ 0.3;
   **triumph** if at least 40 % of indicators are *good* and none is bad, or
   after a peace with low stress; otherwise **calm**;
 - intensity = 0.25 + 0.65 × stress (triumph: 0.55 + 0.3 × good share),
@@ -327,7 +381,8 @@ constant, which gives gentle cross-fades.
 - Intensity applies at once, smoothed in the player.
 - A different mood held for 20 s makes the jukebox **wrap the song up**: at
   the next 8-bar line (not in the intro or outro) the player jumps to the
-  outro.
+  outro. War starting or ending (to or from wartime) wraps up at once, at
+  the next 8-bar line.
 - The worker keeps the queued next song composed for the current mood.
 - Between songs there are 3 s of silence while the delay and reverb tails
   ring out. The next song uses a new seed (splitmix chain).
@@ -369,7 +424,7 @@ Keys and options: **M** mutes / unmutes; `--music 0`,
 ## Offline rendering
 
 ```
-geosim --render-music out.wav [--seed N] [--mood calm|tense|crisis|triumph]
+geosim --render-music out.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime]
        [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 ```
 
@@ -449,6 +504,28 @@ tool over `compose()`; not part of the build):
   through the outro at 85.4 s. The final chord now holds for its whole bar
   (−19 dBFS) and decays over ~1.5 s after the song's end, where it used to
   stop half a beat early.
+
+### Verification of the crescendo devices and wartime
+
+Hand-overs over 200 scores (4 moods × seeds 1–50), previous arrangement →
+now: long risers 29 → 7 songs, one-bar sweeps 51 → 7; snare rolls 102 →
+41 + 43 clap rolls; new devices: arp-climb 72, hat-ramp 71, layer-in 43,
+pad-swell 29, kick-double 28, tom-cascade 27, stab-ramp 26, lead-climb 21;
+the others: downlifter 192, cut 143, fill 123, reverse 117 (was 236),
+filter-close 117, toms 78, kick-out 56, filter-open 41, stop 35,
+drum-break 22, kick-return 19. No song repeats a hand-over back to back.
+Lead and phrase statistics are unchanged (lowest note 60, 86 % above the
+pads, 89 % of phrase ends on chord tones, 200/200 held final tonics).
+
+Wartime, 50 scores: 137–159 s, 132–140 BPM, all full forms, 50/50 held
+final tonics, 89 % of phrase ends on chord tones, 1 long riser. Renders of
+seeds 1, 2, 3, 7, 42: 0 clipped / non-finite samples, peaks −0.95 to
+−0.99 dBFS (limiter), audio tempo within 0.1 BPM; seed 5 renders
+byte-identical twice; a calm song switched to wartime at 40 s jumps to its
+outro at the next 8-bar line and ends at 68.4 s, then a 138 BPM wartime
+song plays (estimated from audio: 137.9). In the client the switch comes
+from the sim's `at_war` state; scenario 2020 has no war within 1 200 days
+(headless run), so it was checked through the renderer, not a live war.
 
 ## Limitations and next steps
 

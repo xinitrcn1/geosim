@@ -68,7 +68,8 @@ private:
         float freq_mul = 1.0f, duty = 0.5f;
         float dcoef = 0, fcoef = 0, ratio2 = 1; // per-sample decay multipliers, osc 2 ratio
         float crush_phase = 0, crush_hold = 0;
-        float attack = 0.005f, sustain = 0.7f; // envelope (the patch's, or a stab's)
+        float attack = 0.005f, sustain = 0.7f; // envelope (the patch's, or a stab's / swell's)
+        float bend = 0.0f;         // slide_up: semitones reached at the event's end
         uint16_t gate_mask = 0;    // trance gate over the 16ths of a bar (0 = off)
         float gate_amp = 1.0f;     // smoothed gate level
         float dphase = 0;          // drum oscillator phase

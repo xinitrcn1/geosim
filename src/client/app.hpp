@@ -10,7 +10,7 @@ namespace geosim::client {
 struct app_options {
     std::string assets = "assets";
     std::string scenario = "2020";
-    std::string nation = "USA"; // the player's nation (its executive and central bank are the controlled agents)
+    std::string nation = "USA"; // the player's nations, ISO3, comma-separated ("USA,CAN"); their executives and central banks are the controlled agents
     int width = 1600, height = 900; // window size in points
     float ui_scale = 1.0f;          // multiplied with the display scale
     int speed = 0;                  // initial speed 0..5

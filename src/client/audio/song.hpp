@@ -12,8 +12,8 @@
 
 namespace geosim::client::audio {
 
-enum class mood : uint8_t { calm, tense, crisis, triumph };
-inline constexpr int mood_count = 4;
+enum class mood : uint8_t { calm, tense, crisis, triumph, wartime };
+inline constexpr int mood_count = 5;
 [[nodiscard]] char const* mood_name(mood m) noexcept;
 [[nodiscard]] bool parse_mood(char const* text, mood& out) noexcept;
 
@@ -93,9 +93,11 @@ enum layer : uint8_t {
 };
 inline constexpr float layer_mid = 0.4f, layer_high = 0.7f;
 
-// arp: cycle through notes[] every tick (chip chord); stab: short pluck
-// envelope (2 ms attack, fast decay to silence) whatever the patch says.
-enum class note_fx : uint8_t { none, arp, slide_up, stab };
+// arp: cycle through notes[] every tick (chip chord); slide_up: one note
+// bending from notes[0] to notes[1] over the event (ease-in); stab: short
+// pluck envelope (2 ms attack, fast decay to silence); swell: the attack
+// lasts the whole event (a crescendo from silence).
+enum class note_fx : uint8_t { none, arp, slide_up, stab, swell };
 
 struct note_event {
     uint32_t tick = 0;       // absolute tracker tick (row * 6 + offset)

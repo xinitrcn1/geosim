@@ -47,8 +47,9 @@ struct indicator {
 };
 
 struct agent_panel {
+    std::string flag;  // the agent's nation (emoji flag): several nations may be controlled
     std::string icon;
-    std::string title;
+    std::string title; // "United States Government", "United States Central Bank"
     std::vector<indicator> items;
 };
 
@@ -74,7 +75,10 @@ public:
     ~sim_runner();
 
     // Starts the sim thread, which builds the scenario first (status() == loading).
-    void start(std::string assets_dir, std::string scenario, std::string nation_iso3);
+    // `nations` lists the player's nations as ISO3 codes, comma-separated
+    // ("USA" or "USA,CAN"); the executive and central bank of each are the
+    // controlled agents.
+    void start(std::string assets_dir, std::string scenario, std::string nations);
     void stop();
 
     [[nodiscard]] sim_status status() const noexcept { return status_.load(std::memory_order_acquire); }
@@ -87,8 +91,12 @@ public:
     [[nodiscard]] int64_t epoch_days() const noexcept { return epoch_days_; } // valid once running
     [[nodiscard]] double measured_days_per_second() const noexcept { return measured_rate_.load(std::memory_order_relaxed); }
 
-    [[nodiscard]] std::string const& nation_iso3() const noexcept { return iso3_; }
-    [[nodiscard]] std::string const& nation_flag() const noexcept { return flag_; }
+    // The player's nations (ISO3), in command-line order.
+    [[nodiscard]] std::vector<std::string> const& nations() const noexcept { return iso3s_; }
+    [[nodiscard]] bool controls(std::string const& iso3) const noexcept;
+    // True while any nation the player controls is at war (the sim's
+    // nation.at_war array; racy direct read like the indicators).
+    [[nodiscard]] bool player_at_war() const noexcept;
 
     // Journal entries with tick >= since_tick, gathered at the next sync point.
     std::future<journal_batch> request_journal(int32_t since_tick);
@@ -101,13 +109,27 @@ private:
     void run();
     void post(std::function<void(game_state&)> job);
 
-    std::string assets_, scenario_, iso3_, flag_;
+    // UI-thread history for trailing-year growth / inflation.
+    struct sample {
+        int32_t tick;
+        double acc_gdp, acc_cpi, acc_days;
+    };
+    // A nation the player controls; set on the sim thread before status()
+    // becomes running, then read-only (history: UI thread only).
+    struct controlled {
+        uint32_t index = 0; // dcon::nation_id index
+        std::string iso3, flag, name;
+        float unemployment0 = 0, yield0 = 0;
+        std::vector<sample> history;
+    };
+    void read_nation(controlled& c, std::vector<agent_panel>& out);
+
+    std::string assets_, scenario_;
+    std::vector<std::string> iso3s_;
     std::string error_;
     std::unique_ptr<game_state> state_;
     int64_t epoch_days_ = core::epoch_days_1970;
-    uint32_t nation_ = 0;    // dcon::nation_id index
-    bool has_nation_ = false;
-    float unemployment0_ = 0, yield0_ = 0;
+    std::vector<controlled> controlled_;
 
     std::jthread thread_; // joins on destruction
     std::mutex mutex_;
@@ -118,13 +140,6 @@ private:
     std::atomic<int32_t> tick_{0};
     std::atomic<double> measured_rate_{0.0};
     std::atomic<sim_status> status_{sim_status::loading};
-
-    // UI-thread history for trailing-year growth / inflation.
-    struct sample {
-        int32_t tick;
-        double acc_gdp, acc_cpi, acc_days;
-    };
-    std::vector<sample> history_;
 };
 
 } // namespace geosim::client

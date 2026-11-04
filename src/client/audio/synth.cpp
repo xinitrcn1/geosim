@@ -274,10 +274,17 @@ void player::trigger(note_event const& e) noexcept {
     v.attack = p.attack;
     v.sustain = p.sustain;
     float decay = p.decay;
+    v.len_s = static_cast<float>(static_cast<double>(e.len) * samples_per_tick_) * inv_sr_;
     if(e.fx == note_fx::stab) {
         v.attack = 0.002f;
         v.sustain = 0.0f;
         decay = 0.16f;
+    } else if(e.fx == note_fx::swell) {
+        v.attack = std::max(0.05f, v.len_s * 0.95f);
+        v.sustain = 1.0f;
+    } else if(e.fx == note_fx::slide_up && e.count >= 2) {
+        v.bend = static_cast<float>(static_cast<int>(e.notes[1]) - static_cast<int>(e.notes[0]));
+        v.count = 1;
     }
     v.gate_mask = e.gate;
     v.gate_amp = e.gate ? 0.0f : 1.0f;
@@ -298,6 +305,10 @@ void player::update_control(voice& v) noexcept {
     if(p.vib_depth > 0.0f && v.age > p.vib_delay) {
         const float ramp = std::min(1.0f, (v.age - p.vib_delay) / 0.25f);
         semis += p.vib_depth * ramp * std::sin(two_pi * p.vib_rate * v.age);
+    }
+    if(v.bend != 0.0f && v.len_s > 0.0f) {
+        const float u = std::min(1.0f, v.age / v.len_s);
+        semis += v.bend * u * u;
     }
     float glide = 1.0f;
     if(v.glide_from != 1.0f && p.glide > 0.0f) {

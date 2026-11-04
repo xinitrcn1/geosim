@@ -1,11 +1,11 @@
 // geosim: the game client (SDL3 + Vulkan 1.3). Built with -DGEOSIM_BUILD_CLIENT=ON.
 // docs/08-ui.md (UI), docs/09-engine-architecture.md (architecture).
 //
-//   geosim [--assets DIR] [--scenario 2020] [--nation USA] [--speed 0..5]
+//   geosim [--assets DIR] [--scenario 2020] [--nation USA[,CAN...]] [--speed 0..5]
 //          [--width W --height H] [--ui-scale S] [--validation 1]
 //          [--frames N [--until-day D] [--screenshot OUT.ppm]] [--inject SCRIPT]
 //          [--music 0|1] [--music-volume 0..1] [--music-seed N]
-//   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph]
+//   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime]
 //          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 //            renders procedural music offline, no window or audio device
 //            (docs/14-audio.md)
@@ -26,11 +26,11 @@
 namespace {
 
 int usage() {
-    std::fputs("usage: geosim [--assets DIR] [--scenario NAME] [--nation ISO3] [--speed 0..5] [--width W] [--height H]\n"
+    std::fputs("usage: geosim [--assets DIR] [--scenario NAME] [--nation ISO3[,ISO3...]] [--speed 0..5] [--width W] [--height H]\n"
                "              [--ui-scale S] [--validation 1] [--frames N] [--until-day D] [--screenshot OUT.ppm]\n"
                "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
                "              [--music 0|1] [--music-volume 0..1] [--music-seed N]\n"
-               "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph] [--intensity 0..1]\n"
+               "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
                "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx]\n",
                stderr);
     return 2;
