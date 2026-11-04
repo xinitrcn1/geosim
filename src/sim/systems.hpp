@@ -125,6 +125,21 @@ void update_climate_policy(game_state& state);
 void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n);
 void update_policy(game_state& state);
 void allocate_portfolios(game_state& state, dcon::nation_id n);
+// Strategy layer (docs/06): goals, response tables, information quality,
+// credibility and energy dependence (strategy.cpp).
+void init_strategy(game_state& state);
+void update_strategy(game_state& state);
+void update_dependence(game_state& state);
+void lose_credibility(game_state& state, dcon::nation_id n, float amount);
+[[nodiscard]] float perceived_unrest(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float perception_noise(game_state const& state, dcon::nation_id n, uint32_t channel);
+[[nodiscard]] float security_of(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float rigidity(game_state const& state, dcon::agent_id a, dcon::nation_id n, float crisis);
+[[nodiscard]] float goal_bias(game_state const& state, dcon::nation_id n, goal g);
+[[nodiscard]] float fiscal_belief(game_state const& state, dcon::nation_id n);
+// War (geopolitics.cpp): alliance calls at onset, Lanchester fronts (monthly).
+void call_allies(game_state& state, dcon::nation_id victim, dcon::nation_id enemy);
+void update_front(game_state& state, dcon::nation_id n, dcon::nation_id m, float years);
 [[nodiscard]] float minister_position(game_state const& state, dcon::nation_id n, portfolio pf, value_axis axis);
 void init_frontier_gaps(game_state& state);
 [[nodiscard]] float carbon_cost_share(game_state const& state, dcon::nation_id n);

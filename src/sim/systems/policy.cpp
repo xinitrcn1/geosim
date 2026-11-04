@@ -35,15 +35,6 @@ namespace geosim::sim {
 
 namespace {
 
-float unrest_of(game_state const& state, dcon::nation_id n) {
-    float u = 0.0f, pop = 0.0f;
-    for(auto own : state.world.nation_get_region_ownership(n)) {
-        u += own.get_region().get_unrest() * own.get_region().get_population();
-        pop += own.get_region().get_population();
-    }
-    return pop > 0.0f ? u / pop : 0.0f;
-}
-
 float lever_choice(game_state& state, dcon::agent_id a, uint8_t lev, float pragmatic, float ideal, float rho) {
     auto& w = state.world;
     float x = (1.0f - rho) * pragmatic + rho * ideal;
@@ -110,9 +101,11 @@ void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n) {
 
     // Repression: pragmatic in rising protest; capped by the military's loyalty.
     {
-        const float unrest = unrest_of(state, n);
+        // Autocrats under-see discontent (strategy.cpp: perceived_unrest).
+        const float unrest = perceived_unrest(state, n);
         const float liberal_cap = 1.0f - w.nation_get_liberal(n);
-        const float pragmatic = std::clamp((unrest - 2.0f) / 2.0f, 0.0f, 1.0f) * liberal_cap;
+        const float pragmatic = std::clamp((unrest - 2.0f) / 2.0f + goal_bias(state, n, goal::regime_security) * std::max(0.0f, unrest - 1.0f), 0.0f, 1.0f)
+                                * liberal_cap;
         const float ideal = std::clamp(pragmatic * (1.0f + 2.0f * w.agent_get_order_ideal(a)) + tan, 0.0f, 1.0f) * liberal_cap;
         float x = lever_choice(state, a, lev(lever::repression), pragmatic, ideal, w.agent_get_rho(a));
         x = std::min(x, w.nation_get_military_loyalty(n) + 0.2f); // security forces must obey
@@ -134,7 +127,8 @@ void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n) {
         const double gdp = w.nation_get_gdp0(n) * w.nation_get_core_price(n);
         const float debt = static_cast<float>(std::max(0.0, -w.nation_get_bal_gov(n)) / gdp);
         const float debt0 = static_cast<float>(w.nation_get_gov_debt0(n) / w.nation_get_gdp0(n));
-        const float pragmatic = static_cast<float>(P.retirement_debt) * std::max(0.0f, debt - debt0 - 0.1f) * 10.0f;
+        const float pragmatic = static_cast<float>(P.retirement_debt) * std::max(0.0f, debt - debt0 - 0.1f) * 10.0f
+                                * (1.0f + goal_bias(state, n, goal::consolidate));
         const float econ = minister_position(state, n, portfolio::finance, value_axis::economic_right);
         const float ideal = pragmatic * std::max(0.0f, 1.0f + econ);
         const float before = w.nation_get_retirement_age_shift(n);
@@ -152,7 +146,7 @@ void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n) {
         xe = enact(state, n, lev(lever::education), before_e, xe, value_axis::economic_right, -0.05f, false);
         w.nation_set_education_spending(n, std::clamp(xe, -2.0f, 3.0f));
         // Health: an epidemic threat makes it pragmatic.
-        const float hp = static_cast<float>(P.health_threat) * w.nation_get_threat(n);
+        const float hp = static_cast<float>(P.health_threat) * w.nation_get_threat(n) * (1.0f + goal_bias(state, n, goal::contain_epidemic));
         const float hi = hp + std::clamp(-0.5f * econ, -1.0f, 1.0f);
         const float before_h = w.nation_get_health_spending(n);
         float xh = before_h + (lever_choice(state, a, lev(lever::health), hp, hi, rho) - before_h) * 0.1f;

@@ -133,7 +133,8 @@ situation assess(game_state const& state, dcon::nation_id n, double world_cases_
     }
     const float cases_pm = static_cast<float>(cases / pop * 1e6);
     const float growth = cases > 0 ? static_cast<float>(growth_num / cases) : 0.0f;
-    s.cases_pm = cases_pm * std::exp(std::clamp(growth * static_cast<float>(P.ai_horizon_days), -5.0f, 5.0f));
+    // Perceived through the regime's information quality (strategy.cpp).
+    s.cases_pm = cases_pm * std::exp(std::clamp(growth * static_cast<float>(P.ai_horizon_days), -5.0f, 5.0f)) * perception_noise(state, n, 0);
     // Large winning coalitions make mass welfare (health) matter more (selectorate theory).
     const float health = w.agent_get_health_weight(a) * (0.6f + 0.8f * w.nation_get_winning_coalition(n));
     const float tolerance = static_cast<float>(P.ai_case_tolerance) / std::max(0.1f, health);
@@ -213,7 +214,8 @@ void decide_fiscal(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float space = std::clamp(1.0f - debt_ratio / static_cast<float>(P.ai_debt_limit), 0.2f, 1.0f);
     const float slack = std::max(0.0f, -w.nation_get_gap_smoothed(n)) * 100.0f
                         + 0.5f * std::max(0.0f, w.nation_get_unemployment(n) - w.nation_get_unemployment0(n)) * 100.0f;
-    const float pragmatic = static_cast<float>(P.ai_fiscal_response) * slack * space;
+    // Package size scales with the learned response (a weak multiplier asks for more).
+    const float pragmatic = static_cast<float>(P.ai_fiscal_response) * slack * space * fiscal_belief(state, n);
     const float ideal = pragmatic * (1.0f - w.agent_get_fiscal_hawk(a));
     const bool anchors = P.historical_anchors != 0.0 && w.nation_get_prior_fiscal_set(n);
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::fiscal));
@@ -492,8 +494,8 @@ void update_ai(game_state& state) {
             continue;
         }
         const auto s = assess(state, n, world_cases_pm, a);
-        // Pragmatism under pressure: rigidity falls with the threat.
-        w.agent_set_rho(a, w.agent_get_rho_base(a) * (1.0f - s.threat));
+        // Secure agents can afford principles: rigidity falls with insecurity and crisis.
+        w.agent_set_rho(a, rigidity(state, a, n, s.threat));
         w.nation_set_threat(n, s.threat);
         decide_npis(state, a, n, s);
         decide_oil(state, a, n);

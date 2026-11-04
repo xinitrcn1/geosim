@@ -366,7 +366,7 @@ void update_migration(game_state& state) {
                 float at_war = 0.0f;
                 for(auto o : w.in_nation) at_war = std::max(at_war, n.get_at_war(static_cast<uint8_t>(o.id.index())));
                 const float gap = std::log(expected(y) / expected(x)) - static_cast<float>(P.migration_cost_international)
-                                  + static_cast<float>(P.refugee_push) * at_war;
+                                  + static_cast<float>(P.refugee_push) * at_war * (1.0f + static_cast<float>(P.refugee_occupation) * n.get_occupied());
                 if(gap > 0.0f) {
                     moves.push_back({x, y, static_cast<float>(P.migration_rate_international) * years * gap * workforce(state, x) * open * gravity});
                 }

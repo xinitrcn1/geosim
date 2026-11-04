@@ -103,7 +103,9 @@ void decide_fiscal_structure(game_state& state, dcon::agent_id a, dcon::nation_i
         const float debt = static_cast<float>(std::max(0.0, -w.nation_get_bal_gov(n)) / gdp_nominal);
         const float space = std::clamp(1.0f - debt / static_cast<float>(P.ai_debt_limit), 0.0f, 1.0f);
         const float slack = std::max(0.0f, -w.nation_get_gap_smoothed(n)) * 100.0f;
-        const float pragmatic = static_cast<float>(P.public_investment_slack) * slack * space;
+        // Strategic goals (strategy.cpp): growth programmes vs consolidation.
+        const float pragmatic = static_cast<float>(P.public_investment_slack) * slack * space
+                                * (1.0f + goal_bias(state, n, goal::restore_growth) - goal_bias(state, n, goal::consolidate));
         const float ideal = pragmatic * (1.0f - std::clamp(econ_shift, -1.0f, 1.0f));
         float proposed = (1.0f - rho) * pragmatic + rho * ideal;
         if(w.agent_get_override_mode(a, lev) != 0) proposed = w.agent_get_override_value(a, lev);

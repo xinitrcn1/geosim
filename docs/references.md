@@ -298,6 +298,29 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Beine, M., Docquier, F. & Özden, Ç. (2011). Diasporas. *J. Development Economics* 95(1).
 - Knack, S. & Keefer, P. (1997). Does social capital have an economic payoff? *QJE* 112(4). — Trust and growth.
 
+## Strategy, information, reputation and war ([06](06-geopolitics-ai.md))
+
+- Blanchard, O. & Leigh, D. (2013). Growth forecast errors and fiscal multipliers. *AER P&P* 103(3). — Learned response tables.
+- Wintrobe, R. (1998). *The Political Economy of Dictatorship.* Cambridge UP. — Dictator's dilemma.
+- Kuran, T. (1991). Now out of never: the element of surprise in the East European revolution of 1989. *World Politics* 44(1).
+- Tomz, M. (2007). *Reputation and International Cooperation.* Princeton UP.
+- Gibler, D. (2008). The costs of reneging: reputation and alliance formation. *JCR* 52(3).
+- Crescenzi, M. (2018). *Of Friends and Foes: Reputation and Learning in International Politics.* Oxford UP.
+- Leeds, B. A. (2003). Alliance reliability in times of war. *International Organization* 57(4).
+- Gaubatz, K. (1996). Democratic states and commitment in international relations. *International Organization* 50(1).
+- Farrell, H. & Newman, A. (2019). Weaponized interdependence. *International Security* 44(1).
+- Singer, J. D., Bremer, S. & Stuckey, J. (1972). Capability distribution, uncertainty, and major power war. In *Peace, War, and Numbers.* Sage. — CINC.
+- Lanchester, F. (1916). *Aircraft in Warfare: The Dawn of the Fourth Arm.* Constable.
+- Epstein, J. (1985). *The Calculus of Conventional War.* Brookings.
+- Boulding, K. (1962). *Conflict and Defense.* Harper. — Loss-of-strength gradient.
+- Mearsheimer, J. (1989). Assessing the conventional balance: the 3:1 rule and its critics. *International Security* 13(4).
+- Biddle, S. (2004). *Military Power: Explaining Victory and Defeat in Modern Battle.* Princeton UP.
+- Fearon, J. (1995). Rationalist explanations for war. *International Organization* 49(3).
+- Slantchev, B. (2003). The principle of convergence in wartime negotiations. *APSR* 97(4).
+- Reiter, D. (2009). *How Wars End.* Princeton UP.
+- Fortna, V. P. (2004). *Peace Time: Cease-Fire Agreements and the Durability of Peace.* Princeton UP.
+- Vasquez, J. (1993). *The War Puzzle.* Cambridge UP. — Territorial issues.
+
 ## Internet, cyber, war economics ([06](06-geopolitics-ai.md))
 
 - Freedom House (2020). *Freedom on the Net 2020.* — Starting online controls.

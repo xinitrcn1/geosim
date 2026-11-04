@@ -24,7 +24,7 @@ sovereign's; central banks of pegged currencies follow the anchor. Player
 overrides (advise / direct / force) replace or bias the choice, and every
 decision is journalled with its `P`, `I` and `A` for the "Why?" panel.
 
-**Target form (planned).** Every agent `a` scores candidate actions `x` with:
+**Target form (partly implemented).** Every agent `a` scores candidate actions `x` with:
 
 ```
 U_a(x) = (1 − ρ_a) · U_prag_a(x) + ρ_a · U_ideo_a(x) − C_a(x)
@@ -57,6 +57,10 @@ Heads of state take it from their party plus a personal offset.
 ρ_a = ρ_base_a · security_a^k · (1 − crisis_severity)^m
 ```
 
+**Implemented** (`strategy.cpp: rigidity`): security is the lower of approval
+and legitimacy relative to 2019; crisis severity is the executive's epidemic
+threat; `k = rho_security_k`, `m = rho_crisis_m`.
+
 - `ρ_base`: the agent's disposition (initialised per real government's record).
 - **Secure agents can afford principles.** When an agent's hold on power is
   threatened, or a crisis hits, ρ falls and pragmatism takes over.
@@ -73,28 +77,39 @@ debt and alliances).
 
 ## Forecasting inside the AI
 
-Implemented today: executives project the epidemic over a short horizon
+Implemented: executives project the epidemic over a short horizon
 (`ai_horizon_days`) from detected cases and their growth; other pragmatic
-targets read the current simulated state. Planned: agents cannot run the full
-sim for each candidate action, so they will use:
+targets read the current simulated state. Agents cannot run the full sim for
+each candidate action, so they use (`strategy.cpp`):
 
 1. **Linearised response tables**: per-nation sensitivities (∂indicator/∂lever)
    estimated cheaply at runtime from recent sim history by rolling regression,
    refreshed monthly. These are *imperfect on purpose*: AI agents have bounded
    rationality, and they misjudge things the way real governments do.
-2. **Information quality**: forecasts get noisier with low media freedom and
-   low state capacity (autocracies have worse information about their own
-   society; Wintrobe 1998, the dictator's dilemma).
+   **Implemented for fiscal policy:** a lagged Bayesian regression of next
+   month's output-gap change on this month's package, shrunk toward a prior
+   multiplier (`response_prior`, weight `response_prior_weight`; Blanchard &
+   Leigh 2013); a weak learned multiplier enlarges packages within ±20%.
+2. **Information quality** (implemented): perceived epidemic incidence carries
+   weekly lognormal noise that grows as media freedom and state capacity fall,
+   and autocrats under-see unrest (`info_bias`) when deciding repression
+   (Wintrobe 1998, the dictator's dilemma; Kuran 1991).
 
 ## Planning structure
 
-**Implemented:** no planner. Executives choose levers weekly (sharded by
-nation), central banks daily (emergency meetings happen), and the slower
-levers (credit, QE, tariffs, taxes, wages, defence, boards) on their systems'
-28-day or weekly cadences; sanctions, war and treaties are decided in
-`geopolitics.cpp` and `treaties.cpp`.
+**Implemented:** executives choose levers weekly (sharded by nation), central
+banks daily (emergency meetings happen), and the slower levers (credit, QE,
+tariffs, taxes, wages, defence, boards) on their systems' 28-day or weekly
+cadences; sanctions, war and treaties are decided in `geopolitics.cpp` and
+`treaties.cpp`. A **strategic layer** (`strategy.cpp`, monthly; HTN-lite)
+scores a goal catalogue against 2019 - contain an epidemic, restore growth,
+regime security, deter a threat, consolidate, secure energy - and adopts the
+best above `goal_threshold` with hysteresis; a goal decomposes into tactical
+biases (`goal_gain`) on its levers: public investment, pension reform,
+repression, defence, health spending, and softer sanctions on energy
+suppliers. Goal changes are journalled (`journal_goal`).
 
-**Planned (not yet implemented):** the HTN-style layers below.
+**Planned:** full HTN decomposition into multi-step plans, and the layers below.
 
 - **Strategic layer (monthly, sharded):** goal selection with an HTN-style
   decomposition. Example: `secure energy` → `diversify suppliers` →
@@ -134,8 +149,10 @@ partner; `geopolitics.cpp`, 28 days):
 | Trade share | gravity with sea-route distances and contiguity ([03](03-economy.md#trade)) | implemented |
 | Threat perception | partner's relative power (CINC-like GDP and population index) × proximity × distrust × claims (Waltz 1979; Jervis 1978) | implemented |
 | Sanctions, alliance, FTA, war | decisions below | implemented |
-| Dependence beyond trade (energy, debt holdings, remittances) | | planned |
-| Affinity (language, religion, diaspora) | | planned (a tie floor stands in for it in internet coupling) |
+| Energy dependence | share of oil demand supplied by each exporter (gravity over trade shares); raises the cost of sanctions beyond its 2019 level (Keohane & Nye 1977; Farrell & Newman 2019) | implemented |
+| Credibility | lost by abandoning an ally at war, recovered over `credibility_years`; lowers every partner's trust (Tomz 2007; Gibler 2008; Crescenzi 2018) | implemented |
+| Affinity (diaspora) | migrant stocks (grown by flows) raise trust | implemented; language and religion planned |
+| Dependence via debt holdings, remittances | | planned |
 
 **Implemented instruments:**
 
@@ -236,11 +253,28 @@ armed rebellion where the state is weak, groups are excluded and the young
 lack jobs (Fearon & Laitin 2003; Cederman, Wimmer & Min 2010; Collier &
 Hoeffler 2004), with deaths and destruction in the region.
 
-**Planned:** a fuller CINC index (Correlates of War: military personnel,
-energy use, urban population); combat with region-level front lines and
-control shares updated weekly by attrition (a Lanchester-style ratio of
-committed power, terrain and logistics); refugee flows tied to fronts; rebel
-sides drawn from high-grievance pops as agents.
+**Implemented:**
+
+- **CINC** (Singer, Bremer & Stuckey 1972): the mean of world shares in
+  military expenditure, personnel (population × defence share until COW NMC
+  data), energy use, iron and steel (manufacturing output), population and
+  urban population.
+- **Alliance obligations**: at onset, each ally of either side decides whether
+  to join - base `alliance_honor` ≈ 75% (Leeds 2003), higher for democracies
+  (Gaubatz 1996), for allies the enemy threatens and for strong allies, lower
+  for allies with a record of defection. Declining costs credibility and the
+  victim's trust (`journal_alliance_call`).
+- **Fronts** (monthly): control shares of each side's territory move by the
+  Lanchester square law on CINC × war effort (Lanchester 1916; Epstein 1985),
+  with a loss-of-strength gradient over distance (Boulding 1962) and a
+  defender's multiplier on home ground (Mearsheimer 1989; Biddle 2004).
+  Occupied territory produces nothing for its owner, pushes refugees, and a
+  decisive front raises the settlement hazard (Fearon 1995; Slantchev 2003;
+  Reiter 2009). At peace, unclaimed land returns; claimed land freezes
+  (Fortna 2004; Vasquez 1993).
+
+**Planned:** region-level front lines with terrain; rebel sides drawn from
+high-grievance pops as agents.
 
 ## Calibration of AI personalities (2020 start)
 

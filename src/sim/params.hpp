@@ -447,6 +447,28 @@
     X(lobby_tariff, 0.05, "ideological tariff per unit lobby pressure (Grossman & Helpman 1994)")       \
     X(governor_alignment, 0.3, "regional NPI offset of a governor from the opposition per unit party distance") \
     X(health_threat, 0.5, "pragmatic health spending (% GDP above baseline) per unit epidemic threat (2020: +0.5..1.5% GDP; OECD Health Statistics)") \
+    /* ---- strategy, information and reputation (docs/06) ---- */                                     \
+    X(rho_security_k, 1.0, "exponent of political security in ideological rigidity (rho = rho_base sec^k (1-crisis)^m)") \
+    X(rho_crisis_m, 1.0, "exponent of crisis severity in ideological rigidity")                             \
+    X(info_noise, 0.3, "lognormal sd of perceived epidemic incidence at zero media freedom and state capacity (Wintrobe 1998)") \
+    X(info_bias, 0.5, "share of unrest autocrats fail to see at zero media freedom (dictator's dilemma; Kuran 1991)") \
+    X(response_prior, 0.8, "prior output-gap response (pp) per % GDP of fiscal package (Blanchard & Leigh 2013)") \
+    X(response_prior_weight, 100.0, "prior weight of the response table, in (% GDP)^2 of observed fiscal moves") \
+    X(response_weight, 1.0, "weight of the learned fiscal response in package sizing (0 = prior only)")   \
+    X(goal_threshold, 0.3, "minimum score for the strategic layer to adopt a goal")                       \
+    X(goal_gain, 0.2, "tactical bias of an adopted goal on its levers (share)")                           \
+    X(goal_hysteresis, 0.1, "score margin a new goal needs over the current one")                         \
+    X(credibility_loss, 0.3, "credibility lost by abandoning an ally at war (Gibler 2008; Crescenzi 2018)")  \
+    X(credibility_years, 10.0, "credibility recovery time (years)")                                       \
+    X(credibility_trust, 0.5, "partners' trust change per unit credibility loss")                         \
+    X(alliance_honor, 0.75, "base probability allies honour a call to war (Leeds 2003: ~75%)")           \
+    X(energy_dependence_cost, 2.0, "sanction cost per unit energy dependence on the target")              \
+    X(affinity_trust, 0.3, "trust gain from diaspora ties (share of population x 100, capped at 1)")     \
+    X(lanchester_speed, 0.4, "annual front movement (share of territory) at full force superiority")      \
+    X(defender_advantage, 1.5, "force multiplier of defending own territory (Mearsheimer 1989; Biddle 2004)") \
+    X(supply_km, 3000.0, "distance (km) halving power projection (loss-of-strength gradient; Boulding 1962)") \
+    X(occupation_settle, 3.0, "settlement hazard gain per unit occupied share (Slantchev 2003; Reiter 2009)") \
+    X(refugee_occupation, 4.0, "refugee push gain per unit occupied share")                               \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

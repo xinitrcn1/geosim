@@ -674,7 +674,8 @@ void update_economy(game_state& state, economy_mode mode) {
         const auto gf = w.nation_get_gf(nat);
         for(uint8_t s = 0; s < S; ++s) {
             const auto cap = w.region_get_va0(ids, s) * gf * (ve::fp_vector(1.0f) - w.nation_get_npi_cut(nat, s))
-                             * (ve::fp_vector(1.0f) - absent) * w.nation_get_sector_factor(nat, s) * w.region_get_unrest_capacity(ids);
+                             * (ve::fp_vector(1.0f) - absent) * w.nation_get_sector_factor(nat, s) * w.region_get_unrest_capacity(ids)
+                             * (ve::fp_vector(1.0f) - w.nation_get_occupied(nat)); // territory held by an enemy (geopolitics.cpp)
             w.region_set_capacity(ids, s, ve::select(mask, cap, w.region_get_capacity(ids, s)));
         }
     });

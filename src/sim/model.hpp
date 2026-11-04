@@ -75,6 +75,9 @@ enum class issue : uint8_t { economy = 0, health = 1, security = 2, identity = 3
 enum class agent_kind : uint8_t { executive = 0, central_bank = 1, board = 2, union_federation = 3, military = 4, governor = 5 };
 
 // nation.portfolio_party: ministries held by coalition parties (Gamson's law).
+// agent.goal: the strategic layer's current goal (systems/strategy.cpp).
+enum class goal : uint8_t { none = 0, contain_epidemic, restore_growth, regime_security, deter_threat, consolidate, secure_energy, count };
+
 enum class portfolio : uint8_t { finance = 0, health = 1, interior = 2, foreign = 3, count };
 
 // agent.override_mode (docs/01-gameplay-loop.md#3-act--overrides)
@@ -142,6 +145,8 @@ inline constexpr uint8_t journal_no_confidence = 0xFC;
 inline constexpr uint8_t journal_court = 0xFD;      // pragmatic = lever struck down
 inline constexpr uint8_t journal_regime_change = 0xFE;
 inline constexpr uint8_t journal_treaty = 0xEF;
+inline constexpr uint8_t journal_goal = 0xED;          // before = old goal, after = new goal
+inline constexpr uint8_t journal_alliance_call = 0xEC; // pragmatic = ally index, after = 1 joined / 0 declined
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.

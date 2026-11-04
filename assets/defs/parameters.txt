@@ -414,6 +414,27 @@ cube_law{3}                              # seat-vote exponent of single-member d
 lobby_tariff{0.05}                       # ideological tariff per unit lobby pressure (Grossman & Helpman 1994)
 governor_alignment{0.3}                  # regional NPI offset of a governor from the opposition per unit party distance
 health_threat{0.5}                       # pragmatic health spending (% GDP above baseline) per unit epidemic threat (2020: +0.5..1.5% GDP; OECD Health Statistics)
+rho_security_k{1}                        # exponent of political security in ideological rigidity (rho = rho_base sec^k (1-crisis)^m)
+rho_crisis_m{1}                          # exponent of crisis severity in ideological rigidity
+info_noise{0.3}                          # lognormal sd of perceived epidemic incidence at zero media freedom and state capacity (Wintrobe 1998)
+info_bias{0.5}                           # share of unrest autocrats fail to see at zero media freedom (dictator's dilemma; Kuran 1991)
+response_prior{0.8}                      # prior output-gap response (pp) per % GDP of fiscal package (Blanchard & Leigh 2013)
+response_prior_weight{100}               # prior weight of the response table, in (% GDP)^2 of observed fiscal moves
+response_weight{1}                       # weight of the learned fiscal response in package sizing (0 = prior only)
+goal_threshold{0.3}                      # minimum score for the strategic layer to adopt a goal
+goal_gain{0.2}                           # tactical bias of an adopted goal on its levers (share)
+goal_hysteresis{0.1}                     # score margin a new goal needs over the current one
+credibility_loss{0.3}                    # credibility lost by abandoning an ally at war (Gibler 2008; Crescenzi 2018)
+credibility_years{10}                    # credibility recovery time (years)
+credibility_trust{0.5}                   # partners' trust change per unit credibility loss
+alliance_honor{0.75}                     # base probability allies honour a call to war (Leeds 2003: ~75%)
+energy_dependence_cost{2}                # sanction cost per unit energy dependence on the target
+affinity_trust{0.3}                      # trust gain from diaspora ties (share of population x 100, capped at 1)
+lanchester_speed{0.4}                    # annual front movement (share of territory) at full force superiority
+defender_advantage{1.5}                  # force multiplier of defending own territory (Mearsheimer 1989; Biddle 2004)
+supply_km{3000}                          # distance (km) halving power projection (loss-of-strength gradient; Boulding 1962)
+occupation_settle{3}                     # settlement hazard gain per unit occupied share (Slantchev 2003; Reiter 2009)
+refugee_occupation{4}                    # refugee push gain per unit occupied share
 phillips{0.1}                            # annual inflation response to the output gap
 gap_smoothing_days{60}                   # output-gap smoothing (days)
 expectations_days{730}                   # inflation-expectation adaptation time (days)

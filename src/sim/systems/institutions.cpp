@@ -193,7 +193,8 @@ void decide_defense(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float base = w.nation_get_defense_share0(n);
     // The 2019 budget answers the threats of 2019; spending rises with threat beyond a
     // moderate level and on a war footing.
-    const float pragmatic = base * (1.0f + static_cast<float>(P.defense_threat) * 40.0f * std::max(0.0f, threat - 0.3f)) + 3.0f * w.nation_get_war_effort(n);
+    const float pragmatic = (base * (1.0f + static_cast<float>(P.defense_threat) * 40.0f * std::max(0.0f, threat - 0.3f)) + 3.0f * w.nation_get_war_effort(n))
+                            * (1.0f + goal_bias(state, n, goal::deter_threat));
     const float ideal = pragmatic * (1.0f + 0.5f * (w.agent_get_order_ideal(a) - 0.2f));
     const float rho = w.agent_get_rho_base(a);
     const float proposed = std::max(0.0f, (1.0f - rho) * pragmatic + rho * ideal);

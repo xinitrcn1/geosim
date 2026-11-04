@@ -1609,6 +1609,9 @@ struct builder {
         w.nation_resize_trust(N);
         w.nation_resize_threat_to(N);
         w.nation_resize_diaspora(N); // bilateral stocks come with the full dataset; grows with flows
+        w.nation_resize_energy_dependence(N);
+        w.nation_resize_energy_dependence0(N);
+        w.nation_resize_control(N);
         w.nation_resize_portfolio_party(static_cast<uint32_t>(portfolio::count));
         w.nation_resize_trade_share(N);
         w.nation_resize_sanction(N);
@@ -1921,6 +1924,7 @@ struct builder {
             if(auto inc = n.get_incumbent()) n.set_gov_econ0(w.party_get_position(inc, static_cast<uint8_t>(value_axis::economic_right)));
             if(auto inc = n.get_incumbent()) n.set_gov_tan0(-w.party_get_position(inc, static_cast<uint8_t>(value_axis::self_expression)));
         }
+        init_strategy(state);
     }
 };
 

@@ -348,6 +348,22 @@ object{
 	property{ name{smd_share} type{float} }
 	property{ name{lobby_pressure} type{float} }
 	property{ name{diaspora} type{array{uint16_t}{float}} }
+	property{ name{credibility} type{float} }
+	property{ name{legitimacy0} type{float} }
+	property{ name{threat_max0} type{float} }
+	property{ name{mult_prior} type{float} }
+	property{ name{mult_sxy} type{float} }
+	property{ name{mult_sxx} type{float} }
+	property{ name{mult_est} type{float} }
+	property{ name{fiscal_prev} type{float} }
+	property{ name{fiscal_prev_move} type{float} }
+	property{ name{gap_prev} type{float} }
+	property{ name{info_noise} type{float} }
+	property{ name{energy_dependence} type{array{uint16_t}{float}} }
+	property{ name{energy_dependence0} type{array{uint16_t}{float}} }
+	property{ name{cinc} type{float} }
+	property{ name{control} type{array{uint16_t}{float}} }
+	property{ name{occupied} type{float} }
 	property{ name{poverty0} type{float} }
 	property{ name{min_wage_bite} type{float} }
 	property{ name{defense_spend} type{float} }
@@ -794,6 +810,8 @@ object{
 	property{ name{health_weight} type{float} }
 	property{ name{econ_weight} type{float} }
 	property{ name{order_ideal} type{float} }
+	property{ name{goal} type{uint8_t} }
+	property{ name{goal_score} type{float} }
 	property{ name{fiscal_hawk} type{float} }
 	property{ name{credit_bias} type{float} }
 	property{ name{override_mode} type{array{uint16_t}{uint8_t}} }
