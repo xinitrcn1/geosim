@@ -18,6 +18,9 @@ if(GEOSIM_USE_DCON)
     geosim_add_test(test_epidemics geosim_sim)
     geosim_add_test(test_politics geosim_sim)
     geosim_add_test(test_finance geosim_sim)
+    geosim_add_test(test_logistics geosim_sim)
+    geosim_add_test(test_credit geosim_sim)
+    geosim_add_test(test_society_groups geosim_sim)
 
     # Full 2020 run against real outcomes (slower; label "backtest").
     add_test(NAME backtest_2020

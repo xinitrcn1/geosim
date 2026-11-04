@@ -5,6 +5,7 @@
 // scalar passes (the SIMD carve-out); every money movement still goes through
 // sim::transfer, so the ledger stays exact.
 
+#include "core/rng.hpp"
 #include "core/scheduler.hpp"
 #include "sim/ledger.hpp"
 #include "sim/model.hpp"
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 namespace geosim::sim {
@@ -21,8 +23,9 @@ namespace {
 
 constexpr cadence monthly_cadence{28, 28};
 
+// Pops of a region by kind (one per identity group).
 struct region_pops {
-    std::array<dcon::pop_id, 4> by_kind{}; // indexed by pop_kind
+    std::array<std::vector<dcon::pop_id>, 4> by_kind; // indexed by pop_kind
 };
 
 region_pops pops_in(game_state const& state, dcon::region_id r) {
@@ -30,10 +33,34 @@ region_pops pops_in(game_state const& state, dcon::region_id r) {
     for(auto loc : state.world.region_get_pop_location(r)) {
         auto p = loc.get_pop();
         if(p.get_kind() < 4) {
-            out.by_kind[p.get_kind()] = p.id;
+            out.by_kind[p.get_kind()].push_back(p.id);
         }
     }
     return out;
+}
+
+// The pop of `kind` and `group` in a region (empty if none).
+dcon::pop_id find_pop(game_state const& state, region_pops const& rp, uint8_t kind, dcon::social_group_id group) {
+    for(auto p : rp.by_kind[kind]) {
+        if(state.world.pop_get_group(p) == group) return p;
+    }
+    return {};
+}
+
+// International migrants join the destination's immigrant group (or its largest).
+dcon::social_group_id arrival_group(game_state const& state, dcon::nation_id n) {
+    auto const& w = state.world;
+    dcon::social_group_id best, largest;
+    float share = -1.0f;
+    for(auto g : w.in_social_group) {
+        if(g.get_nation() != n) continue;
+        if(g.get_immigrant() && !best) best = g.id;
+        if(g.get_pop_share() > share) {
+            share = g.get_pop_share();
+            largest = g.id;
+        }
+    }
+    return best ? best : largest;
 }
 
 float workforce(game_state const& state, dcon::pop_id p) {
@@ -142,14 +169,16 @@ void update_demography(game_state& state) {
     auto const& P = state.params;
     const auto tick = static_cast<tick_t>(state.current_tick);
     const float years = static_cast<float>(monthly_cadence.period_days) / 365.0f;
+    const auto retired_kind = static_cast<uint8_t>(pop_kind::retired);
     for(auto r : w.in_region) {
         if(!is_due(static_cast<uint32_t>(r.id.index()), tick, monthly_cadence)) {
             continue;
         }
         const auto n = r.get_owner();
         const auto pops = pops_in(state, r.id);
-        const auto retired = pops.by_kind[static_cast<uint8_t>(pop_kind::retired)];
         float population = r.get_population();
+        float retired_size = 0.0f;
+        for(auto p : pops.by_kind[retired_kind]) retired_size += w.pop_get_size(p);
 
         // Births and childhood (children are part of the young epidemic group).
         const float births = n.get_birth_rate() * population * years;
@@ -158,17 +187,22 @@ void update_demography(game_state& state) {
             r.set_ep_s(epi_index(p, age_young), r.get_ep_s(epi_index(p, age_young)) + births);
         }
         population += births;
+        // Labour-market entrants by identity group (its population share) and by the
+        // group's own skill mix (education gaps persist across cohorts).
         const float entrants = r.get_children() * years / static_cast<float>(P.childhood_years);
         r.set_children(r.get_children() - entrants);
         const float high = std::clamp(n.get_tertiary_share(), 0.05f, 0.7f);
         const std::array<float, 3> split = {std::max(0.05f, 1.0f - high - 0.45f), 0.45f, high};
         for(uint8_t k = 0; k < worker_kinds; ++k) {
-            if(pops.by_kind[k]) {
-                add_seekers(state, pops.by_kind[k], entrants * split[k], n.get_unemployment0());
+            for(auto p : pops.by_kind[k]) {
+                const auto g = w.pop_get_group(p);
+                const float gshare = g ? w.social_group_get_pop_share(g) : 1.0f / static_cast<float>(pops.by_kind[k].size());
+                const float sk = g && w.social_group_get_skill(g, k) > 0.0f ? w.social_group_get_skill(g, k) : split[k];
+                add_seekers(state, p, entrants * gshare * sk, n.get_unemployment0());
             }
         }
 
-        // Retirement: a share of each worker pop moves to the retired pop.
+        // Retirement: a share of each worker pop moves to the retired pop of its group.
         const float retire = years / static_cast<float>(P.working_years);
         float retiring = 0.0f;
         float young_alive = 0.0f;
@@ -177,26 +211,25 @@ void update_demography(game_state& state) {
             young_alive = r.get_ep_s(y0) + r.get_ep_e(y0) + r.get_ep_i(y0) + r.get_ep_r(y0);
         }
         for(uint8_t k = 0; k < worker_kinds; ++k) {
-            const auto p = pops.by_kind[k];
-            if(!p || !retired) {
-                continue;
+            for(auto p : pops.by_kind[k]) {
+                const auto retired = find_pop(state, pops, retired_kind, w.pop_get_group(p));
+                if(!retired) continue;
+                const float moving = workforce(state, p) * retire;
+                retiring += moving;
+                move_money(state, p, retired, retire);
+                scale_workers(state, p, 1.0f - retire, true);
+                w.pop_set_size(retired, w.pop_get_size(retired) + moving);
             }
-            const float moving = workforce(state, p) * retire;
-            retiring += moving;
-            move_money(state, p, retired, retire);
-            scale_workers(state, p, 1.0f - retire, true);
-        }
-        if(retired) {
-            w.pop_set_size(retired, w.pop_get_size(retired) + retiring);
         }
         if(young_alive > 0.0f) {
             move_young(state, r.id, r.id, age_old, retiring / young_alive);
         }
 
         // Baseline (non-COVID) mortality, then epidemic deaths by age.
-        const float old_deaths = retired ? w.pop_get_size(retired) * n.get_death_rate_old() * years : 0.0f;
-        const float young_deaths = (population - (retired ? w.pop_get_size(retired) : 0.0f))
-                                   * static_cast<float>(P.young_mortality) * years;
+        retired_size = 0.0f;
+        for(auto p : pops.by_kind[retired_kind]) retired_size += w.pop_get_size(p);
+        const float old_deaths = retired_size * n.get_death_rate_old() * years;
+        const float young_deaths = (population - retired_size) * static_cast<float>(P.young_mortality) * years;
         remove_alive(state, r.id, age_old, old_deaths);
         remove_alive(state, r.id, age_young, young_deaths);
         const float epi_old = r.get_epi_deaths_old();
@@ -205,18 +238,18 @@ void update_demography(game_state& state) {
         r.set_war_deaths(0.0f);
         r.set_epi_deaths_old(0.0f);
         r.set_epi_deaths_young(0.0f);
-        if(retired) {
-            w.pop_set_size(retired, std::max(0.0f, w.pop_get_size(retired) - old_deaths - epi_old));
+        if(retired_size > 0.0f) {
+            const float keep = std::max(0.0f, 1.0f - (old_deaths + epi_old) / retired_size);
+            for(auto p : pops.by_kind[retired_kind]) w.pop_set_size(p, w.pop_get_size(p) * keep);
         }
         float workers = 0.0f;
         for(uint8_t k = 0; k < worker_kinds; ++k) {
-            if(pops.by_kind[k]) workers += workforce(state, pops.by_kind[k]);
+            for(auto p : pops.by_kind[k]) workers += workforce(state, p);
         }
         const float worker_deaths = workers > 0.0f ? (epi_young + young_deaths * workers / std::max(1.0f, population)) : 0.0f;
         for(uint8_t k = 0; k < worker_kinds; ++k) {
-            const auto p = pops.by_kind[k];
-            if(p && workers > 0.0f) {
-                scale_workers(state, p, std::max(0.0f, 1.0f - worker_deaths / workers), false);
+            for(auto p : pops.by_kind[k]) {
+                if(workers > 0.0f) scale_workers(state, p, std::max(0.0f, 1.0f - worker_deaths / workers), false);
             }
         }
         r.set_population(std::max(0.0f, population - old_deaths - young_deaths - epi_old - epi_young));
@@ -271,14 +304,16 @@ void update_migration(game_state& state) {
         for(auto e2 : w.region_get_region_adjacency_as_a(b)) wsum_b += e2.get_weight();
         for(auto e2 : w.region_get_region_adjacency_as_b(b)) wsum_b += e2.get_weight();
         for(uint8_t k = 0; k < worker_kinds; ++k) {
-            const auto x = pa.by_kind[k];
-            const auto y = pb.by_kind[k];
-            if(!x || !y) continue;
-            const float gap = std::log(expected(y) / expected(x));
-            if(gap > cost) {
-                moves.push_back({x, y, rate * years * (gap - cost) * workforce(state, x) * open * edge.get_weight() / std::max(1e-6f, wsum_a)});
-            } else if(-gap > cost) {
-                moves.push_back({y, x, rate * years * (-gap - cost) * workforce(state, y) * open * edge.get_weight() / std::max(1e-6f, wsum_b)});
+            for(auto x : pa.by_kind[k]) {
+                // Same group on the other side (domestic); immigrants abroad.
+                const auto y = domestic ? find_pop(state, pb, k, w.pop_get_group(x)) : find_pop(state, pb, k, arrival_group(state, nb));
+                if(!y) continue;
+                const float gap = std::log(expected(y) / expected(x));
+                if(gap > cost) {
+                    moves.push_back({x, y, rate * years * (gap - cost) * workforce(state, x) * open * edge.get_weight() / std::max(1e-6f, wsum_a)});
+                } else if(-gap > cost && domestic) {
+                    moves.push_back({y, x, rate * years * (-gap - cost) * workforce(state, y) * open * edge.get_weight() / std::max(1e-6f, wsum_b)});
+                }
             }
         }
     }
@@ -300,10 +335,11 @@ void update_migration(game_state& state) {
             const auto pd = pops_in(state, dest_region);
             const float open = (1.0f - 0.9f * restriction(n.id, D.npi_travel)) * (1.0f - 0.9f * restriction(m.id, D.npi_travel));
             const float gravity = static_cast<float>(m.get_population() / world_pop);
+            const auto dest_group = arrival_group(state, m.id);
             for(uint8_t k = 0; k < worker_kinds; ++k) {
-                const auto x = po.by_kind[k];
-                const auto y = pd.by_kind[k];
-                if(!x || !y) continue;
+              for(auto x : po.by_kind[k]) {
+                const auto y = find_pop(state, pd, k, dest_group);
+                if(!y) continue;
                 // War at home pushes refugees out regardless of the income gap.
                 float at_war = 0.0f;
                 for(auto o : w.in_nation) at_war = std::max(at_war, n.get_at_war(static_cast<uint8_t>(o.id.index())));
@@ -312,6 +348,7 @@ void update_migration(game_state& state) {
                 if(gap > 0.0f) {
                     moves.push_back({x, y, static_cast<float>(P.migration_rate_international) * years * gap * workforce(state, x) * open * gravity});
                 }
+              }
             }
         }
     }
@@ -383,7 +420,8 @@ void update_opinion(game_state& state) {
             // Salience of issues.
             std::array<float, static_cast<std::size_t>(issue::count)> sal = {
                 0.4f + 3.0f * jobless + 2.0f * loss, 0.1f + 0.2f * deaths_pm, 0.1f + 0.2f * w.region_get_unrest(w.pop_get_home(p)),
-                0.2f + 10.0f * std::abs(w.region_get_migration_net(w.pop_get_home(p))) / std::max(1.0f, w.region_get_population(w.pop_get_home(p)))};
+                0.2f + 10.0f * std::abs(w.region_get_migration_net(w.pop_get_home(p))) / std::max(1.0f, w.region_get_population(w.pop_get_home(p)))
+                    + 2.0f * (w.pop_get_group(p) ? w.social_group_get_mobilisation(w.pop_get_group(p)) : 0.0f)};
             float total = 0.0f;
             for(float v : sal) total += v;
             for(uint8_t i = 0; i < sal.size(); ++i) w.pop_set_salience(p, i, sal[i] / total);
@@ -420,15 +458,16 @@ void update_opinion(game_state& state) {
 
 // ---------------------------------------------------------------- unrest
 // Grievance = relative deprivation (Gurr 1970): income below expectation,
-// unemployment, price shocks. Political Stress Index (Goldstone 1991; Turchin
-// 2016) per nation = mass mobilisation x elite mobilisation x state fiscal
-// distress. Regional unrest climbs a ladder (calm 0, protests 1, strikes 2,
-// riots 3, insurgency 4) toward a target set by grievance, low legitimacy and
-// PSI; repression lowers expression but legitimacy pays (Davenport 2007).
-// Strikes cut regional capacity; riots destroy capital.
+// unemployment, price shocks, plus the mobilisation of the pop's identity group
+// (horizontal inequality; update_groups). Political Stress Index (Goldstone
+// 1991; Turchin 2016) per nation = mass mobilisation (wages, youth bulge,
+// urbanisation; Urdal 2006) x elite mobilisation (educated unemployment) x state
+// fiscal distress. Every 28 days this sets each region's *drive*; collective
+// action itself is a daily threshold cascade (update_protest).
 void update_unrest(game_state& state) {
     auto& w = state.world;
     auto const& P = state.params;
+    auto const& D = state.derived;
     const auto tick = static_cast<tick_t>(state.current_tick);
     const float days = static_cast<float>(monthly_cadence.period_days);
 
@@ -450,8 +489,13 @@ void update_unrest(game_state& state) {
         }
         const float cpi = std::max(0.01f, n.get_cpi());
         const float mass_wage = mass_n > 0 ? static_cast<float>(mass_inc / mass_n) / cpi : 0.0f;
-        const float mmp = std::max(0.0f, 1.0f - mass_wage / std::max(1e-3f, n.get_mass_wage0()));
-        const float emp = elite_n > 0 ? std::max(0.0f, static_cast<float>(elite_unemp / elite_n) - n.get_elite_unemp0()) : 0.0f;
+        // Youth bulges and cities amplify mass mobilisation (Goldstone 1991; Urdal 2006).
+        const float youth = n.get_youth_share() > 0.0f ? n.get_youth_share() / static_cast<float>(P.youth_bulge_ref) : 1.0f;
+        const float mmp = std::max(0.0f, 1.0f - mass_wage / std::max(1e-3f, n.get_mass_wage0())) * youth * (0.5f + 0.5f * n.get_urban_share());
+        // Educated youth without jobs: elite overproduction (Turchin 2016).
+        const float emp = elite_n > 0 ? std::max(0.0f, static_cast<float>(elite_unemp / elite_n) - n.get_elite_unemp0())
+                                            * std::max(1.0f, 0.5f * n.get_youth_unemp_rel())
+                                      : 0.0f;
         const double gdp_nominal = n.get_gdp0() * n.get_core_price();
         const float sfd = static_cast<float>(std::max(0.0, -n.get_bal_gov()) / gdp_nominal);
         n.set_psi_mmp(mmp);
@@ -474,28 +518,186 @@ void update_unrest(game_state& state) {
             p.set_income_expected(expected);
             const float shortfall = std::max(0.0f, 1.0f - p.get_income() / std::max(1e-3f, expected));
             const float jobless_rise = std::max(0.0f, p.get_unemployed() / s - n.get_unemployment0());
-            const float grievance = std::clamp(2.4f * shortfall + 1.2f * jobless_rise * 3.0f, 0.0f, 1.0f);
+            const float mobil = p.get_group() ? p.get_group().get_mobilisation() : 0.0f;
+            const float grievance = std::clamp(2.4f * shortfall + 1.2f * jobless_rise * 3.0f + mobil, 0.0f, 1.0f);
             p.set_grievance(grievance);
             g += grievance * s;
             size += s;
         }
         const float grievance = size > 0 ? static_cast<float>(g / size) : 0.0f;
         r.set_grievance(grievance);
-        const float repression = n.get_state_capacity() * (1.0f - std::clamp((n.get_voice() + 2.5f) / 5.0f, 0.0f, 1.0f));
-        const float target = 4.0f * std::clamp(static_cast<float>(P.unrest_grievance) * grievance * (1.0f - n.get_legitimacy())
-                                                   + static_cast<float>(P.unrest_psi) * n.get_psi(), 0.0f, 1.0f)
-                             * (1.0f - 0.6f * repression);
-        float u = r.get_unrest();
-        u += (target - u) * std::min(1.0f, days / static_cast<float>(P.unrest_days));
-        r.set_unrest(u);
-        // Strikes reduce capacity; riots (above 3) destroy productive capital.
-        r.set_unrest_capacity(1.0f - 0.05f * std::max(0.0f, u - 1.0f));
-        if(u > 3.0f) {
-            for(uint8_t s = 0; s < state.derived.sector_count; ++s) {
-                r.set_va0(s, r.get_va0(s) * (1.0f - static_cast<float>(P.riot_capital_loss) * (u - 3.0f)));
+        // Corruption is more visible, and more resented, where people are online.
+        const float amplifier = 1.0f + static_cast<float>(P.corruption_amplifier) * n.get_corruption() * n.get_connectivity();
+        // Blocked emigration bottles up voice (Hirschman 1970): travel bans x emigrant networks.
+        const float travel = D.npi_travel != 0xFF ? npi_fraction(state, n.id, D.npi_travel) : 0.0f;
+        const float exit_blocked = static_cast<float>(P.exit_blocked) * n.get_emigrant_stock() * 10.0f * travel * grievance;
+        const float drive = (static_cast<float>(P.unrest_grievance) * grievance * (1.0f - n.get_legitimacy())
+                             + static_cast<float>(P.unrest_psi) * n.get_psi()) * amplifier
+                            + exit_blocked;
+        r.set_drive(std::clamp(drive, 0.0f, 2.0f));
+    }
+}
+
+// ---------------------------------------------------------------- identity groups
+// Every 28 days per nation: group income relative to the national mean
+// (horizontal inequality; Stewart 2008), its change since the start (relative
+// decline), political exclusion (Ethnic Power Relations; Cederman, Wimmer & Min
+// 2010; Cederman, Weidmann & Gleditsch 2011) -> group grievance; mobilisation =
+// grievance x network cohesion (organisational capacity). Networks also insure:
+// members whose income falls below expectation receive transfers from better-off
+// members of the same group in the same region (Munshi & Rosenzweig 2016).
+void update_groups(game_state& state) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    const auto tick = static_cast<tick_t>(state.current_tick);
+    const float days = static_cast<float>(monthly_cadence.period_days);
+    for(auto n : w.in_nation) {
+        if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
+        double nat_inc = 0.0, nat_size = 0.0;
+        for(auto own : n.get_region_ownership()) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                nat_inc += std::max(0.0f, loc.get_pop().get_income());
+                nat_size += loc.get_pop().get_size();
+            }
+        }
+        const double mean = nat_size > 0.0 ? nat_inc / nat_size : 0.0;
+        for(auto g : w.in_social_group) {
+            if(g.get_nation() != n.id) continue;
+            double inc = 0.0, size = 0.0, unemp = 0.0, lf = 0.0;
+            for(auto own : n.get_region_ownership()) {
+                for(auto loc : own.get_region().get_pop_location()) {
+                    auto p = loc.get_pop();
+                    if(p.get_group() != g.id) continue;
+                    inc += std::max(0.0f, p.get_income());
+                    size += p.get_size();
+                    if(p.get_kind() < worker_kinds) {
+                        unemp += p.get_unemployed();
+                        lf += workforce(state, p.id) - p.get_inactive();
+                    }
+                }
+            }
+            const float rel = mean > 0.0 && size > 0.0 ? static_cast<float>(inc / size / mean) : 1.0f;
+            g.set_income_rel(rel);
+            g.set_unemployment(lf > 0.0 ? static_cast<float>(unemp / lf) : 0.0f);
+            const float r0 = g.get_income_rel0() > 0.0f ? g.get_income_rel0() : rel;
+            const float hw = static_cast<float>(P.horizontal_weight);
+            const float grievance = hw * std::max(0.0f, -std::log(std::max(0.05f, rel)))        // standing disadvantage
+                                    + 2.0f * hw * std::max(0.0f, std::log(r0 / std::max(0.05f, rel))) // relative decline
+                                    + static_cast<float>(P.exclusion_weight) * g.get_excluded();
+            g.set_grievance(grievance);
+            g.set_mobilisation(static_cast<float>(P.group_mobilisation) * grievance * g.get_network() * (1.0f + g.get_excluded()));
+        }
+        // Network insurance within (region, group).
+        for(auto own : n.get_region_ownership()) {
+            auto r = own.get_region();
+            std::vector<dcon::pop_id> pops;
+            for(auto loc : r.get_pop_location()) pops.push_back(loc.get_pop().id);
+            for(std::size_t i = 0; i < pops.size(); ++i) {
+                const auto pi = pops[i];
+                const auto g = w.pop_get_group(pi);
+                if(!g || w.social_group_get_network(g) <= 0.0f) continue;
+                const double need = static_cast<double>(std::max(0.0f, w.pop_get_income_expected(pi) - w.pop_get_income(pi))) * days
+                                    * P.network_insurance * w.social_group_get_network(g);
+                if(need <= 0.0) continue;
+                double capacity = 0.0;
+                for(auto pj : pops) {
+                    if(pj != pi && w.pop_get_group(pj) == g && w.pop_get_income(pj) >= w.pop_get_income_expected(pj)) {
+                        capacity += std::max(0.0, w.pop_get_balance(pj)) * 0.05;
+                    }
+                }
+                if(capacity <= 0.0) continue;
+                const double paid = std::min(need, capacity);
+                for(auto pj : pops) {
+                    if(pj != pi && w.pop_get_group(pj) == g && w.pop_get_income(pj) >= w.pop_get_income_expected(pj)) {
+                        const double part = paid * std::max(0.0, w.pop_get_balance(pj)) * 0.05 / capacity;
+                        transfer(state, account::of_pop(n.id, pj), account::of_pop(n.id, pi), part, flow::network_transfers);
+                    }
+                }
             }
         }
     }
+}
+
+// ---------------------------------------------------------------- protest cascades
+// Daily per region. Collective action is a threshold process (Granovetter 1978):
+// people join when the share already protesting exceeds their personal
+// threshold, so participation has tipping points and hysteresis, and the timing
+// of an uprising is hard to predict even when its conditions are not (Kuran
+// 1991). Participation x solves x = x_max * Phi((drive + s * x - mu) / sigma):
+//  - drive: grievance, PSI, group mobilisation (monthly), plus random triggering
+//    incidents (a killing on video, a scandal) and censorship backlash;
+//  - s: coordination through social media (Steinert-Threlkeld 2017; Enikolopov,
+//    Makarin & Petrova 2020), cut by information control (update_ai);
+//  - mu: the cost of joining, raised by repression capacity (Davenport 2007);
+//  - a sudden rise of information control angers and alerts the connected young
+//    (Hobbs & Roberts 2018 "gateway effect"; Hassanpour 2014 on the 2011 Egyptian
+//    shutdown), so it can trigger the cascade it meant to stop; gradual, early
+//    control builds domestic substitutes and backfires little.
+// Participation maps onto the ladder calm (0) .. protests (1) .. strikes (2) ..
+// riots (3) .. insurgency / regime crisis (4) (~3.5% of the population active;
+// Chenoweth & Stephan 2011). Strikes cut capacity; riots destroy capital.
+static float ladder(float x) {
+    static constexpr float px[] = {1e-4f, 1e-3f, 5e-3f, 1.5e-2f, 3.5e-2f};
+    if(x <= px[0]) return 0.0f;
+    for(int i = 1; i < 5; ++i) {
+        if(x <= px[i]) {
+            const float t = std::log(x / px[i - 1]) / std::log(px[i] / px[i - 1]);
+            return static_cast<float>(i - 1) + t;
+        }
+    }
+    return 4.0f;
+}
+
+void update_protest(game_state& state) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    const auto tick = static_cast<uint32_t>(state.current_tick);
+    const float spark_decay = std::exp(-1.0f / static_cast<float>(P.spark_days));
+    for(auto r : w.in_region) {
+        const auto n = r.get_owner();
+        const auto ri = static_cast<uint32_t>(r.id.index());
+        // Triggering incidents (Poisson), exponentially sized.
+        float spark = r.get_spark() * spark_decay;
+        if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::unrest), tick, ri, 0) < static_cast<float>(P.spark_rate) / 365.0f) {
+            const float u = std::max(1e-6f, core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::unrest), tick, ri, 1));
+            spark += static_cast<float>(P.spark_size) * -std::log(u);
+        }
+        r.set_spark(spark);
+        // Censorship backlash: sudden rises only.
+        const float jump = state.current_tick > 0 ? std::max(0.0f, n.get_info_control() - n.get_info_control_prev()) : 0.0f;
+        const float youth = n.get_youth_share() > 0.0f ? n.get_youth_share() / static_cast<float>(P.youth_bulge_ref) : 1.0f;
+        float backfire = r.get_backfire() * spark_decay + static_cast<float>(P.censor_backfire) * jump * n.get_connectivity() * youth;
+        r.set_backfire(backfire);
+
+        const float conn = n.get_connectivity() * (1.0f - static_cast<float>(P.censor_effect) * n.get_info_control());
+        const float repression = n.get_state_capacity() * (1.0f - std::clamp((n.get_voice() + 2.5f) / 5.0f, 0.0f, 1.0f));
+        // Cycles of contention (Tarrow 1998): mobilisation exhausts itself, so a long
+        // wave raises the cost of joining until it subsides.
+        const float fatigue = r.get_protest_fatigue();
+        const float mu = static_cast<float>(P.cascade_mu) + 0.3f * repression + fatigue;
+        const float sigma = static_cast<float>(P.cascade_sigma);
+        const float social = static_cast<float>(P.cascade_social) * (0.5f + conn);
+        const float drive = r.get_drive() + spark + backfire;
+        float x = r.get_protest();
+        for(int it = 0; it < 4; ++it) {
+            const float z = (drive + social * x - mu) / sigma;
+            x = static_cast<float>(P.cascade_max) * 0.5f * std::erfc(-z / std::numbers::sqrt2_v<float>);
+        }
+        float p = r.get_protest();
+        p += (x - p) * std::min(1.0f, 1.0f / static_cast<float>(x > p ? P.unrest_rise_days : P.unrest_decay_days));
+        r.set_protest(p);
+        r.set_protest_fatigue(fatigue + static_cast<float>(P.protest_fatigue_gain) * p / static_cast<float>(P.cascade_max)
+                              - fatigue / static_cast<float>(P.protest_fatigue_days));
+        const float u = ladder(p);
+        r.set_unrest(u);
+        // General strikes cut capacity; riots destroy capital.
+        r.set_unrest_capacity(1.0f - static_cast<float>(P.strike_capacity) * std::max(0.0f, u - 2.0f));
+        if(u > 3.0f) {
+            const float loss = static_cast<float>(P.riot_capital_loss) / 28.0f * (u - 3.0f);
+            for(uint8_t s = 0; s < state.derived.sector_count; ++s) r.set_va0(s, r.get_va0(s) * (1.0f - loss));
+        }
+    }
+    for(auto n : w.in_nation) n.set_info_control_prev(n.get_info_control());
 }
 
 } // namespace geosim::sim
