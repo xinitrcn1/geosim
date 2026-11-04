@@ -63,7 +63,11 @@ NUMERIC = ["population", "pop_0_14_pct", "pop_65up_pct", "labor_force", "unemplo
 POSITIVE = {"hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct", "imports_pct", "gov_revenue_pct",
             "lfp_rate_pct", "urban_pct", "hospital_beds_per_1000", "birth_rate_per_1000", "death_rate_per_1000", "gini"}
 # Ratios imputed from income-group medians when missing (levels are never imputed).
-IMPUTE = [c for c in NUMERIC if c not in ("population", "labor_force", "gdp_usd", "gdp_ppp", "land_area_km2")]
+IMPUTE = [c for c in NUMERIC if c not in ("population", "labor_force", "gdp_usd", "gdp_ppp", "land_area_km2",
+                                          "remittances_out_usd")]
+# Levels imputed as a median share of GDP (a median level would dwarf small economies:
+# the group median of remittance outflows exceeded the GDP of St. Martin).
+IMPUTE_PER_GDP = ["remittances_out_usd"]
 
 # Institutional defaults by World Bank income group (rough OECD/ILO-informed priors;
 # nations_curated.csv overrides them where better values are known).
@@ -126,6 +130,7 @@ def build_nations(wdi, countries, extra):
         return statistics.median(vals) if vals else None
 
     gdp_pc = {g: median_ratio(by_group[g], "gdp_usd", "population") for g in by_group}
+    per_gdp = {f: {g: median_ratio(by_group[g], f, "gdp_usd") or 0.0 for g in by_group} for f in IMPUTE_PER_GDP}
     lf_rate = {g: median_ratio(by_group[g], "labor_force", "population") for g in by_group}
     for r in rows.values():
         if not r["gdp_usd"]:
@@ -136,6 +141,10 @@ def build_nations(wdi, countries, extra):
         if not r["labor_force"]:
             r["labor_force"] = r["population"] * lf_rate[r["income"]]
             imputed["labor_force"] += 1
+        for f in IMPUTE_PER_GDP:
+            if r[f] is None or r[f] < 0:
+                r[f] = per_gdp[f][r["income"]] * r["gdp_usd"]
+                imputed[f] += 1
         for f in IMPUTE:
             # Expenditure and structure shares cannot be zero or negative; WDI reports 0 for
             # some discontinued series (e.g. Venezuela after 2014) - treat them as missing.
