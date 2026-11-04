@@ -5,7 +5,7 @@
 # the dependency-free core library and its tests.
 
 option(GEOSIM_BUILD_TESTS  "Build ctest unit tests"                              ON)
-option(GEOSIM_BUILD_CLIENT "Build the SDL3/Vulkan/FreeType/HarfBuzz game client" OFF)
+option(GEOSIM_BUILD_CLIENT "Build the SDL3/Vulkan/FreeType game client (HarfBuzz optional)" OFF)
 option(GEOSIM_USE_DCON     "Fetch DataContainer (+oneTBB) and build the simulation" ON)
 
 # Supported compilers: GCC and Clang. MSVC is not supported.
@@ -27,15 +27,31 @@ function(geosim_target_defaults target)
 endfunction()
 
 if(GEOSIM_BUILD_CLIENT)
+    if(NOT GEOSIM_USE_DCON)
+        message(FATAL_ERROR "GEOSIM_BUILD_CLIENT=ON needs GEOSIM_USE_DCON=ON (the client links the simulation)")
+    endif()
     find_package(SDL3 CONFIG REQUIRED)
-    find_package(Vulkan REQUIRED)
+    find_package(Vulkan REQUIRED COMPONENTS glslangValidator)
     find_package(Freetype REQUIRED)
-    # HarfBuzz ships a CMake config on most distributions; fall back to pkg-config.
+    # HarfBuzz is optional for now: the client does "shaping-lite" (cmap +
+    # advances + a GSUB ligature table for emoji flags, docs/08-ui.md#text).
+    # When found it is linked and GEOSIM_HAS_HARFBUZZ=1 is defined so a full
+    # shaper can be dropped in later.
     find_package(harfbuzz CONFIG QUIET)
     if(NOT harfbuzz_FOUND)
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
-        add_library(harfbuzz::harfbuzz ALIAS PkgConfig::HARFBUZZ)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(HARFBUZZ QUIET IMPORTED_TARGET harfbuzz)
+            if(HARFBUZZ_FOUND)
+                add_library(harfbuzz::harfbuzz ALIAS PkgConfig::HARFBUZZ)
+            endif()
+        endif()
+    endif()
+    if(TARGET harfbuzz::harfbuzz)
+        set(GEOSIM_HAVE_HARFBUZZ ON)
+    else()
+        set(GEOSIM_HAVE_HARFBUZZ OFF)
+        message(STATUS "geosim client: HarfBuzz not found, using the built-in shaping-lite path")
     endif()
 endif()
 

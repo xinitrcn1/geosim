@@ -60,14 +60,56 @@ if(GEOSIM_USE_DCON)
     geosim_target_defaults(geosim_headless)
 endif()
 
-# --- client: SDL3 + Vulkan + FreeType + HarfBuzz ----------------------------
+# --- client: SDL3 + Vulkan 1.3 + FreeType (docs/08-ui.md) ----------------------
 if(GEOSIM_BUILD_CLIENT)
-    add_executable(geosim client/main.cpp)
+    if(NOT TARGET geosim_sim)
+        message(FATAL_ERROR "the client links geosim_sim: configure with -DGEOSIM_USE_DCON=ON")
+    endif()
+
+    # GLSL -> SPIR-V at build time; each shader becomes a C header holding a
+    # `uint32_t <name>[]` array (glslangValidator --vn), embedded in the binary.
+    set(geosim_shader_dir ${CMAKE_CURRENT_SOURCE_DIR}/client/shaders)
+    set(geosim_shader_out ${CMAKE_CURRENT_BINARY_DIR}/client_shaders)
+    file(MAKE_DIRECTORY ${geosim_shader_out})
+    set(geosim_shader_headers)
+    foreach(shader quad.vert ui.frag map.frag fullscreen.vert blur.frag)
+        string(REPLACE "." "_" var "spv_${shader}")
+        set(out ${geosim_shader_out}/${shader}.h)
+        add_custom_command(
+            OUTPUT ${out}
+            COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} --quiet --target-env vulkan1.3
+                    --vn ${var} -o ${out} ${geosim_shader_dir}/${shader}
+            DEPENDS ${geosim_shader_dir}/${shader} ${geosim_shader_dir}/common.glsl
+            COMMENT "glslang ${shader}"
+            VERBATIM)
+        list(APPEND geosim_shader_headers ${out})
+    endforeach()
+    add_custom_target(geosim_client_shaders DEPENDS ${geosim_shader_headers})
+
+    add_executable(geosim
+        client/main.cpp
+        client/app.cpp
+        client/sim_runner.cpp
+        client/text.cpp
+        client/ui_context.cpp
+        client/ui_layout.cpp
+        client/ui_renderer.cpp
+        client/vk_context.cpp)
+    add_dependencies(geosim geosim_client_shaders)
+    find_package(Threads REQUIRED) # the simulation runs on its own thread
+    target_include_directories(geosim PRIVATE ${geosim_shader_out})
     target_link_libraries(geosim PRIVATE
-        geosim_core
+        geosim_sim
+        Threads::Threads
         SDL3::SDL3
         Vulkan::Vulkan
-        Freetype::Freetype
-        harfbuzz::harfbuzz)
+        Freetype::Freetype)
+    if(GEOSIM_HAVE_HARFBUZZ)
+        target_link_libraries(geosim PRIVATE harfbuzz::harfbuzz)
+        target_compile_definitions(geosim PRIVATE GEOSIM_HAS_HARFBUZZ=1)
+    endif()
     geosim_target_defaults(geosim)
+    # Vulkan structs are initialised as `VkFooCreateInfo info{VK_STRUCTURE_TYPE_...}`
+    # (the rest value-initialised), which -Wextra would flag on every struct.
+    target_compile_options(geosim PRIVATE -Wno-missing-field-initializers)
 endif()
