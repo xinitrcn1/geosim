@@ -409,6 +409,8 @@ capital_controls_trigger{5}              # portfolio outflow (% GDP/yr) at which
 cube_law{3}                              # seat-vote exponent of single-member districts in a one-region nation (Taagepera 1986)
 lobby_tariff{0.05}                       # ideological tariff per unit lobby pressure (Grossman & Helpman 1994)
 governor_alignment{0.3}                  # regional NPI offset of a governor from the opposition per unit party distance
+telework_effect{1}                       # share of teleworkable jobs that keep working under closures (Dingel & Neiman 2020)
+telework_reference_pc{65000}             # GDP per head (USD) at which the full US teleworkable shares apply
 health_threat{0.5}                       # pragmatic health spending (% GDP above baseline) per unit epidemic threat (2020: +0.5..1.5% GDP; OECD Health Statistics)
 rho_security_k{1}                        # exponent of political security in ideological rigidity (rho = rho_base sec^k (1-crisis)^m)
 rho_crisis_m{1}                          # exponent of crisis severity in ideological rigidity

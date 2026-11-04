@@ -250,6 +250,7 @@ struct builder {
             w.sector_set_oil_intensity(id, static_cast<float>(node.num_or("oil_intensity", 1.0, path, diag)));
             w.sector_set_import_intensity(id, static_cast<float>(node.num_or("import_intensity", 1.0, path, diag)));
             w.sector_set_voluntary_distancing(id, static_cast<float>(node.num_or("voluntary_distancing", 0.0, path, diag)));
+            w.sector_set_teleworkable(id, static_cast<float>(node.num_or("teleworkable", 0.0, path, diag)));
             if(auto d = node.find("demand")) {
                 w.sector_set_demand_hh(id, static_cast<float>(d->num_or("hh", 0.0, path, diag)));
                 w.sector_set_demand_gov(id, static_cast<float>(d->num_or("gov", 0.0, path, diag)));

@@ -105,6 +105,11 @@ void nation_prepass(game_state& state, dcon::nation_id n) {
                              * std::min(1.0f, w.nation_get_npi_exposure(n) / static_cast<float>(P.adaptation_days));
     // Under a suppression strategy, measures are confined to small areas.
     const float local = static_cast<float>(P.npi_targeted_reach) * (1.0f - 0.5f * w.nation_get_tti_strength(n));
+    // Telework: the teleworkable share of jobs (US mix, defs/sectors.txt) falls with income
+    // per head - ~0.37 of jobs in the US, ~0.1-0.15 in low-income nations (Dingel & Neiman
+    // 2020; Gottlieb et al. 2021) - scaled here by log income relative to the US level.
+    const float gdp_pc = w.nation_get_gdp_pc0(n);
+    const float remote = std::clamp(std::log(std::max(1.0f, gdp_pc / 1000.0f)) / std::log(static_cast<float>(P.telework_reference_pc) / 1000.0f), 0.2f, 1.0f);
     for(uint8_t s = 0; s < S; ++s) {
         const dcon::sector_id sid{s};
         float cut = 0.0f;
@@ -112,6 +117,7 @@ void nation_prepass(game_state& state, dcon::nation_id n) {
             const float reach = 1.0f - (1.0f - local) * w.nation_get_npi_targeted(n, k);
             cut += w.sector_get_npi_capacity(sid, k) * npi_fraction(state, n, k) * reach;
         }
+        cut *= 1.0f - static_cast<float>(P.telework_effect) * w.sector_get_teleworkable(sid) * remote;
         w.nation_set_npi_cut(n, s, std::min(0.95f, cut * (1.0f - adaptation)));
         // Supply-chain shortages act through input stocks in the production network
         // (nation_pass). Cyber operations cut energy and business-services capacity

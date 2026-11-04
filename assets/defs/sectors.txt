@@ -33,12 +33,19 @@
 #               and the container fleet (src/sim/systems/logistics.cpp).
 # subsistence   share of baseline household spending on the sector that is subsistence
 #               (Stone-Geary gamma; food and energy are necessities: Deaton & Muellbauer 1980)
+# teleworkable  share of the sector's jobs that can be done from home at US occupation
+#               mix (Dingel & Neiman 2020, by industry: agriculture ~0.08, mining/utilities
+#               ~0.3, manufacturing ~0.22, construction ~0.19, retail/accommodation/food
+#               ~0.1, finance/professional/ICT/education ~0.6, public administration ~0.45);
+#               closures do not cut that share of capacity, scaled down in poorer nations
+#               (Gottlieb et al. 2021; src/sim/systems/economy.cpp).
 # cyber_exposure  share of capacity a cyber operation's damage applies to (control systems
 #               of energy grids and pipelines, IT of finance and business services;
 #               src/sim/systems/internet.cpp).
 
 sector{
 	key{agr}
+	teleworkable{0.08}
 	name{Agriculture}
 	role{generic}
 	labor_share{0.50}
@@ -57,6 +64,7 @@ sector{
 
 sector{
 	key{ene}
+	teleworkable{0.3}
 	name{Mining, energy and utilities}
 	role{energy}
 	labor_share{0.25}
@@ -76,6 +84,7 @@ sector{
 
 sector{
 	key{man}
+	teleworkable{0.22}
 	name{Manufacturing}
 	role{manufacturing}
 	labor_share{0.55}
@@ -94,6 +103,7 @@ sector{
 
 sector{
 	key{con}
+	teleworkable{0.19}
 	name{Construction}
 	role{generic}
 	labor_share{0.60}
@@ -111,6 +121,7 @@ sector{
 
 sector{
 	key{csv}
+	teleworkable{0.1}
 	name{Contact-intensive services}
 	role{contact}
 	labor_share{0.60}
@@ -129,6 +140,7 @@ sector{
 
 sector{
 	key{osv}
+	teleworkable{0.6}
 	name{Business, financial and other market services}
 	role{generic}
 	labor_share{0.50}
@@ -147,6 +159,7 @@ sector{
 
 sector{
 	key{gov}
+	teleworkable{0.45}
 	name{Public administration, education and health}
 	role{government}
 	labor_share{0.90}

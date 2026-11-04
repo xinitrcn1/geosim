@@ -616,6 +616,7 @@ object{
 	size{32}
 	tag{scenario}
 
+	property{ name{teleworkable} type{float} }
 	property{ name{key} type{uint32_t} }
 	property{ name{role} type{uint8_t} }
 	property{ name{labor_share} type{float} }
