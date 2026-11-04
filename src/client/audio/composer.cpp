@@ -289,6 +289,7 @@ public:
         choose_arrangement();
         insert_arp_solo();
         insert_choir();
+        choose_euro_lead();
         plan_bars();
         for(std::size_t i = 0; i < plan_.size(); ++i) {
             if(plan_[i].sec.kind == section_kind::arp_solo) render_arp_solo(i);
@@ -379,6 +380,7 @@ private:
     bool counter_pulse_ = false;
     int last_ctr_ = -1;
     // key change
+    bool euro_lead_ = false;  // the lead is the eurodance patch (boomerang.opus reference)
     bool arp_wide_ = false;   // after an arp solo, the arp keeps its wide cells, pedals and octave jumps
     uint32_t solo_bar_ = ~0u; // the arp solo's first bar (none: ~0)
     bool no_jitter_ = false;  // add() without velocity jitter (events that must not draw random numbers)
@@ -1898,6 +1900,38 @@ private:
         jit_ = keep_jit;
     }
 
+    // --- the euro lead -------------------------------------------------------
+    // After the fifth reference (data/boomerang.opus, a late-90s eurodance /
+    // happy-hardcore hit, ~191 BPM; its sound only, none of its notes): a
+    // bright saw with a second saw an octave up (even harmonics: h2 about
+    // -1 dB), a little unison detune (its harmonics are 12-15 Hz wide), a
+    // 3 ms attack with a short filter blip, then a held, organ-like sustain,
+    // light 7 Hz vibrato, no glide, wide stereo chorus. It replaces the lead
+    // in most eurodance songs and in some other upbeat ones; drawn after the
+    // arrangement, so the compositions are
+    // unchanged (only the sound of the lead). Never in wartime. Its own
+    // generator, so the solo and choir renders keep their draws.
+    void choose_euro_lead() {
+        float p = 0.0f;
+        if(style_ == st_eurodance) p = 0.7f;
+        else if(s_.m == mood::triumph && (style_ == st_techno || style_ == st_chip || style_ == st_synthwave)) p = 0.4f;
+        else if((s_.m == mood::tense || s_.m == mood::crisis) && style_ == st_techno) p = 0.15f;
+        rng er(s_.seed ^ 0x1F83D9ABFB41BD6Bull); // its own generator: the solo / choir renders draw from sr_
+        const bool euro = er.chance(p) && !war_;
+        if(!euro) return;
+        euro_lead_ = true;
+        patch& l = s_.patches[ch_lead];
+        l = patch{};
+        l.w1 = wave::saw, l.unison = 1, l.spread = 14, l.w2 = wave::saw, l.semi2 = 12, l.mix2 = 0.6f, l.detune = 4;
+        l.poles4 = true, l.cutoff = 5500, l.resonance = 0.15f, l.key_track = 0.4f, l.fenv = 0.8f, l.fdecay = 0.05f;
+        l.attack = 0.004f, l.decay = 0.06f, l.sustain = 0.72f, l.release = 0.16f;
+        l.vib_depth = 0.1f, l.vib_rate = 6.8f, l.vib_delay = 0.15f;
+        l.glide = 0.0f;
+        l.gain = 1.7f; // the held-note level of the other leads (measured on a held A4)
+        s_.mix.chorus[ch_lead] = 0.5f;
+        s_.mix.reverb[ch_lead] = std::max(s_.mix.reverb[ch_lead], 0.25f);
+    }
+
     // --- the choir block -----------------------------------------------------
     // After the fourth reference (data/eclipse.mp3, 160 BPM): late in the
     // track the kick turns to the off-beats ("mini drops"), then drops out
@@ -2803,7 +2837,7 @@ private:
                       static_cast<unsigned long long>(s_.seed), mood_name(s_.m), s_.style.c_str(), static_cast<double>(s_.bpm), note_names[pc], mode_->name,
                       prog_str(prog_a_).c_str(), prog_str(prog_b_).c_str(), prog_str(prog_c_).c_str(), grooves[groove_a_].name, grooves[groove_b_].name,
                       bass_names[bass_a_], bass_names[bass_b_], reg[lead_class_], mstyle_names[static_cast<int>(style_a_)], mstyle_names[static_cast<int>(style_b_)],
-                      song_swing_ ? ", swing" : "", chip_chords_ ? ", chip chords" : "", mod.c_str(), s_.total_bars, s_.duration_seconds());
+                      song_swing_ ? ", swing" : "", chip_chords_ ? ", chip chords" : euro_lead_ ? ", euro lead" : "", mod.c_str(), s_.total_bars, s_.duration_seconds());
         s_.description = buf + form + "; transitions: " + (transitions_.empty() ? std::string("none") : transitions_);
     }
 };

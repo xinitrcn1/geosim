@@ -980,6 +980,69 @@ What the composer took from it:
     1.3 kHz, close to the reference segment's shape (which also holds the
     other instruments).
 
+### The euro lead, after the fifth reference (data/boomerang.opus)
+
+The user asked for the synth of a late-90s eurodance hit as a reference for
+sound design. It was analysed only; nothing of its melodies, riffs or hooks
+is used. Measured with ffmpeg and the same FFT tools, plus a harmonic
+profile of the dominant series, a held-note pitch tracker, band envelopes,
+mid/side correlation and beat-folded band energy:
+
+- **Tempo and structure:** 5:05 long; kick intervals 310–320 ms, about
+  191 BPM (happy-hardcore range). The intro has no kick or bass, with a
+  synth exposed; there is a breakdown with the kick and bass out (low band
+  10–27 dB), and the loud main sections hold a bright 1–5 kHz band.
+- **The main synth:**
+  - saw-based: a smooth roll-off, h12 only 17–28 dB below h1;
+  - octave-layered: h2 at −1 to −3 dB (a plain saw is −6) and the even
+    harmonics dominate;
+  - a little detune or chorus: harmonic peaks 9–15 Hz wide against 6 Hz
+    for a pure tone;
+  - a 3–4 ms attack with a short blip, then held at about −3.5 dB for at
+    least 200 ms;
+  - no portamento (notes move under 7 cents in their first 50 ms); in the
+    hook, light vibrato of about 13 cents at 7 Hz;
+  - wide in the intro: L/R correlation 0.5, side 3–5 dB under mid; 0.77 in
+    the hook.
+- **Elsewhere:** the 1.5–5 kHz band leans to the off-beat (stabs, hats),
+  and a long reverb / pad tail closes the track.
+
+What the composer took from it: the **euro lead** patch. It is a saw plus
+a second saw an octave up (0.6), one unison saw ± 14 cents and 4 cents on
+the octave, a 24 dB low-pass at 5.5 kHz (key tracking 0.4) with a short
+filter blip (0.8 octave, 50 ms), a 4 ms attack, sustain 0.72, 0.16 s
+release, a 0.1-semitone vibrato at 6.8 Hz, no glide, chorus 0.5 and
+reverb at least 0.25. It replaces the lead in:
+- 70 % of eurodance songs;
+- 40 % of triumph songs in the techno, chip and synthwave families;
+- 15 % of tense and crisis techno songs;
+- never in wartime.
+
+The choice has its own generator and is made after the arrangement, so
+every score is unchanged: all 1500 of seeds 1–300 × 5 moods hash
+identically to the previous commit; only the lead's sound changes.
+
+Verification (renders of triumph seed 1, lead solo, against the
+reference's exposed intro synth; nothing was checked by listening):
+
+| | ours | reference |
+|---|---|---|
+| h2 / h4 / h6 / h8 / h12 (dB re h1) | −3.6 / −11.2 / −16.2 / −20.8 / −29.2 | −2.8 / −9.2 / −17.6 / −21.9 / −27.8 |
+| fundamental −6 dB width | 11.7 Hz | 8.8 Hz (intro), 14.6 (hook) |
+| pitch movement on held notes | 2.9 cents sd | 2.7 (intro), 12.9 (hook) |
+| level 100 ms after the attack | −3.4 dB | −3.2 to −3.8 dB |
+| L/R correlation (700–4000 Hz) | 0.62 | 0.49 (intro), 0.77 (hook) |
+
+- **h3:** the tool reads it low for detuned pairs (−13.6 dB), because the
+  beating pair splits the FFT peak. The reference's h3 (−2 to −7 dB) is
+  inflated by the pads' fifths, which fall on 3·f0. It was not matched.
+- **Attack:** the envelope tool reads 1 ms for ours, against 3–4 ms in the
+  mix.
+- **Level:** a held A4 measures −11.5 dB, against −11.7 for the other
+  leads.
+- **Full mix:** peak −1.0 dBFS, no clipping.
+- **How often:** 143 of 300 triumph seeds, 9 tense, 8 crisis.
+
 ## Limitations and next steps
 
 - The loudness range is about 4 LU against the reference's 9. Breakdowns

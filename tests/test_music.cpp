@@ -181,6 +181,13 @@ int main() {
         }
     }
     check(solos >= 50 && choirs >= 30 && calm_choirs == 0, "arp solos and choir blocks occur (choir never in calm)", 0, mood::calm);
+    // the euro lead (boomerang reference): common in triumph, never in wartime
+    int euro_triumph = 0, euro_war = 0;
+    for(uint64_t seed = 1; seed <= 100; ++seed) {
+        euro_triumph += compose(seed, mood::triumph).description.find("euro lead") != std::string::npos;
+        euro_war += compose(seed, mood::wartime).description.find("euro lead") != std::string::npos;
+    }
+    check(euro_triumph >= 25 && euro_war == 0, "euro lead in triumph, not in wartime", 0, mood::triumph);
     // the chip family is rare: at most 1 song in 10 over 200 seeds
     int chip = 0;
     for(uint64_t seed = 1; seed <= 200; ++seed) chip += compose(seed, static_cast<mood>(seed % 4)).style == "chip";
