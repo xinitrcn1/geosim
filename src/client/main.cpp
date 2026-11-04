@@ -6,7 +6,7 @@
 //          [--frames N [--until-day D] [--screenshot OUT.ppm]] [--inject SCRIPT]
 //          [--music 0|1] [--music-volume 0..1] [--music-seed N]
 //   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph]
-//          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD]
+//          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 //            renders procedural music offline, no window or audio device
 //            (docs/14-audio.md)
 //
@@ -31,7 +31,7 @@ int usage() {
                "              [--inject \"FRAME:key:NAME;FRAME:click:X,Y;FRAME:move:X,Y;FRAME:wheel:X,Y,DY;FRAME:resize:W,H\"]\n"
                "              [--music 0|1] [--music-volume 0..1] [--music-seed N]\n"
                "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph] [--intensity 0..1]\n"
-               "              [--songs N] [--switch SECONDS:MOOD]\n",
+               "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx]\n",
                stderr);
     return 2;
 }
@@ -97,6 +97,13 @@ int main(int argc, char** argv) {
         else if(key == "seed") ok = parse(v, render.seed);
         else if(key == "mood") ok = geosim::client::audio::parse_mood(v, render.m);
         else if(key == "intensity") ok = parse(v, render.intensity) && render.intensity >= 0.0f && render.intensity <= 1.0f;
+        else if(key == "solo") {
+            render.solo = -1;
+            for(int c = 0; c < geosim::client::audio::num_channels; ++c) {
+                if(std::strcmp(v, geosim::client::audio::channel_name(c)) == 0) render.solo = c;
+            }
+            ok = render.solo >= 0;
+        }
         else if(key == "songs") ok = parse(v, render.songs) && render.songs >= 1 && render.songs <= 20;
         else if(key == "switch") {
             char mood_text[16] = {};

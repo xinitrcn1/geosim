@@ -27,6 +27,7 @@ struct render_options {
     double switch_at = -1.0;  // seconds; >= 0: change the mood then (tests the wrap-up)
     mood switch_to = mood::crisis;
     int sample_rate = 48000;
+    int solo = -1;            // >= 0: only this channel is audible (verification)
 };
 
 struct song_report {
@@ -39,6 +40,7 @@ struct song_report {
     int on_grid = 0;               // onsets within 10 ms of a 16th-note grid line
     int on_beat = 0;               // ... of a quarter-note grid line
     double latency_ms = 0;         // median onset offset (detector latency)
+    int strong = 0, strong_on_grid = 0; // kick-level onsets
     uint64_t kicks = 0;
 };
 

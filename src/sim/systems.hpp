@@ -136,6 +136,7 @@ void update_reforms(game_state& state);
 [[nodiscard]] float oil_trend_index(game_state const& state);
 [[nodiscard]] float price_spike(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float pension_ageing_factor(game_state const& state, dcon::nation_id n);
+[[nodiscard]] float ifr_age_factor(game_state const& state, dcon::region_id r);
 void update_variants(game_state& state);
 // Politics extensions (politics_ext.cpp): court appointments, term limits, identity
 // legitimacy, willingness to serve (monthly).

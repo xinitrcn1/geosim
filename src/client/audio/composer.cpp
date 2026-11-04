@@ -399,7 +399,7 @@ private:
         p.key_track = 0.2f;
 
         // mix (levels tuned by ear on offline renders, see docs/14-audio.md)
-        const float g[num_channels] = {0.95f, 0.5f, 0.24f, 0.55f, 0.3f, 0.2f, chip_chords_ ? 0.16f : 0.2f, 0.32f};
+        const float g[num_channels] = {0.72f, 0.8f, 0.5f, 0.62f, 0.6f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f};
         const float pan[num_channels] = {0.0f, 0.05f, 0.3f, 0.0f, 0.15f, -0.4f, -0.05f, 0.0f};
         const float dly[num_channels] = {0.0f, 0.04f, 0.06f, 0.0f, 0.28f, 0.32f, 0.12f, 0.1f};
         const float rev[num_channels] = {0.02f, 0.18f, 0.06f, 0.0f, 0.2f, 0.15f, 0.35f, 0.35f};

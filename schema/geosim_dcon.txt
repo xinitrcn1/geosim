@@ -529,6 +529,7 @@ object{
 	property{ name{npi_offset} type{float} }
 	property{ name{governor} type{agent_id} }
 	property{ name{age_band} type{array{uint16_t}{float}} }
+	property{ name{ifr_age} type{float} }
 	property{ name{house_price_r} type{float} }
 	property{ name{population_r0} type{float} }
 	property{ name{psi_region} type{float} }

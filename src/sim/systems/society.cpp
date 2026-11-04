@@ -306,6 +306,7 @@ void update_demography(game_state& state) {
                 const float scale = sum > 0.0f ? r.get_population() / sum : 1.0f;
                 for(uint8_t b = 0; b < age_bands; ++b) r.set_age_band(b, next[b] * scale);
             }
+            r.set_ifr_age(ifr_age_factor(state, r.id));
         }
 
         // Intergenerational mobility between class tiers (low -> mid -> high skill),
@@ -335,6 +336,23 @@ void update_demography(game_state& state) {
             n.set_mobility_up(moved);
         }
     }
+}
+
+// Fatality of the under-65 group relative to a reference age mix: infection fatality
+// roughly doubles every eight years of age (Levin et al. 2020, SARS-CoV-2; similar
+// gradients for influenza), so a young population under 65 dies far less from the
+// same infections. Band weights ~ IFR at 0-14, 15-29, 30-49, 50-64; the reference is
+// a high-income under-65 mix (22/24/31/23%) against which pathogens are calibrated.
+float ifr_age_factor(game_state const& state, dcon::region_id r) {
+    auto const& w = state.world;
+    static constexpr float weight[4] = {0.0001f, 0.001f, 0.01f, 0.06f};
+    constexpr float reference = 0.22f * 0.0001f + 0.24f * 0.001f + 0.31f * 0.01f + 0.23f * 0.06f;
+    float under = 0.0f, sum = 0.0f;
+    for(uint8_t b = 0; b < 4; ++b) {
+        under += w.region_get_age_band(r, b);
+        sum += w.region_get_age_band(r, b) * weight[b];
+    }
+    return under > 0.0f ? std::clamp(sum / under / reference, 0.1f, 2.0f) : 1.0f;
 }
 
 // Pension outlays scale with the old-age share relative to 2019 (ageing).

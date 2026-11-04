@@ -240,7 +240,8 @@ void update_epidemic(game_state& state) {
             const auto imported = ve::max(zero, ve::min(w.region_get_imported(ids, p), sy - inf_y));
             const auto onset_y = c.sigma * ey, onset_o = c.sigma * eo;
             const auto out_y = c.gamma * iy, out_o = c.gamma * io;
-            const auto fatal_y = ve::min(one, c.ifr_y * ifr_mult) * out_y;
+            // The under-65 rate follows the region's own age mix (society.cpp: ifr_age).
+            const auto fatal_y = ve::min(one, c.ifr_y * ifr_mult * w.region_get_ifr_age(ids)) * out_y;
             const auto fatal_o = ve::min(one, c.ifr_o * ifr_mult) * out_o;
             const auto die_y = c.delay * hy, die_o = c.delay * ho;
             const auto wane_y = c.waning * ry, wane_o = c.waning * ro;

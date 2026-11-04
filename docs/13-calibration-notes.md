@@ -128,6 +128,51 @@ drift of ~1 pp of unemployment a year.
   (dividend payout clamps, transfer residuals) flag nations whose national
   accounts do not close with imputed data.
 
+## World 2020 as the calibration target (findings)
+
+Fixed while moving the calibration from the 20-nation slice to all 218 nations:
+
+- **Regions paired with the wrong input rows.** The loader matched each region to
+  its `regions.csv` row by iteration position; DCON relationship order is not
+  input order, so regions got each other's employment (Australia's "Other
+  Territories", 25 residents, received 1.1 million workers). A region whose
+  head-count then reached zero produced *negative* deaths and multiplied its pops
+  (unemployment 68%, public wages 2,700% of GDP). Regions are matched by identity;
+  deaths cannot go negative. *Check: total pop size per region / region population
+  should be the adult share (~0.7) everywhere (`GEOSIM_TRACE_POPS=1 --trace ISO`).*
+- **Levels imputed as if they were ratios.** The pipeline filled missing remittance
+  outflows with the income-group median level (USD 740 million), larger than the
+  GDP of St. Martin. Levels are imputed as a median share of GDP.
+- **WDI zeros are gaps** (Venezuela's consumption shares) and **missing
+  coordinates default to (0, 0)** (five territories): both fixed in the pipeline.
+- **Oil was special-cased for the slice** (curated producers, PPP-based demand, a
+  rest-of-world residual). The world has no residual, so supply fell short and
+  Brent went from 79 to 127 USD in ten days. Production and consumption now come
+  from data (Energy Institute via OWID) for every nation, balanced at the start.
+- **Flows sized by the donor** (crisis aid: a share of each donor's GDP) were
+  harmless with 20 nations and swamped small recipients with 218 (Djibouti's
+  budget surplus reached 120% of GDP). Size every bilateral flow by the
+  recipient's need and economy, then share it among senders within their budgets.
+- **Anchors without data.** With historical anchors on, job retention, suppression
+  (TTI) and fiscal packages were pulled toward a zero prior for every nation
+  without a recorded event, so only curated nations could use them. Anchor only
+  where the scenario has a record for that nation.
+- **Spatial LOD removed**: every nation runs at full detail.
+
+Tools: `tools/diagnose_run.py <daily.csv>` lists, per nation, the first NaN, GDP
+or unemployment jump, CPI jump and unrest spike - start every world debugging
+session with it on a no-shock run, then on the full run. `--trace ISO` prints one
+nation's internal state each day.
+
+First world back-test after these fixes (uncalibrated): GDP 97/210, unemployment
+113/187, inflation 120/179, net lending 89/134, deaths 63/182, Brent 58.5 vs 42.0
+USD. Biases (model minus data, median): unemployment +1.2..+2.9 pp in every income
+group; GDP -2.1 pp (high income) and -3.1 pp (low income); deaths x1.9; deficits
+slightly too large; hyperinflations (Venezuela, Lebanon, Sudan) not produced. A
+no-shock world year barely drifts (median unemployment +0.1 pp), so these are
+shock responses, not baseline drift. Under-65 fatality now follows each region's
+age mix (stable-population pyramid from the 0-14 / 15-64 ratio), a small effect.
+
 ## The 2008 slice (first run)
 
 - The first year fits well (GDP 17/20, unemployment 19/20 in band) but **2009

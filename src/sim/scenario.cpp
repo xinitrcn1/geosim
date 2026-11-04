@@ -726,17 +726,32 @@ struct builder {
         }
         w.region_set_ifr_mult(r, 1.0f);
         w.region_set_children(r, static_cast<float>(pop * in.pop014));
-        // Age bands (demography): 0-14 and 65+ from WDI; working ages split 30/42/28.
+        // Age bands (demography): 0-14 and 65+ from WDI; working ages split by a stable
+        // population pyramid, density ~ exp(-g a), with g chosen so that the model's
+        // 0-14 : 15-64 ratio matches the data (Coale & Demeny; Preston, Heuveline &
+        // Guillot 2001) - young nations get more people aged 15-29, ageing ones more 50-64.
         w.region_resize_age_band(age_bands);
         {
             const double working = pop * std::max(0.0, 1.0 - in.pop014 - in.pop65);
+            const double target = in.pop014 / std::max(0.05, 1.0 - in.pop014 - in.pop65);
+            auto mass = [](double g, double a, double b) {
+                return std::abs(g) < 1e-6 ? b - a : (std::exp(-g * a) - std::exp(-g * b)) / g;
+            };
+            double lo = -0.08, hi = 0.08;
+            for(int it = 0; it < 60; ++it) {
+                const double g = 0.5 * (lo + hi);
+                (mass(g, 0, 15) / mass(g, 15, 65) < target ? lo : hi) = g;
+            }
+            const double g = 0.5 * (lo + hi);
+            const double m1 = mass(g, 15, 30), m2 = mass(g, 30, 50), m3 = mass(g, 50, 65), mw = m1 + m2 + m3;
             w.region_set_age_band(r, 0, static_cast<float>(pop * in.pop014));
-            w.region_set_age_band(r, 1, static_cast<float>(working * 0.30));
-            w.region_set_age_band(r, 2, static_cast<float>(working * 0.42));
-            w.region_set_age_band(r, 3, static_cast<float>(working * 0.28));
+            w.region_set_age_band(r, 1, static_cast<float>(working * m1 / mw));
+            w.region_set_age_band(r, 2, static_cast<float>(working * m2 / mw));
+            w.region_set_age_band(r, 3, static_cast<float>(working * m3 / mw));
             w.region_set_age_band(r, 4, static_cast<float>(pop * in.pop65));
             w.nation_set_old_share0(n, static_cast<float>(in.pop65));
             w.region_set_house_price_r(r, 1.0f);
+            w.region_set_ifr_age(r, ifr_age_factor(state, r));
             w.region_set_population_r0(r, static_cast<float>(pop));
         }
         w.region_set_unrest_capacity(r, 1.0f);

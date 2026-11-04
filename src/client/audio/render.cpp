@@ -16,6 +16,7 @@ struct offline_source {
     uint64_t seed = 1;
     mood m = mood::calm;
     int remaining = 1;
+    int solo = -1;
     std::vector<std::unique_ptr<song>> owned;
 };
 
@@ -25,6 +26,11 @@ song* take_song(void* user) {
     --src->remaining;
     const uint64_t seed = src->owned.empty() ? src->seed : next_seed(src->owned.back()->seed);
     src->owned.push_back(std::make_unique<song>(compose(seed, src->m)));
+    if(src->solo >= 0) {
+        for(int c = 0; c < num_channels; ++c) {
+            if(c != src->solo) src->owned.back()->mix.gain[c] = 0.0f;
+        }
+    }
     return src->owned.back().get();
 }
 void retire_song(void*, song*) {} // owned by offline_source
@@ -67,6 +73,7 @@ bool render_music(render_options const& opt, render_report& rep, core::diagnosti
     src.seed = opt.seed;
     src.m = opt.m;
     src.remaining = std::max(1, opt.songs);
+    src.solo = opt.solo;
     auto box = std::make_unique<jukebox>(static_cast<float>(sr), &take_song, &retire_song, &src);
     box->gap_seconds = 3.0f;
     box->set_volume(0.8f);
@@ -168,6 +175,7 @@ bool render_music(render_options const& opt, render_report& rep, core::diagnosti
     // attack; slow swells such as the sidechain release do not count), above
     // -45 dB, 80 ms refractory; its time is the steepest rise in the window.
     std::vector<double> onsets;
+    std::vector<float> onset_level; // peak low-band level in the 30 ms after the onset
     for(std::size_t i = 12; i < env_db.size(); ++i) {
         float lo = env_db[i - 6];
         for(std::size_t j = i - 6; j < i; ++j) lo = std::min(lo, env_db[j]);
@@ -177,7 +185,10 @@ bool render_music(render_options const& opt, render_report& rep, core::diagnosti
             for(std::size_t j = i - 11; j <= i; ++j) {
                 if(env_db[j] - env_db[j - 1] > best_d) best_d = env_db[j] - env_db[j - 1], best = j;
             }
+            float peak_after = env_db[i];
+            for(std::size_t j = i; j < std::min(env_db.size(), i + 30); ++j) peak_after = std::max(peak_after, env_db[j]);
             onsets.push_back(static_cast<double>(best) * 1e-3);
+            onset_level.push_back(peak_after);
         }
     }
     for(auto& s : rep.songs) {
@@ -195,12 +206,26 @@ bool render_music(render_options const& opt, render_report& rep, core::diagnosti
         std::sort(sorted.begin(), sorted.end());
         s.latency_ms = sorted.empty() ? 0.0 : 1000.0 * sorted[sorted.size() / 2];
         const double lat = s.latency_ms * 1e-3;
-        for(double t : onsets) {
+        // "strong" onsets: within 10 dB of the song's loud low-band level
+        // (95th percentile of onset levels), i.e. the kicks
+        std::vector<float> levels;
+        for(std::size_t i = 0; i < onsets.size(); ++i) {
+            if(onsets[i] >= s.start_s && onsets[i] <= end) levels.push_back(onset_level[i]);
+        }
+        std::sort(levels.begin(), levels.end());
+        const float loud = levels.empty() ? 0.0f : levels[levels.size() * 95 / 100];
+        for(std::size_t i = 0; i < onsets.size(); ++i) {
+            const double t = onsets[i];
             if(t < s.start_s || t > end) continue;
             const double rel = t - s.start_s - lat;
+            const bool grid = std::fabs(rel - std::round(rel / step) * step) < 0.010;
             ++s.onsets;
-            if(std::fabs(rel - std::round(rel / step) * step) < 0.010) ++s.on_grid;
+            if(grid) ++s.on_grid;
             if(std::fabs(rel - std::round(rel / (4 * step)) * 4 * step) < 0.010) ++s.on_beat;
+            if(onset_level[i] >= loud - 10.0f) {
+                ++s.strong;
+                if(grid) ++s.strong_on_grid;
+            }
         }
         // tempo by autocorrelation of the onset-strength envelope (250 fps)
         const std::size_t i0 = static_cast<std::size_t>(s.start_s * 1000.0), i1 = std::min(env_db.size(), static_cast<std::size_t>(end * 1000.0));
@@ -235,10 +260,11 @@ void print_report(render_report const& r) {
     for(std::size_t i = 0; i < r.songs.size(); ++i) {
         auto const& s = r.songs[i];
         std::printf("song %zu: %s\n  plays %.1f-%.1f s (%.1f s; score %.1f s), BPM %.1f, estimated from audio %.1f\n"
-                    "  low-band onsets %d: %.1f%% within 10 ms of the 16th grid, %.1f%% of the beat grid (detector latency %.1f ms); kicks %llu\n",
+                    "  low-band onsets %d: %.1f%% within 10 ms of the 16th grid, %.1f%% of the beat grid (detector latency %.1f ms)\n"
+                    "  strong (kick-level) onsets %d: %.1f%% on the 16th grid; kicks played %llu\n",
                     i + 1, s.description.c_str(), s.start_s, s.end_s, s.end_s - s.start_s, s.composed_s, static_cast<double>(s.bpm), s.estimated_bpm,
                     s.onsets, s.onsets ? 100.0 * s.on_grid / s.onsets : 0.0, s.onsets ? 100.0 * s.on_beat / s.onsets : 0.0,
-                    s.latency_ms, static_cast<unsigned long long>(s.kicks));
+                    s.latency_ms, s.strong, s.strong ? 100.0 * s.strong_on_grid / s.strong : 0.0, static_cast<unsigned long long>(s.kicks));
     }
 }
 
