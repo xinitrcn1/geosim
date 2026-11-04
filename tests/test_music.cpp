@@ -109,6 +109,32 @@ int main() {
             }
             check(rolls_ok, "rolls top out at 16ths (32nds only on a build's last beat)", seed, m);
 
+            // arp solo / choir block: the arp leads the solo (no lead there); the
+            // choir sings only inside a choir block
+            for(section const& sec : a.sections) {
+                if(sec.kind != section_kind::arp_solo && sec.kind != section_kind::choir) continue;
+                const uint32_t t0 = sec.start_bar * ticks_per_bar, t1 = (sec.start_bar + sec.bars) * ticks_per_bar;
+                int arp = 0, lead = 0, choir = 0;
+                for(note_event const& e : a.events) {
+                    if(e.tick < t0 || e.tick >= t1) continue;
+                    arp += e.ch == ch_arp;
+                    lead += e.ch == ch_lead;
+                    choir += e.ch == ch_choir;
+                }
+                if(sec.kind == section_kind::arp_solo) check(arp >= static_cast<int>(sec.bars) * 8 && lead == 0, "arp solo: the arp leads, no lead", seed, m);
+                else check(choir > 0 && arp > 0, "choir block: choir and synth", seed, m);
+            }
+            {
+                bool inside = true;
+                for(note_event const& e : a.events) {
+                    if(e.ch != ch_choir) continue;
+                    bool in = false;
+                    for(section const& sec : a.sections) in = in || (sec.kind == section_kind::choir && e.tick >= sec.start_bar * ticks_per_bar && e.tick < (sec.start_bar + sec.bars) * ticks_per_bar);
+                    inside = inside && in;
+                }
+                check(inside, "choir only in choir blocks", seed, m);
+            }
+
             // lead register: wartime low (bass-like), the others vary per song
             std::vector<int> lead;
             for(note_event const& e : a.events) {
@@ -142,6 +168,19 @@ int main() {
         }
     }
     check(styles.size() >= 4, "at least 4 style families over the tested seeds", 0, mood::calm);
+    // the new sections occur, and never in calm (choir) or intermissions
+    int solos = 0, choirs = 0, calm_choirs = 0;
+    for(uint64_t seed = 1; seed <= 100; ++seed) {
+        for(int mi = 0; mi < mood_count; ++mi) {
+            const song a = compose(seed, static_cast<mood>(mi));
+            for(section const& sec : a.sections) {
+                solos += sec.kind == section_kind::arp_solo;
+                choirs += sec.kind == section_kind::choir;
+                calm_choirs += sec.kind == section_kind::choir && mi == static_cast<int>(mood::calm);
+            }
+        }
+    }
+    check(solos >= 50 && choirs >= 30 && calm_choirs == 0, "arp solos and choir blocks occur (choir never in calm)", 0, mood::calm);
     // the chip family is rare: at most 1 song in 10 over 200 seeds
     int chip = 0;
     for(uint64_t seed = 1; seed <= 200; ++seed) chip += compose(seed, static_cast<mood>(seed % 4)).style == "chip";

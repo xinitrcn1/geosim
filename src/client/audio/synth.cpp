@@ -112,6 +112,15 @@ void player::set_song(song const* s) noexcept {
     }
     mix_ = s->mix;
     for(int c = 0; c < num_channels; ++c) hp_g_[c] = mix_.highpass[c] > 0.0f ? svf_g(mix_.highpass[c], sr_) : 0.0f;
+    // vowel formants (Hz, level): "aah" and "ooh", fixed whatever the note, which is what makes a voice
+    static constexpr float vowels[2][3][2] = {{{750.0f, 1.0f}, {1150.0f, 0.6f}, {2600.0f, 0.22f}}, {{350.0f, 1.0f}, {800.0f, 0.45f}, {2400.0f, 0.1f}}};
+    for(int c = 0; c < num_channels; ++c) {
+        const int vw = patches_[c].formant;
+        for(int i = 0; i < 3; ++i) {
+            form_g_[c][i] = vw ? svf_g(vowels[vw - 1][i][0], sr_) : 0.0f;
+            form_a_[c][i] = vw ? vowels[vw - 1][i][1] : 0.0f;
+        }
+    }
     for(int c = 0; c < num_channels; ++c) {
         const float a = (std::clamp(mix_.pan[c], -1.0f, 1.0f) + 1.0f) * pi * 0.25f;
         pan_l_[c] = std::cos(a);
@@ -408,6 +417,13 @@ float player::render_tonal(voice& v, patch const& p) noexcept {
             v.crush_hold = quantize8(sum);
         }
         sum = v.crush_hold;
+    }
+    if(p.formant) {
+        // a choir: three band-passes (Q ~ 3.5) at the vowel's formants, plus
+        // some of the dry voice for body under the first formant
+        float f = 0.3f * sum;
+        for(int i = 0; i < 3; ++i) f += form_a_[v.ch][i] * svf(sum, form_g_[v.ch][i], 0.28f, v.fic1[i], v.fic2[i]).bp;
+        sum = f;
     }
     // 24 dB: a first stage without resonance, the resonant one after it
     const float y = p.poles4 ? svf(svf(sum, v.g, 1.41f, v.ic1b, v.ic2b).lp, v.g, v.k, v.ic1, v.ic2).lp : svf(sum, v.g, v.k, v.ic1, v.ic2).lp;

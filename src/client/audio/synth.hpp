@@ -58,6 +58,7 @@ private:
         float freq[4] = {};
         float phase1[4] = {}, phase2[4] = {}, phase_sub[4] = {};
         float phase_u[4][4] = {};  // unison saws
+        float fic1[3] = {}, fic2[3] = {}; // formant filters
         float glide_from = 1.0f;   // frequency ratio at the start of a glide, decays to 1
         float vel = 1.0f;
         float env = 0.0f, fenv = 1.0f;
@@ -122,6 +123,7 @@ private:
     float sweep_g_ = 1, sweep_k_ = 1.3f;
     float sweep_ic1_[num_channels]{}, sweep_ic2_[num_channels]{};
     float hp_g_[num_channels]{}, hp_ic1_[num_channels]{}, hp_ic2_[num_channels]{}; // channel high-pass
+    float form_g_[num_channels][3]{}, form_a_[num_channels][3]{}; // formant filter coefficients and levels
 
     // effects
     // stereo chorus per channel: a short delay line read by two LFO-swept taps

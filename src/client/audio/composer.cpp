@@ -52,7 +52,7 @@ bool parse_mood(char const* text, mood& out) noexcept {
 }
 
 char const* channel_name(int ch) noexcept {
-    static char const* const names[num_channels] = {"kick", "snare", "hats", "bass", "lead", "arp", "pad", "fx", "counter"};
+    static char const* const names[num_channels] = {"kick", "snare", "hats", "bass", "lead", "arp", "pad", "fx", "counter", "choir"};
     return ch >= 0 && ch < num_channels ? names[ch] : "?";
 }
 
@@ -67,6 +67,7 @@ char const* section_name(section_kind k) noexcept {
     case section_kind::outro: return "outro";
     case section_kind::groove: return "groove";
     case section_kind::arp_solo: return "arp-solo";
+    case section_kind::choir: return "choir";
     }
     return "?";
 }
@@ -286,9 +287,11 @@ public:
         choose_form();
         choose_arrangement();
         insert_arp_solo();
+        insert_choir();
         plan_bars();
         for(std::size_t i = 0; i < plan_.size(); ++i) {
             if(plan_[i].sec.kind == section_kind::arp_solo) render_arp_solo(i);
+            else if(plan_[i].sec.kind == section_kind::choir) render_choir(i);
             else render_section(i);
         }
         apply_mutes();
@@ -897,11 +900,11 @@ private:
         counter_pulse_ = m != mood::calm && r_.chance(0.4f);
 
         // mix (levels tuned by ear on offline renders, see docs/14-audio.md)
-        const float g[num_channels] = {war_ ? 0.8f : 0.72f, 0.8f, 0.45f, 0.62f, lead_class_ == 0 ? 0.42f : 0.36f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f, war_ ? 0.3f : 0.28f};
-        const float pan[num_channels] = {0.0f, 0.05f, 0.3f, 0.0f, 0.15f, -0.4f, -0.05f, 0.0f, -0.25f};
-        const float dly[num_channels] = {0.0f, 0.04f, 0.06f, 0.0f, 0.28f, 0.32f, 0.12f, 0.1f, 0.18f};
-        const float rev[num_channels] = {0.02f, 0.18f, 0.06f, 0.0f, 0.2f, 0.15f, 0.35f, 0.35f, 0.3f};
-        const float duck[num_channels] = {0.0f, 0.0f, 0.15f, 0.55f, war_ ? 0.35f : 0.15f, 0.3f, 0.6f, 0.0f, war_ ? 0.6f : 0.35f};
+        const float g[num_channels] = {war_ ? 0.8f : 0.72f, 0.8f, 0.45f, 0.62f, lead_class_ == 0 ? 0.42f : 0.36f, 0.45f, chip_chords_ ? 0.32f : 0.45f, 0.4f, war_ ? 0.3f : 0.28f, 0.36f};
+        const float pan[num_channels] = {0.0f, 0.05f, 0.3f, 0.0f, 0.15f, -0.4f, -0.05f, 0.0f, -0.25f, 0.0f};
+        const float dly[num_channels] = {0.0f, 0.04f, 0.06f, 0.0f, 0.28f, 0.32f, 0.12f, 0.1f, 0.18f, 0.1f};
+        const float rev[num_channels] = {0.02f, 0.18f, 0.06f, 0.0f, 0.2f, 0.15f, 0.35f, 0.35f, 0.3f, 0.45f};
+        const float duck[num_channels] = {0.0f, 0.0f, 0.15f, 0.55f, war_ ? 0.35f : 0.15f, 0.3f, 0.6f, 0.0f, war_ ? 0.6f : 0.35f, 0.3f};
         for(int ch = 0; ch < num_channels; ++ch) {
             X.gain[ch] = g[ch];
             X.pan[ch] = ch == ch_arp && r_.chance(0.5f) ? -pan[ch] : pan[ch];
@@ -922,6 +925,18 @@ private:
         X.highpass[ch_arp] = 180.0f;
         X.highpass[ch_counter] = 140.0f;
         X.highpass[ch_lead] = war_ ? 70.0f : 110.0f;
+        X.highpass[ch_choir] = 180.0f;
+        X.chorus[ch_choir] = 0.6f;
+        X.bright[ch_choir] = true;
+        // the choir (used only by a choir block; no random draws): unison
+        // saws through "aah" formants, slow attack, gentle vibrato
+        patch& ch = P[ch_choir];
+        ch.w1 = wave::saw, ch.unison = 2, ch.spread = 9, ch.w2 = wave::saw, ch.mix2 = 0.7f, ch.detune = 6;
+        ch.formant = 1, ch.poles4 = true, ch.cutoff = 5000, ch.resonance = 0.0f, ch.fenv = 0.0f, ch.key_track = 0.0f;
+        ch.attack = 0.35f, ch.decay = 0.5f, ch.sustain = 0.9f, ch.release = 0.8f;
+        ch.vib_depth = 0.12f, ch.vib_rate = 5.2f, ch.vib_delay = 0.2f;
+        ch.gain = 1.6f; // featured, but under the kick: about -17 dBFS on its own in the choir drop
+        ch.mono = true;
         X.bright[ch_lead] = X.bright[ch_arp] = X.bright[ch_pad] = X.bright[ch_counter] = true;
         X.delay_rows = r_.chance(0.7f) ? 3.0f : 2.0f;
         X.delay_feedback = r_.range(0.3f, 0.45f);
@@ -1369,6 +1384,7 @@ private:
             case K::verse:
             case K::groove:
             case K::arp_solo:
+            case K::choir:
             case K::outro: p.prog = prog_a_, p.bars_per_chord = bpc_a_; break;
             case K::chorus:
             case K::drop: p.prog = prog_b_, p.bars_per_chord = bpc_b_; break;
@@ -1869,6 +1885,128 @@ private:
             pos += rate;
         }
         add(b0 + static_cast<uint32_t>(bars), 0, ch_fx, {dr_crash}, 16, 100);
+        std::copy(keep_voicing, keep_voicing + 4, last_voicing_);
+        voicing_n_ = keep_n;
+        jit_ = keep_jit;
+    }
+
+    // --- the choir block -----------------------------------------------------
+    // After the fourth reference (data/eclipse.mp3, 160 BPM): late in the
+    // track the kick turns to the off-beats ("mini drops"), then drops out
+    // but for pickups every two bars while the synth carries on alone; a
+    // choir comes in over the bare low end; a roll and a riser; then the
+    // choir drop with the kick back. Inserted before the last chorus /
+    // drop, from the arp devices' generator, like the arp solo, so the
+    // rest of the song is untouched. Not in calm songs.
+    void insert_choir() {
+        using K = section_kind;
+        static constexpr float p_choir[mood_count] = {0.0f, 0.25f, 0.3f, 0.3f, 0.4f};
+        const bool want = sr_.chance(p_choir[static_cast<int>(s_.m)]);
+        if(!want || s_.total_bars < 40) return;
+        std::size_t j = 0;
+        for(std::size_t i = plan_.size(); i-- > 2;) {
+            if(big(plan_[i].sec.kind)) {
+                j = i;
+                break;
+            }
+        }
+        if(j < 2) return;
+        plan_item& prev = plan_[j - 1];
+        if(prev.pivot_deg >= 0 || prev.shift != plan_[j].shift || prev.sec.kind == K::arp_solo || prev.orig_next != 255) return;
+        const int bars = war_ || s_.duration_seconds() > 300.0 ? 24 : 16;
+        if((s_.total_bars + static_cast<uint32_t>(bars)) * 240.0 / static_cast<double>(s_.bpm) > 598.0) return;
+        plan_item blk;
+        blk.sec = {K::choir, prev.sec.start_bar + prev.sec.bars, static_cast<uint32_t>(bars)};
+        blk.prog = plan_[j].prog; // the harmony of the drop it leads into
+        blk.bars_per_chord = 2;
+        blk.shift = prev.shift;
+        blk.downlift = prev.downlift;
+        blk.impact = prev.impact;
+        blk.out = tr_plain;
+        const int idx = ((bars - 1) / 2) % 4;
+        const int last = blk.prog->deg[idx];
+        blk.end_tonic = blk.prog->col[idx] != c_home || (!is_chord_tone(0, last) && !is_chord_tone(4, last) && !is_chord_tone(2, last));
+        prev.orig_next = static_cast<uint8_t>(plan_[j].sec.kind);
+        const std::string before = section_name(plan_[j].sec.kind);
+        plan_.insert(plan_.begin() + static_cast<std::ptrdiff_t>(j), blk);
+        for(std::size_t i = j + 1; i < plan_.size(); ++i) plan_[i].sec.start_bar += static_cast<uint32_t>(bars);
+        if(mod_shift_ && mod_bar_ >= plan_[j].sec.start_bar) mod_bar_ += static_cast<uint32_t>(bars);
+        if(solo_bar_ != ~0u && solo_bar_ >= plan_[j].sec.start_bar) solo_bar_ += static_cast<uint32_t>(bars);
+        s_.sections.clear();
+        for(plan_item const& it : plan_) s_.sections.push_back(it.sec);
+        s_.total_bars += static_cast<uint32_t>(bars);
+        transitions_ += (transitions_.empty() ? "" : "; ") + std::string("choir block before ") + before;
+    }
+
+    // A choir chord in its own register (the third and fifth on top), not
+    // touching the pads' voice leading.
+    void choir_chord(uint32_t bar, int row, int root, int len, int vel, note_fx fx = note_fx::none) {
+        int a = pitch(key_, root);
+        while(a < 55) a += 12;
+        while(a > 66) a -= 12;
+        int b = pitch(key_, root + 2);
+        while(b <= a) b += 12;
+        int c = pitch(key_, root + 4);
+        while(c <= b) c += 12;
+        add(bar, row, ch_choir, {a, b, c, a + 12}, len, vel, layer_always, fx);
+    }
+
+    void render_choir(std::size_t index) {
+        plan_item const& p = plan_[index];
+        rng* const keep_jit = jit_;
+        jit_ = &sr_;
+        swing_ = 0;
+        const int bars = static_cast<int>(p.sec.bars);
+        const uint32_t b0 = p.sec.start_bar;
+        // phases: mini drops, the synth alone, the choir enters, the choir drop
+        const int q = bars / 4;
+        const int p1 = q, p2 = 2 * q, p3 = bars - (bars >= 24 ? 8 : 4); // 16 bars: 4/4/4/4; 24 bars: 6/6/4/8
+        int keep_voicing[4];
+        std::copy(last_voicing_, last_voicing_ + 4, keep_voicing);
+        const int keep_n = voicing_n_;
+        for(int bi = 0; bi < bars; ++bi) {
+            const uint32_t bar = b0 + static_cast<uint32_t>(bi);
+            const int root = chord_at(p, bi);
+            const bool drop = bi >= p3;
+            const bool new_chord = bi == 0 || chord_id(p, bi - 1) != chord_id(p, bi);
+            // kick: off-beat 8ths (mini drops) -> out, a pickup every 2 bars -> four-on-the-floor in the drop
+            if(bi < p1) {
+                for(int row = 2; row < 16; row += 4) add(bar, row, ch_kick, {dr_kick}, 2, 112);
+            } else if(!drop) {
+                if(bi % 2 == 1 && bi != p3 - 1) for(int row = 12; row < 16; ++row) add(bar, row, ch_kick, {dr_kick}, 1, 84 + 8 * (row - 12));
+            } else {
+                for(int row = 0; row < 16; row += 4) add(bar, row, ch_kick, {dr_kick}, 2, 120);
+            }
+            // hats: thin while the kick is away, 16ths in the drop
+            for(int row = 0; row < 16; row += drop ? 1 : 2) add(bar, row, ch_hats, {row % 4 == 2 ? dr_hat_open : dr_hat_closed}, 1, drop ? (row % 4 == 2 ? 86 : 60) : 54);
+            if(drop || bi < p1) {
+                for(int row : {4, 12}) add(bar, row, ch_snare, {backbeat_}, 2, drop ? 112 : 96);
+            }
+            // bass: only with the kick (the choir enters over a bare low end)
+            if(drop || bi < p1) {
+                for(int row = 2; row < 16; row += 4) add(bar, row, ch_bass, {pitch(key_ - 12, root)}, 2, 106);
+            }
+            // the repeating synth: the arp's wide cells throughout
+            for(int row = 0; row < 16; ++row) {
+                int deg = wide_deg(p, bi, bi * 16 + row, bi);
+                int n = pitch(key_ + 12, deg);
+                while(n > 88) n -= 12;
+                add(bar, row, ch_arp, {n}, 1, (bi >= p1 && bi < p2 ? 96 : 76) + (row % 4 == 0 ? 8 : 0));
+            }
+            // the choir: swells in from the third phase, held chords, full in the drop
+            if(bi >= p2 && (new_chord || bi == p3)) {
+                int span = 1;
+                while(bi + span < bars && chord_id(p, bi + span) == chord_id(p, bi) && !(bi < p3 && bi + span == p3)) ++span;
+                choir_chord(bar, 0, root, span * 16 - 1, drop ? 118 : 92, bi == p2 ? note_fx::swell : note_fx::none);
+            }
+            if(drop && new_chord) emit_chord(bar, 0, root, 16 * std::max(1, std::min(2, bars - bi)) - 1, 60, layer_always);
+            // the build into the drop: a 16th snare roll and a riser
+            if(bi == p3 - 1) {
+                for(int row = 0; row < 16; ++row) add(bar, row, ch_snare, {dr_snare}, 1, 60 + 3 * row);
+                add(bar, 0, ch_fx, {dr_riser}, 16, 96);
+            }
+            if(bi == p3) add(bar, 0, ch_fx, {dr_crash}, 16, 110), add(bar, 0, ch_fx, {dr_impact}, 16, 104);
+        }
         std::copy(keep_voicing, keep_voicing + 4, last_voicing_);
         voicing_n_ = keep_n;
         jit_ = keep_jit;
@@ -2424,7 +2562,8 @@ private:
         const int under = arp_base_ >= key_ + 24 ? -12 : 0; // chorus arps sit under the lead
         switch(p.sec.kind) {
         case K::groove: break; // drums, bass and percussion only
-        case K::arp_solo: break; // rendered by render_arp_solo
+        case K::arp_solo: // rendered by render_arp_solo
+        case K::choir: break; // rendered by render_choir
         case K::intro:
             if(p.quiet) {
                 place_arp(p, 0, bars, 0, 52, layer_always, 0, true); // pads and a long arp, no drums

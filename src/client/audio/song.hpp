@@ -17,10 +17,11 @@ inline constexpr int mood_count = 5;
 [[nodiscard]] char const* mood_name(mood m) noexcept;
 [[nodiscard]] bool parse_mood(char const* text, mood& out) noexcept;
 
-inline constexpr int num_channels = 9;
+inline constexpr int num_channels = 10;
 // ch_counter: a second melodic voice (countermelody, guide tones, gated
 // supersaw stabs in wartime), so the lead is not the only moving part.
-enum channel : uint8_t { ch_kick, ch_snare, ch_hats, ch_bass, ch_lead, ch_arp, ch_pad, ch_fx, ch_counter };
+// ch_choir: a formant ("aah") choir for the choir block (after the eclipse reference).
+enum channel : uint8_t { ch_kick, ch_snare, ch_hats, ch_bass, ch_lead, ch_arp, ch_pad, ch_fx, ch_counter, ch_choir };
 [[nodiscard]] char const* channel_name(int ch) noexcept;
 
 inline constexpr int rows_per_beat = 4;   // 16th notes
@@ -70,6 +71,7 @@ struct patch {
     int unison = 0;          // extra detuned saws per note (0-4): supersaw (osc 1 must be a saw)
     float spread = 12.0f;    // unison detune, cents (outermost pair)
     bool poles4 = false;     // 24 dB/oct low-pass (two SVF stages) instead of 12 dB
+    uint8_t formant = 0;     // 0 off, 1 "aah", 2 "ooh": three fixed band-pass formants before the low-pass (a choir)
     float attack = 0.005f, decay = 0.2f, sustain = 0.7f, release = 0.15f; // seconds / level
     float cutoff = 4000.0f;  // Hz
     float resonance = 0.2f;  // 0..1
@@ -120,7 +122,8 @@ struct note_event {
 
 // groove: a percussion-heavy section (drums, bass, percussion; no chords or melody)
 // arp_solo: the arpeggio carries the melody (after the reference track's arp-led stretch)
-enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro, groove, arp_solo };
+// choir: the choir block (mini drops, the synth alone, the choir entering, the choir drop)
+enum class section_kind : uint8_t { intro, verse, chorus, bridge, breakdown, drop, outro, groove, arp_solo, choir };
 [[nodiscard]] char const* section_name(section_kind k) noexcept;
 
 struct section {

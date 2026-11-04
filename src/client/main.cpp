@@ -35,7 +35,7 @@ int usage() {
                "              [--clouds 0|1] [--hazard-demo 0|1] [--view political|climate|economy|trade|energy|epidemic|unrest]\n"
                "              [--politics ISO3|- [--politics-mode N]]\n"
                "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
-               "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx|counter]\n",
+               "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx|counter|choir]\n",
                stderr);
     return 2;
 }

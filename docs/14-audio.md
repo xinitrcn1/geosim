@@ -105,8 +105,9 @@ early-2000s amateur hardtrance at 138–148 BPM.
 
 ## Synthesis
 
-The tracker model has 9 channels: **kick, snare/clap, hats, bass, lead, arp,
-pad, fx, counter** (a second melodic voice). Each channel has one patch and
+The tracker model has 10 channels: **kick, snare/clap, hats, bass, lead,
+arp, pad, fx, counter** (a second melodic voice) and **choir** (used only
+by the choir block). Each channel has one patch and
 a pool of 6 voices.
 
 - **Tonal voices** aim at late-90s / early-2000s analogue-modelling synths
@@ -116,6 +117,12 @@ a pool of 6 voices.
   - **Unison** (`patch::unison`, 0–4): extra PolyBLEP saws per note spread
     over ±`spread` cents, i.e. a supersaw.
   - Gentle tanh saturation.
+  - **Formants** (`patch::formant`: 1 "aah", 2 "ooh"): three fixed
+    band-passes (Q about 3.5) at the vowel's formants, "aah" 750 / 1150 /
+    2600 Hz at levels 1 / 0.6 / 0.22, plus 30 % of the dry voice. They do
+    not follow the note, which is what makes a voice. The choir is unison
+    saws through them: 0.35 s attack, 0.8 s release, 0.12-semitone
+    vibrato, chorus 0.6, reverb 0.45, high-pass 180 Hz.
   - The filter: a TPT state-variable low-pass with resonance, its own
     envelope, key tracking and velocity. It is 12 dB, or **24 dB**
     (`poles4`: a plain first stage, then the resonant one), which every
@@ -895,6 +902,70 @@ What the composer took from it:
   - the arp's centroid follows the chords and peaks at 2.6 kHz near the
     end; at most 4 arp onsets per beat (16ths), the shortest gap 101 ms
     at 140 BPM.
+
+### The choir block, after the fourth reference (data/eclipse.mp3)
+
+The user: "at 3:11 it shows how to use the 'choir' instrument in absolute
+excellence. The general buildup and cadence as well are to follow; the
+repeating use of a synth since 1:18; 02:36 has the kick dynamically
+change rhythm to deliver 'mini drops', then letting the synth solo for a
+while, introducing a choir, and then dropping an absolute banger of a
+choir segment." Analysed only (160.1 BPM, bar 1.5 s), with the same
+tools as above plus a per-16th low-band onset map and 1/6-octave spectra:
+
+- **Bar 49 (1:12):** the full kick and bass arrive (low band +7 dB).
+- **From bar 52 (1:18):** a recurring mid-band synth figure.
+- **Bars 100–113:** shifting kick patterns.
+- **Bars 114–121:** the kick on the off-beat 8ths (the "mini drops").
+- **From bar 122:** no kick, only a pickup at the end of every second bar,
+  with the synth carrying the music and the hats thinned (air band −5 to
+  −10 dB).
+- **The choir segment** (about bars 154–167):
+  - the mid band rises 3–4 dB, and the band below 150 Hz is almost empty
+    (14–25 dB against 36–39 dB in the drop);
+  - the energy sits at 650–1250 Hz, with a step down of about 14 dB above
+    1.3 kHz: a vowel-like ("aah") shape;
+  - the choir sings the chord tones (Gm, B♭m, Fm).
+- **Bars 168–169:** a dense roll and a riser into the full drop at bar
+  170.
+
+What the composer took from it:
+
+- **Choir block** (`section_kind::choir`, 16 bars, or 24 in wartime and
+  long songs). It is inserted before the last chorus / drop in 25 % of
+  tense, 30 % of crisis and triumph, and 40 % of wartime songs; never in
+  calm, intermissions or into a key change. It uses the harmony of the
+  drop it leads into, 2 bars a chord. Its phases (16 bars: 4/4/4/4; 24
+  bars: 6/6/4/8):
+  - **mini drops:** the kick on the off-beat 8ths, with bass and backbeat;
+  - **the synth alone:** no kick but a 16th pickup at the end of every
+    second bar, no bass, thin hats, the arp's wide cells louder;
+  - **the choir enters:** held choir chords (root, third, fifth and the
+    octave, from G3–F#4 up) swelling in over the bare low end, then a
+    16th snare roll and a riser in the last bar;
+  - **the choir drop:** crash and impact, four-on-the-floor, off-beat
+    bass, 16th hats, the choir at full velocity over quiet pad chords.
+- Like the arp solo, it is planned after the arrangement from the arp
+  devices' own generator and renders with its own jitter, keeping the
+  voice leading, so the rest of a song is unchanged.
+- **Verification** (scores of 300 seeds × 5 moods; renders of seed 2327;
+  nothing was checked by listening):
+  - choir blocks: calm 0, tense 41, crisis 48, triumph 47, wartime 73 of
+    300; arp solos 45 / 89 / 80 / 98 / 128; the longest song 597 s;
+  - seed 2327 now runs intro 16, verse 16, chorus 8, arp solo 16,
+    breakdown 16, **choir 24**, drop 32, outro 8 (233 s). Outside the two
+    inserted blocks its events are those of 7aa4c09 plus the intro fixes
+    and the solo's exit crash; 2847 has neither block and is unchanged;
+  - the kick in 2327's block, from a kick-solo render: off-beat 8ths for
+    6 bars, then one pickup every 2 bars, then four-on-the-floor in the
+    drop;
+  - full mix: peak −0.85 dBFS, no clipping; RMS −14/−15 in the mini drops,
+    −17 to −23 while the synth is alone, −11/−12 in the choir drop (the
+    main drop −12);
+  - the choir alone: −15 to −18 dBFS in the drop. Its spectrum peaks at
+    755 Hz, with −3 to −10 dB across 450–1250 Hz and −16 to −23 dB above
+    1.3 kHz, close to the reference segment's shape (which also holds the
+    other instruments).
 
 ## Limitations and next steps
 
