@@ -8,63 +8,59 @@ target_include_directories(geosim_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(geosim_core PUBLIC cxx_std_20)
 geosim_target_defaults(geosim_core)
 
-# --- sim: simulation on the DCON container (headless, no rendering deps) -----
-if(GEOSIM_USE_DCON)
-    add_library(geosim_sim STATIC
-        sim/backtest.cpp
-        sim/fork.cpp
-        sim/ledger.cpp
-        sim/params.cpp
-        sim/report.cpp
-        sim/save.cpp
-        sim/scenario.cpp
-        sim/scenario_ext.cpp
-        sim/simulation.cpp
-        sim/systems/ai.cpp
-        sim/systems/assets.cpp
-        sim/systems/fiscal.cpp
-        sim/systems/institutions.cpp
-        sim/systems/labour.cpp
-        sim/systems/treaties.cpp
-        sim/systems/bonds.cpp
-        sim/systems/climate.cpp
-        sim/systems/commodities.cpp
-        sim/systems/credit.cpp
-        sim/systems/economy.cpp
-        sim/systems/epidemic.cpp
-        sim/systems/events.cpp
-        sim/systems/finance.cpp
-        sim/systems/firms.cpp
-        sim/systems/geopolitics.cpp
-        sim/systems/logistics.cpp
-        sim/systems/longcampaign.cpp
-        sim/systems/longrun.cpp
-        sim/systems/indicators.cpp
-        sim/systems/internet.cpp
-        sim/systems/markets.cpp
-        sim/systems/politics.cpp
-        sim/systems/policy.cpp
-        sim/systems/strategy.cpp
-        sim/systems/diplomacy.cpp
-        sim/systems/organisations.cpp
-        sim/systems/reforms.cpp
-        sim/systems/politics_ext.cpp
-        sim/systems/agreements.cpp
-        sim/systems/society.cpp)
-    target_link_libraries(geosim_sim PUBLIC geosim_core)
-    geosim_dcon_generate(geosim_sim ${PROJECT_SOURCE_DIR}/schema/geosim_dcon.txt)
-    geosim_target_defaults(geosim_sim)
+# --- sim: simulation on the DCON container (headless, no rendering deps; DCON is required) -----
+add_library(geosim_sim STATIC
+    sim/backtest.cpp
+    sim/fork.cpp
+    sim/ledger.cpp
+    sim/params.cpp
+    sim/report.cpp
+    sim/save.cpp
+    sim/world_io.cpp
+    sim/scenario.cpp
+    sim/scenario_ext.cpp
+    sim/simulation.cpp
+    sim/systems/ai.cpp
+    sim/systems/assets.cpp
+    sim/systems/fiscal.cpp
+    sim/systems/institutions.cpp
+    sim/systems/labour.cpp
+    sim/systems/treaties.cpp
+    sim/systems/bonds.cpp
+    sim/systems/climate.cpp
+    sim/systems/commodities.cpp
+    sim/systems/credit.cpp
+    sim/systems/economy.cpp
+    sim/systems/epidemic.cpp
+    sim/systems/events.cpp
+    sim/systems/finance.cpp
+    sim/systems/firms.cpp
+    sim/systems/geopolitics.cpp
+    sim/systems/logistics.cpp
+    sim/systems/longcampaign.cpp
+    sim/systems/longrun.cpp
+    sim/systems/indicators.cpp
+    sim/systems/internet.cpp
+    sim/systems/markets.cpp
+    sim/systems/politics.cpp
+    sim/systems/policy.cpp
+    sim/systems/strategy.cpp
+    sim/systems/diplomacy.cpp
+    sim/systems/organisations.cpp
+    sim/systems/reforms.cpp
+    sim/systems/politics_ext.cpp
+    sim/systems/agreements.cpp
+    sim/systems/society.cpp)
+target_link_libraries(geosim_sim PUBLIC geosim_core)
+geosim_dcon_generate(geosim_sim ${PROJECT_SOURCE_DIR}/schema/geosim_dcon.txt)
+geosim_target_defaults(geosim_sim)
 
-    add_executable(geosim_headless headless/main.cpp)
-    target_link_libraries(geosim_headless PRIVATE geosim_sim)
-    geosim_target_defaults(geosim_headless)
-endif()
+add_executable(geosim_headless headless/main.cpp)
+target_link_libraries(geosim_headless PRIVATE geosim_sim)
+geosim_target_defaults(geosim_headless)
 
 # --- client: SDL3 + Vulkan 1.3 + FreeType (docs/08-ui.md) ----------------------
 if(GEOSIM_BUILD_CLIENT)
-    if(NOT TARGET geosim_sim)
-        message(FATAL_ERROR "the client links geosim_sim: configure with -DGEOSIM_USE_DCON=ON")
-    endif()
 
     # GLSL -> SPIR-V at build time; each shader becomes a C header holding a
     # `uint32_t <name>[]` array (glslangValidator --vn), embedded in the binary.
@@ -133,3 +129,10 @@ if(GEOSIM_BUILD_CLIENT)
     # (the rest value-initialised), which -Wextra would flag on every struct.
     target_compile_options(geosim PRIVATE -Wno-missing-field-initializers)
 endif()
+
+# DCON's whole-container serialisation is a very large generated function set: no
+# debug info for it (it is never stepped through) cuts its compile time by ~15%.
+set_source_files_properties(sim/world_io.cpp PROPERTIES COMPILE_OPTIONS "-g0")
+# Every simulation file includes the generated container (game_state.hpp): parse it
+# once as a precompiled header instead of in each translation unit.
+target_precompile_headers(geosim_sim PRIVATE sim/game_state.hpp)

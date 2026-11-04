@@ -1,5 +1,7 @@
 #include "sim/save.hpp"
 
+#include "sim/world_io.hpp"
+
 #include "core/csv.hpp"
 #include "sim/scenario.hpp"
 
@@ -52,13 +54,10 @@ bool save_game(game_state const& state, std::string const& path, core::diagnosti
         put(out, value);
     });
 
-    const auto record = state.world.serialize_entire_container_record();
-    const uint64_t size = state.world.serialize_size(record);
-    put(out, size);
-    const std::size_t at = out.size();
-    out.resize(at + size);
-    std::byte* cursor = out.data() + at;
-    state.world.serialize(cursor, record);
+    std::vector<std::byte> world;
+    serialize_world(state.world, world);
+    put(out, static_cast<uint64_t>(world.size()));
+    out.insert(out.end(), world.begin(), world.end());
 
     std::ofstream f(path, std::ios::binary);
     if(!f) {
@@ -115,9 +114,10 @@ bool load_game(game_state& state, std::string const& path, core::diagnostics& di
     }
     const auto size = get<uint64_t>(in, end);
     if(!size || static_cast<uint64_t>(end - in) < *size) return truncated();
-    dcon::load_record loaded;
-    std::byte const* cursor = in;
-    state.world.deserialize(cursor, in + *size, loaded);
+    if(!deserialize_world(state.world, in, static_cast<std::size_t>(*size))) {
+        diag.fail(path + ": save file corrupt (container size mismatch)");
+        return false;
+    }
     rebuild_derived(state);
     return true;
 }

@@ -45,7 +45,7 @@ bool music_system::start(uint64_t seed, float volume) {
     }
     SDL_Log("music: audio driver %s", SDL_GetCurrentAudioDriver());
     quit_.store(false);
-    thread_ = std::thread([this] { worker(); });
+    thread_ = std::jthread([this] { worker(); });
     SDL_ResumeAudioStreamDevice(stream_);
     return true;
 }

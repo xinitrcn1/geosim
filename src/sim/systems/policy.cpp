@@ -94,7 +94,6 @@ void decide_policies(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     auto const& D = state.derived;
     const float rho = w.agent_get_rho_base(a);
     const auto lev = [&](lever l) { return static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(l)); };
-    const auto se = static_cast<uint8_t>(value_axis::self_expression);
     // The interior minister's party sets the order ideology of security levers,
     // relative to the 2019 government (status quo calibrated).
     const float tan = std::max(0.0f, -minister_position(state, n, portfolio::interior, value_axis::self_expression) - w.nation_get_gov_tan0(n));

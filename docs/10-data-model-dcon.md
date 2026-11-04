@@ -7,7 +7,7 @@ between objects, with automatic index maintenance). It also provides `ve`
 helpers for SIMD iteration and tagged serialisation.
 
 The real schema lives at `schema/geosim_dcon.txt`. The build
-(`cmake/Dcon.cmake`, enabled with `GEOSIM_USE_DCON=ON`) turns it into
+(`cmake/Dcon.cmake`, always part of the build) turns it into
 `geosim_dcon.hpp` + `geosim_dcon_ids.hpp`. This doc is the design reference;
 the syntax follows DataContainer's `file_format_documentation.md`. Note that
 the format has **no comment syntax**, so the design notes live here.

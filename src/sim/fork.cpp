@@ -4,6 +4,7 @@
 #include "sim/scenario.hpp"
 #include "sim/simulation.hpp"
 #include "sim/systems.hpp"
+#include "sim/world_io.hpp"
 
 #include <cstddef>
 #include <vector>
@@ -12,19 +13,14 @@ namespace geosim::sim {
 
 std::unique_ptr<game_state> copy_state(game_state const& state, core::diagnostics& diag) {
     auto out = std::make_unique<game_state>();
-    const auto record = state.world.serialize_entire_container_record();
-    const uint64_t size = state.world.serialize_size(record);
-    std::vector<std::byte> buffer(size);
-    std::byte* cursor = buffer.data();
-    state.world.serialize(cursor, record);
-    dcon::load_record loaded;
-    std::byte const* in = buffer.data();
-    out->world.deserialize(in, buffer.data() + size, loaded);
-    if(in != buffer.data() + size) {
+    std::vector<std::byte> buffer;
+    serialize_world(state.world, buffer);
+    if(!deserialize_world(out->world, buffer.data(), buffer.size())) {
         diag.fail("fork: state copy incomplete");
     }
     out->params = state.params;
     out->current_tick = state.current_tick;
+    out->epoch_days = state.epoch_days;
     out->rng_seed = state.rng_seed;
     rebuild_derived(*out);
     return out;
@@ -64,12 +60,10 @@ fork_job::fork_job(game_state const& state, int days, std::function<void(game_st
         copy_->params.ai_frozen = 1.0;
     }
     if(change) change(*copy_);
-    thread_ = std::thread([this, days] { run_copy(*copy_, days, result_); });
+    thread_ = std::jthread([this, days] { run_copy(*copy_, days, result_); });
 }
 
-fork_job::~fork_job() {
-    if(!joined_ && thread_.joinable()) thread_.join();
-}
+fork_job::~fork_job() = default; // std::jthread joins
 
 fork_result const& fork_job::wait() {
     if(!joined_ && thread_.joinable()) {

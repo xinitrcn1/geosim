@@ -109,7 +109,7 @@ private:
     bool has_nation_ = false;
     float unemployment0_ = 0, yield0_ = 0;
 
-    std::thread thread_;
+    std::jthread thread_; // joins on destruction
     std::mutex mutex_;
     std::condition_variable wake_;
     std::vector<std::function<void(game_state&)>> jobs_; // guarded by mutex_

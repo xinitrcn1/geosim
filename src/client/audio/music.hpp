@@ -55,7 +55,7 @@ private:
 
     SDL_AudioStream* stream_ = nullptr;
     std::unique_ptr<jukebox> box_; // audio thread only once started
-    std::thread thread_;
+    std::jthread thread_; // joins on destruction
     std::mutex mutex_;
     std::condition_variable wake_;
     std::atomic<bool> quit_{false};

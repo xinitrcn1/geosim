@@ -79,7 +79,7 @@ void sim_runner::start(std::string assets_dir, std::string scenario, std::string
     scenario_ = std::move(scenario);
     iso3_ = std::move(nation_iso3);
     flag_ = flag_for(iso3_);
-    thread_ = std::thread([this] { run(); });
+    thread_ = std::jthread([this] { run(); });
 }
 
 void sim_runner::stop() {

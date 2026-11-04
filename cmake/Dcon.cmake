@@ -52,8 +52,6 @@ endif()
 
 # CommonIncludes runtime (common_types.cpp + ve SIMD headers).
 #  - PREFER_ONE_TBB: use oneTBB instead of <ppl.h> (an MSVC-only header).
-#  - Pre-including <cmath>: upstream ve_sse3.hpp uses std::floorf/ceilf without
-#    including it, which fails on GCC/libstdc++.
 add_library(dcon_common STATIC ${dcon_SOURCE_DIR}/CommonIncludes/common_types.cpp)
 target_include_directories(dcon_common SYSTEM PUBLIC ${dcon_SOURCE_DIR}/CommonIncludes)
 target_compile_features(dcon_common PUBLIC cxx_std_20)
@@ -65,7 +63,7 @@ target_link_libraries(dcon_common PUBLIC TBB::tbb)
 # statements, unlike `fast`). That is deterministic for a given compiler and
 # flag set (docs/02-simulation-core.md#determinism).
 target_compile_options(dcon_common PUBLIC
-    "SHELL:-include cmath" -mavx2 -mfma -ffp-contract=on)
+    -mavx2 -mfma -ffp-contract=on)
 # Same exception / RTTI model as the engine (common_types.cpp is linked into it).
 target_compile_options(dcon_common PRIVATE ${GEOSIM_NO_EXCEPTIONS_RTTI})
 
@@ -90,5 +88,4 @@ function(geosim_dcon_generate target schema)
     add_dependencies(${target} ${target}_dcon)
     target_include_directories(${target} SYSTEM PUBLIC ${out_dir})
     target_link_libraries(${target} PUBLIC dcon_common)
-    target_compile_definitions(${target} PUBLIC GEOSIM_HAS_DCON=1)
 endfunction()

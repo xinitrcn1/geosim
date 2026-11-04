@@ -8,8 +8,7 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "GEOSIM_BUILD_CLIENT": "OFF",
-        "GEOSIM_USE_DCON": "ON"
+        "GEOSIM_BUILD_CLIENT": "OFF"
       }
     },
     {
@@ -18,8 +17,7 @@
       "binaryDir": "${sourceDir}/build/full",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "GEOSIM_BUILD_CLIENT": "ON",
-        "GEOSIM_USE_DCON": "ON"
+        "GEOSIM_BUILD_CLIENT": "ON"
       }
     }
   ],

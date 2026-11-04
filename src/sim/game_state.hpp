@@ -11,9 +11,9 @@
 #include "core/scheduler.hpp"
 #include "sim/params.hpp"
 
-#if !defined(GEOSIM_HAS_DCON)
-#error "game_state requires the generated DCON container (configure with -DGEOSIM_USE_DCON=ON)"
-#endif
+// <cmath> before the generated container: DCON's ve_sse3.hpp uses std::floorf and
+// std::ceilf without including it (upstream omission).
+#include <cmath>
 
 #include "geosim_dcon.hpp"
 

@@ -129,10 +129,10 @@ float org_vote(game_state& state, dcon::organisation_id o, dcon::nation_id spons
     }
     bool passed = false;
     switch(rule) {
-    case org_rule::majority: passed = members > 0 && yes >= w.organisation_get_threshold(o) * members; break;
+    case org_rule::majority: passed = members > 0 && static_cast<float>(yes) >= w.organisation_get_threshold(o) * static_cast<float>(members); break;
     case org_rule::veto: passed = !veto && yes >= w.organisation_get_votes_needed(o); break;
     case org_rule::qualified:
-        passed = members > 0 && yes >= w.organisation_get_threshold(o) * members && pop_all > 0.0
+        passed = members > 0 && static_cast<float>(yes) >= w.organisation_get_threshold(o) * static_cast<float>(members) && pop_all > 0.0
                  && pop_yes >= w.organisation_get_population_threshold(o) * pop_all;
         break;
     case org_rule::consensus: passed = !veto && members > 0; break;
@@ -365,7 +365,7 @@ void economic_union(game_state& state, dcon::organisation_id eu) {
         pop_all += v.get_population();
         pop_yes += aye ? v.get_population() : 0.0;
     }
-    const bool passed = yes >= w.organisation_get_threshold(eu) * members && pop_yes >= w.organisation_get_population_threshold(eu) * pop_all;
+    const bool passed = static_cast<float>(yes) >= w.organisation_get_threshold(eu) * static_cast<float>(members) && pop_yes >= w.organisation_get_population_threshold(eu) * pop_all;
     log_org(state, sponsor, {}, journal_eu_fund, static_cast<float>(-100.0 * gap / gdp), passed ? static_cast<float>(P.eu_fund_size) : 0.0f);
     if(!passed) return;
     const double fund = P.eu_fund_size * gdp;

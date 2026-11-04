@@ -93,7 +93,7 @@ float step_days(game_state const&, dcon::nation_id, bool probe) {
 }
 
 // ---------------------------------------------------------------- 1. nation pre-pass
-void nation_prepass(game_state& state, dcon::nation_id n, bool apply) {
+void nation_prepass(game_state& state, dcon::nation_id n) {
     auto& w = state.world;
     auto const& P = state.params;
     auto const& D = state.derived;
@@ -659,7 +659,7 @@ void update_economy(game_state& state, economy_mode mode) {
 
     // 1. nation pre-pass
     for(auto n : due_nations) {
-        nation_prepass(state, n, apply);
+        nation_prepass(state, n);
     }
 
     // 2. region capacity

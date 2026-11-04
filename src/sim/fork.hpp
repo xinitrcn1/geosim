@@ -55,7 +55,7 @@ public:
 private:
     std::unique_ptr<game_state> copy_;
     fork_result result_;
-    std::thread thread_;
+    std::jthread thread_; // joins on destruction
     bool joined_ = false;
 };
 

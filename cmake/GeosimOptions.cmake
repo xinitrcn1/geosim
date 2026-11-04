@@ -1,12 +1,11 @@
 # Build options and optional dependency discovery.
 #
-# The default configuration builds the headless simulation (DCON + oneTBB are
-# fetched at configure time if not installed). GEOSIM_USE_DCON=OFF builds only
-# the dependency-free core library and its tests.
+# The build always includes the headless simulation: DataContainer (DCON) and
+# oneTBB are required (fetched at configure time if not installed) - the schema
+# generator needs DCON anyway.
 
 option(GEOSIM_BUILD_TESTS  "Build ctest unit tests"                              ON)
 option(GEOSIM_BUILD_CLIENT "Build the SDL3/Vulkan/FreeType game client (HarfBuzz optional)" OFF)
-option(GEOSIM_USE_DCON     "Fetch DataContainer (+oneTBB) and build the simulation" ON)
 
 # Supported compilers: GCC and Clang. MSVC is not supported.
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -27,9 +26,6 @@ function(geosim_target_defaults target)
 endfunction()
 
 if(GEOSIM_BUILD_CLIENT)
-    if(NOT GEOSIM_USE_DCON)
-        message(FATAL_ERROR "GEOSIM_BUILD_CLIENT=ON needs GEOSIM_USE_DCON=ON (the client links the simulation)")
-    endif()
     find_package(SDL3 CONFIG REQUIRED)
     find_package(Vulkan REQUIRED COMPONENTS glslangValidator)
     find_package(Freetype REQUIRED)
@@ -55,6 +51,4 @@ if(GEOSIM_BUILD_CLIENT)
     endif()
 endif()
 
-if(GEOSIM_USE_DCON)
-    include(Dcon)
-endif()
+include(Dcon)

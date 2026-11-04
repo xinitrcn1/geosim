@@ -148,7 +148,6 @@ void update_firms(game_state& state) {
     auto& w = state.world;
     auto const& P = state.params;
     auto const& D = state.derived;
-    const auto tick = static_cast<tick_t>(state.current_tick);
     const uint8_t lh = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::hoarding));
     const uint8_t li = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::investment));
 
