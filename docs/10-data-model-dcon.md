@@ -14,36 +14,57 @@ the format has **no comment syntax**, so the design notes live here.
 
 ## Objects
 
-| Object | Approx. count | Key properties |
-|--------|---------------|----------------|
-| `nation` | ~200 | name key, currency, regime index vector, legitimacy, capture index, policy vectors, SFC sector balances (gov, CB, banks) |
-| `region` | ~4,000 | name key, area, centroid, terrain, infrastructure, housing price, epidemic compartments, PSI, unrest stage, LOD level, shard id |
-| `pop` | ~120,000 | size, class tier, skill, age band, income dist (μ, σ, α), wealth portfolio, employment vector, values (3 axes), identity shares, party affinity, expectations |
-| `sector` | ~40 | ISIC code, input coefficients `a[commodity]`, CES params |
-| `commodity` | ~60 (+ spare slots for tech tree) | unit, tradable flag, Armington σ, world price |
-| `production_unit` | ~160,000 (sector × region, sparse) | capital vintages, capacity, output, inventory, markup, employment by skill, TFP |
-| `market` | ~200 national + world | prices[commodity], supply/demand last period |
-| `party` | ~1,500 | position in value space, issue emphases, seats |
-| `agent` | ~5,000 | kind (exec / cabinet / party / CB / governor / court / lobby / military), utility weights, ρ_base, horizon, current intent, override state |
-| `policy` | ~200 kinds | parameter schema; per-nation values stored on `nation` as arrays |
-| `treaty` | dynamic | kind, terms vector, start tick, compliance |
-| `flow_tag` | dynamic (pooled) | cause kind (policy / decision / event / endogenous), source id, tick |
-| `event` | dynamic | kind, location, magnitude, tick |
+Every object and relationship in `schema/geosim_dcon.txt` today. Sizes are
+the schema's fixed container sizes (DCON aborts if one fills up,
+[09](09-engine-architecture.md#error-handling)).
+
+| Object | Size | Purpose and key properties |
+|--------|------|-----------------------------|
+| `nation` | 256 | everything national: population, 2019 macro state, regime indices (electoral, liberal, capture, state capacity), legitimacy, PSI, demand and prices, ledger flows (`flows[kind]`), bilateral arrays indexed by partner (trust, threat, trade share, sanctions, alliance, war, FTA, trade distance), FX, spreads, credit, bonds, assets, fiscal, internet controls, Overton window |
+| `region` | 4,096 | owner, location, area, urban share, capacity and output, epidemic compartments per pathogen × age group, hospital beds, grievance, unrest, protest participation, drive, sparks, fatigue, insurgency |
+| `pop` | 4,096 | kind (low / mid / high skill, retired) × identity group per region: size, employment, wages, incomes by source, consumption, deposits, values, salience, party support, grievance, income σ, informality, network, tax factor, pop CPI |
+| `sector` | 32 | role, labour share, oil and import intensity, final-demand shares, skill mix, NPI capacity loss, input-output coefficients, value-added share, critical-input flag, input inventory days, cyber exposure |
+| `npi_indicator` | 32 | one OxCGRT indicator: role, maximum level, transmission effect |
+| `pathogen` | 8 | SEIR parameters, severity, cross-immunity, vaccine timing and efficacy, emergent-template flag |
+| `climate` | 1 | world CO2, temperature, damage, emissions; also the world remittance index |
+| `commodity` | 8 | world commodity market (crude oil, gas, coal, grains, metals): price, stocks, supply, demand, elasticities, harvest shock, biofuel share, sector weights |
+| `social_group` | 512 | identity group of a nation: population share, education, informality, wage gap, unemployment, wealth, exclusion, network, immigrant flag, grievance, mobilisation |
+| `firm` | 1,024 | SME or large cohort of a nation × sector: capacity share, cash days, leverage, exit and entry, state ownership, board choices |
+| `sea_node` | 64 | port basin hub of the shipping network |
+| `chokepoint` | 32 | strait or canal: capacity, traffic, incident and drought hazards and state, queue, wait |
+| `sea_lane` | 256 | lane between two sea nodes: nautical miles, sailing days, optional chokepoint |
+| `shipping` | 1 | world container fleet: deployed, utilisation, spot and contract rates, order book |
+| `agent` | 2,048 | kind (executive, central bank, board, union federation, military), ρ, utility weights and ideals, override state, last pragmatic / ideological / prior / chosen value per lever |
+| `party` | 2,048 | key, position in value space, vote and seat share, government flag, family, Laver strategy and heading |
+| `decision` | 65,536 | journal entry: agent, target, tick, lever (or journal code), before / after, pragmatic, ideological, prior, mode |
+| `event` | 16,384 | scheduled scenario event: kind, target, tick, parameters, done flag |
+
+**Planned objects** (not in the schema yet): `production_unit` (sector ×
+region), `market`, `policy` (policy kinds), `treaty` (terms, start, compliance;
+today alliances and FTAs are nation arrays), `flow_tag` (per-flow cause tags,
+[02](02-simulation-core.md#accounting-core)).
 
 ## Relationships
 
-| Relationship | Links | Notes |
-|--------------|-------|-------|
-| `region_ownership` | region (unique) → nation (many) | sovereign control |
-| `region_control` | region × nation, share | occupation/front lines in conflict |
-| `region_adjacency` | region ↔ region, border length | from map pipeline |
-| `pop_location` | pop (unique) → region (many) | |
-| `unit_location` | production_unit (unique) → region (many); → sector (many) | |
-| `nation_relation` | nation × nation (ordered pair) | trust, dependence, threat, affinity, bilateral trade flows, tariffs |
-| `party_in_nation` | party (unique) → nation (many) | |
-| `agent_controls` | agent (unique) → nation / region / party | the agent's institutional seat |
-| `treaty_member` | treaty × nation | role, obligations |
-| `currency_area` | nation (unique) → nation (many, anchor) | eurozone, pegs |
+| Relationship | Links | Purpose |
+|--------------|-------|---------|
+| `region_ownership` | region (unique) → nation (many) | sovereign control of a region |
+| `pop_location` | pop (unique) → region (many) | where a pop lives |
+| `region_adjacency` | region ↔ region, weight | migration graph |
+| `region_claim` | region × nation, strength | territorial claims (war issue) |
+| `executive_seat` | agent (unique) ↔ nation (unique) | the executive agent of a nation |
+| `monetary_authority` | nation (unique) → agent (many) | central-bank agent of a nation (shared in currency unions) |
+| `currency_peg` | nation (unique) → nation (many, anchor) | pegged currencies |
+| `sovereignty` | nation (unique) → nation (many), autonomy | autonomous jurisdictions and their sovereign |
+| `party_membership` | party (unique) → nation (many) | the nation's party system |
+| `port_access` | nation × sea_node, share | where a nation's seaborne trade enters the network |
+| `littoral` | chokepoint × nation | nations whose wars or unrest can close a passage |
+
+**Planned relationships:** `region_control` (occupation shares on front
+lines), `unit_location` (production units), `nation_relation` (today the
+bilateral fields are partner-indexed arrays on `nation`), `treaty_member`,
+`agent_controls` (seats beyond executives and central banks: governors,
+parties, lobbies).
 
 ## Conventions
 
@@ -69,8 +90,11 @@ the format has **no comment syntax**, so the design notes live here.
   and is never committed. The schema is copied into the build tree before
   generation, because the generator writes its output next to its input.
 - **Storage types:** `contiguous` for fixed-population objects (nation,
-  region, sector, commodity), `erasable` for objects created and destroyed
-  during play (pop, through strata split/merge; treaty; flow_tag; event).
+  region, sector, commodity, social_group, firm, shipping network),
+  `erasable` for objects created or destroyed during play (pop, agent, party,
+  decision, event; later treaty and flow_tag).
+- **Tags:** today every object carries `tag{scenario}`; the `save` /
+  `derived` split above is the target.
 
 ## Schema sketch
 

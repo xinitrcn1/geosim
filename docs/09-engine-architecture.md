@@ -35,6 +35,16 @@ headless   CLI runner for CI, back-tests, benchmarks                      (deps:
 CI, back-tests ([11](11-data-calibration.md)) and counterfactual forks can
 run headless.
 
+**Implemented today** (`src/CMakeLists.txt`): `geosim_core` (calendar, CSV,
+defs, scheduler, RNG, diagnostics) and `geosim_sim`, which holds the DCON
+data, every system in `src/sim/systems/`, the ledger, scenario loading,
+saves, forks and back-tests. The AI is not a separate library yet: it lives
+in `src/sim/systems/ai.cpp`, with agent-specific choices in the systems that
+own the lever (credit, bonds, firms, labour, fiscal, institutions,
+geopolitics, treaties). Executables: `geosim_headless` and, with
+`GEOSIM_BUILD_CLIENT=ON`, the `geosim` client. The `data`, `save`, `ai`,
+`platform`, `render`, `text` and `ui` split above is the target.
+
 ## Threading
 
 ```
@@ -50,6 +60,9 @@ run headless.
  └────────────────────────┘
 ```
 
+- **Fork workers** are planned; today `run_fork` copies the state and runs
+  it at full detail in the calling thread
+  ([02](02-simulation-core.md#counterfactual-forks)).
 - The **sim thread** owns the `game_state` (and so `game_state::world`) exclusively.
 - **Snapshot:** after each tick, the sim writes the UI-relevant fields
   (per-region indicator vectors, selected entity details, alerts, journal
@@ -76,10 +89,11 @@ run headless.
 
 ```cpp
 struct game_state {
-    dcon::data_container world;   // all entity data: nations, regions, pops, ... (SoA)
-    sim::tick_t   current_tick;   // non-entity scalars are plain members
-    std::uint64_t rng_seed;
-    // ledgers, journal, scheduler bookkeeping, AI caches ...
+    dcon::data_container world;   // all entity data incl. ledger balances, flows, journal (SoA)
+    sim::params   params;         // global model parameters (assets/defs/parameters.txt)
+    int32_t       current_tick;   // days since 2020-01-01
+    uint64_t      rng_seed;       // Philox key
+    derived_indices derived;      // rebuilt after load, never saved
 };
 ```
 
@@ -92,6 +106,24 @@ struct game_state {
   the `game_state`) and tests (build a small `game_state`) straightforward,
   and keeps runs deterministic.
 - UI and render code never hold a `game_state`. They see only the snapshot.
+
+## Error handling
+
+- The engine builds with **`-fno-exceptions -fno-rtti`**, applied to every
+  geosim target by `geosim_target_defaults()` in
+  `cmake/GeosimOptions.cmake`. No `throw`, `try`, `dynamic_cast` or `typeid`.
+- **`core::diagnostics`** (`src/core/diagnostics.hpp`) is the error sink:
+  loaders take a `diagnostics&`, record the **first** error with its
+  `source:line`, and return a neutral value. Later errors are usually knock-on
+  effects, so only the first is kept ("sticky first error"). Callers check
+  `failed()` at stage boundaries and stop early. Forks report a failed state
+  copy the same way (`fork_result::error`).
+- **DCON** aborts when a fixed-size container is full: `DCON_USE_EXCEPTIONS`
+  is never defined. Schema sizes ([10](10-data-model-dcon.md)) must therefore
+  cover the full-world scenario. oneTBB's headers disable their exception
+  paths when `__cpp_exceptions` is off.
+- **`std::filesystem`** is used only through its `std::error_code` overloads
+  (e.g. `exists(path, ec)`), which never throw.
 
 ## Rendering
 
@@ -124,7 +156,7 @@ struct game_state {
 
 | Level | What | Where |
 |-------|------|-------|
-| Unit | scheduler maths, RNG, distribution maths (Gini from lognormal-Pareto), matching functions | `tests/` (ctest) |
+| Unit | scheduler maths, RNG, distribution maths (Gini from lognormal-Pareto), matching functions, per-system tests (credit, finance, firms, institutions, internet, logistics, politics, society groups, …) | `tests/` (ctest) |
 | Invariant | SFC zero-sum rows/columns, population conservation, determinism (run twice → identical hash) | `tests/` with small synthetic scenarios |
 | Stylised facts | Okun, Beveridge, Phillips emergence on a synthetic economy | ctest label `slow` |
 | Back-test | 2020–2025 against real data with tolerance bands | ctest label `backtest`, nightly |

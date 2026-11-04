@@ -26,19 +26,22 @@ assign each region a shard `region_id % K`, so every region is processed
 **exactly once per period** and the work per tick is ~1/K of the total.
 `tests/test_scheduler.cpp` checks this invariant.
 
-| Cadence | Systems |
+| Cadence | Systems (implemented) |
 |---------|---------|
-| Daily, unsharded | epidemics (SEIR), FX / sovereign spreads / commodity spot prices, diplomacy events, AI crisis reactions, command application |
-| Weekly, 7 shards | production, goods-market price adjustment, labor matching, consumption, firm finance |
-| "Month" = 28 days, 28 shards | fiscal accounts, migration, opinion dynamics, polling, AI strategic re-planning, credit cycle |
-| Quarter = 91 days, 91 shards | national accounts aggregation, trade-gravity rebalance, elections calendar checks |
-| Year = 364 days, 364 shards | demography (cohort ageing, fertility, mortality), TFP and technology diffusion, capital vintages, institutional drift, climate |
+| Daily, unsharded | scenario events, executive crisis reactions and central-bank meetings (`ai.cpp`), epidemics (SEIR per pathogen) and vaccination, logistics (chokepoints, routing, queues, ports, freight market), commodity markets (gas, coal, grains, metals) and the crude oil market, internet coupling and protest contagion, protest threshold cascade, indicators |
+| Weekly, 7 shards (by nation) | economy (demand, production network, prices, labour flows, incomes), firms (cash flow, exit, entry), executive lever choices |
+| "Month" = 28 days, 28 shards (by region or nation) | demography, migration, identity groups, opinion, social capital, unrest drive and PSI, politics (vote intention, elections, parties, Overton window), institutions (bills, confidence, courts, military), geopolitics (trust, threat, sanctions, war), treaties, finance (FX, spreads, default), credit, bonds, labour (wages, unions, minimum wage), fiscal (taxes, compliance, public investment), assets, long run (capital hysteresis, trend growth, climate), internet value diffusion and cyber operations |
+
+The scheduler (`src/core/scheduler.hpp`) also defines `quarterly` (91, 91)
+and `annual` (364, 364) cadences, but no system uses them yet: everything
+slow runs on the 28-day tier. A few 28-day systems also do a world-level
+step on ticks where `t % 28 == 0` (world trade shares, climate).
 
 All sim periods are whole numbers of weeks (7 / 28 / 91 / 364 days), so the
 cadences line up with each other. Calendar months and years are a
 **reporting** concern only: national accounts and the UI aggregate the
-daily-dated ledger flows into true calendar periods. Implemented in
-`src/sim/scheduler.hpp`.
+daily-dated ledger flows into true calendar periods. The day's system order
+is fixed in `src/sim/simulation.cpp` (`advance_day`).
 
 ### Consistency rules
 
@@ -53,24 +56,31 @@ daily-dated ledger flows into true calendar periods. Implemented in
   incrementally as shards commit, with a full recomputation each quarter to
   correct floating-point drift.
 
+Status: the stale-read rule holds as described. The pending flow buffer and
+the quarterly recomputation are not implemented yet; cross-entity money moves
+settle immediately through `sim::transfer` in index order (serial
+reductions), which keeps the ledger exact.
+
 ## Long-campaign detail extension
 
-Over decades the world changes in *structure*, not only in numbers:
+Over decades the world changes in *structure*, not only in numbers. Status
+per item: implemented items say so; the others are planned.
 
-- **Technology tree with diffusion.** New sectors and goods (e.g. EVs,
+- **Technology tree with diffusion** (not yet implemented). New sectors and goods (e.g. EVs,
   grid storage, AI services) enter at frontier economies and spread with
   lags following Comin & Hobijn (2010). A new good adds a column to the
   commodity arrays, which are pre-sized with spare slots (see
   [10](10-data-model-dcon.md)).
-- **Strata split and merge.** When the dispersion of a stratum along a tracked
+- **Strata split and merge** (not yet implemented; pops are a fixed
+  skill × identity-group grid per region, [04](04-society.md#pops)). When the dispersion of a stratum along a tracked
   dimension (sector, income) exceeds a threshold, it splits (e.g. a
   platform/gig worker stratum appears). Strata that converge merge. Sizes and
   balance sheets are conserved in both cases.
-- **Cohort memory.** Age bands carry history: unemployment at labor-market
-  entry leaves lasting wage scarring (Kahn 2010). Formative-years conditions
-  shape values (Inglehart).
-- **Climate.** An optional DICE-style damage function ([03](03-economy.md#growth--long-run)).
-- **Spatial LOD.** Regions that are quiet (small Δ on all tracked indicators)
+- **Cohort memory.** Implemented in part: workers entering the labour force
+  during high unemployment permanently lower their pop's wage level (scarring;
+  Kahn 2010). Formative-years effects on values (Inglehart) are planned.
+- **Climate.** Implemented: a DICE-lite carbon cycle and damage function ([03](03-economy.md#growth--long-run)).
+- **Spatial LOD** (not yet implemented). Regions that are quiet (small Δ on all tracked indicators)
   and far from the player's focus may drop from weekly to monthly cadence. The
   aggregation they use is conservation-safe. A region is promoted back
   immediately on an alert, an override touching it, or the player selecting it.
@@ -112,6 +122,12 @@ institutional sectors:
 | Central bank | per currency area |
 | Rest of world | per partner nation (via trade/finance flows) |
 
+**Implemented today** (`src/sim/ledger.hpp`): accounts per pop and, per
+nation, one each for firms, government, finance (banks and central bank
+together) and the rest of the world. Every payment is a `transfer` between two
+accounts, so world money is conserved exactly. The finer split above (firms
+per sector × region, sub-national budgets, a separate central bank) is planned.
+
 Invariants (asserted in debug builds and tested in ctest):
 
 1. Every flow has exactly one payer and one payee: rows and columns of the
@@ -119,20 +135,37 @@ Invariants (asserted in debug builds and tested in ctest):
 2. Every financial asset has a matching liability.
 3. Δ stocks = flows + revaluations over each period.
 
-Every flow carries a **cause tag** (`flow_tag` object; see
-[10](10-data-model-dcon.md)), which powers the "Why?" trace
-([01](01-gameplay-loop.md#51-the-why-trace-always-on-cheap)). Each flow stores
-the top 4 tag contributions plus a remainder.
+**Implemented today:** each nation keeps year-to-date nominal flows by kind
+(`nation.flows`, indexed by `enum class flow` in `src/sim/model.hpp`:
+consumption, wages, benefits, taxes, credit, tariffs, war spending, IMF
+lending, …), and AI decisions are journalled as `decision` objects with their
+pragmatic, ideological and prior components. Together these feed the "Why?"
+trace ([01](01-gameplay-loop.md#51-the-why-trace-always-on-cheap)).
+
+**Planned:** per-flow **cause tags** (`flow_tag` object; see
+[10](10-data-model-dcon.md)), each flow storing the top 4 tag contributions
+plus a remainder. Not yet implemented.
 
 ## Counterfactual forks
 
-- The whole `game_state` (including `world`, the DCON container) is copied to
-  a worker thread. DCON's flat SoA arrays make this a set of memcpys.
-- The fork runs at **reduced detail**: every system at monthly cadence,
-  strata aggregated to class tier, AI on cached strategic plans. The UI
-  labels it clearly as approximate.
-- Up to 2 forks at once. Results are kept as indicator time series, not as
-  full states.
+**Implemented** (`src/sim/fork.hpp`):
+
+- `copy_state` deep-copies the `game_state` through DCON's in-memory
+  serialisation (the same path as saves) plus the parameters, tick and seed,
+  then rebuilds derived indices. A fork is therefore bit-identical to a
+  save/load of the live state, which is never touched.
+- `run_fork(state, days, change)` applies a change to the copy (e.g. an
+  override), advances it day by day at **full detail** (the normal
+  `advance_day`), and returns per-nation indicator paths (GDP index,
+  unemployment, CPI, population-weighted unrest). Results are indicator time
+  series, not full states.
+
+**Planned, not yet implemented:**
+
+- Running forks on a worker thread (today `run_fork` runs synchronously in the
+  caller's thread), up to 2 at once.
+- **Reduced detail**: every system at monthly cadence, pops aggregated, AI on
+  cached plans, with the UI labelling the result as approximate.
 
 ## Performance budget
 
@@ -144,7 +177,7 @@ Target scale: ~4,000 regions, ~200 nations, ~120,000 pops (30 per region),
 | Daily systems | ≤ 2 ms |
 | Weekly (1/7 shard) | ≤ 4 ms |
 | Monthly (1/28 shard) | ≤ 1.5 ms |
-| Quarterly + annual shards | ≤ 1 ms |
+| Quarterly + annual shards (no systems yet) | ≤ 1 ms |
 | Snapshot publish | ≤ 0.5 ms |
 | **Total** | **≤ 9 ms → ~110 ticks/s → 1 year ≈ 3.3 s** |
 

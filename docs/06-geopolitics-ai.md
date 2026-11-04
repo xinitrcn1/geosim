@@ -5,8 +5,26 @@ held back by domestic politics, and weighing ideals against survival.
 
 ## Agent utility: pragmatism vs ideology
 
-Every agent `a` (head of state, party, central bank, …) scores candidate
-actions `x` with:
+**Implemented** (`src/sim/systems/ai.cpp`). Every lever of every agent
+(executive, central bank, board, union federation, military;
+[05](05-politics-institutions.md#agents-in-a-nation)) is chosen by
+maximising a quadratic utility
+
+```
+U(x) = −(1 − ρ)(x − P)² − ρ(x − I)² − κ(x − A)²
+```
+
+where `P` is a pragmatic target computed from the simulated situation, `I`
+the agent's ideological ideal and `A` the historical anchor (a dated
+real-world decision, present only when one exists and `historical_anchors` is
+on). The optimum is the precision-weighted mean, so the agent tracks history
+while the simulation tracks history and drifts toward `P` as they diverge.
+ρ falls under threat. Autonomous jurisdictions blend their choice with their
+sovereign's; central banks of pegged currencies follow the anchor. Player
+overrides (advise / direct / force) replace or bias the choice, and every
+decision is journalled with its `P`, `I` and `A` for the "Why?" panel.
+
+**Target form (planned).** Every agent `a` scores candidate actions `x` with:
 
 ```
 U_a(x) = (1 − ρ_a) · U_prag_a(x) + ρ_a · U_ideo_a(x) − C_a(x)
@@ -55,7 +73,10 @@ debt and alliances).
 
 ## Forecasting inside the AI
 
-Agents cannot run the full sim for each candidate action. They use:
+Implemented today: executives project the epidemic over a short horizon
+(`ai_horizon_days`) from detected cases and their growth; other pragmatic
+targets read the current simulated state. Planned: agents cannot run the full
+sim for each candidate action, so they will use:
 
 1. **Linearised response tables**: per-nation sensitivities (∂indicator/∂lever)
    estimated cheaply at runtime from recent sim history by rolling regression,
@@ -66,6 +87,14 @@ Agents cannot run the full sim for each candidate action. They use:
    society; Wintrobe 1998, the dictator's dilemma).
 
 ## Planning structure
+
+**Implemented:** no planner. Executives choose levers weekly (sharded by
+nation), central banks daily (emergency meetings happen), and the slower
+levers (credit, QE, tariffs, taxes, wages, defence, boards) on their systems'
+28-day or weekly cadences; sanctions, war and treaties are decided in
+`geopolitics.cpp` and `treaties.cpp`.
+
+**Planned (not yet implemented):** the HTN-style layers below.
 
 - **Strategic layer (monthly, sharded):** goal selection with an HTN-style
   decomposition. Example: `secure energy` → `diversify suppliers` →
@@ -87,31 +116,86 @@ Putnam (1988): every international agreement must win at two tables.
   agents, who vote with their own utilities. The **win-set** (deals that would
   ratify) is computed before offers, so executives with narrow win-sets can
   credibly demand more ("my parliament won't accept this").
+- **Implemented in part:** sanction escalations need legislative ratification
+  in competitive systems (`geopolitics.cpp`), and domestic bills face veto
+  players ([05](05-politics-institutions.md#legislation)). Level I bargaining
+  over deal vectors and win-set computation are planned.
 - When the player overrides *only* the executive, they still face Level II.
   Overriding parliament as well removes it, at a capture-index cost.
 
 ## Diplomacy
 
-**Relations matrix** per nation pair (asymmetric):
+**Relations** per nation pair (asymmetric, nation arrays indexed by the
+partner; `geopolitics.cpp`, 28 days):
 
-| Field | Driven by |
-|-------|-----------|
-| Trust | treaty compliance history, ideological distance, regime similarity |
-| Dependence | trade share, energy/commodity reliance, debt holdings, remittances |
-| Threat perception | relative power (CINC), proximity, past conflict, alliance alignment |
-| Affinity | identity ties (language, religion, diaspora), shared institutions |
+| Field | Driven by | Status |
+|-------|-----------|--------|
+| Trust | alliances, regime distance, sanctions, claims, war; cyber operations | implemented |
+| Trade share | gravity with sea-route distances and contiguity ([03](03-economy.md#trade)) | implemented |
+| Threat perception | partner's relative power (CINC-like GDP and population index) × proximity × distrust × claims (Waltz 1979; Jervis 1978) | implemented |
+| Sanctions, alliance, FTA, war | decisions below | implemented |
+| Dependence beyond trade (energy, debt holdings, remittances) | | planned |
+| Affinity (language, religion, diaspora) | | planned (a tie floor stands in for it in internet coupling) |
 
-**Instruments:** alliances (defensive, with credibility), trade agreements,
-sanctions (sectoral, financial, individual), aid (conditional/unconditional),
-loans and debt relief, arms transfers, recognition and UN votes, IMF/World Bank
-programmes (conditionality = imposed policy vectors), climate agreements,
-migration deals.
+**Implemented instruments:**
 
-**Systemic effects** implemented as conflict-propensity modifiers:
+- **Sanctions** per partner: pragmatic (security gain vs trade dependence),
+  ideological (regime distance), the status quo as anchor; escalations need
+  ratification. Tariff rises invite retaliatory sanction steps.
+- **Treaties** (`treaties.cpp`, 28 days), as relation flags rather than
+  treaty objects: **alliances** form against a shared threat between states
+  that trust each other and are not too far apart politically (balance of
+  threat; Walt 1987) and dissolve when trust collapses; **free-trade
+  agreements** form between interdependent, trusting, politically close
+  partners, their trade gain phasing in over a decade (Baier & Bergstrand
+  2007); **IMF programmes** start when a sovereign's spread blows out: the
+  Fund lends from the rest of the world, spreads fall (catalytic effect;
+  Corsetti, Guimaraes & Roubini 2006) and the executive must consolidate
+  (conditionality; Dreher 2006), for three years.
+
+**Planned:** treaty objects with terms vectors and compliance history
+(reputation costs; Tomz 2007), aid (conditional/unconditional), loans and debt
+relief, arms transfers, recognition and UN votes, World Bank programmes,
+climate agreements and migration deals.
+
+**Systemic effects** implemented as war-hazard modifiers:
 
 - Democratic peace (Russett 1993; Oneal & Russett 1999)
-- Commercial peace: interdependence lowers conflict
-- Alliance entrapment and security dilemmas (Jervis 1978)
+- Commercial peace: trade dependence lowers conflict
+- Alliances deter; alliance entrapment and security dilemmas (Jervis 1978)
+  enter through threat and trust
+
+## Information and the internet
+
+Implemented in `internet.cpp`. The internet is political infrastructure.
+
+- **Starting controls by one rule.** Every nation starts with the online
+  controls its society already lives with: the Freedom on the Net 2020 score
+  sets domestic **information control** and, above a threshold of unfreedom,
+  cross-border **filtering**, by the same rule for every nation. A "great
+  firewall" is just a high filtering level that a capable, order-minded state
+  can sustain.
+- **Levers.** `lever::info_control` (restrictions on online media and
+  messaging; an order-minded executive raises it when unrest climbs) and
+  `lever::net_filtering` (filtering of foreign services and content;
+  pragmatic against foreign protest contagion).
+- **Coupling** (daily) between two societies = connectivity × openness at both
+  ends × ties (trade, plus a floor for language, diaspora and media links).
+- **Protest contagion:** coupled foreign protest adds to the domestic protest
+  drive (Bamert, Gilardi & Wasserfallen 2015; Hussain & Howard 2013);
+  filtering cuts it ([04](04-society.md#protest-cascade)).
+- **Value diffusion** (28 days): pops move toward the publics they are coupled
+  to, within bounded confidence (Gleditsch & Ward 2006).
+- **Costs of filtering:** digitally delivered services trade falls with
+  filtering above the start (Freund & Weinhold 2004), and so does trend growth
+  (Czernich et al. 2011).
+- **Cyber operations** (28 days): capable states attack rivals below the
+  threshold of war (Valeriano & Maness 2015; Buchanan 2016). The hazard rises
+  with the attacker's capability (skills, state capacity, connectivity), the
+  pair's threat and distrust, and the target's exposure; filtering defends a
+  little. Effects are modest (Rid 2012; Gartzke 2013; Kostyuk & Zhukov 2019):
+  days of lost capacity in energy and business services, lower trust, and
+  influence operations that add to the target's protest drive.
 
 ## Conflict
 
@@ -122,20 +206,41 @@ a peaceful bargain always exists in theory. War breaks out only through:
    gap between perceived and true relative power (AI information quality).
 2. **Commitment problems.** Rapid shifts in relative power (a rising state, a
    closing window) make deals non-credible.
-3. **Issue indivisibility.** Some territorial and identity issues carry an
-   indivisibility weight in ideological utility.
+3. **Issue indivisibility.** Territorial claims (`region_claim`) carry an
+   indivisibility weight.
 
-**Power** is measured with a CINC-like index (Correlates of War: military
-spending and personnel, industry, energy use, population, urban population).
+**Implemented** (`geopolitics.cpp`, 28 days). War onset is a hazard drawn from
+the counter-based RNG, and it is **emergent from the economy**:
 
-**Combat is abstract**: front lines are region-level control shares, updated
-weekly by attrition (a Lanchester-style ratio of committed power, terrain and
-logistics). The point is the fallout: capital destruction, casualties,
-refugee flows, sanctions, commodity shocks, debt and changes in values. These
-are all visible through the normal filters.
+- **Rents:** the hazard rises with the target's resource rents (rapacity;
+  Collier & Hoeffler 2004; Dube & Vargas 2013).
+- **Diversion:** domestic strain raises it in regimes that face no election
+  (Levy 1989; Tir 2010).
+- **Power transition:** gaps in realised growth shift power (Organski &
+  Kugler 1980; Fearon's commitment problem).
+- **Commerce:** trade dependence lowers it (Oneal & Russett 1999).
 
-**Internal conflict** (insurgencies, civil wars) uses the same model, with the
-rebel side drawn from pops with high grievance and identity distance.
+**Military capability** is built on the economy: output, industry and a
+technology base for **precision strike and drones** (Horowitz 2010; Fuhrmann
+& Horowitz 2017). Precision strike raises the destruction an attacker
+inflicts and reaches energy infrastructure across the defender, not only the
+front, scaled by the attacker's edge (Calcara et al. 2022 caution that
+defences adapt). Wars cut trade, destroy capacity in claimed and capital
+regions, kill, close chokepoints whose littoral states fight, and end with a
+probability rising with their cost. Belligerents go on a **war footing**:
+military procurement from domestic manufacturing (`war_spending`, a share of
+GDP).
+
+**Insurgency** (civil war): sustained insurgency-level unrest can turn into
+armed rebellion where the state is weak, groups are excluded and the young
+lack jobs (Fearon & Laitin 2003; Cederman, Wimmer & Min 2010; Collier &
+Hoeffler 2004), with deaths and destruction in the region.
+
+**Planned:** a fuller CINC index (Correlates of War: military personnel,
+energy use, urban population); combat with region-level front lines and
+control shares updated weekly by attrition (a Lanchester-style ratio of
+committed power, terrain and logistics); refugee flows tied to fronts; rebel
+sides drawn from high-grievance pops as agents.
 
 ## Calibration of AI personalities (2020 start)
 

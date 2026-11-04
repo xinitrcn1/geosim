@@ -1,9 +1,11 @@
 // Institutions (docs/05-politics-institutions.md): legislatures, veto players,
 // confidence votes, courts and the military.
 //
-// Legislation. Levers set by law (fiscal packages, taxes, tariffs, the minimum
-// wage, public investment, defence, internet laws) go through the legislature as
-// bills. Each party's seats support a bill if it governs (discipline) or if the
+// Legislation. Levers set by law (household taxes, tariffs, the minimum wage,
+// public investment, defence, cross-border internet filtering) go through the
+// legislature as bills. Fiscal crisis packages and emergency measures (NPIs,
+// domestic information control) are executive decisions here: in 2020 they are
+// anchored on what was decided, and emergency powers bypassed legislatures. Each party's seats support a bill if it governs (discipline) or if the
 // bill moves policy toward the party's position in value space; a salient threat
 // adds cross-party support (crisis legislation). Passing needs a majority plus a
 // premium for every veto point (bicameralism, presidential veto, federalism;

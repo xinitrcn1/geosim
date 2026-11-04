@@ -270,7 +270,9 @@ void decide_tariff(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     // Tariffs are set by trade law: they move slowly (a tenth of the gap per week).
     float choice = before + (raw - before) * 0.1f;
     if(w.agent_get_override_mode(a, lev) != 0) choice = w.agent_get_override_value(a, lev);
-    choice = std::clamp(choice, 0.0f, 1.0f);
+    // Tariff changes are legislated (bills; institutions.cpp): nationalist moves shift policy
+    // toward the traditional / survival end of the self-expression axis.
+    choice = std::clamp(enact(state, n, lev, before, choice, value_axis::self_expression, -1.0f, false), 0.0f, 1.0f);
     w.agent_set_last_pragmatic(a, lev, pragmatic);
     w.agent_set_last_ideological(a, lev, ideal);
     w.agent_set_last_ai_choice(a, lev, raw);

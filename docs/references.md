@@ -121,3 +121,203 @@ Grouped by the doc that uses them. Each entry notes what we take from it.
 - Robinson, S., Cattaneo, A. & El-Said, M. (2001). Updating and estimating a social accounting matrix using cross entropy methods. *Economic Systems Research* 13(1).
 - Wenz, L. et al. (2023). DOSE – Global data set of reported sub-national economic output. *Scientific Data* 10.
 - Kummu, M., Taka, M. & Guillaume, J. (2018). Gridded global datasets for GDP and HDI over 1990–2015. *Scientific Data* 5.
+
+## Logistics and transport ([03](03-economy.md#logistics-and-transport))
+
+- Stopford, M. (2009). *Maritime Economics* (3rd ed.). Routledge. — Freight-rate supply curve, fleet utilisation, blank sailings.
+- Kalouptsidi, M. (2014). Time to build and fluctuations in bulk shipping. *AER* 104(2). — Newbuild delivery lags.
+- Kingman, J. F. C. (1961). The single server queue in heavy traffic. *Math. Proc. Cambridge Phil. Soc.* 57(4). — Port waiting time ~ ρ/(1−ρ).
+- Merk, O. (2015). *The Impact of Mega-Ships.* OECD International Transport Forum. — Vessel size and canal / port risk.
+- Hummels, D. (2007). Transportation costs and international trade in the second era of globalization. *JEP* 21(3). — Ad-valorem freight costs.
+- Hummels, D. & Schaur, G. (2013). Time as a trade barrier. *AER* 103(7). — Value of transit days.
+- Djankov, S., Freund, C. & Pham, C. (2010). Trading on time. *REStat* 92(1). — ~1% trade per day of delay.
+- Feyrer, J. (2021). Distance, trade, and income — the 1967 to 1975 closing of the Suez Canal as a natural experiment. *J. Development Economics* 153. — Sea distance and trade.
+- Simonovska, I. & Waugh, M. (2014). The elasticity of trade: estimates and evidence. *JIE* 92(1). — Trade elasticity ~4.
+- Carrière-Swallow, Y., Deb, P., Furceri, D., Jiménez, D. & Ostry, J. (2023). Shipping costs and inflation. *J. International Money and Finance* 130. — Freight-cost pass-through to prices.
+- Notteboom, T., Pallis, T. & Rodrigue, J.-P. (2021). Disruptions and resilience in global container shipping and ports: the COVID-19 pandemic versus the 2008–2009 financial crisis. *Maritime Economics & Logistics* 23. — 2020 blank sailings, port disruption.
+- UNCTAD (2020, 2021). *Review of Maritime Transport.* — Port throughput, container imbalances, 2020–21 rate surge.
+
+## Production network and firms ([03](03-economy.md#production))
+
+- Miller, R. & Blair, P. (2009). *Input–Output Analysis* (2nd ed.). Cambridge UP.
+- Pichler, A., Pangallo, M., del Rio-Chanona, R. M., Lafond, F. & Farmer, J. D. (2022). Forecasting the propagation of pandemic shocks with a dynamic input–output model. *JEDC* 144. — Inventories, critical inputs, rationing.
+- Acemoglu, D., Carvalho, V., Ozdaglar, A. & Tahbaz-Salehi, A. (2012). The network origins of aggregate fluctuations. *Econometrica* 80(5).
+- Delli Gatti, D., Di Guilmi, C., Gaffeo, E., Giulioni, G., Gallegati, M. & Palestrini, A. (2005). A new approach to business fluctuations: heterogeneous interacting agents, scaling laws and financial fragility. *JEBO* 56(4). — Bankruptcy from fragility.
+- Gourinchas, P.-O., Kalemli-Özcan, Ş., Penciakova, V. & Sander, N. (2020). COVID-19 and SME failures. NBER WP 27877. — Failure rates with and without support.
+- JPMorgan Chase Institute (2016). *Cash is King: Flows, Balances, and Buffer Days.* — SMEs hold ~27 cash buffer days.
+- Caballero, R. & Hammour, M. (1994). The cleansing effect of recessions. *AER* 84(5). — Reallocation to survivors.
+- Hall, P. & Soskice, D. (eds.) (2001). *Varieties of Capitalism.* Oxford UP. — Coordinated vs liberal market economies.
+- Hall, P. & Gingerich, D. (2009). Varieties of capitalism and institutional complementarities in the political economy. *BJPolS* 39(3). — Coordination index.
+- Schneider, B. R. (2009). Hierarchical market economies and varieties of capitalism in Latin America. *J. Latin American Studies* 41(3).
+- Shleifer, A. & Vishny, R. (1994). Politicians and firms. *QJE* 109(4). — State ownership and employment goals.
+- Lazonick, W. & O'Sullivan, M. (2000). Maximizing shareholder value: a new ideology for corporate governance. *Economy and Society* 29(1).
+- Melitz, M. (2003). The impact of trade on intra-industry reallocations and aggregate industry productivity. *Econometrica* 71(6). — Limited export participation.
+
+## Trade policy ([03](03-economy.md#trade))
+
+- Bown, C. & Crowley, M. (2013). Import protection, business cycles, and exchange rates. *JIE* 90(1). — Countercyclical protection.
+- Amiti, M., Redding, S. & Weinstein, D. (2019). The impact of the 2018 tariffs on prices and welfare. *JEP* 33(4). — Full pass-through.
+- Fajgelbaum, P., Goldberg, P., Kennedy, P. & Khandelwal, A. (2020). The return to protectionism. *QJE* 135(1).
+- Colantone, I. & Stanig, P. (2018). The trade origins of economic nationalism. *AJPS* 62(4).
+- Rodrik, D. (2018). Populism and the economics of globalization. *J. International Business Policy* 1.
+- Baier, S. & Bergstrand, J. (2007). Do free trade agreements actually increase members' international trade? *JIE* 71(1).
+
+## Commodities ([03](03-economy.md#prices))
+
+- Working, H. (1949). The theory of price of storage. *AER* 39(6).
+- Deaton, A. & Laroque, G. (1992). On the behaviour of commodity prices. *REStud* 59(1).
+- Roberts, M. & Schlenker, W. (2013). Identifying supply and demand elasticities of agricultural commodities. *AER* 103(6).
+- Labandeira, X., Labeaga, J. & López-Otero, X. (2017). A meta-analysis on the price elasticity of energy demand. *Energy Policy* 102.
+- Anand, R., Prasad, E. & Zhang, B. (2015). What measure of inflation should a developing country central bank target? *JME* 74. — Food weights in CPI.
+
+## Credit, banks, bonds ([03](03-economy.md#money-banking-and-finance))
+
+- Bernanke, B. & Gertler, M. (1995). Inside the black box: the credit channel of monetary policy transmission. *JEP* 9(4).
+- Biggs, M., Mayer, T. & Pick, A. (2010). Credit and economic recovery: demystifying phoenix miracles. DNB WP 218. — Credit impulse.
+- Lown, C. & Morgan, D. (2006). The credit cycle and the business cycle: new findings using the loan officer opinion survey. *JMCB* 38(6).
+- Li, L., Strahan, P. & Zhang, S. (2020). Banks as lenders of first resort: evidence from the COVID-19 crisis. *Review of Corporate Finance Studies* 9(3). — Credit-line draws.
+- Peek, J. & Rosengren, E. (1995). The capital crunch: neither a borrower nor a lender be. *JMCB* 27(3).
+- Jiménez, G., Ongena, S., Peydró, J.-L. & Saurina, J. (2012). Credit supply and monetary policy: identifying the bank balance-sheet channel with loan applications. *AER* 102(5).
+- Mian, A. & Sufi, A. (2014). *House of Debt.* Chicago UP. — Deleveraging.
+- Schularick, M. & Taylor, A. (2012). Credit booms gone bust. *AER* 102(2).
+- Nkusu, M. (2011). Nonperforming loans and macrofinancial vulnerabilities in advanced economies. IMF WP 11/161.
+- Basel Committee on Banking Supervision (2020). Measures to reflect the impact of Covid-19. — Forbearance.
+- La Porta, R., López-de-Silanes, F. & Shleifer, A. (2002). Government ownership of banks. *J. Finance* 57(1).
+- Sapienza, P. (2004). The effects of government ownership on bank lending. *JFE* 72(2).
+- Dinç, I. S. (2005). Politicians and banks: political influences on government-owned banks in emerging markets. *JFE* 77(2).
+- Bircan, Ç. & Saka, O. (2021). Lending cycles and real outcomes: costs of political misalignment. *Economic Journal* 131(639). — Turkish state banks.
+- Céspedes, L. F., Chang, R. & Velasco, A. (2004). Balance sheets and exchange rate policy. *AER* 94(4).
+- Ize, A. & Levy Yeyati, E. (2003). Financial dollarization. *JIE* 59(2).
+- Taylor, J. (2000). Low inflation, pass-through, and the pricing power of firms. *EER* 44(7).
+- Alesina, A. & Summers, L. (1993). Central bank independence and macroeconomic performance. *JMCB* 25(2).
+- Garriga, A. C. (2016). Central bank independence in the world: a new data set. *International Interactions* 42(5).
+- Romelli, D. (2022). The political economy of reforms in central bank design: evidence from a new dataset. *Economic Policy* 37(112).
+- Dreher, A., Sturm, J.-E. & de Haan, J. (2008). Does high inflation cause central bankers to lose their job? *EJPE* 24(4).
+- Binder, C. (2021). Political pressure on central banks. *JMCB* 53(4).
+- Campbell, J. & Shiller, R. (1991). Yield spreads and interest rate movements: a bird's eye view. *REStud* 58(3).
+- Gagnon, J., Raskin, M., Remache, J. & Sack, B. (2011). The financial market effects of the Federal Reserve's large-scale asset purchases. *IJCB* 7(1).
+- Altavilla, C., Carboni, G. & Motto, R. (2015). Asset purchase programmes and financial markets: lessons from the euro area. ECB WP 1864.
+- Beber, A., Brandt, M. & Kavajecz, K. (2009). Flight-to-quality or flight-to-liquidity? Evidence from the euro-area bond market. *RFS* 22(3).
+- Rey, H. (2013). Dilemma not trilemma: the global financial cycle and monetary policy independence. Jackson Hole Symposium.
+- Obstfeld, M. (2015). Trilemmas and trade-offs: living with financial globalisation. BIS WP 480.
+- Arslanalp, S. & Tsuda, T. (2014). Tracking global demand for emerging market sovereign debt. IMF WP 14/39.
+- Corsetti, G., Guimarães, B. & Roubini, N. (2006). International lending of last resort and moral hazard. *JME* 53(3). — IMF catalytic effect.
+- Dreher, A. (2006). IMF and economic growth: the effects of programs, loans, and compliance with conditionality. *World Development* 34(5).
+
+## Assets ([03](03-economy.md#money-banking-and-finance))
+
+- Poterba, J. (1984). Tax subsidies to owner-occupied housing: an asset-market approach. *QJE* 99(4). — User cost.
+- Himmelberg, C., Mayer, C. & Sinai, T. (2005). Assessing high house prices: bubbles, fundamentals and misperceptions. *JEP* 19(4).
+- Favara, G. & Imbs, J. (2015). Credit supply and the price of housing. *AER* 105(3).
+- Mian, A., Rao, K. & Sufi, A. (2013). Household balance sheets, consumption, and the economic slump. *QJE* 128(4). — Housing wealth MPC.
+- Case, K., Quigley, J. & Shiller, R. (2005). Comparing wealth effects: the stock market versus the housing market. *Advances in Macroeconomics* 5(1).
+
+## Labour and fiscal ([03](03-economy.md#labor-market), [03](03-economy.md#fiscal))
+
+- Blanchflower, D. & Oswald, A. (1994). *The Wage Curve.* MIT Press.
+- Dickens, W. et al. (2007). How wages change: micro evidence from the International Wage Flexibility Project. *JEP* 21(2). — Downward nominal rigidity.
+- Lichter, A., Peichl, A. & Siegloch, S. (2015). The own-wage elasticity of labor demand: a meta-regression analysis. *EER* 80.
+- Cengiz, D., Dube, A., Lindner, A. & Zipperer, B. (2019). The effect of minimum wages on low-wage jobs. *QJE* 134(3).
+- Heathcote, J., Storesletten, K. & Violante, G. (2017). Optimal tax progressivity: an analytical framework. *QJE* 132(4).
+- Holter, H., Krueger, D. & Stepanchuk, S. (2019). How do tax progressivity and household heterogeneity affect Laffer curves? *Quantitative Economics* 10(4).
+- Allingham, M. & Sandmo, A. (1972). Income tax evasion: a theoretical analysis. *J. Public Economics* 1(3-4).
+- Levi, M. (1988). *Of Rule and Revenue.* UC Press. — Quasi-voluntary compliance.
+- Slemrod, J. (2007). Cheating ourselves: the economics of tax evasion. *JEP* 21(1).
+- Bom, P. & Ligthart, J. (2014). What have we learned from three decades of research on the productivity of public capital? *J. Economic Surveys* 28(5).
+
+## Identity groups, collective action ([04](04-society.md))
+
+- Stewart, F. (ed.) (2008). *Horizontal Inequalities and Conflict.* Palgrave Macmillan.
+- Cederman, L.-E., Wimmer, A. & Min, B. (2010). Why do ethnic groups rebel? New data and analysis. *World Politics* 62(1).
+- Cederman, L.-E., Weidmann, N. & Gleditsch, K. S. (2011). Horizontal inequalities and ethnonationalist civil war: a global comparison. *APSR* 105(3).
+- Vogt, M. et al. (2015). Integrating data on ethnicity, geography, and conflict: the Ethnic Power Relations data set family. *JCR* 59(7).
+- Munshi, K. & Rosenzweig, M. (2016). Networks and misallocation: insurance, migration, and the rural-urban wage gap. *AER* 106(1).
+- Munshi, K. (2019). Caste and the Indian economy. *JEL* 57(4).
+- Thorat, S. & Newman, K. (eds.) (2010). *Blocked by Caste.* Oxford UP.
+- Deshpande, A. (2011). *The Grammar of Caste.* Oxford UP.
+- Deshpande, A. & Ramachandran, R. (2020). Is COVID-19 "the great leveler"? The critical role of social identity in lockdown-induced job losses. GLO DP 622.
+- Chan, K. W. (2010). The household registration system and migrant labor in China. *Population and Development Review* 36(2).
+- Meng, X. & Zhang, J. (2001). The two-tier labor market in urban China. *J. Comparative Economics* 29(3).
+- Urdal, H. (2006). A clash of generations? Youth bulges and political violence. *ISQ* 50(3).
+- Granovetter, M. (1978). Threshold models of collective behavior. *AJS* 83(6).
+- Kuran, T. (1991). Now out of never: the element of surprise in the East European revolution of 1989. *World Politics* 44(1).
+- Kuran, T. (1995). *Private Truths, Public Lies.* Harvard UP.
+- Chenoweth, E. & Stephan, M. (2011). *Why Civil Resistance Works.* Columbia UP.
+- Tarrow, S. (1998). *Power in Movement* (2nd ed.). Cambridge UP. — Cycles of contention.
+- Steinert-Threlkeld, Z. (2017). Spontaneous collective action: peripheral mobilization during the Arab Spring. *APSR* 111(2).
+- Enikolopov, R., Makarin, A. & Petrova, M. (2020). Social media and protest participation: evidence from Russia. *Econometrica* 88(4).
+- Hobbs, W. & Roberts, M. (2018). How sudden censorship can increase access to information. *APSR* 112(3).
+- Hassanpour, N. (2014). Media disruption and revolutionary unrest: evidence from Mubarak's quasi-experiment. *Political Communication* 31(1).
+- Hirschman, A. (1970). *Exit, Voice, and Loyalty.* Harvard UP.
+- Raphael, S. & Winter-Ebmer, R. (2001). Identifying the effect of unemployment on crime. *J. Law and Economics* 44(1).
+- Bargain, O. & Aminjonov, U. (2020). Trust and compliance to public health policies in times of COVID-19. *J. Public Economics* 192.
+- Kearney, M. & Levine, P. (2020). Half a million fewer children? The coming COVID baby bust. Brookings Institution. — Recession baby busts.
+- Kahn, L. (2010) — see Economy. Cohort scarring.
+- Marani, M., Katul, G., Pan, W. & Parolari, A. (2021). Intensity and frequency of extreme novel epidemics. *PNAS* 118(35).
+- Wouters, O. et al. (2021). Challenges in ensuring global access to COVID-19 vaccines. *Lancet* 397. — Rich-first allocation.
+- Samuelson, W. & Zeckhauser, R. (1988). Status quo bias in decision making. *J. Risk and Uncertainty* 1.
+
+## Parties, Overton window, institutions ([05](05-politics-institutions.md))
+
+- Laver, M. (2005). Policy and the dynamics of political competition. *APSR* 99(2).
+- Laver, M. & Sergenti, E. (2011). *Party Competition: An Agent-Based Model.* Princeton UP.
+- Kollman, K., Miller, J. & Page, S. (1992). Adaptive parties in spatial elections. *APSR* 86(4).
+- Adams, J., Clark, M., Ezrow, L. & Glasgow, G. (2006). Are niche parties fundamentally different from mainstream parties? *AJPS* 50(3).
+- Meguid, B. (2005). Competition between unequals: the role of mainstream party strategy in niche party success. *APSR* 99(3).
+- de Vries, C. & Hobolt, S. (2020). *Political Entrepreneurs: The Rise of Challenger Parties in Europe.* Princeton UP.
+- Bursztyn, L., Egorov, G. & Fiorin, S. (2020). From extreme to mainstream: the erosion of social norms. *AER* 110(11). — Window normalisation.
+- Noelle-Neumann, E. (1974). The spiral of silence: a theory of public opinion. *J. Communication* 24(2).
+- Wlezien, C. (1995). The public as thermostat: dynamics of preferences for spending. *AJPS* 39(4).
+- Soroka, S. & Wlezien, C. (2010). *Degrees of Democracy.* Cambridge UP.
+- Mueller, J. (1970). Presidential popularity from Truman to Johnson. *APSR* 64(1). — Rally round the flag.
+- Bol, D., Giani, M., Blais, A. & Loewen, P. (2021). The effect of COVID-19 lockdowns on political support. *EJPR* 60(2).
+- Jolly, S. et al. (2022). Chapel Hill Expert Survey trend file, 1999–2019. *Electoral Studies* 75.
+- Norris, P. (2020). *Global Party Survey 2019.* Harvard Dataverse.
+- Lührmann, A. et al. (2020). *Varieties of Party Identity and Organization (V-Party) Dataset V1.* V-Dem Institute.
+- Döring, H. & Manow, P. *ParlGov.* — Election results.
+- Henisz, W. (2000). The institutional environment for economic growth. *Economics & Politics* 12(1). — POLCON.
+- Powell, J. (2012). Determinants of the attempting and outcome of coups d'état. *JCR* 56(6).
+- Svolik, M. (2012). *The Politics of Authoritarian Rule.* Cambridge UP.
+- Davenport, C. (2007) — see Society.
+
+## Internet, cyber, war economics ([06](06-geopolitics-ai.md))
+
+- Freedom House (2020). *Freedom on the Net 2020.* — Starting online controls.
+- Deibert, R., Palfrey, J., Rohozinski, R. & Zittrain, J. (eds.) (2008). *Access Denied.* MIT Press.
+- Roberts, M. (2018). *Censored: Distraction and Diversion Inside China's Great Firewall.* Princeton UP.
+- King, G., Pan, J. & Roberts, M. (2013). How censorship in China allows government criticism but silences collective expression. *APSR* 107(2).
+- Rød, E. G. & Weidmann, N. (2015). Empowering activists or autocrats? The Internet in authoritarian regimes. *J. Peace Research* 52(3).
+- Gohdes, A. (2020). Repression technology: internet accessibility and state violence. *AJPS* 64(3).
+- Gleditsch, K. S. & Ward, M. (2006). Diffusion and the international context of democratization. *International Organization* 60(4).
+- Bamert, J., Gilardi, F. & Wasserfallen, F. (2015). Learning and the diffusion of regime contention in the Arab Spring. *Research & Politics* 2(3).
+- Hussain, M. & Howard, P. (2013). *Democracy's Fourth Wave? Digital Media and the Arab Spring.* Oxford UP.
+- Freund, C. & Weinhold, D. (2004). The effect of the Internet on international trade. *JIE* 62(1).
+- Czernich, N., Falck, O., Kretschmer, T. & Woessmann, L. (2011). Broadband infrastructure and economic growth. *Economic Journal* 121(552).
+- Valeriano, B. & Maness, R. (2015). *Cyber War versus Cyber Realities.* Oxford UP.
+- Buchanan, B. (2016). *The Cybersecurity Dilemma.* Oxford UP.
+- Rid, T. (2012). Cyber war will not take place. *J. Strategic Studies* 35(1).
+- Gartzke, E. (2013). The myth of cyberwar. *International Security* 38(2).
+- Kostyuk, N. & Zhukov, Y. (2019). Invisible digital front: can cyber attacks shape battlefield events? *JCR* 63(2).
+- Collier, P. & Hoeffler, A. (2004). Greed and grievance in civil war. *Oxford Economic Papers* 56(4).
+- Dube, O. & Vargas, J. (2013). Commodity price shocks and civil conflict: evidence from Colombia. *REStud* 80(4).
+- Levy, J. (1989). The diversionary theory of war: a critique. In Midlarsky (ed.), *Handbook of War Studies.*
+- Tir, J. (2010). Territorial diversion: diversionary theory of war and territorial conflict. *J. Politics* 72(2).
+- Organski, A. F. K. & Kugler, J. (1980). *The War Ledger.* Chicago UP.
+- Fearon, J. & Laitin, D. (2003). Ethnicity, insurgency, and civil war. *APSR* 97(1).
+- Horowitz, M. (2010). *The Diffusion of Military Power.* Princeton UP.
+- Fuhrmann, M. & Horowitz, M. (2017). Droning on: explaining the proliferation of unmanned aerial vehicles. *International Organization* 71(2).
+- Calcara, A., Gilli, A., Gilli, M., Marchetti, R. & Zaccagnini, I. (2022). Why drones have not revolutionized war: the enduring hider-finder competition in air warfare. *International Security* 46(4).
+- Walt, S. (1987). *The Origins of Alliances.* Cornell UP.
+
+## Data for the calibration slice ([11](11-data-calibration.md))
+
+- UNCTAD (2020). *Review of Maritime Transport 2020*; Lloyd's List (2020) *One Hundred Ports.* — Port throughput.
+- BP (2020). *Statistical Review of World Energy*; FAOSTAT; USGS (2020) *Mineral Commodity Summaries.* — Commodity shares.
+- IMF Financial Soundness Indicators; World Bank Global Financial Development Database; World Bank Bank Regulation and Supervision Survey (2019). — NPLs, capital, state banks.
+- OECD (2020). *Sovereign Borrowing Outlook*; IMF *Fiscal Monitor* (2020). — Maturities, interest bills.
+- OECD / AIAS ICTWSS database; ILOSTAT. — Union density, bargaining coverage.
+- OECD (2017). *The Size and Sectoral Distribution of State-Owned Enterprises.*
+- World Values Survey wave 7 / European Values Study 2017–2020. — Generalised trust.
+- Transparency International (2019). *Corruption Perceptions Index*; DataReportal (2020) *Digital 2020*; UN DESA (2019) *International Migrant Stock*; UN (2019) *World Population Prospects.*
+- SIPRI Military Expenditure Database; WTO / WITS applied tariffs.
+- Census and survey sources for identity groups are listed in `assets/scenario/2020/groups_curated.csv`.

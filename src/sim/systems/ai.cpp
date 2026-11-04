@@ -311,7 +311,9 @@ void decide_net_filtering(game_state& state, dcon::agent_id a, dcon::nation_id n
     const float ideal = base + std::clamp(static_cast<float>(P.net_filter_gain) * threat * (1.0f + 3.0f * w.agent_get_order_ideal(a)), 0.0f, 1.0f) * room;
     auto r = blend(pragmatic, ideal, w.agent_get_rho_base(a), false, 0.0f, 0.0f, 0.0f, ceiling);
     const float before = w.nation_get_net_filtering(n);
-    const float after = std::clamp(settle(state, a, lev, r, 0.0f, ceiling), 0.0f, 1.0f);
+    // Internet filtering is set by law (a bill where legislatures compete).
+    const float after = std::clamp(enact(state, n, lev, before, settle(state, a, lev, r, 0.0f, ceiling), value_axis::self_expression, -0.5f, false),
+                                   0.0f, 1.0f);
     w.nation_set_net_filtering(n, after);
     journal(state, a, n, lev, before, after, r, 0.1f);
 }

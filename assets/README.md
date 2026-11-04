@@ -11,10 +11,24 @@ assets/
     parameters.txt               every global parameter (name{value} # description)
     sectors.txt                  production sectors
     npi.txt                      non-pharmaceutical interventions (OxCGRT indicators)
+    sectors.txt                  sectors incl. input-output coefficients, critical inputs, input stocks
+    pathogens.txt                pathogens incl. vaccines and emergent templates
+    sea_lanes.txt                shipping network: sea nodes, lanes, chokepoints (hazards, littoral states)
+    commodities.txt              non-oil commodity markets (gas, coal, grains, metals)
   scenario/2020/
     nations.csv                  macro state per nation, 2019 data (generated)
     sectors.csv                  value-added / employment shares per nation x sector (generated)
     nations_curated.csv          hand-written per-nation values and gap fills (sources in header)
+    finance_curated.csv          banking, credit, bonds, CPI basket, coordination, tariffs, unions, taxes
+    society_curated.csv          youth, social media, corruption, emigration, net freedom, trust
+    groups_curated.csv           identity groups (caste, race, hukou, migrant status)
+    parties_curated.csv          party systems (expert-survey positions, last election, cabinet)
+    politics_curated.csv         electoral systems, calendars, veto players, defence spending
+    ports_curated.csv            sea nodes of each nation's ports (shares)
+    logistics_curated.csv        port throughput, seaborne share of trade
+    overland_curated.csv         overland share of bilateral trade (contiguity)
+    commodities_curated.csv      commodity production / consumption shares
+    Every *_curated table is optional: nations without rows use documented defaults.
   events/2020/                   dated events; every *.txt file is loaded, in name order
     npi.txt                      lockdown level changes (generated, OxCGRT)
     policy_rates.txt             central-bank rate changes (generated, BIS)
@@ -25,6 +39,7 @@ assets/
     2020_targets.csv             real 2020 outcomes (generated)
     2020_brent.csv               daily Brent 2020 (generated)
     2020_tolerances.txt          tolerance bands (hand-written)
+    2020_targets_curated.csv     hand-written targets: 10-year yields, credit growth
 ```
 
 **Generated** files are written by `tools/pipeline/build_assets.py` from raw

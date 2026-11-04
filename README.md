@@ -7,6 +7,9 @@ Modern geopolitical simulator focused on the socioeconomic consequences of your 
 The design lives in [`docs/`](docs/README.md). Start with the
 [gameplay loop](docs/01-gameplay-loop.md).
 
+The engine builds with `-fno-exceptions -fno-rtti`; errors are reported through
+`core::diagnostics` (docs/09).
+
 ## Build
 
 Requirements: GCC or Clang (C++20), CMake >= 3.25, an AVX2+FMA CPU, and network
@@ -28,6 +31,10 @@ B=build/dev/src/geosim_headless
 $B backtest --assets assets --scenario 2020                 # compare with real 2020
 $B run --assets assets --scenario 2020 --daily out.csv      # daily indicators per nation
 $B run --assets assets --scenario 2020 --flows USA          # the "Why?" flow ledger
+$B run --assets assets --scenario 2020 --groups IND         # identity groups (caste, income, grievance)
+$B run --assets assets --scenario 2020 --logistics 1        # chokepoints, queues, container freight
+$B run --assets assets --scenario 2020 --no-events 1        # no-shock baseline (steady-state check)
+$B run --assets assets --scenario 2020 --set historical_anchors=0   # the AI alone
 $B build --assets assets --scenario 2020 --out s2020.bin    # assets -> DCON binary
 $B run --load s2020.bin --days 90 --save day90.bin
 ```
