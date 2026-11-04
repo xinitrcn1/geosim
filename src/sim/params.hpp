@@ -109,6 +109,20 @@
     X(force_legitimacy_cost, 0.1, "legitimacy lost per year per forced lever")                            \
     X(force_liberal_cost, 0.05, "liberal-index loss per year per forced lever")                           \
     X(coup_rate, 0.02, "monthly coup probability per unrest level above 2 (when conditions hold)")       \
+    X(party_speed, 0.15, "distance an adaptive party moves in value space per year (Laver & Sergenti 2011)") \
+    X(window_base, 0.25, "half-width of the Overton window at zero polarisation (value-axis units)")   \
+    X(window_polarisation, 1.0, "extra half-width per unit standard deviation of public values")        \
+    X(window_media, 0.1, "extra half-width at full social-media connectivity (fragmented attention)")   \
+    X(window_years, 3.0, "adjustment time of the window centre toward public opinion (years)")         \
+    X(window_normalisation, 0.15, "annual pull of the window toward the governing party's position (Bursztyn et al. 2020)") \
+    X(window_stigma, 3.0, "vote utility lost per squared distance of a party outside the window")       \
+    X(overton_legitimacy, 0.3, "legitimacy target lost per unit of policy outside the window")          \
+    X(overton_backlash, 0.5, "protest drive per unit of liberty-restricting policy outside the window")  \
+    X(overton_rally, 0.6, "shift of the acceptable range toward restriction at full perceived threat (rally; Bol et al. 2021)") \
+    X(thermostat, 0.05, "annual opinion shift against the direction of economic policy (Wlezien 1995)") \
+    X(party_entry_distance, 0.5, "distance to the nearest party beyond which a voter is unrepresented")  \
+    X(party_entry_share, 0.15, "unrepresented share of voters at which a challenger party forms")      \
+    X(party_exit_months, 24.0, "months below 1% of the vote after which a party dissolves")            \
     X(selectorate_firm_tilt, 0.3, "extra fiscal share to firms as the winning coalition shrinks")        \
     /* ---- geopolitics ---- */                                                                             \
     X(trust_years, 2.0, "adjustment time of bilateral trust (years)")                                     \
@@ -270,6 +284,29 @@
     X(censor_backfire, 0.8, "drive from a sudden information-control rise x connectivity x youth (Hobbs & Roberts 2018)") \
     X(censor_trigger, 1.5, "unrest level at which an order-minded executive restricts media")           \
     X(strike_capacity, 0.03, "regional capacity lost per unrest level above 2")                           \
+    /* ---- internet and cyber (systems/internet.cpp) ---- */                                               \
+    X(net_control_scale, 0.8, "starting domestic information control per unit (1 - net freedom)")       \
+    X(net_filter_threshold, 0.4, "lack of net freedom above which cross-border filtering starts")        \
+    X(net_diffusion, 0.3, "annual value convergence toward coupled foreign publics (Gleditsch & Ward 2006)") \
+    X(net_contagion, 0.6, "protest drive per unit coupled foreign protest participation (share of x_max)") \
+    X(net_tie_floor, 0.02, "minimum tie between two societies (language, diaspora, media) besides trade") \
+    X(net_digital_trade, 0.3, "share of services exports and imports delivered online")                 \
+    X(net_growth_cost, 0.005, "trend-growth loss per unit filtering above the start (Czernich et al. 2011)") \
+    X(net_filter_gain, 0.8, "pragmatic filtering per unit foreign protest contagion")                   \
+    X(cyber_rate, 1.0, "annual cyber-operation hazard scale for a capable, threatened, distrustful pair") \
+    X(cyber_damage_mean, 0.01, "mean capacity loss of critical sectors from a cyber operation")         \
+    X(cyber_days, 20.0, "recovery time of cyber damage (days)")                                         \
+    X(cyber_influence, 0.05, "protest drive from an influence operation (decays with cyber_days)")      \
+    /* ---- war economics (systems/geopolitics.cpp) ---- */                                                 \
+    X(war_rents, 2.0, "war-onset hazard increase per unit resource rents / GDP of the target (Collier & Hoeffler 2004)") \
+    X(war_diversion, 0.5, "hazard increase per unrest level above 1 in a non-electoral regime (Levy 1989)") \
+    X(war_transition, 5.0, "hazard increase per unit gap in realised growth (power transition; Organski & Kugler 1980)") \
+    X(war_spending, 0.05, "military procurement during war, share of GDP per year")                     \
+    X(drone_strike, 0.5, "extra destruction from precision strike (drones, missiles) per unit technology") \
+    X(drone_infrastructure, 0.02, "annual energy-infrastructure destruction across the defender per unit attacker strike technology") \
+    X(insurgency_days, 60.0, "days at insurgency-level unrest before an insurgency can start")         \
+    X(insurgency_rate, 0.5, "annual insurgency onset hazard at full exclusion and no state capacity (Fearon & Laitin 2003)") \
+    X(insurgency_end_rate, 0.3, "annual hazard that an insurgency ends at full state capacity")         \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

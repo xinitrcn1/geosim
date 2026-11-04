@@ -107,9 +107,10 @@ void nation_prepass(game_state& state, dcon::nation_id n, bool apply) {
             cut += w.sector_get_npi_capacity(sid, k) * npi_fraction(state, n, k) * reach;
         }
         w.nation_set_npi_cut(n, s, std::min(0.95f, cut * (1.0f - adaptation)));
-        // Supply-chain shortages now act through input stocks in the production
-        // network (nation_pass), not as a fixed capacity factor.
-        w.nation_set_sector_factor(n, s, 1.0f);
+        // Supply-chain shortages act through input stocks in the production network
+        // (nation_pass). Cyber operations cut energy and business-services capacity
+        // (critical infrastructure, IT systems; internet.cpp).
+        w.nation_set_sector_factor(n, s, 1.0f - w.sector_get_cyber_exposure(sid) * w.nation_get_cyber_damage(n));
     }
 }
 
@@ -288,8 +289,12 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
     const float log_e = std::log(std::max(0.05f, w.nation_get_exchange_rate(n)));
     // Freight costs and delays are a trade cost on the goods share of exports (logistics.cpp).
     const float trade_cost = apply ? 1.0f - w.nation_get_goods_export_share(n) * (1.0f - w.nation_get_trade_cost_factor(n)) : 1.0f;
+    // Filtering above the start cuts digitally delivered services trade (Freund & Weinhold 2004).
+    const float digital = apply ? 1.0f - (1.0f - w.nation_get_goods_export_share(n)) * static_cast<float>(P.net_digital_trade)
+                                             * std::max(0.0f, w.nation_get_net_filtering(n) - w.nation_get_net_filtering0(n))
+                                : 1.0f;
     const float x_real = w.nation_get_x0(n) * gf * (apply ? trade_access(state, n) / access0 : 1.0f)
-                         * std::exp(-static_cast<float>(P.fx_export_elasticity) * log_e) * trade_cost;
+                         * std::exp(-static_cast<float>(P.fx_export_elasticity) * log_e) * trade_cost * digital;
     const float tourism = apply ? travel_index(state, n) : 1.0f;
 
     std::array<float, max_sectors> hh{};
@@ -312,8 +317,11 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
             blocked_contact += (dem[s] - out[s]) * hh[s] / dem[s];
         }
     }
+    // War: military procurement from domestic manufacturing, paid by the government.
+    const float war_g = apply ? static_cast<float>(P.war_spending) * w.nation_get_war_effort(n) * w.nation_get_gdp0_daily(n) * gf : 0.0f;
     if(D.manufacturing_sector) {
         const auto ms = static_cast<uint8_t>(D.manufacturing_sector.index());
+        dem[ms] += war_g * (1.0f - m_share);
         const float redirect = static_cast<float>(P.substitution) * blocked_contact;
         hh[ms] += redirect;
         dem[ms] += redirect;
@@ -485,6 +493,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         const double ddt = dt;
         transfer(state, gov, firms, gov_purchases * ddt, flow::gov_purchases);
         transfer(state, gov, firms, fiscal_firms, flow::fiscal_firms);
+        transfer(state, gov, firms, static_cast<double>(war_g) * p * ddt, flow::war_spending);
         transfer(state, row, firms, static_cast<double>(x_real) * p * ddt, flow::exports);
         transfer(state, firms, row, static_cast<double>(imports) * p * ddt, flow::imports);
         transfer(state, firms, gov, indirect * ddt, flow::tax_indirect);
@@ -504,7 +513,7 @@ void nation_pass(game_state& state, dcon::nation_id n, float dt, bool apply) {
         }
         w.nation_set_consumption(n, c_eff);
         w.nation_set_investment(n, i_real);
-        w.nation_set_gov_spend(n, g_real);
+        w.nation_set_gov_spend(n, g_real + war_g);
         w.nation_set_exports(n, x_real);
         w.nation_set_imports(n, imports);
         w.nation_set_gdp_real(n, gdp);

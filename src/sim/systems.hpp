@@ -64,6 +64,10 @@ void update_bonds(game_state& state);
 [[nodiscard]] float lending_rate(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float expected_short_rate(game_state const& state, dcon::nation_id n);
 
+// Daily: internet coupling, protest contagion; monthly: value diffusion and cyber
+// operations (docs/06-geopolitics-ai.md#information-and-the-internet).
+void update_internet(game_state& state);
+
 // Every 28 days (sharded): identity groups - horizontal inequality, network
 // insurance (docs/04-society.md#identity-groups). Daily: protest cascades.
 void update_groups(game_state& state);

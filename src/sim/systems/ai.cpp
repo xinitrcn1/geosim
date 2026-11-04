@@ -279,14 +279,40 @@ void decide_info_control(game_state& state, dcon::agent_id a, dcon::nation_id n)
         pop += own.get_region().get_population();
     }
     unrest = pop > 0.0f ? unrest / pop : 0.0f;
-    const float ceiling = std::clamp(1.0f - w.nation_get_media_freedom(n), 0.0f, 1.0f);
+    // The status quo (starting controls) is the reference; the ceiling is set by media freedom.
+    const float base = w.nation_get_info_control0(n);
+    const float ceiling = std::max(base, std::clamp(1.0f - w.nation_get_media_freedom(n), 0.0f, 1.0f));
     const float pressure = std::clamp((unrest - static_cast<float>(P.censor_trigger)) / 2.0f, 0.0f, 1.0f);
-    const float pragmatic = 0.3f * pressure * ceiling;
-    const float ideal = std::clamp(pressure * (0.5f + 2.0f * w.agent_get_order_ideal(a)) + 0.5f * w.agent_get_order_ideal(a) * ceiling, 0.0f, 1.0f) * ceiling;
+    const float room = ceiling - base;
+    const float pragmatic = base + 0.3f * pressure * room;
+    const float ideal = base + std::clamp(pressure * (0.5f + 2.0f * w.agent_get_order_ideal(a)), 0.0f, 1.0f) * room;
     auto r = blend(pragmatic, ideal, w.agent_get_rho(a), false, 0.0f, 0.0f, 0.0f, ceiling);
     const float before = w.nation_get_info_control(n);
     const float after = std::clamp(settle(state, a, lev, r, 0.0f, ceiling), 0.0f, 1.0f);
     w.nation_set_info_control(n, after);
+    journal(state, a, n, lev, before, after, r, 0.1f);
+}
+
+// Cross-border filtering of the internet (0..1). Pragmatic: more filtering when
+// foreign protest contagion and influence operations threaten the regime;
+// ideological: order-minded rulers filter more. The technical ceiling needs state
+// capacity and a muzzled press (Deibert et al. 2008; Roberts 2018; Rod & Weidmann
+// 2015). Starting levels are the status quo.
+void decide_net_filtering(game_state& state, dcon::agent_id a, dcon::nation_id n) {
+    auto& w = state.world;
+    auto const& P = state.params;
+    auto const& D = state.derived;
+    const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::net_filtering));
+    const float base = w.nation_get_net_filtering0(n);
+    const float ceiling = std::max(base, std::clamp(1.5f * w.nation_get_state_capacity(n) * (1.0f - w.nation_get_media_freedom(n)), 0.0f, 1.0f));
+    const float threat = w.nation_get_net_contagion(n) + w.nation_get_influence_ops(n);
+    const float room = ceiling - base;
+    const float pragmatic = base + std::clamp(static_cast<float>(P.net_filter_gain) * threat, 0.0f, 1.0f) * room;
+    const float ideal = base + std::clamp(static_cast<float>(P.net_filter_gain) * threat * (1.0f + 3.0f * w.agent_get_order_ideal(a)), 0.0f, 1.0f) * room;
+    auto r = blend(pragmatic, ideal, w.agent_get_rho_base(a), false, 0.0f, 0.0f, 0.0f, ceiling);
+    const float before = w.nation_get_net_filtering(n);
+    const float after = std::clamp(settle(state, a, lev, r, 0.0f, ceiling), 0.0f, 1.0f);
+    w.nation_set_net_filtering(n, after);
     journal(state, a, n, lev, before, after, r, 0.1f);
 }
 
@@ -471,6 +497,7 @@ void update_ai(game_state& state) {
             decide_fiscal(state, a, n);
             decide_job_retention(state, a, n);
             decide_directed_credit(state, a, n);
+            decide_net_filtering(state, a, n);
         }
     }
     for(auto bank : w.in_agent) {

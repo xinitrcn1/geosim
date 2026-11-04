@@ -414,9 +414,13 @@ void update_opinion(game_state& state) {
             const float survival = -static_cast<float>(P.values_insecurity_pull) * insecurity * years;
             w.pop_set_values(p, static_cast<uint8_t>(value_axis::self_expression),
                              std::clamp(w.pop_get_values(p, static_cast<uint8_t>(value_axis::self_expression)) + survival, -1.0f, 1.0f));
-            w.pop_set_values(p, static_cast<uint8_t>(value_axis::economic_right),
-                             std::clamp(w.pop_get_values(p, static_cast<uint8_t>(value_axis::economic_right))
-                                            - static_cast<float>(P.values_loss_left) * w.pop_get_grievance(p) * years, -1.0f, 1.0f));
+            // Losers move left (demand for redistribution); the public as a thermostat moves
+            // against the direction of economic policy (Wlezien 1995).
+            const uint8_t er = static_cast<uint8_t>(value_axis::economic_right);
+            const float thermo = static_cast<float>(P.thermostat) * (n.get_window_center(er) - n.get_policy_position(er));
+            w.pop_set_values(p, er,
+                             std::clamp(w.pop_get_values(p, er) - static_cast<float>(P.values_loss_left) * w.pop_get_grievance(p) * years
+                                            + thermo * years, -1.0f, 1.0f));
             // Salience of issues.
             std::array<float, static_cast<std::size_t>(issue::count)> sal = {
                 0.4f + 3.0f * jobless + 2.0f * loss, 0.1f + 0.2f * deaths_pm, 0.1f + 0.2f * w.region_get_unrest(w.pop_get_home(p)),
@@ -531,9 +535,12 @@ void update_unrest(game_state& state) {
         // Blocked emigration bottles up voice (Hirschman 1970): travel bans x emigrant networks.
         const float travel = D.npi_travel != 0xFF ? npi_fraction(state, n.id, D.npi_travel) : 0.0f;
         const float exit_blocked = static_cast<float>(P.exit_blocked) * n.get_emigrant_stock() * 10.0f * travel * grievance;
+        // Liberty-restricting policy beyond the Overton window (e.g. lockdowns where they
+        // are unacceptable) adds a backlash.
+        const float backlash = static_cast<float>(P.overton_backlash) * n.get_policy_outside();
         const float drive = (static_cast<float>(P.unrest_grievance) * grievance * (1.0f - n.get_legitimacy())
                              + static_cast<float>(P.unrest_psi) * n.get_psi()) * amplifier
-                            + exit_blocked;
+                            + exit_blocked + backlash;
         r.set_drive(std::clamp(drive, 0.0f, 2.0f));
     }
 }
@@ -677,7 +684,8 @@ void update_protest(game_state& state) {
         const float mu = static_cast<float>(P.cascade_mu) + 0.3f * repression + fatigue;
         const float sigma = static_cast<float>(P.cascade_sigma);
         const float social = static_cast<float>(P.cascade_social) * (0.5f + conn);
-        const float drive = r.get_drive() + spark + backfire;
+        // Foreign protest through the internet, and foreign influence operations (internet.cpp).
+        const float drive = r.get_drive() + spark + backfire + n.get_net_contagion() + n.get_influence_ops();
         float x = r.get_protest();
         for(int it = 0; it < 4; ++it) {
             const float z = (drive + social * x - mu) / sigma;

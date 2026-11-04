@@ -54,7 +54,7 @@ struct nation_input {
     double fx_loan_share = 0.1, fx_deposit_share = 0.1, npl = 0.03, capital_ratio = 0.16, lending_spread = 3.0;
     double yield10 = NAN, effective_rate = NAN, avg_maturity = 7.0, foreign_debt_share = 0.3, fx_debt_share = 0.1, food_cpi = 0.25;
     // society_curated.csv
-    double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03;
+    double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03, net_freedom = 60.0;
     struct group {
         std::string key;
         double share = 1, edu_rel = 1, informal_rel = 1, wage_gap = 0, unemp_rel = 1, wealth_rel = 1, excluded = 0, network = 0.3;
@@ -244,6 +244,7 @@ struct builder {
             }
             w.sector_set_shipped(id, static_cast<float>(node.num_or("shipped", 0.0, path, diag)));
             w.sector_set_critical_input(id, static_cast<float>(node.num_or("critical_input", 0.0, path, diag)));
+            w.sector_set_cyber_exposure(id, static_cast<float>(node.num_or("cyber_exposure", 0.0, path, diag)));
             w.sector_set_inventory_days(id, static_cast<float>(std::max(7.0, node.num_or("inventory_days", 14.0, path, diag))));
             sector_by_key[key] = static_cast<uint8_t>(id.index());
         }
@@ -395,6 +396,7 @@ struct builder {
             in.social_media = t.number_or(row, "social_media_pct", in.social_media * 100.0) / 100.0;
             in.corruption_cpi = t.number_or(row, "corruption_cpi", in.corruption_cpi);
             in.emigrant_stock = t.number_or(row, "emigrant_stock_pct", in.emigrant_stock * 100.0) / 100.0;
+            in.net_freedom = t.number_or(row, "net_freedom", in.net_freedom);
         });
         rows("groups_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             nation_input::group g;
@@ -1098,6 +1100,16 @@ struct builder {
         w.nation_set_corruption(n, static_cast<float>(std::clamp(1.0 - in.corruption_cpi / 100.0, 0.0, 1.0)));
         w.nation_set_emigrant_stock(n, static_cast<float>(in.emigrant_stock));
         w.nation_set_urban_share(n, static_cast<float>(in.urban));
+        // Online controls at the start (Freedom on the Net): domestic information control and
+        // cross-border filtering, by one rule for every nation.
+        const double unfree = std::clamp(1.0 - in.net_freedom / 100.0, 0.0, 1.0);
+        const auto ic = static_cast<float>(P.net_control_scale * unfree);
+        const auto filt = static_cast<float>(std::clamp((unfree - P.net_filter_threshold) / (1.0 - P.net_filter_threshold), 0.0, 1.0));
+        w.nation_set_info_control(n, ic);
+        w.nation_set_info_control0(n, ic);
+        w.nation_set_info_control_prev(n, ic);
+        w.nation_set_net_filtering(n, filt);
+        w.nation_set_net_filtering0(n, filt);
         // Production network: imported share of each intermediate input (import share of
         // demand x the input's import intensity), raised where domestic output could not
         // cover domestic intermediate use; stocks start at target.
@@ -1375,6 +1387,98 @@ struct builder {
         }
     }
 
+    // ------------------------------------------------------------ party systems
+    struct party_input {
+        std::string key;
+        double econ = 0, social = 0, vote = 0, seats = 0;
+        bool in_government = false;
+        party_family family = party_family::oth;
+    };
+    std::map<std::string, std::vector<party_input>> parties_of_nation;
+
+    static party_family parse_family(std::string_view f) {
+        if(f == "soc") return party_family::soc;
+        if(f == "con") return party_family::con;
+        if(f == "lib") return party_family::lib;
+        if(f == "chr") return party_family::chr;
+        if(f == "grn") return party_family::grn;
+        if(f == "rad_right") return party_family::rad_right;
+        if(f == "rad_left") return party_family::rad_left;
+        if(f == "com") return party_family::com;
+        if(f == "reg") return party_family::reg;
+        if(f == "agr") return party_family::agr;
+        return party_family::oth;
+    }
+
+    // Real party systems (parties_curated.csv): positions from expert surveys, last
+    // election's shares, cabinet membership. Nations without rows keep generic parties.
+    void load_parties(std::string const& dir) {
+        if(!exists(dir + "/parties_curated.csv")) return;
+        const auto t = core::csv_table::load(dir + "/parties_curated.csv", diag);
+        for(std::size_t row = 0; row < t.rows(); ++row) {
+            const std::string iso(t.get(row, "iso3"));
+            if(!inputs.count(iso)) continue;
+            party_input p;
+            p.key = std::string(t.get(row, "party"));
+            p.econ = std::clamp(t.number_or(row, "econ", 0.0), -1.0, 1.0);
+            p.social = std::clamp(t.number_or(row, "social", 0.0), -1.0, 1.0);
+            p.vote = t.number_or(row, "vote_share", 0.0);
+            p.seats = t.number_or(row, "seat_share", 0.0);
+            p.in_government = t.number_or(row, "in_government", 0.0) > 0.0;
+            p.family = parse_family(t.get(row, "family"));
+            if(p.key.empty() || p.key.size() > 4) {
+                diag.fail(t.source() + ": party keys need 1-4 characters (" + iso + ")");
+                return;
+            }
+            parties_of_nation[iso].push_back(p);
+        }
+        for(auto& [iso, list] : parties_of_nation) {
+            if(list.size() > 16) {
+                diag.fail(dir + "/parties_curated.csv: " + iso + " has more than 16 parties");
+                return;
+            }
+        }
+    }
+
+    // Parties sit in the nation's value space: economic left-right as surveyed, and
+    // GAL-TAN as a distance from the electorate's own secular / self-expression level
+    // (expert scales are cross-national; voters' values are anchored on the nation).
+    void create_real_parties(dcon::nation_id n, std::vector<party_input> list, float secular, float selfexp) {
+        auto& w = state.world;
+        std::sort(list.begin(), list.end(), [](auto const& a, auto const& b) { return a.econ < b.econ; });
+        dcon::party_id incumbent;
+        double best = -1.0, gov_seats = 0.0;
+        for(std::size_t j = 0; j < list.size(); ++j) {
+            auto const& in = list[j];
+            const auto p = w.create_party();
+            w.party_set_key(p, core::pack_key(in.key));
+            w.party_set_local_index(p, static_cast<uint8_t>(j));
+            w.party_set_family(p, static_cast<uint8_t>(in.family));
+            const bool mainstream = in.family == party_family::soc || in.family == party_family::con || in.family == party_family::lib
+                                    || in.family == party_family::chr;
+            w.party_set_strategy(p, static_cast<uint8_t>(mainstream ? party_strategy::aggregator : party_strategy::sticker));
+            w.party_set_position(p, static_cast<uint8_t>(value_axis::economic_right), static_cast<float>(0.8 * in.econ));
+            w.party_set_position(p, static_cast<uint8_t>(value_axis::secular), static_cast<float>(secular - 0.6 * in.social));
+            w.party_set_position(p, static_cast<uint8_t>(value_axis::self_expression), static_cast<float>(selfexp - 0.6 * in.social));
+            w.party_set_vote_share(p, static_cast<float>(in.vote));
+            w.party_set_seat_share(p, static_cast<float>(in.seats));
+            w.party_set_last_vote(p, static_cast<float>(in.vote));
+            w.party_set_in_government(p, in.in_government ? 1 : 0);
+            w.force_create_party_membership(p, n);
+            if(in.in_government) {
+                gov_seats += in.seats;
+                if(in.seats > best) {
+                    best = in.seats;
+                    incumbent = p;
+                }
+            }
+        }
+        if(incumbent) {
+            w.nation_set_incumbent(n, incumbent);
+            w.nation_set_gov_seat_share(n, static_cast<float>(std::clamp(gov_seats, 0.0, 1.0)));
+        }
+    }
+
     // ------------------------------------------------------------ politics and relations
     // Three generic parties per nation (L / C / R) until party data is loaded; systems,
     // incumbents and election dates from politics_curated.csv; relations_curated.csv for
@@ -1388,6 +1492,7 @@ struct builder {
         w.nation_resize_land_share(N);
         w.nation_resize_trade_distance(N);
         w.nation_resize_pair_cost(N);
+        w.nation_resize_coupling(N);
         w.nation_resize_trust(N);
         w.nation_resize_threat_to(N);
         w.nation_resize_trade_share(N);
@@ -1396,7 +1501,7 @@ struct builder {
         w.nation_resize_alliance(N);
         w.nation_resize_at_war(N);
         w.party_resize_position(static_cast<uint32_t>(value_axis::count));
-        w.pop_resize_party_support(8);
+        w.pop_resize_party_support(16);
 
         struct sys {
             std::string system = "pr";
@@ -1416,6 +1521,12 @@ struct builder {
                 systems[std::string(t.get(row, "iso3"))] = s;
             }
         }
+        load_parties(dir);
+        if(diag.failed()) return;
+        w.party_resize_heading(static_cast<uint32_t>(value_axis::count));
+        w.nation_resize_window_center(static_cast<uint32_t>(value_axis::count));
+        w.nation_resize_window_width(static_cast<uint32_t>(value_axis::count));
+        w.nation_resize_policy_position(static_cast<uint32_t>(value_axis::count));
         const char* sides[3] = {"L", "C", "R"};
         for(auto const& iso : order) {
             const auto n = find_nation(state, iso);
@@ -1434,10 +1545,17 @@ struct builder {
             w.nation_set_winning_coalition(n, 0.05f + 0.6f * electoral);
             w.nation_set_gov_seat_share(n, 0.55f);
             const float secular = static_cast<float>(std::clamp(0.35 * std::log(in.gdp / in.population / 12000.0), -1.0, 1.0));
+            const float selfexp = static_cast<float>(std::clamp(0.3 * std::log(in.gdp / in.population / 12000.0) + 0.15 * in.voice, -1.0, 1.0));
+            if(parties_of_nation.count(iso)) {
+                create_real_parties(n, parties_of_nation[iso], secular, selfexp);
+                continue;
+            }
+            // No party data: three generic parties L / C / R.
             for(uint8_t j = 0; j < 3; ++j) {
                 const auto p = w.create_party();
                 w.party_set_key(p, core::pack_key(sides[j]));
                 w.party_set_local_index(p, j);
+                w.party_set_strategy(p, static_cast<uint8_t>(party_strategy::aggregator));
                 const float side = static_cast<float>(j) - 1.0f; // -1, 0, +1
                 w.party_set_position(p, static_cast<uint8_t>(value_axis::economic_right), 0.5f * side);
                 w.party_set_position(p, static_cast<uint8_t>(value_axis::secular), secular - 0.2f * side);

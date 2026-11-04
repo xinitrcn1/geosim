@@ -16,6 +16,7 @@ void advance_day(game_state& state) {
     update_demography(state);
     update_migration(state);
     update_groups(state);
+    update_internet(state);
     update_opinion(state);
     update_unrest(state);
     update_protest(state);

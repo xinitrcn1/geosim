@@ -77,8 +77,19 @@ enum class lever : uint8_t {
     directed_credit, // executive: extra state-bank lending, % of GDP per year (systems/credit.cpp)
     info_control,    // executive: restrictions on online media and messaging, 0..1 (systems/society.cpp)
     asset_purchases, // central bank: government bond purchases (QE), % of GDP per year (systems/bonds.cpp)
+    net_filtering,   // executive: filtering of foreign internet services and content, 0..1 (systems/internet.cpp)
     count
 };
+
+// party.strategy (Laver 2005; Laver & Sergenti 2011)
+enum class party_strategy : uint8_t {
+    sticker = 0,    // keeps its position (ideological, niche and ruling single parties)
+    aggregator = 1, // moves toward the centroid of its own supporters (mainstream parties)
+    hunter = 2,     // keeps moving the same way while its vote grows, turns when it falls (challengers)
+    predator = 3,   // moves toward the largest party
+};
+// party.family (ParlGov / CHES families)
+enum class party_family : uint8_t { oth = 0, soc, con, lib, chr, grn, rad_right, rad_left, com, reg, agr, challenger };
 
 // nation.electoral_system
 enum class electoral_system : uint8_t { none = 0, pr = 1, fptp = 2 };
@@ -91,6 +102,10 @@ inline constexpr uint8_t journal_peace = 0xF3;
 inline constexpr uint8_t journal_sanction = 0xF4;
 inline constexpr uint8_t journal_default = 0xF5;
 inline constexpr uint8_t journal_chokepoint = 0xF6; // before = chokepoint index, after = blockage days drawn
+inline constexpr uint8_t journal_party_entry = 0xF7; // after = new party's local index
+inline constexpr uint8_t journal_party_exit = 0xF8;
+inline constexpr uint8_t journal_cyber = 0xF9;      // pragmatic = target nation index, after = damage
+inline constexpr uint8_t journal_insurgency = 0xFA; // after = 1 onset, 0 end
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
@@ -122,6 +137,7 @@ enum class flow : uint8_t {
     credit_guarantee,      // government payments on guaranteed loans that went bad
     commodity_terms,       // terms-of-trade gains / losses on non-oil commodities
     network_transfers,     // kin / caste / hometown network insurance between pops
+    war_spending,          // military procurement during wars
     count
 };
 

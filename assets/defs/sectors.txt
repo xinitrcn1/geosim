@@ -31,6 +31,9 @@
 #               rounded: manufacturing ~ 3-4 weeks, services ~ 1 week).
 # shipped       1 = output crosses borders in ships and containers (goods), uses ports
 #               and the container fleet (src/sim/systems/logistics.cpp).
+# cyber_exposure  share of capacity a cyber operation's damage applies to (control systems
+#               of energy grids and pipelines, IT of finance and business services;
+#               src/sim/systems/internet.cpp).
 
 sector{
 	key{agr}
@@ -64,6 +67,7 @@ sector{
 	critical_input{1}
 	inventory_days{20}
 	shipped{1}
+	cyber_exposure{1.0}
 }
 
 sector{
@@ -81,6 +85,7 @@ sector{
 	critical_input{1}
 	inventory_days{25}
 	shipped{1}
+	cyber_exposure{0.3}
 }
 
 sector{
@@ -115,6 +120,7 @@ sector{
 	critical_input{0}
 	inventory_days{10}
 	shipped{0}
+	cyber_exposure{0.2}
 }
 
 sector{
@@ -132,6 +138,7 @@ sector{
 	critical_input{0}
 	inventory_days{7}
 	shipped{0}
+	cyber_exposure{1.0}
 }
 
 sector{
@@ -149,4 +156,5 @@ sector{
 	critical_input{0}
 	inventory_days{10}
 	shipped{0}
+	cyber_exposure{0.3}
 }

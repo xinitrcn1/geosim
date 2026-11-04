@@ -282,7 +282,25 @@ object{
 	property{ name{emigrant_stock} type{float} }
 	property{ name{info_control} type{float} }
 	property{ name{info_control_prev} type{float} }
+	property{ name{info_control0} type{float} }
+	property{ name{net_filtering} type{float} }
+	property{ name{net_filtering0} type{float} }
+	property{ name{net_contagion} type{float} }
+	property{ name{influence_ops} type{float} }
+	property{ name{cyber_damage} type{float} }
+	property{ name{cyber_capability} type{float} }
+	property{ name{war_effort} type{float} }
+	property{ name{military} type{float} }
+	property{ name{resource_rents} type{float} }
+	property{ name{coupling} type{array{uint8_t}{float}} }
 	property{ name{urban_share} type{float} }
+	property{ name{window_center} type{array{uint8_t}{float}} }
+	property{ name{window_width} type{array{uint8_t}{float}} }
+	property{ name{policy_position} type{array{uint8_t}{float}} }
+	property{ name{policy_outside} type{float} }
+	property{ name{policy_outside0} type{float} }
+	property{ name{window_outside0} type{float} }
+	property{ name{last_party_entry} type{int32_t} }
 }
 
 object{
@@ -341,6 +359,8 @@ object{
 	property{ name{spark} type{float} }
 	property{ name{backfire} type{float} }
 	property{ name{protest_fatigue} type{float} }
+	property{ name{insurgency} type{float} }
+	property{ name{crisis_days} type{float} }
 }
 
 object{
@@ -428,6 +448,7 @@ object{
 	property{ name{io_coeff} type{array{uint8_t}{float}} }
 	property{ name{value_added_share} type{float} }
 	property{ name{critical_input} type{float} }
+	property{ name{cyber_exposure} type{float} }
 	property{ name{inventory_days} type{float} }
 }
 
@@ -650,6 +671,11 @@ object{
 	property{ name{seat_share} type{float} }
 	property{ name{in_government} type{uint8_t} }
 	property{ name{local_index} type{uint8_t} }
+	property{ name{strategy} type{uint8_t} }
+	property{ name{family} type{uint8_t} }
+	property{ name{last_vote} type{float} }
+	property{ name{low_vote_months} type{float} }
+	property{ name{heading} type{array{uint8_t}{float}} }
 }
 
 object{

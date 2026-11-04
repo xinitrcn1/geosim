@@ -45,7 +45,8 @@ void update_longrun(game_state& state) {
         }
         // Institutions and human capital -> trend growth.
         n.set_trend_growth(n.get_trend_growth0() + static_cast<float>(P.institutions_growth) * (n.get_liberal() - n.get_liberal0())
-                           + static_cast<float>(P.human_capital_growth) * (n.get_tertiary_share() - n.get_tertiary0()));
+                           + static_cast<float>(P.human_capital_growth) * (n.get_tertiary_share() - n.get_tertiary0())
+                           - static_cast<float>(P.net_growth_cost) * std::max(0.0f, n.get_net_filtering() - n.get_net_filtering0()));
     }
 
     // Climate: global, once per 28 days.
