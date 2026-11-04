@@ -38,6 +38,7 @@ struct material_def {
 const material_def material_table[] = {
     {spv_ui_frag, sizeof(spv_ui_frag), true},       // material::ui
     {spv_map_frag, sizeof(spv_map_frag), false},    // material::map_placeholder
+    {nullptr, 0, true},                             // material::electoral: map_renderer's own pipeline
 };
 static_assert(std::size(material_table) == static_cast<std::size_t>(material::count));
 
@@ -182,6 +183,7 @@ bool ui_renderer::create_pipelines(core::diagnostics& diag) {
     vin.pVertexAttributeDescriptions = attrs;
     gp.layout = quad_layout_;
     for(std::size_t m = 0; m < std::size(material_table) && ok; ++m) {
+        if(!material_table[m].code) continue;
         VkShaderModule fs = vk_->create_shader(material_table[m].code, material_table[m].bytes, diag);
         if(!fs) {
             ok = false;
@@ -309,11 +311,20 @@ bool ui_renderer::ensure_instance_capacity(uint32_t frame, std::size_t count, co
     return vk_->create_buffer(size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, true, instances_[frame], diag);
 }
 
-void ui_renderer::draw_batches(VkCommandBuffer cmd, draw_list const& list, uint32_t base, float time, float scale) {
+void ui_renderer::draw_batches(VkCommandBuffer cmd, draw_list const& list, uint32_t base, float time, float scale, map_renderer* map,
+                               VkDescriptorSet set) {
     const VkExtent2D e = vk_->swap_extent;
     quad_push push{{static_cast<float>(e.width), static_cast<float>(e.height)}, time, scale};
     vkCmdPushConstants(cmd, quad_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
     for(auto const& b : list.batches()) {
+        if(b.mat == material::electoral) {
+            // The Politics window's inset map: map_renderer's pipeline, then back to the UI's set.
+            if(map && map->draw_electoral(cmd, base + b.first, b.count, push.viewport, time, scale) && set) {
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, quad_layout_, 0, 1, &set, 0, nullptr);
+                vkCmdPushConstants(cmd, quad_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+            }
+            continue;
+        }
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, materials_[static_cast<int>(b.mat)]);
         vkCmdDraw(cmd, 6, b.count, 0, base + b.first);
     }
@@ -374,6 +385,18 @@ bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list co
 
     // 0. Vector map pre-passes (region IDs), before the scene pass samples them.
     if(map.renderer && map.view && map.renderer->ready()) {
+        // The electoral map's rect: the overlay's material::electoral quad, if any.
+        float er[4] = {0, 0, 0, 0};
+        for(auto const& b : overlay.batches()) {
+            if(b.mat != material::electoral) continue;
+            quad_instance const& q = overlay.quads()[b.first];
+            er[0] = q.x;
+            er[1] = q.y;
+            er[2] = q.w;
+            er[3] = q.h;
+            break;
+        }
+        map.renderer->set_electoral_rect(er[0], er[1], er[2], er[3]);
         map.renderer->prepass(cmd, *map.view, static_cast<float>(e.width), static_cast<float>(e.height), map.pick_x, map.pick_y);
     }
 
@@ -426,7 +449,7 @@ bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list co
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, materials_[static_cast<int>(material::ui)]);
         vkCmdDraw(cmd, 6, 1, 0, 0); // scene copy
     }
-    draw_batches(cmd, overlay, overlay_base, time, scale);
+    draw_batches(cmd, overlay, overlay_base, time, scale, map.renderer, ui_set_);
     vkCmdEndRendering(cmd);
 
     if(capture && vk_->swap_readable) {

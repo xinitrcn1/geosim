@@ -2,8 +2,8 @@
 // The world map asset (assets/map/world.gsmap, built by tools/pipeline/build_map.py;
 // format in that script and docs/07-map-and-filters.md#data) decoded into the
 // CPU images the map renderer uploads:
-//  - ids:     uint16 region raster (0 = water, 0xFFFF = land of no region, else
-//             1 + region index), with a point-sampled mip chain
+//  - ids:     uint16 region raster, coarse (<= 2048 wide; 0 = water, 0xFFFF =
+//             land of no region, else 1 + region index), point-sampled mips
 //  - terrain: RGBA8, rgb = Blue-Marble-like land colour from the Koppen-Geiger
 //             class, relief and latitude (snow, ice, rock), a = relief code
 //             (the shader turns it into the ocean depth ramp), with box mips
@@ -44,11 +44,17 @@ struct map_region {
     float lat = 0, lon = 0;      // degrees, as in regions.csv
 };
 
-// A region's bounding box on the ID raster, degrees; lon1 may exceed 180 for a
-// region across the antimeridian (lon0 < lon1 always). cells = raster cells.
+// A region's bounding box from its polygons, degrees; lon1 may exceed 180 for a
+// region across the antimeridian (lon0 < lon1 always).
 struct map_box {
     float lon0 = 0, lon1 = 0, lat0 = 0, lat1 = 0;
-    uint32_t cells = 0;
+    uint32_t cells = 0; // land area in km2 (from the polygons)
+};
+
+// One ring of the vector regions: vertices [first, first + count) of poly_vertices.
+struct map_ring {
+    uint32_t first = 0, count = 0;
+    int32_t region = -1; // region index (raster id - 1), -1 for a lake
 };
 
 template <typename T>
@@ -60,7 +66,7 @@ struct map_level {
 struct map_data {
     std::vector<map_nation> nations;
     std::vector<map_region> regions;
-    std::vector<map_box> boxes;               // per region, from the ID raster
+    std::vector<map_box> boxes;               // per region, from the polygons
     // Vector regions (the POLY section; empty for older assets): per vertex four
     // words {lon, lat (float bits, degrees), index of its ring's first vertex,
     // code}, and triangle fans per ring (indices into the vertices). code =
@@ -68,6 +74,7 @@ struct map_data {
     // a XOR logic op, so even-odd filling needs no triangulation.
     std::vector<uint32_t> poly_vertices;
     std::vector<uint32_t> poly_indices;
+    std::vector<map_ring> rings;
     float poly_tolerance_deg = 0;
     // Terrain detail atlas (ATLS): `atlas_layers` tileable grayscale layers of
     // atlas_size^2, mip chain per layer (level k is atlas_size >> k), all levels of

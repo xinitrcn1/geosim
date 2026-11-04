@@ -301,6 +301,7 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
                 return;
             }
             const auto first = static_cast<uint32_t>(out.poly_vertices.size() / 4);
+            out.rings.push_back({first, static_cast<uint32_t>(n), code == map_lake_code ? -1 : static_cast<int32_t>((code & 0xFFFFu) - 1)});
             int32_t x = 0, y = 0;
             for(int32_t k = 0; k < n; ++k) {
                 x += next();
@@ -323,60 +324,25 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         for(int32_t k = 0; k < lakes; ++k) ring(map_lake_code);
     }
 
-    // Region IDs, then point-sampled mips down to ~256 wide (zoomed-out views).
+    // Region IDs, coarse: the GPU keeps them only for the resolve pass's fallback
+    // (land of no region, wide cracks) and the raster mode, so the full-resolution
+    // raster is point-sampled down to at most 2048 cells wide at once (the 64 MB
+    // full-resolution CPU copy is never built), then mips down to ~256 wide.
     {
-        map_level<uint16_t> l0{id_w, id_h, std::vector<uint16_t>(std::size_t{id_w} * id_h)};
-        for(std::size_t i = 0; i < l0.texels.size(); ++i) {
-            l0.texels[i] = static_cast<uint16_t>(ids_raw[2 * i] | (ids_raw[2 * i + 1] << 8));
-            if(l0.texels[i] != map_unclaimed && l0.texels[i] > region_count) l0.texels[i] = map_water;
+        uint32_t step = 1;
+        while(id_w / step > 2048) step *= 2;
+        map_level<uint16_t> l0{id_w / step, id_h / step, {}};
+        l0.texels.resize(std::size_t{l0.width} * l0.height);
+        for(uint32_t y = 0; y < l0.height; ++y) {
+            for(uint32_t x = 0; x < l0.width; ++x) {
+                const std::size_t i = std::size_t{y * step + step / 2} * id_w + x * step + step / 2;
+                uint16_t v = static_cast<uint16_t>(ids_raw[2 * i] | (ids_raw[2 * i + 1] << 8));
+                if(v != map_unclaimed && v > region_count) v = map_water;
+                l0.texels[std::size_t{y} * l0.width + x] = v;
+            }
         }
         ids_raw.clear();
         ids_raw.shrink_to_fit();
-        // Bounding boxes: x extents both as stored and shifted by half the width, and
-        // the narrower of the two (regions across the antimeridian).
-        {
-            struct ext {
-                uint32_t x0 = ~0u, x1 = 0, s0 = ~0u, s1 = 0, y0 = ~0u, y1 = 0, n = 0;
-            };
-            std::vector<ext> e(region_count + 1);
-            const uint32_t half = id_w / 2;
-            for(uint32_t y = 0; y < id_h; ++y) {
-                uint16_t const* row = l0.texels.data() + std::size_t{y} * id_w;
-                for(uint32_t x = 0; x < id_w; ++x) {
-                    const uint16_t v = row[x];
-                    if(v == map_water || v == map_unclaimed) continue;
-                    ext& r = e[v];
-                    const uint32_t sx = (x + half) % id_w;
-                    r.x0 = std::min(r.x0, x);
-                    r.x1 = std::max(r.x1, x);
-                    r.s0 = std::min(r.s0, sx);
-                    r.s1 = std::max(r.s1, sx);
-                    r.y0 = std::min(r.y0, y);
-                    r.y1 = std::max(r.y1, y);
-                    ++r.n;
-                }
-            }
-            out.boxes.resize(region_count);
-            const float dx = 360.0f / static_cast<float>(id_w), dy = 180.0f / static_cast<float>(id_h);
-            for(uint32_t i = 0; i < region_count; ++i) {
-                ext const& r = e[i + 1];
-                map_box& b = out.boxes[i];
-                if(r.n == 0) { // too small for a cell: a one-cell box at the centroid
-                    b = {out.regions[i].lon - dx, out.regions[i].lon + dx, out.regions[i].lat - dy, out.regions[i].lat + dy, 0};
-                    continue;
-                }
-                b.cells = r.n;
-                if(r.s1 - r.s0 < r.x1 - r.x0) { // narrower when shifted: crosses the antimeridian
-                    b.lon0 = -180.0f + (static_cast<float>(r.s0) - static_cast<float>(half)) * dx + 360.0f * (r.s0 < half ? 1.0f : 0.0f);
-                    b.lon1 = b.lon0 + static_cast<float>(r.s1 - r.s0 + 1) * dx;
-                } else {
-                    b.lon0 = -180.0f + static_cast<float>(r.x0) * dx;
-                    b.lon1 = -180.0f + static_cast<float>(r.x1 + 1) * dx;
-                }
-                b.lat1 = 90.0f - static_cast<float>(r.y0) * dy;
-                b.lat0 = 90.0f - static_cast<float>(r.y1 + 1) * dy;
-            }
-        }
         out.ids.push_back(std::move(l0));
         while(out.ids.back().width > 256 && out.ids.back().height > 1) {
             auto const& src = out.ids.back();
@@ -388,6 +354,45 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
                 }
             }
             out.ids.push_back(std::move(dst));
+        }
+    }
+
+    // Region boxes and areas from the polygons: per region, longitudes unwrapped next to
+    // its first ring (regions across the antimeridian), area by the shoelace formula on
+    // an equal-area-ish sphere approximation (km2; "cells" keeps the name for callers).
+    {
+        out.boxes.assign(region_count, map_box{});
+        std::vector<double> area(region_count, 0.0);
+        std::vector<float> ref(region_count, 1e9f);
+        for(auto const& rg : out.rings) {
+            if(rg.region < 0 || static_cast<uint32_t>(rg.region) >= region_count) continue;
+            map_box& b = out.boxes[static_cast<std::size_t>(rg.region)];
+            float& r0 = ref[static_cast<std::size_t>(rg.region)];
+            double a = 0.0;
+            float plon = 0, plat = 0;
+            for(uint32_t k = 0; k < rg.count; ++k) {
+                float lon = 0, lat = 0;
+                std::memcpy(&lon, &out.poly_vertices[std::size_t{rg.first + k} * 4], 4);
+                std::memcpy(&lat, &out.poly_vertices[std::size_t{rg.first + k} * 4 + 1], 4);
+                if(r0 > 1e8f) {
+                    r0 = lon;
+                    b = {lon, lon, lat, lat, 0};
+                }
+                lon = r0 + std::remainder(lon - r0, 360.0f);
+                b.lon0 = std::min(b.lon0, lon);
+                b.lon1 = std::max(b.lon1, lon);
+                b.lat0 = std::min(b.lat0, lat);
+                b.lat1 = std::max(b.lat1, lat);
+                if(k > 0) a += (static_cast<double>(plon) * lat - static_cast<double>(lon) * plat) * std::cos(0.5 * (lat + plat) * 3.14159265358979 / 180.0);
+                plon = lon;
+                plat = lat;
+            }
+            area[static_cast<std::size_t>(rg.region)] += std::fabs(0.5 * a) * 111.2 * 111.2;
+        }
+        for(uint32_t i = 0; i < region_count; ++i) {
+            map_box& b = out.boxes[i];
+            if(ref[i] > 1e8f) b = {out.regions[i].lon - 0.05f, out.regions[i].lon + 0.05f, out.regions[i].lat - 0.05f, out.regions[i].lat + 0.05f, 0};
+            b.cells = static_cast<uint32_t>(std::min(4.0e9, std::round(area[i])));
         }
     }
 

@@ -52,6 +52,23 @@ public:
     void allow_vector(bool on) noexcept { allow_vector_ = on; }
     // Raster region index (id - 1) under the last pick point, -1 for none / water.
     [[nodiscard]] int picked_region() const noexcept;
+    // The Politics window's inset map (vector mode): the nation's geometry and the
+    // fill colour per raster region id (RGBA8, index 0 unused), the screen rect the
+    // UI's material::electoral quad covers this frame (w = 0: none). prepass draws
+    // the ring fans once per inset into an ID image (plain Mercator, scissored to the
+    // inset); draw_electoral colours it with white region borders and dark coasts.
+    void set_electoral(std::shared_ptr<electoral_geometry const> geo, std::vector<uint32_t> colours);
+    void set_electoral_rect(float x, float y, float w, float h) noexcept {
+        elect_rect_[0] = x;
+        elect_rect_[1] = y;
+        elect_rect_[2] = w;
+        elect_rect_[3] = h;
+    }
+    // Draws `count` electoral quads at `first` (instance buffer bound); false when not available.
+    bool draw_electoral(VkCommandBuffer cmd, uint32_t first, uint32_t count, float const viewport[2], float time, float scale);
+    // Raster region under the pick point inside the electoral map, -1 none.
+    [[nodiscard]] int picked_electoral() const noexcept;
+
     // Screen-size images of the vector passes (after a swapchain change).
     bool resize(core::diagnostics& diag);
 
@@ -89,6 +106,23 @@ private:
     VkPipelineLayout ids_layout_ = VK_NULL_HANDLE, resolve_layout_ = VK_NULL_HANDLE;
     VkPipeline ids_pipeline_ = VK_NULL_HANDLE, resolve_pipeline_ = VK_NULL_HANDLE;
     bool create_vector_pipelines(core::diagnostics& diag);
+
+    // Electoral inset map.
+    std::shared_ptr<electoral_geometry const> elect_geo_;
+    std::vector<uint32_t> elect_colours_;
+    float elect_rect_[4] = {};
+    bool elect_drawn_ = false; // the ID image holds this frame's insets
+    gpu_buffer elect_idx_;
+    uint32_t elect_index_count_ = 0;
+    gpu_buffer elect_col_[frames_in_flight];
+    gpu_image elect_img_;
+    VkDescriptorSetLayout elect_ids_set_layout_ = VK_NULL_HANDLE, elect_draw_set_layout_ = VK_NULL_HANDLE;
+    VkDescriptorSet elect_ids_set_ = VK_NULL_HANDLE, elect_draw_sets_[frames_in_flight] = {};
+    VkPipelineLayout elect_ids_layout_ = VK_NULL_HANDLE, elect_draw_layout_ = VK_NULL_HANDLE;
+    VkPipeline elect_ids_pipeline_ = VK_NULL_HANDLE, elect_draw_pipeline_ = VK_NULL_HANDLE;
+    VkDescriptorPool elect_pool_ = VK_NULL_HANDLE;
+    bool create_electoral_pipelines(core::diagnostics& diag);
+    void write_electoral_sets();
     void write_map_sets();
 };
 

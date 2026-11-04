@@ -88,9 +88,15 @@ filter for the terrain, point sampling for the IDs.
 
 Regions are drawn from polygons, so zooming reaches micro-states (Andorra's
 parishes, Monaco, San Marino, Caribbean and Pacific islands) at ~30 px per km
-(the zoom limit is 16× deeper than with the raster). The region-ID raster
-stays as a fallback (devices without logic ops, `--vector-map 0`) and for the
-electoral insets and the coarse checks below.
+(the zoom limit is 16× deeper than with the raster). The region-ID raster is
+no longer kept on the CPU: the client point-samples the asset's 8192-wide
+raster down to 2048 cells at load and uploads only that (with mips) for the
+resolve pass's fallbacks (land of no region, wide cracks) and the raster mode
+(devices without logic ops, `--vector-map 0`: blocky, picking from a 4 MB CPU
+copy kept only then, no electoral map). Memory: CPU −64 MB resident (and −80 MB
+at load), GPU raster −80 MB (85 → 5.3 MB); the vector vertices add 4.4 MB on
+the CPU for the landmass groups. The asset keeps the full raster (0.5 MB
+compressed): `build_region_geo.py` computes the regional geography from it.
 
 - **Pipeline** (`build_map.py`, `polygons.py`): the same ADM1 / Natural Earth
   polygons the raster is painted from, per nation cut into **shared arcs**
@@ -288,14 +294,18 @@ main map while the tab is open shows its nation.
   left) or beside it (Alaska). Each inset gets a thin grey frame. For the USA
   the packed layout covers about a quarter of the raw bounding box
   (`test_map_view`).
-- **Drawing**: the layout is rasterised once at 960 cells on its long side,
-  each cell mapped back through its inset's transform to lon/lat and the
-  full-resolution region raster, so the regions keep their real shapes; white
-  lines separate regions. The tab draws it as run-length quads coloured by the
-  current mode, and the pointer maps back through the same raster to the
-  region (tooltips). In world2020 Greenland, the Faroes and the French
-  overseas regions are separate jurisdictions or absent from France's ADM1
-  file, so they get no inset.
+- **Drawing** (vector, like the main map): the nation's ring fans are drawn on
+  the GPU once per inset with that inset's plain-Mercator transform (source rect
+  → destination rect in the window), scissored to it, XORed into an electoral ID
+  image (`map_elect.vert`); a `material::electoral` quad in the window colours
+  it (`electoral.frag`): the current mode's colour per region (a per-region
+  colour buffer), white 1-px lines between regions, dark grey coasts, a thin
+  grey frame per inset. Crisp at any window size; the UI hands it the rect it
+  lays out (half the Politics window), and the region under the pointer comes
+  back through the GPU readback (tooltips). The landmass groups come from the
+  polygons too: each ring is a piece with its box and shoelace area, grouped
+  when closer than ~250 km, specks below 0.03 % dropped, the main group's land
+  rasterised by scanline into the packer's occupancy grid.
 - **Democracies** (electoral index ≥ 0.3, competitive, ≥ 2 parties): per
   region, the vote shares of the nation's parties from pop-level support:
   Σ `party_support[j]` × pop size × turnout (by pop kind: 0.5, 0.6, 0.75, 0.7,

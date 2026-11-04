@@ -48,7 +48,9 @@ private:
     bool create_pipelines(core::diagnostics& diag);
     bool upload_atlas(text_system& text, core::diagnostics& diag);
     bool ensure_instance_capacity(uint32_t frame, std::size_t count, core::diagnostics& diag);
-    void draw_batches(VkCommandBuffer cmd, draw_list const& list, uint32_t base, float time, float scale);
+    // `map` draws material::electoral batches; `set` is rebound after them.
+    void draw_batches(VkCommandBuffer cmd, draw_list const& list, uint32_t base, float time, float scale, map_renderer* map = nullptr,
+                      VkDescriptorSet set = VK_NULL_HANDLE);
     void post_pass(VkCommandBuffer cmd, gpu_image const& dst, VkDescriptorSet src_set, gpu_image const& src, float dx, float dy,
                    float sigma, int radius);
     void destroy_targets();

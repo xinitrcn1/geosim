@@ -33,9 +33,10 @@ namespace geosim::client {
 
 class map_layer {
 public:
-    // Takes the asset's tables and moves its full-resolution ID raster out (picking);
-    // reads the world2020 region names from `assets`.
-    void init(map_data& data, std::string const& assets);
+    // Takes the asset's tables and the vector rings (landmass groups); keeps a copy of
+    // the coarse ID raster only when `raster_picking` (the raster mode has no GPU
+    // picking); reads the world2020 region names from `assets`.
+    void init(map_data& data, std::string const& assets, bool raster_picking);
     // Polls the sim; returns true when table() changed.
     bool update(sim_runner& sim, hazard_feed const& hazards, map_filter view);
     [[nodiscard]] std::vector<uint32_t> const& table() const noexcept { return table_; }
@@ -109,13 +110,16 @@ private:
     int politics_for_ = -1;
     std::chrono::steady_clock::time_point last_politics_{};
     std::vector<std::vector<float>> start_votes_; // nation -> national vote shares at first sight (swing)
-    struct inset_cache {
-        int nation = -1;
-        std::shared_ptr<electoral_raster const> raster;
-        float aspect = 1;
-    };
-    mutable std::vector<inset_cache> insets_; // per nation, built on first use
-    [[nodiscard]] inset_cache const& build_insets(int nation) const;
+    std::vector<float> lonlat_;    // vector-map vertices (lon, lat degrees), for the landmass groups
+    std::vector<map_ring> rings_;
+    mutable std::vector<std::shared_ptr<electoral_geometry const>> insets_; // per nation, built on first use
+    [[nodiscard]] std::shared_ptr<electoral_geometry const> build_insets(int nation) const;
+
+public:
+    // The Politics window's inset geometry for a nation (cached), for the renderer.
+    [[nodiscard]] std::shared_ptr<electoral_geometry const> electoral_geometry_of(int nation) const { return nation < 0 ? nullptr : build_insets(nation); }
+
+private:
     [[nodiscard]] politics_region const* politics_of(int raster) const noexcept;
     [[nodiscard]] bool democracy() const noexcept;
     map_filter last_view_ = map_filter::count;

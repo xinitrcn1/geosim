@@ -58,7 +58,8 @@ static_assert(sizeof(quad_instance) == 48);
 // fragment shader. To add a chart: write shaders/chart_x.frag, add an entry
 // here and in ui_renderer.cpp's material table, and push instances with it
 // (u0..v1 carry its parameters).
-enum class material : uint8_t { ui = 0, map_placeholder = 1, count };
+// electoral: the Politics window's inset map, drawn by map_renderer (its own pipeline).
+enum class material : uint8_t { ui = 0, map_placeholder = 1, electoral = 2, count };
 
 enum class layer : uint8_t { scene = 0, overlay = 1 };
 

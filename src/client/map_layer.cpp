@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <string>
 
@@ -101,16 +102,21 @@ rgba colour_of(uint32_t hex) { return client::hex(hex); }
 
 } // namespace
 
-void map_layer::init(map_data& data, std::string const& assets) {
+void map_layer::init(map_data& data, std::string const& assets, bool raster_picking) {
     nations_ = data.nations;
     regions_ = data.regions;
     sim_region_of_.assign(regions_.size(), -1);
-    if(!data.ids.empty()) {
+    if(raster_picking && !data.ids.empty()) {
         ids_w_ = data.ids[0].width;
         ids_h_ = data.ids[0].height;
-        ids_ = std::move(data.ids[0].texels);
+        ids_ = data.ids[0].texels; // coarse (<= 2048 wide), raster mode only
     }
     boxes_ = data.boxes;
+    rings_ = data.rings;
+    lonlat_.resize(data.poly_vertices.size() / 2);
+    for(std::size_t v = 0; v * 4 < data.poly_vertices.size(); ++v) {
+        std::memcpy(&lonlat_[2 * v], &data.poly_vertices[4 * v], 8);
+    }
     names_.assign(regions_.size(), std::string{});
     core::diagnostics diag;
     const auto t = core::csv_table::load(assets + "/scenario/world2020/regions.csv", diag);
@@ -701,137 +707,107 @@ bool map_layer::democracy() const noexcept {
     return politics_.electoral >= 0.3f && politics_.competitive && politics_.parties.size() >= 2;
 }
 
-// Landmass groups of a nation and their inset packing, rasterised (cached per nation).
-map_layer::inset_cache const& map_layer::build_insets(int nation) const {
+// Landmass groups of a nation from its polygons and their inset packing (cached per
+// nation): every ring is a piece of land with its bounding box and area; pieces
+// closer than ~250 km are grouped (union-find), specks dropped; the largest group
+// keeps its place and the others become insets (inset_pack.hpp). The GPU draws the
+// nation's ring fans once per inset (map_renderer::set_electoral).
+std::shared_ptr<electoral_geometry const> map_layer::build_insets(int nation) const {
     for(auto const& c : insets_) {
-        if(c.nation == nation) return c;
+        if(c && c->nation == nation) return c;
     }
-    inset_cache cache;
-    cache.nation = nation;
-    auto raster = std::make_shared<electoral_raster>();
+    auto geo = std::make_shared<electoral_geometry>();
+    geo->nation = nation;
     std::vector<int> local(regions_.size(), -1);
     for(std::size_t i = 0; i < regions_.size(); ++i) {
         if(owner_of(static_cast<int>(i)) != nation) continue;
-        local[i] = static_cast<int>(raster->regions.size());
-        raster->regions.push_back(static_cast<int>(i));
+        local[i] = static_cast<int>(geo->regions.size());
+        geo->regions.push_back(static_cast<int>(i));
     }
-    if(raster->regions.empty() || ids_.empty()) {
-        cache.raster = raster;
-        insets_.push_back(cache);
-        return insets_.back();
-    }
-    // 1. Connected components of each region on a coarse grid (every 4th raster cell,
-    //    ~20 km), x wrapping around the globe.
-    struct component {
+    struct piece {
         double lon0 = 1e9, lon1 = -1e9, lat0 = 1e9, lat1 = -1e9, weight = 0;
-        std::vector<std::pair<double, double>> cells; // lon (unwrapped), lat
+        std::size_t ring = 0;
     };
-    std::vector<component> comps;
-    constexpr int step = 4;
-    const double cell_deg = 360.0 / static_cast<double>(ids_w_);
-    for(int r : raster->regions) {
-        map_box const& b = boxes_[static_cast<std::size_t>(r)];
-        const auto id = static_cast<uint16_t>(r + 1);
-        const int x0 = static_cast<int>(std::floor((b.lon0 + 180.0) / cell_deg)), x1 = static_cast<int>(std::ceil((b.lon1 + 180.0) / cell_deg));
-        const int y0 = std::max(0, static_cast<int>(std::floor((90.0 - b.lat1) / cell_deg))), y1 = std::min(static_cast<int>(ids_h_) - 1, static_cast<int>(std::ceil((90.0 - b.lat0) / cell_deg)));
-        const int gw = std::max(1, (x1 - x0) / step + 1), gh = std::max(1, (y1 - y0) / step + 1);
-        std::vector<uint8_t> in(static_cast<std::size_t>(gw) * static_cast<std::size_t>(gh), 0);
-        for(int j = 0; j < gh; ++j) {
-            const int y = std::min(static_cast<int>(ids_h_) - 1, y0 + j * step);
-            for(int i = 0; i < gw; ++i) {
-                const int x = ((x0 + i * step) % static_cast<int>(ids_w_) + static_cast<int>(ids_w_)) % static_cast<int>(ids_w_);
-                in[static_cast<std::size_t>(j) * static_cast<std::size_t>(gw) + static_cast<std::size_t>(i)] = ids_[static_cast<std::size_t>(y) * ids_w_ + static_cast<std::size_t>(x)] == id;
-            }
+    std::vector<piece> pieces;
+    auto vtx = [&](uint32_t v) { return std::pair<double, double>{lonlat_[2 * std::size_t{v}], lonlat_[2 * std::size_t{v} + 1]}; };
+    for(std::size_t k = 0; k < rings_.size(); ++k) {
+        map_ring const& rg = rings_[k];
+        if(rg.region < 0 || static_cast<std::size_t>(rg.region) >= local.size() || local[static_cast<std::size_t>(rg.region)] < 0) continue;
+        piece p;
+        p.ring = k;
+        const double first = vtx(rg.first).first;
+        double a = 0, plon = 0, plat = 0;
+        for(uint32_t j = 0; j < rg.count; ++j) {
+            auto [lon, lat] = vtx(rg.first + j);
+            lon = first + std::remainder(lon - first, 360.0);
+            p.lon0 = std::min(p.lon0, lon);
+            p.lon1 = std::max(p.lon1, lon);
+            p.lat0 = std::min(p.lat0, lat);
+            p.lat1 = std::max(p.lat1, lat);
+            if(j > 0) a += (plon * lat - lon * plat) * std::cos(0.5 * (lat + plat) * deg);
+            plon = lon;
+            plat = lat;
         }
-        bool any = false;
-        std::vector<int> stack;
-        for(std::size_t start = 0; start < in.size(); ++start) {
-            if(in[start] != 1) continue;
-            component c;
-            stack.assign(1, static_cast<int>(start));
-            in[start] = 2;
-            while(!stack.empty()) {
-                const int k = stack.back();
-                stack.pop_back();
-                const int i = k % gw, j = k / gw;
-                const double lon = -180.0 + (x0 + i * step + 0.5) * cell_deg, lat = 90.0 - (y0 + j * step + 0.5) * cell_deg;
-                c.cells.emplace_back(lon, lat);
-                c.lon0 = std::min(c.lon0, lon - step * cell_deg * 0.5);
-                c.lon1 = std::max(c.lon1, lon + step * cell_deg * 0.5);
-                c.lat0 = std::min(c.lat0, lat - step * cell_deg * 0.5);
-                c.lat1 = std::max(c.lat1, lat + step * cell_deg * 0.5);
-                c.weight += std::cos(lat * deg);
-                const int nb[4][2] = {{i + 1, j}, {i - 1, j}, {i, j + 1}, {i, j - 1}};
-                for(auto const& q : nb) {
-                    if(q[0] < 0 || q[0] >= gw || q[1] < 0 || q[1] >= gh) continue;
-                    const std::size_t qk = static_cast<std::size_t>(q[1]) * static_cast<std::size_t>(gw) + static_cast<std::size_t>(q[0]);
-                    if(in[qk] == 1) {
-                        in[qk] = 2;
-                        stack.push_back(static_cast<int>(qk));
-                    }
-                }
-            }
-            comps.push_back(std::move(c));
-            any = true;
-        }
-        if(!any && b.cells > 0) { // on the raster but smaller than a coarse cell: its centre (regions overdrawn by another nation have no cells)
-            component c;
-            const double lon = (b.lon0 + b.lon1) * 0.5, lat = (b.lat0 + b.lat1) * 0.5;
-            c.cells.emplace_back(lon, lat);
-            c = {b.lon0, b.lon1, b.lat0, b.lat1, std::cos(lat * deg) * 0.5, c.cells};
-            comps.push_back(std::move(c));
-        }
+        p.weight = std::fabs(0.5 * a);
+        pieces.push_back(p);
     }
-    // 2. Unwrap longitudes around the largest component.
+    if(pieces.empty()) {
+        insets_.push_back(geo);
+        return geo;
+    }
+    // Unwrap around the largest piece.
     std::size_t biggest = 0;
-    for(std::size_t k = 0; k < comps.size(); ++k) {
-        if(comps[k].weight > comps[biggest].weight) biggest = k;
+    for(std::size_t k = 0; k < pieces.size(); ++k) {
+        if(pieces[k].weight > pieces[biggest].weight) biggest = k;
     }
-    const double ref = (comps[biggest].lon0 + comps[biggest].lon1) * 0.5;
-    for(auto& c : comps) {
-        const double shift = std::remainder((c.lon0 + c.lon1) * 0.5 - ref, 360.0) + ref - (c.lon0 + c.lon1) * 0.5;
-        c.lon0 += shift;
-        c.lon1 += shift;
-        for(auto& p : c.cells) p.first += shift;
+    const double ref = (pieces[biggest].lon0 + pieces[biggest].lon1) * 0.5;
+    std::vector<double> shift(pieces.size());
+    for(std::size_t k = 0; k < pieces.size(); ++k) {
+        piece& p = pieces[k];
+        shift[k] = std::remainder((p.lon0 + p.lon1) * 0.5 - ref, 360.0) + ref - (p.lon0 + p.lon1) * 0.5;
+        p.lon0 += shift[k];
+        p.lon1 += shift[k];
     }
-    // 3. Group components closer than ~250 km (union-find on box gaps).
-    std::vector<std::size_t> parent(comps.size());
+    // Group pieces closer than ~250 km.
+    std::vector<std::size_t> parent(pieces.size());
     for(std::size_t k = 0; k < parent.size(); ++k) parent[k] = k;
     auto find = [&](std::size_t k) {
         while(parent[k] != k) k = parent[k] = parent[parent[k]];
         return k;
     };
-    for(std::size_t a = 0; a < comps.size(); ++a) {
-        for(std::size_t b2 = a + 1; b2 < comps.size(); ++b2) {
-            component const& p = comps[a];
-            component const& q = comps[b2];
+    for(std::size_t a = 0; a < pieces.size(); ++a) {
+        for(std::size_t b = a + 1; b < pieces.size(); ++b) {
+            piece const& p = pieces[a];
+            piece const& q = pieces[b];
             const double mid = std::cos(((p.lat0 + p.lat1 + q.lat0 + q.lat1) * 0.25) * deg);
             const double gx = std::max(0.0, std::max(p.lon0, q.lon0) - std::min(p.lon1, q.lon1)) * 111.0 * mid;
             const double gy = std::max(0.0, std::max(p.lat0, q.lat0) - std::min(p.lat1, q.lat1)) * 111.0;
-            if(std::max(gx, gy) < 250.0) parent[find(a)] = find(b2);
+            if(std::max(gx, gy) < 250.0) parent[find(a)] = find(b);
         }
     }
-    std::map<std::size_t, component> groups_by_root;
-    for(std::size_t k = 0; k < comps.size(); ++k) {
-        component& g = groups_by_root[find(k)];
-        component const& c = comps[k];
-        g.lon0 = std::min(g.lon0, c.lon0);
-        g.lon1 = std::max(g.lon1, c.lon1);
-        g.lat0 = std::min(g.lat0, c.lat0);
-        g.lat1 = std::max(g.lat1, c.lat1);
-        g.weight += c.weight;
-        g.cells.insert(g.cells.end(), c.cells.begin(), c.cells.end());
+    struct group {
+        double lon0 = 1e9, lon1 = -1e9, lat0 = 1e9, lat1 = -1e9, weight = 0;
+        std::vector<std::size_t> pieces;
+    };
+    std::map<std::size_t, group> by_root;
+    double total = 0;
+    for(std::size_t k = 0; k < pieces.size(); ++k) {
+        group& g = by_root[find(k)];
+        g.lon0 = std::min(g.lon0, pieces[k].lon0);
+        g.lon1 = std::max(g.lon1, pieces[k].lon1);
+        g.lat0 = std::min(g.lat0, pieces[k].lat0);
+        g.lat1 = std::max(g.lat1, pieces[k].lat1);
+        g.weight += pieces[k].weight;
+        g.pieces.push_back(k);
+        total += pieces[k].weight;
     }
-    std::vector<component> groups;
-    double total = 0.0;
-    for(auto& [root, g] : groups_by_root) total += g.weight;
-    for(auto& [root, g] : groups_by_root) {
-        // Drop specks (< 0.03 % of the nation's land; Puerto Rico-sized islands stay).
-        if(g.weight >= 0.0003 * total) groups.push_back(std::move(g));
+    std::vector<group> groups;
+    for(auto& [root, g] : by_root) {
+        if(g.weight >= 0.0003 * total) groups.push_back(std::move(g)); // drop specks (< 0.03 % of the land)
     }
     std::stable_sort(groups.begin(), groups.end(), [](auto const& a, auto const& b) { return a.weight > b.weight; });
     if(groups.size() > 9) groups.resize(9); // the main group and at most eight insets
-    // 4. Pack in Mercator.
+    // Pack in Mercator; the main group's land as an occupancy grid (scanline, even-odd per ring).
     std::vector<merc_rect> rects;
     std::vector<double> weight;
     for(auto const& g : groups) {
@@ -839,68 +815,59 @@ map_layer::inset_cache const& map_layer::build_insets(int nation) const {
         weight.push_back(g.weight);
     }
     occupancy land = make_occupancy(rects[0]);
-    for(auto const& [lon, lat] : groups[0].cells) land.mark(lon * deg, mercator_y(lat));
-    const std::vector<inset_placement> placed = pack_insets(rects, weight, 0, land);
-    // 5. Rasterise the layout: each cell maps back through its placement to lon/lat.
-    const merc_rect u = union_of(placed);
-    const double aspect = u.w() / std::max(1e-9, u.h());
-    constexpr int long_side = 960; // cells on the long side: about one per pixel in a full-HD window
-    raster->w = aspect >= 1.0 ? long_side : std::max(16, static_cast<int>(long_side * aspect));
-    raster->h = aspect >= 1.0 ? std::max(16, static_cast<int>(long_side / aspect)) : long_side;
-    raster->cell.assign(static_cast<std::size_t>(raster->w) * static_cast<std::size_t>(raster->h), electoral_raster::empty);
-    for(int j = 0; j < raster->h; ++j) {
-        const double y = u.y1 - (j + 0.5) / raster->h * u.h();
-        for(int i = 0; i < raster->w; ++i) {
-            const double x = u.x0 + (i + 0.5) / raster->w * u.w();
-            inset_placement const* where = nullptr;
-            for(std::size_t k = placed.size(); k-- > 0;) { // insets over the main group
-                merc_rect const& r = placed[k].placed;
-                if(x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1) {
-                    where = &placed[k];
-                    break;
+    for(std::size_t pk : groups[0].pieces) {
+        map_ring const& rg = rings_[pieces[pk].ring];
+        const double first = vtx(rg.first).first;
+        std::vector<std::pair<double, double>> pts(rg.count);
+        for(uint32_t j = 0; j < rg.count; ++j) {
+            auto [lon, lat] = vtx(rg.first + j);
+            pts[j] = {(first + std::remainder(lon - first, 360.0) + shift[pk]) * deg, mercator_y(lat)};
+        }
+        for(int row = 0; row < land.ny; ++row) {
+            const double yc = land.box.y0 + (row + 0.5) * land.box.h() / land.ny;
+            std::vector<double> xs;
+            for(std::size_t j = 0; j < pts.size(); ++j) {
+                auto const& a = pts[j];
+                auto const& b = pts[(j + 1) % pts.size()];
+                if((a.second > yc) != (b.second > yc)) xs.push_back(a.first + (yc - a.second) * (b.first - a.first) / (b.second - a.second));
+            }
+            std::sort(xs.begin(), xs.end());
+            for(std::size_t j = 0; j + 1 < xs.size(); j += 2) {
+                for(int col = 0; col < land.nx; ++col) {
+                    const double xc = land.box.x0 + (col + 0.5) * land.box.w() / land.nx;
+                    if(xc >= xs[j] && xc <= xs[j + 1]) land.mark(xc, yc);
                 }
             }
-            if(!where) continue;
-            int32_t& out = raster->cell[static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(i)];
-            const double ox = where->source.x0 + (x - where->placed.x0) / where->scale;
-            const double oy = where->source.y0 + (y - where->placed.y0) / where->scale;
-            const double lat = (2.0 * std::atan(std::exp(oy)) - 3.14159265358979 / 2.0) / deg;
-            const int r = pick(ox / deg, lat);
-            if(r >= 0 && local[static_cast<std::size_t>(r)] >= 0) out = local[static_cast<std::size_t>(r)];
-            if(where->inset) { // a thin frame around each inset
-                const double fx = std::min(x - where->placed.x0, where->placed.x1 - x) / u.w() * raster->w;
-                const double fy = std::min(y - where->placed.y0, where->placed.y1 - y) / u.h() * raster->h;
-                if(fx < 1.0 || fy < 1.0) out = electoral_raster::frame;
-            }
+        }
+        land.mark((pts[0].first), pts[0].second); // thin pieces still count
+    }
+    const std::vector<inset_placement> placed = pack_insets(rects, weight, 0, land);
+    const merc_rect u = union_of(placed);
+    geo->aspect = static_cast<float>(u.w() / std::max(1e-9, u.h()));
+    geo->ref_lon_deg = static_cast<float>(ref);
+    for(auto const& p : placed) {
+        electoral_inset in;
+        in.src[0] = static_cast<float>(p.source.x0);
+        in.src[1] = static_cast<float>(p.source.y0);
+        in.src[2] = static_cast<float>(p.source.x1);
+        in.src[3] = static_cast<float>(p.source.y1);
+        in.dst[0] = static_cast<float>((p.placed.x0 - u.x0) / u.w());
+        in.dst[1] = static_cast<float>((u.y1 - p.placed.y1) / u.h());
+        in.dst[2] = static_cast<float>((p.placed.x1 - u.x0) / u.w());
+        in.dst[3] = static_cast<float>((u.y1 - p.placed.y0) / u.h());
+        in.frame = p.inset;
+        geo->insets.push_back(in);
+    }
+    // The nation's ring fans (every group's: each inset clips to its own frame).
+    for(auto const& g : groups) {
+        for(std::size_t pk : g.pieces) {
+            map_ring const& rg = rings_[pieces[pk].ring];
+            for(uint32_t j = 1; j + 1 < rg.count; ++j) geo->indices.insert(geo->indices.end(), {rg.first, rg.first + j, rg.first + j + 1});
         }
     }
-    // White borders between regions.
-    std::vector<int32_t> borders = raster->cell;
-    for(int j = 0; j < raster->h; ++j) {
-        for(int i = 0; i < raster->w; ++i) {
-            const std::size_t k = static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(i);
-            const int32_t v = raster->cell[k];
-            if(v < 0) continue;
-            const int32_t left = i > 0 ? raster->cell[k - 1] : v, up = j > 0 ? raster->cell[k - static_cast<std::size_t>(raster->w)] : v;
-            if((left >= 0 && left != v) || (up >= 0 && up != v)) borders[k] = electoral_raster::border;
-        }
-    }
-    raster->cell.swap(borders);
-    for(int j = 0; j < raster->h; ++j) {
-        int i = 0;
-        while(i < raster->w) {
-            const int32_t v = raster->cell[static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(i)];
-            int e = i + 1;
-            while(e < raster->w && raster->cell[static_cast<std::size_t>(j) * static_cast<std::size_t>(raster->w) + static_cast<std::size_t>(e)] == v) ++e;
-            if(v != electoral_raster::empty) raster->runs.push_back({static_cast<uint16_t>(j), static_cast<uint16_t>(i), static_cast<uint16_t>(e - i), v});
-            i = e;
-        }
-    }
-    cache.raster = raster;
-    cache.aspect = static_cast<float>(aspect);
-    SDL_Log("electoral map: %s, %zu regions, %zu groups, %zu runs", iso_of(nation).c_str(), raster->regions.size(), groups.size(), raster->runs.size());
-    insets_.push_back(cache);
-    return insets_.back();
+    SDL_Log("electoral map: %s, %zu regions, %zu groups, %zu indices", iso_of(nation).c_str(), geo->regions.size(), groups.size(), geo->indices.size());
+    insets_.push_back(geo);
+    return geo;
 }
 
 electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const& sim) const {
@@ -921,10 +888,12 @@ electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const&
         out.modes = {"Regime support", "Unrest", "Insurgency", "Population"};
     }
     out.mode = std::clamp(mode, 0, static_cast<int>(out.modes.size()) - 1);
-    inset_cache const& insets = build_insets(nation);
-    out.aspect = insets.aspect;
-    out.raster = insets.raster;
-    auto const& members = insets.raster->regions;
+    const auto geo = build_insets(nation);
+    out.aspect = geo->aspect;
+    for(auto const& in : geo->insets) {
+        if(in.frame) out.frames.push_back({in.dst[0], in.dst[1], in.dst[2], in.dst[3]});
+    }
+    auto const& members = geo->regions;
     const int party_mode = out.democracy && out.mode >= 1 && out.mode <= static_cast<int>(parties.size()) ? out.mode - 1 : -1;
     const bool population = out.modes[static_cast<std::size_t>(out.mode)] == "Population";
     const bool turnout = out.modes[static_cast<std::size_t>(out.mode)] == "Turnout";

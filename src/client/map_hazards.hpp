@@ -74,6 +74,23 @@ struct fault_row {
     float lat = 0, lon = 0, mw = 0, ratio = 0; // ratio = elapsed / mean recurrence
 };
 
+// The Politics window's inset map for the GPU (map_layer::electoral_geometry ->
+// map_renderer::set_electoral): the nation's ring fans (indices into the vector map's
+// vertex buffer), drawn once per inset with that inset's plain-Mercator transform.
+struct electoral_inset {
+    float src[4] = {}; // Mercator rect: x0, y0, x1, y1 (x = lon radians unwrapped around ref_lon, y = ln tan, up)
+    float dst[4] = {}; // where it goes in the map rect, 0..1: x0, y0, x1, y1 (y down)
+    bool frame = false; // an inset (thin frame), not the main group
+};
+struct electoral_geometry {
+    int nation = -1;
+    float ref_lon_deg = 0;
+    float aspect = 1; // layout width / height
+    std::vector<uint32_t> indices;
+    std::vector<electoral_inset> insets;
+    std::vector<int> regions; // raster regions, local index order (colours)
+};
+
 struct region_snapshot {
     int32_t tick = 0;
     int month = 1; // 1..12

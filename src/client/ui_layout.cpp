@@ -587,30 +587,23 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
     const float ox = x + pad + (map_w - lw) * 0.5f, oy = cy + (map_h - lh) * 0.5f;
     st.politics_tile = -1;
     ui.set_text_backing(false);
-    electoral_raster const* ras = info.raster.get();
-    if(!ras || ras->runs.empty()) {
+    if(!info.valid || info.colours.empty()) {
         ui.text_in(layer::overlay, {x + pad, cy, map_w, map_h}, info.valid ? "No regions" : "Loading…", small, style::flat_dim, align::centre);
     } else {
-        // The packed inset map: run-length quads scaled into the area, white region
-        // borders, grey inset frames.
-        const float sx = lw / static_cast<float>(ras->w), sy = lh / static_cast<float>(ras->h);
-        for(auto const& run : ras->runs) {
-            rgba c = style::flat_rule;
-            if(run.value >= 0) c = static_cast<std::size_t>(run.value) < info.colours.size() ? info.colours[static_cast<std::size_t>(run.value)] : style::flat_rule;
-            else if(run.value == electoral_raster::border) c = style::flat_bg;
-            else if(run.value == electoral_raster::frame) c = style::flat_dim;
-            const float x0 = std::round(ox + static_cast<float>(run.x) * sx), x1 = std::round(ox + static_cast<float>(run.x + run.len) * sx);
-            const float y0 = std::round(oy + static_cast<float>(run.row) * sy), y1 = std::round(oy + static_cast<float>(run.row + 1) * sy);
-            if(x1 > x0 && y1 > y0) ui.fill(layer::overlay, {x0, y0, x1 - x0, y1 - y0}, c);
+        // The packed inset map, drawn from the region polygons on the GPU into this
+        // rect (material::electoral, map_renderer::set_electoral), with a thin frame
+        // around each inset; the hovered region comes back from the GPU.
+        const rect area{std::round(ox), std::round(oy), std::round(lw), std::round(lh)};
+        ui.fill(layer::overlay, area, style::flat_bg, material::electoral);
+        const float o = std::max(1.0f, std::round(ui.px(1)));
+        for(auto const& f : info.frames) {
+            const rect fr{std::round(ox + f[0] * lw), std::round(oy + f[1] * lh), std::round((f[2] - f[0]) * lw), std::round((f[3] - f[1]) * lh)};
+            ui.fill(layer::overlay, {fr.x, fr.y, fr.w, o}, style::flat_dim);
+            ui.fill(layer::overlay, {fr.x, fr.bottom() - o, fr.w, o}, style::flat_dim);
+            ui.fill(layer::overlay, {fr.x, fr.y, o, fr.h}, style::flat_dim);
+            ui.fill(layer::overlay, {fr.right() - o, fr.y, o, fr.h}, style::flat_dim);
         }
-        // Hover: the cell under the pointer -> its region.
-        rect area{ox, oy, lw, lh};
-        if(ui.hovered(area)) {
-            const int ci = std::clamp(static_cast<int>((ui.input().mouse_x - ox) / sx), 0, ras->w - 1);
-            const int cj = std::clamp(static_cast<int>((ui.input().mouse_y - oy) / sy), 0, ras->h - 1);
-            const int32_t v = ras->cell[static_cast<std::size_t>(cj) * static_cast<std::size_t>(ras->w) + static_cast<std::size_t>(ci)];
-            if(v >= 0 && static_cast<std::size_t>(v) < ras->regions.size()) st.politics_tile = ras->regions[static_cast<std::size_t>(v)];
-        }
+        if(ui.hovered(area)) st.politics_tile = info.hovered;
     }
     cy += map_h + pad;
     if(!info.legend.empty()) {

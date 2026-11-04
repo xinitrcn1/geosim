@@ -433,7 +433,7 @@ int run_app(app_options const& opt) {
                 std::unique_ptr<map_data> data = map_load.take();
                 map.allow_vector(opt.vector_map);
                 if(data && map.upload(*data, diag)) {
-                    political.init(*data, opt.assets);
+                    political.init(*data, opt.assets, !map.vector());
                     map.set_table(political.table());
                     cell_radians = 2.0 * map_pi / static_cast<double>(data->ids[0].width);
                     if(map.vector()) cell_radians /= 16.0; // polygons: zoom on to micro-states (~30 px per km)
@@ -532,6 +532,17 @@ int run_app(app_options const& opt) {
                     hud.politics_nation = political.resolve_nation(hud.politics_nation, 0, sim);
                     political.update_politics(sim, hud.politics_nation);
                     politics_info = political.electoral(hud.politics_nation, hud.politics_mode, sim);
+                    // The inset map is drawn from the polygons on the GPU: its geometry and the
+                    // colour per raster region for the current mode; the hovered region comes back.
+                    if(auto geo = political.electoral_geometry_of(hud.politics_nation)) {
+                        std::vector<uint32_t> colours(political.table().size() / 2, 0u);
+                        for(std::size_t li = 0; li < geo->regions.size() && li < politics_info.colours.size(); ++li) {
+                            const auto r = static_cast<std::size_t>(geo->regions[li]) + 1;
+                            if(r < colours.size()) colours[r] = pack(politics_info.colours[li]);
+                        }
+                        map.set_electoral(geo, std::move(colours));
+                    }
+                    politics_info.hovered = map.picked_electoral();
                 }
                 if(hud.open == hud_action::control && sim.status() == sim_status::running) {
                     if(pending_agents.valid() && pending_agents.wait_for(std::chrono::seconds(0)) == std::future_status::ready) agent_list = pending_agents.get();
