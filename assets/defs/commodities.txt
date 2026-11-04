@@ -1,0 +1,33 @@
+# World commodity markets besides crude oil (hand-written; moddable). Crude oil keeps
+# its own market in src/sim/systems/markets.cpp (OPEC+ decisions); these markets run in
+# src/sim/systems/commodities.cpp with the same stock-flow price rule:
+#     target = price0 * exp(-flow_sensitivity * (supply - demand)/demand0
+#                           - inventory_sensitivity * (stocks - normal)/(demand0 * inventory_days))
+# Prices are indexes (1 = 2019 average). Producer and consumer shares per nation are in
+# assets/scenario/<year>/commodities_curated.csv.
+#
+#  world_value_bn      2019 world production value, USD bn (gas: ~4,000 bcm; coal: ~8 Gt;
+#                      grains: wheat + maize + rice ~2.7 Gt; metals: iron ore 2.4 Gt + copper
+#                      20 Mt). BP Statistical Review 2020, FAOSTAT, USGS; rounded.
+#  demand_elasticity   short-run price elasticity of demand (Labandeira, Labeaga & Lopez-Otero
+#                      2017 meta-analysis for energy; Roberts & Schlenker 2013 for grains)
+#  supply_elasticity   short-run price elasticity of supply
+#  inventory_days      normal stocks in days of demand (grain stocks-to-use ~30%)
+#  harvest_sd          quarterly s.d. of the supply shock (weather)
+#  biofuel_share       demand share that tracks the crude price (maize ethanol, vegetable oils)
+#  income_elasticity   demand response to household income (Engel's law: food low)
+#  weights{ sector{w} }  demand follows the activity of these sectors; without weights,
+#                      demand follows population and income.
+
+commodity{ key{gas}  name{Natural gas}  world_value_bn{800} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{60} flow_sensitivity{3.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ ene{0.45} man{0.35} csv{0.10} gov{0.10} } }
+commodity{ key{coal} name{Coal}         world_value_bn{500} demand_elasticity{-0.05} supply_elasticity{0.08}
+           inventory_days{30} flow_sensitivity{3.0} inventory_sensitivity{1.0} price_speed{0.05}
+           weights{ ene{0.65} man{0.35} } }
+commodity{ key{food} name{Grains}       world_value_bn{550} demand_elasticity{-0.05} supply_elasticity{0.05}
+           inventory_days{110} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.03}
+           harvest_sd{0.015} biofuel_share{0.10} income_elasticity{0.1} }
+commodity{ key{met}  name{Metals (iron ore, copper)} world_value_bn{340} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{30} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ con{0.55} man{0.45} } }

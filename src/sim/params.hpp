@@ -147,6 +147,129 @@
     X(climate_lag_years, 27.0, "adjustment time of transient warming (years)")                            \
     X(damage_quadratic, 0.00236, "DICE-2016R output loss per C^2")                                       \
     X(damage_heat_tilt, 0.06, "extra damage per C of regional mean temperature above 13 C (Burke et al.)") \
+    /* ---- logistics (systems/logistics.cpp) ---- */                                                       \
+    X(ship_speed_knots, 15.0, "mean container-ship service speed (knots; slow steaming)")                 \
+    X(port_time_days, 1.0, "ship time per port call at normal utilisation (days)")                       \
+    X(port_util0, 0.7, "berth utilisation of container ports at the start")                               \
+    X(port_util_max, 0.97, "berth utilisation cap of the congestion queue")                               \
+    X(port_absence_effect, 1.0, "port throughput lost per unit of working-age infectious absence")       \
+    X(port_npi_effect, 0.1, "port throughput lost at maximum workplace closures (ports were essential)") \
+    X(inventory_cover_days, 25.0, "days of imported inputs held by manufacturers")                         \
+    X(inventory_reorder, 0.05, "daily restocking toward target cover (share of the gap)")                  \
+    X(sea_supply_share, 0.3, "share of manufacturing inputs that arrive by sea from abroad")               \
+    X(delay_smoothing_days, 90.0, "smoothing of transit delays treated as persistent trade costs (days)") \
+    X(trade_delay_semi, 0.01, "trade volume lost per day of persistent extra transit (Djankov et al. 2010)") \
+    X(trade_freight_elasticity, 4.0, "trade elasticity to ad-valorem freight costs (Simonovska & Waugh 2014)") \
+    X(freight_cost_share0, 0.03, "ocean freight cost as a share of shipped goods value at the start (Hummels 2007)") \
+    X(freight_passthrough, 0.6, "share of freight-driven import-cost changes passed into consumer prices") \
+    X(fleet_util0, 0.88, "container-fleet utilisation at the start")                                     \
+    X(fleet_idle0, 0.03, "idle share of the container fleet at the start (Alphaliner 2019)")              \
+    X(fleet_deploy_days, 30.0, "time for carriers to adjust deployed capacity (blank sailings)")          \
+    X(fleet_util_target, 0.88, "utilisation carriers aim for when deploying capacity (= fleet_util0 for a steady start)")                    \
+    X(freight_curve, 1.5, "convexity of the freight supply curve near full utilisation (Stopford 2009)") \
+    X(freight_speed, 0.04, "daily adjustment of spot freight rates toward their target")                 \
+    X(freight_contract_days, 180.0, "lag of contract rates behind spot rates (days)")                    \
+    X(freight_spot_share, 0.4, "share of cargo moving at spot (vs contract) rates")                       \
+    X(newbuild_order_rate, 0.06, "annual orders (share of fleet) per unit spot rate above 1.3")           \
+    X(newbuild_lag_days, 900.0, "mean delivery lag of new ships (days; Kalouptsidi 2014)")               \
+    X(vessel_size_growth, 0.03, "annual growth of mean vessel size (raises grounding hazard)")            \
+    X(incident_rate_scale, 1.0, "multiplier on chokepoint incident and drought hazards (0 = none; what-if and tests)") \
+    X(fleet_ships, 5300.0, "container ships in the world fleet (2019; converts queues into fleet capacity)") \
+    X(container_ship_share, 0.3, "share of chokepoint transits that are container ships")                \
+    X(war_risk_days, 30.0, "routing penalty (days) of a passage closed by conflict (war-risk insurance)") \
+    X(io_network, 1.0, "1 = dynamic input-output production network; 0 = output = min(demand, capacity)") \
+    X(io_import_trade_share, 0.6, "share of imports that are intermediate inputs (OECD TiVA: ~60%)")     \
+    X(io_order_days, 10.0, "time over which firms restore input stocks to target (Pichler et al. 2022)")   \
+    X(io_import_floor, 0.15, "smallest imported share of intermediate inputs")                            \
+    X(divert_cost_ratio, 1.0, "carriers' cost of a diversion day relative to a waiting day")              \
+    X(chokepoint_war_closure, 0.8, "share of a chokepoint closed while a littoral nation is at war")     \
+    X(chokepoint_unrest_closure, 0.15, "share closed per unrest level above 3 in a littoral nation")     \
+    X(drought_temp_sensitivity, 0.5, "drought hazard increase per C of warming above the start")         \
+    X(domestic_logistics_npi, 0.25, "internal freight capacity lost at maximum movement restrictions")   \
+    X(domestic_logistics_absence, 1.0, "internal freight capacity lost per unit working-age absence")    \
+    /* ---- commodities (systems/commodities.cpp) ---- */                                                     \
+    X(food_passthrough, 0.3, "share of world grain price changes passed to domestic food prices")        \
+    X(food_logistics_shock, 0.04, "food relative price rise at zero internal freight capacity, per unit demand inelasticity") \
+    X(food_price_days, 45.0, "adjustment time of domestic relative food prices (days)")                  \
+    X(gas_cpi_share, 0.015, "default CPI weight of gas-linked household energy")                         \
+    /* ---- credit and banking (systems/credit.cpp) ---- */                                                   \
+    X(credit_rate_semi, 0.015, "annual credit growth per 1pp fall of the real lending rate")             \
+    X(credit_cycle, 0.2, "annual credit growth per unit smoothed output gap")                            \
+    X(credit_tightening, 0.4, "annual credit growth lost per unit unemployment rise (lending standards)") \
+    X(credit_liquidity, 0.8, "annual firm-credit growth per unit negative output gap: credit-line draws (Li, Strahan & Zhang 2020)") \
+    X(guarantee_reach, 0.5, "share of private banks' lending reachable by state guarantee schemes (directed credit)") \
+    X(credit_deleveraging, 0.2, "annual credit growth lost per unit credit gap (stock above path)")      \
+    X(credit_crunch, 2.0, "annual credit growth lost per unit capital-ratio shortfall")                  \
+    X(credit_npl_overhang, 0.5, "annual credit growth lost per unit NPL ratio above npl_reference")      \
+    X(npl_reference, 0.03, "NPL ratio above which weak balance sheets restrain lending")                  \
+    X(credit_spend_hh, 0.6, "share of extra household credit spent on goods (rest held as deposits)")   \
+    X(credit_spend_firm, 0.8, "share of extra firm credit spent on investment")                           \
+    X(credit_fx_leak, 0.25, "share of extra household credit converted to foreign assets, x deposit dollarisation") \
+    X(directed_firm_share, 0.75, "share of directed credit lent to firms")                               \
+    X(directed_slack, 0.6, "pragmatic directed credit (% GDP/yr) per point of slack x state-bank share") \
+    X(directed_fx_brake, 30.0, "pragmatic directed credit cut (% GDP/yr) per unit annual depreciation")  \
+    X(directed_bias_gain, 3.0, "how much a growth-first executive amplifies directed credit")           \
+    X(cb_pressure_pp, 3.0, "rate cut (pp) a growth-first executive presses on a dependent central bank") \
+    X(fx_crisis_depreciation, 0.3, "annual depreciation at which a growth-first executive turns orthodox") \
+    X(capital_ratio_min, 0.12, "capital ratio below which banks cut lending (requirement + buffers)")   \
+    X(rwa_density, 0.6, "risk-weighted assets per unit of loans")                                         \
+    X(npl_unemployment, 0.5, "NPL ratio rise per unit unemployment rise (Nkusu 2011)")                                 \
+    X(npl_gap, 0.3, "NPL ratio rise per unit negative output gap")                                        \
+    X(npl_fx, 0.3, "NPL ratio rise per unit log depreciation x FX loan share")                           \
+    X(npl_boom, 0.1, "NPL ratio rise per unit credit gap (bad loans from booms)")                         \
+    X(npl_days, 365.0, "recognition lag of non-performing loans (days; moratoria, forbearance)")        \
+    X(npl_forbearance, 2.0, "extra NPL recognition lag (x) while crisis support (job retention, directed credit) runs (BCBS 2020)") \
+    X(credit_depth_ref, 0.6, "credit/GDP at which state banks can direct lending at full scale")     \
+    X(npl_spread, 0.5, "lending-rate rise (pp) per pp NPL ratio rise")                                    \
+    X(loss_given_default, 0.45, "share of a non-performing loan lost")                                    \
+    X(workout_years, 3.0, "years to work out non-performing loans")                                       \
+    X(bank_margin_share, 0.3, "share of loan-interest changes kept by banks after deposit repricing")   \
+    X(guarantee_share, 0.6, "share of losses on directed loans covered by government guarantees")       \
+    X(fx_balance_sheet, 0.5, "investment lost per unit log depreciation x FX loan share (Cespedes et al. 2004)") \
+    X(fx_dollarisation, 2.0, "annual log depreciation per unit (deposit dollarisation x real-rate fall / 100)") \
+    X(fx_flight, 1.0, "annual log depreciation per unit capital flight / GDP")                            \
+    X(fx_passthrough_base, 0.1, "exchange-rate pass-through at zero trend inflation (Taylor 2000)")       \
+    X(fx_passthrough_inflation, 2.5, "extra pass-through per unit trend inflation")                       \
+    X(fx_passthrough_max, 0.8, "largest exchange-rate pass-through")                                       \
+    /* ---- bonds and yields (systems/bonds.cpp) ---- */                                                     \
+    X(rate_persistence, 0.35, "annual mean reversion of expected short rates toward neutral")            \
+    X(bond_horizon_years, 10.0, "maturity of the benchmark bond")                                         \
+    X(short_issue_share, 0.25, "share of new government borrowing issued short (bills)")                 \
+    X(tp_inflation, 0.3, "term premium (pp) per pp of expected inflation away from trend")              \
+    X(tp_qe, 0.035, "term premium cut (pp) per % of GDP held by the central bank (Gagnon et al. 2011; Altavilla et al. 2015)") \
+    X(tp_global, 0.4, "share of US term-premium changes transmitted abroad (Obstfeld 2015)")            \
+    X(tp_fx, 0.5, "yield (pp) per pp expected annual depreciation x foreign holder share")              \
+    X(tp_haven, 10.0, "term-premium cut (pp) per unit world output gap below zero, for a full reserve currency (flight to quality)") \
+    X(tp_reserve_spread, 0.8, "share of spread changes a full reserve currency does not pay")         \
+    X(qe_max, 15.0, "largest pragmatic purchase rate (% GDP/yr)")                                        \
+    X(qe_gap, 2.0, "Taylor-rate shortfall below the lower bound (pp) that triggers ~63% of qe_max")      \
+    X(qe_spread, 4.0, "pragmatic purchases (% GDP/yr) per pp of sovereign spread rise above 1pp")       \
+    X(qe_cap, 0.5, "largest central-bank share of government debt")                                       \
+    X(i_long_weight, 0.5, "weight of the long yield (vs policy rate) in the cost of capital")            \
+    /* ---- identity groups, youth, collective action (systems/society.cpp) ---- */                          \
+    X(network_insurance, 0.3, "share of a networked pop's income shortfall covered by its group")      \
+    X(network_return_drag, 0.7, "slower return to job search of networked laid-off workers (return migration)") \
+    X(horizontal_weight, 0.5, "grievance per unit log income gap to the national mean (Stewart 2008)") \
+    X(exclusion_weight, 0.2, "grievance per unit political exclusion of the group (Cederman et al. 2010)") \
+    X(group_mobilisation, 0.6, "drive from a group's grievance x network cohesion")                     \
+    X(youth_bulge_ref, 0.33, "youth (15-29) share of 15-64 at which mass mobilisation is unamplified")   \
+    X(corruption_amplifier, 1.0, "grievance amplification per unit corruption x connectivity")          \
+    X(exit_blocked, 0.3, "grievance from blocked emigration per unit emigrant stock x travel ban (Hirschman 1970)") \
+    X(cascade_mu, 0.6, "threshold location of protest participation (Granovetter 1978)")                \
+    X(cascade_sigma, 0.15, "threshold dispersion of protest participation")                               \
+    X(cascade_social, 2.0, "bandwagon weight of observed participation (x 0.5 + connectivity)")         \
+    X(cascade_max, 0.1, "largest share of the population that ever takes part")                           \
+    X(protest_fatigue_gain, 0.01, "daily rise of the joining cost at full participation (exhaustion; Tarrow 1998)") \
+    X(protest_fatigue_days, 120.0, "recovery time of protest fatigue (days)")                             \
+    X(unrest_rise_days, 4.0, "escalation time of regional unrest (days)")                                 \
+    X(unrest_decay_days, 60.0, "de-escalation time of regional unrest (days)")                            \
+    X(spark_rate, 3.0, "annual rate of triggering incidents per region (Kuran 1991)")                    \
+    X(spark_size, 0.08, "mean drive added by a triggering incident")                                      \
+    X(spark_days, 10.0, "decay time of a triggering incident (days)")                                     \
+    X(censor_effect, 0.6, "coordination lost at full information control")                                \
+    X(censor_backfire, 0.8, "drive from a sudden information-control rise x connectivity x youth (Hobbs & Roberts 2018)") \
+    X(censor_trigger, 1.5, "unrest level at which an order-minded executive restricts media")           \
+    X(strike_capacity, 0.03, "regional capacity lost per unrest level above 2")                           \
     /* ---- prices ---- */                                                                                  \
     X(phillips, 0.1, "annual inflation response to the output gap")                                       \
     X(gap_smoothing_days, 60.0, "output-gap smoothing (days)")                                            \

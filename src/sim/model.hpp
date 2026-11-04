@@ -26,6 +26,9 @@ enum class npi_role : uint8_t {
     movement = 6,       // C7: cuts personal mobility (oil demand)
 };
 
+// Goods that cross borders by sea and need port and ship capacity are marked
+// with sector.shipped = 1 (assets/defs/sectors.txt).
+
 // pop.kind
 enum class pop_kind : uint8_t { low_skill = 0, mid_skill = 1, high_skill = 2, retired = 3 };
 inline constexpr uint8_t worker_kinds = 3;
@@ -64,7 +67,18 @@ enum class override_mode : uint8_t { none = 0, advise = 1, direct = 2, force = 3
 
 // Decision levers. NPI levers come first (one per npi_indicator, index = indicator
 // index); the fixed levers follow at derived_indices::lever_base + offset.
-enum class lever : uint8_t { fiscal = 0, stw_coverage, stw_replacement, tti, policy_rate, oil_target, count };
+enum class lever : uint8_t {
+    fiscal = 0,
+    stw_coverage,
+    stw_replacement,
+    tti,
+    policy_rate,
+    oil_target,
+    directed_credit, // executive: extra state-bank lending, % of GDP per year (systems/credit.cpp)
+    info_control,    // executive: restrictions on online media and messaging, 0..1 (systems/society.cpp)
+    asset_purchases, // central bank: government bond purchases (QE), % of GDP per year (systems/bonds.cpp)
+    count
+};
 
 // nation.electoral_system
 enum class electoral_system : uint8_t { none = 0, pr = 1, fptp = 2 };
@@ -76,6 +90,7 @@ inline constexpr uint8_t journal_war = 0xF2;
 inline constexpr uint8_t journal_peace = 0xF3;
 inline constexpr uint8_t journal_sanction = 0xF4;
 inline constexpr uint8_t journal_default = 0xF5;
+inline constexpr uint8_t journal_chokepoint = 0xF6; // before = chokepoint index, after = blockage days drawn
 
 // nation.flows index: year-to-date nominal flows (USD), the "Why?" ledger.
 enum class flow : uint8_t {
@@ -101,6 +116,12 @@ enum class flow : uint8_t {
     remittances_in,
     remittances_out,
     sovereign_default,
+    credit,                // bank lending above / below the baseline path, spent on goods
+    credit_deposits,       // bank lending above the baseline path, held as deposits
+    interest_loans,        // loan interest above / below the baseline path
+    credit_guarantee,      // government payments on guaranteed loans that went bad
+    commodity_terms,       // terms-of-trade gains / losses on non-oil commodities
+    network_transfers,     // kin / caste / hometown network insurance between pops
     count
 };
 

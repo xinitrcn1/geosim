@@ -14,6 +14,23 @@
 #               observed 2020 hospitality/retail/transport output falls.
 #               Informed by Dingel & Neiman (2020) teleworkability and del Rio-Chanona et al. (2020)
 #               supply-shock estimates by industry.
+#
+# Input-output (Leontief 1936; Miller & Blair 2009), used by the dynamic production
+# network in src/sim/systems/economy.cpp (after Pichler, Pangallo, del Rio-Chanona,
+# Lafond & Farmer 2022, "Forecasting the propagation of pandemic shocks with a dynamic
+# input-output model", JEDC):
+# inputs{ s{a} }  technical coefficients: input from sector s per unit of this sector's
+#               gross output (domestic + imported). Rounded world averages of the OECD
+#               Input-Output Tables 2018 edition aggregated to these 7 sectors (Timmer et
+#               al. 2015 WIOD gives similar values). Gross output = value added / (1 - sum).
+# critical_input  1 = a shortage of this sector's output stops downstream production
+#               (Leontief); 0 = downstream can carry on without it for weeks (services).
+#               Pichler et al. (2022) use IHS Markit criticality ratings; goods and energy
+#               are critical for nearly every industry, most business services are not.
+# inventory_days  stock of inputs held, in days of use (Pichler et al. 2022, Table 2,
+#               rounded: manufacturing ~ 3-4 weeks, services ~ 1 week).
+# shipped       1 = output crosses borders in ships and containers (goods), uses ports
+#               and the container fleet (src/sim/systems/logistics.cpp).
 
 sector{
 	key{agr}
@@ -26,6 +43,10 @@ sector{
 	demand{ hh{0.05} gov{0.00} inv{0.00} exp{0.07} }
 	skills{ low{0.70} mid{0.25} high{0.05} }
 	npi_capacity{ C2{0.05} C6{0.02} }
+	inputs{ agr{0.12} ene{0.04} man{0.15} con{0.005} csv{0.04} osv{0.05} gov{0.005} }
+	critical_input{1}
+	inventory_days{30}
+	shipped{1}
 }
 
 sector{
@@ -39,6 +60,10 @@ sector{
 	demand{ hh{0.06} gov{0.02} inv{0.02} exp{0.12} }
 	skills{ low{0.20} mid{0.50} high{0.30} }
 	npi_capacity{ C2{0.05} }
+	inputs{ agr{0.00} ene{0.20} man{0.08} con{0.03} csv{0.04} osv{0.10} gov{0.005} }
+	critical_input{1}
+	inventory_days{20}
+	shipped{1}
 }
 
 sector{
@@ -52,6 +77,10 @@ sector{
 	demand{ hh{0.25} gov{0.08} inv{0.35} exp{0.55} }
 	skills{ low{0.35} mid{0.50} high{0.15} }
 	npi_capacity{ C2{0.20} C6{0.05} }
+	inputs{ agr{0.06} ene{0.05} man{0.35} con{0.005} csv{0.07} osv{0.10} gov{0.005} }
+	critical_input{1}
+	inventory_days{25}
+	shipped{1}
 }
 
 sector{
@@ -65,6 +94,10 @@ sector{
 	demand{ hh{0.03} gov{0.07} inv{0.45} exp{0.00} }
 	skills{ low{0.45} mid{0.45} high{0.10} }
 	npi_capacity{ C2{0.25} C6{0.05} }
+	inputs{ agr{0.00} ene{0.02} man{0.28} con{0.08} csv{0.06} osv{0.12} gov{0.005} }
+	critical_input{0}
+	inventory_days{20}
+	shipped{0}
 }
 
 sector{
@@ -78,6 +111,10 @@ sector{
 	demand{ hh{0.30} gov{0.03} inv{0.01} exp{0.12} }
 	skills{ low{0.50} mid{0.40} high{0.10} }
 	npi_capacity{ C2{0.30} C6{0.10} C4{0.06} C3{0.04} C7{0.03} C8{0.04} C1{0.01} }
+	inputs{ agr{0.02} ene{0.04} man{0.10} con{0.01} csv{0.12} osv{0.12} gov{0.005} }
+	critical_input{0}
+	inventory_days{10}
+	shipped{0}
 }
 
 sector{
@@ -91,6 +128,10 @@ sector{
 	demand{ hh{0.27} gov{0.15} inv{0.17} exp{0.14} }
 	skills{ low{0.10} mid{0.40} high{0.50} }
 	npi_capacity{ C2{0.08} C6{0.02} }
+	inputs{ agr{0.00} ene{0.02} man{0.04} con{0.03} csv{0.05} osv{0.25} gov{0.01} }
+	critical_input{0}
+	inventory_days{7}
+	shipped{0}
 }
 
 sector{
@@ -104,4 +145,8 @@ sector{
 	demand{ hh{0.04} gov{0.65} inv{0.00} exp{0.00} }
 	skills{ low{0.10} mid{0.40} high{0.50} }
 	npi_capacity{ C1{0.05} C2{0.03} }
+	inputs{ agr{0.005} ene{0.03} man{0.08} con{0.03} csv{0.04} osv{0.12} gov{0.02} }
+	critical_input{0}
+	inventory_days{10}
+	shipped{0}
 }

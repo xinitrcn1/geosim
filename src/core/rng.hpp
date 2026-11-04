@@ -44,6 +44,6 @@ constexpr void mulhilo(uint32_t a, uint32_t b, uint32_t& hi, uint32_t& lo) noexc
 }
 
 // System ids used as RNG streams (stable across versions: append only).
-enum class rng_stream : uint32_t { conflict = 1, unrest = 2, elections = 3, migration = 4 };
+enum class rng_stream : uint32_t { conflict = 1, unrest = 2, elections = 3, migration = 4, logistics = 5, commodities = 6 };
 
 } // namespace geosim::core

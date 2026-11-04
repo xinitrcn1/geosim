@@ -1,0 +1,27 @@
+# Port capacity and transport mode (hand-written).
+#  port_teu_m      container port throughput 2019, million TEU (UNCTAD Review of Maritime
+#                  Transport 2020; China includes Hong Kong; ROW = world ~802M minus the rest)
+#  seaborne_share  share of overseas goods trade (by value) carried by sea rather than air
+#                  (US Census vessel vs air shares; Eurostat extra-EU by mode; rough elsewhere)
+iso3,port_teu_m,seaborne_share
+USA,55.5,0.60
+CHN,260.0,0.75
+JPN,21.7,0.65
+DEU,15.0,0.60
+GBR,10.0,0.55
+FRA,6.0,0.60
+ITA,10.6,0.65
+ESP,17.5,0.70
+CAN,6.8,0.75
+KOR,29.0,0.65
+AUS,8.6,0.80
+BRA,10.5,0.85
+MEX,7.1,0.75
+IND,17.0,0.70
+RUS,5.2,0.85
+TUR,11.6,0.75
+IDN,14.0,0.85
+SAU,8.9,0.90
+ZAF,4.8,0.80
+ARG,1.9,0.85
+ROW,300.0,0.75

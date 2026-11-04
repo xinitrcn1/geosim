@@ -1,0 +1,137 @@
+# World container-shipping network (hand-written; moddable). Read by
+# src/sim/scenario_ext.cpp; used by src/sim/systems/logistics.cpp.
+#
+# node{ key lat lon }            a representative port / basin hub (keys up to 4 characters)
+# lane{ a b nm [chokepoint] }    sailing distance between two nodes in nautical miles (both
+#                                directions). Distances are rounded port-to-port sea distances
+#                                (sea-distances.org / Lloyd's distance tables); a lane through a
+#                                strait or canal names its chokepoint.
+# chokepoint{ ... }              a narrow passage whose capacity can fall:
+#   capacity          transits per day the passage can handle when fully open
+#   traffic           transits per day in 2019
+#   canal_days        extra time of the passage itself (convoys, pilots, locks)
+#   incident_rate     blocking incidents per year at 2019 traffic and vessel size
+#   incident_cut      share of capacity lost in an incident (1 = closed)
+#   size_elasticity   hazard elasticity to mean vessel size (larger ships ground more easily
+#                     and catch more wind; Merk 2015, ITF "The impact of mega-ships")
+#   duration_median / duration_sigma   lognormal duration of an incident (days)
+#   season_amp / season_peak           seasonal hazard amplitude and peak day of year (winds, fog)
+#   drought_rate / drought_cut / drought_days   capacity cut from low water (Panama locks)
+#   littoral{ ISO3 ... }   nations whose wars or unrest can close the passage (unknown ISO3
+#                          codes are ignored, so the list also serves the full-world scenario)
+#
+# Calibration notes:
+#  SUE  Suez Canal Authority: 18,880 transits in 2019 (52/day); about 120/day were handled
+#       while the queue cleared after the Ever Given refloat (2021-03-29). Multi-day full
+#       blockages by grounding: Tropic Brilliance (2004, ~3 days), Ever Given (2021, 6 days)
+#       -> about 0.1 per year. Spring khamsin winds raise the hazard (peak late March).
+#  PAN  Panama Canal Authority FY2019: 13,785 transits (~36 ocean-going/day); drought draft
+#       restrictions in 2016, 2019-20 and a severe one in 2023 (El Nino) -> ~0.15 per year,
+#       capacity cut ~30% for ~5 months.
+#  BOS  Turkish Straits: ~42,000 transits a year; short suspensions for fog and breakdowns
+#       are frequent (several a year, hours long).
+#  MAL / HOR / BAB / GIB / TWN: wide straits, never fully closed by accidents; their risk is
+#       conflict (tanker war 1984-88, Red Sea attacks 2023-24) via littoral nations.
+
+node{ key{RTM} lat{51.9}  lon{4.1} }      # North Sea (Rotterdam, Hamburg, Felixstowe)
+node{ key{STP} lat{59.9}  lon{30.2} }     # Baltic
+node{ key{NYC} lat{40.7}  lon{-74.0} }    # US / Canada Atlantic
+node{ key{HOU} lat{29.7}  lon{-95.0} }    # Gulf of Mexico / Caribbean
+node{ key{CLN} lat{9.35}  lon{-79.9} }    # Panama, Atlantic side
+node{ key{BLB} lat{8.95}  lon{-79.55} }   # Panama, Pacific side
+node{ key{LAX} lat{33.7}  lon{-118.3} }   # North American Pacific (LA/LB, Vancouver, Manzanillo)
+node{ key{VAL} lat{-33.0} lon{-71.6} }    # South American Pacific
+node{ key{SAN} lat{-24.0} lon{-46.3} }    # South American Atlantic (Santos, Buenos Aires)
+node{ key{LAG} lat{6.4}   lon{3.4} }      # West Africa
+node{ key{CPT} lat{-33.9} lon{18.4} }     # Cape of Good Hope
+node{ key{DUR} lat{-29.9} lon{31.0} }     # Southern African Indian Ocean
+node{ key{MED} lat{38.4}  lon{15.9} }     # Central Mediterranean hub
+node{ key{IST} lat{40.9}  lon{28.7} }     # Sea of Marmara
+node{ key{NOV} lat{44.7}  lon{37.8} }     # Black Sea
+node{ key{JED} lat{21.5}  lon{39.2} }     # Red Sea
+node{ key{ADN} lat{12.8}  lon{45.0} }     # Gulf of Aden
+node{ key{DMM} lat{26.4}  lon{50.1} }     # Persian Gulf
+node{ key{MUM} lat{18.9}  lon{72.9} }     # Arabian Sea / west India
+node{ key{COL} lat{6.9}   lon{79.8} }     # Colombo / south of India
+node{ key{CHE} lat{13.1}  lon{80.3} }     # Bay of Bengal
+node{ key{SIN} lat{1.3}   lon{103.8} }    # Singapore / Java Sea
+node{ key{HKG} lat{22.3}  lon{114.2} }    # South China (Shenzhen, Hong Kong, Guangzhou)
+node{ key{SHA} lat{31.2}  lon{121.5} }    # East China Sea (Shanghai, Ningbo, Qingdao)
+node{ key{BUS} lat{35.1}  lon{129.0} }    # Korea / Sea of Japan / Russian Far East
+node{ key{TYO} lat{35.5}  lon{139.8} }    # Japan Pacific
+node{ key{SYD} lat{-33.9} lon{151.2} }    # Australia
+
+chokepoint{ key{SUE} name{Suez Canal}        capacity{120} traffic{52}  canal_days{0.75} incident_rate{0.1}  incident_cut{1.0}
+            size_elasticity{1.0} duration_median{3.0} duration_sigma{0.9} season_amp{0.5} season_peak{80}
+            littoral{ EGY } }
+chokepoint{ key{PAN} name{Panama Canal}      capacity{40}  traffic{36}  canal_days{1.0}  incident_rate{0.05} incident_cut{1.0}
+            size_elasticity{0.5} duration_median{2.0} duration_sigma{0.7}
+            drought_rate{0.15} drought_cut{0.3} drought_days{150} littoral{ PAN } }
+chokepoint{ key{BOS} name{Turkish Straits}   capacity{140} traffic{115} canal_days{0.3}  incident_rate{1.0}  incident_cut{1.0}
+            size_elasticity{0.5} duration_median{0.5} duration_sigma{0.8} season_amp{0.5} season_peak{30}
+            littoral{ TUR } }
+chokepoint{ key{MAL} name{Strait of Malacca} capacity{400} traffic{230} canal_days{0}    incident_rate{0.05} incident_cut{0.3}
+            duration_median{1.0} duration_sigma{0.7} littoral{ IDN MYS SGP } }
+chokepoint{ key{HOR} name{Strait of Hormuz}  capacity{300} traffic{110} canal_days{0}    incident_rate{0.02} incident_cut{0.5}
+            duration_median{2.0} duration_sigma{1.0} littoral{ IRN OMN ARE } }
+chokepoint{ key{BAB} name{Bab-el-Mandeb}     capacity{300} traffic{57}  canal_days{0}    incident_rate{0.02} incident_cut{0.5}
+            duration_median{3.0} duration_sigma{1.0} littoral{ YEM DJI ERI } }
+chokepoint{ key{GIB} name{Strait of Gibraltar} capacity{1000} traffic{300} canal_days{0} incident_rate{0.01} incident_cut{0.2}
+            duration_median{1.0} duration_sigma{0.5} littoral{ ESP MAR GBR } }
+chokepoint{ key{TWN} name{Taiwan Strait}     capacity{800} traffic{240} canal_days{0}    incident_rate{0.01} incident_cut{0.3}
+            duration_median{1.0} duration_sigma{0.5} littoral{ CHN TWN } }
+
+lane{ a{RTM} b{STP} nm{1250} }
+lane{ a{RTM} b{NYC} nm{3450} }
+lane{ a{RTM} b{MED} nm{2500} chokepoint{GIB} }
+lane{ a{RTM} b{LAG} nm{4200} }
+lane{ a{RTM} b{CPT} nm{6100} }
+lane{ a{NYC} b{HOU} nm{1900} }
+lane{ a{NYC} b{CLN} nm{1970} }
+lane{ a{HOU} b{CLN} nm{1500} }
+lane{ a{NYC} b{MED} nm{4100} chokepoint{GIB} }
+lane{ a{NYC} b{SAN} nm{4800} }
+lane{ a{HOU} b{SAN} nm{5100} }
+lane{ a{CLN} b{BLB} nm{50}   chokepoint{PAN} }
+lane{ a{BLB} b{LAX} nm{2900} }
+lane{ a{BLB} b{VAL} nm{2600} }
+lane{ a{BLB} b{SHA} nm{8500} }
+lane{ a{BLB} b{TYO} nm{7700} }
+lane{ a{LAX} b{TYO} nm{4850} }
+lane{ a{LAX} b{SHA} nm{5700} }
+lane{ a{LAX} b{HKG} nm{6400} }
+lane{ a{LAX} b{SYD} nm{6500} }
+lane{ a{LAX} b{VAL} nm{4700} }
+lane{ a{SAN} b{CPT} nm{3300} }
+lane{ a{SAN} b{LAG} nm{3200} }
+lane{ a{LAG} b{CPT} nm{2500} }
+lane{ a{CPT} b{DUR} nm{800} }
+lane{ a{CPT} b{SIN} nm{5600} }
+lane{ a{CPT} b{COL} nm{4500} }
+lane{ a{CPT} b{MED} nm{6200} chokepoint{GIB} }
+lane{ a{DUR} b{ADN} nm{3300} }
+lane{ a{DUR} b{MUM} nm{3900} }
+lane{ a{DUR} b{SIN} nm{5200} }
+lane{ a{MED} b{IST} nm{700} }
+lane{ a{IST} b{NOV} nm{450}  chokepoint{BOS} }
+lane{ a{MED} b{JED} nm{1800} chokepoint{SUE} }
+lane{ a{JED} b{ADN} nm{600}  chokepoint{BAB} }
+lane{ a{ADN} b{DMM} nm{1500} chokepoint{HOR} }
+lane{ a{DMM} b{MUM} nm{1300} chokepoint{HOR} }
+lane{ a{ADN} b{MUM} nm{1650} }
+lane{ a{ADN} b{COL} nm{2100} }
+lane{ a{MUM} b{COL} nm{900} }
+lane{ a{COL} b{CHE} nm{600} }
+lane{ a{COL} b{SIN} nm{1570} chokepoint{MAL} }
+lane{ a{CHE} b{SIN} nm{1600} chokepoint{MAL} }
+lane{ a{COL} b{SIN} nm{2600} }                    # via the Sunda Strait (Malacca bypass)
+lane{ a{SIN} b{HKG} nm{1450} }
+lane{ a{HKG} b{SHA} nm{830}  chokepoint{TWN} }
+lane{ a{HKG} b{TYO} nm{1600} }                    # east of Taiwan (Luzon Strait)
+lane{ a{SHA} b{BUS} nm{500} }
+lane{ a{SHA} b{TYO} nm{1050} }
+lane{ a{BUS} b{TYO} nm{650} }
+lane{ a{SIN} b{SYD} nm{3900} }
+lane{ a{SIN} b{TYO} nm{2900} }
+lane{ a{SYD} b{TYO} nm{4300} }
+lane{ a{SYD} b{HKG} nm{4100} }

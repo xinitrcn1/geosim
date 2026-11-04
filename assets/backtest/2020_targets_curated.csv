@@ -1,0 +1,27 @@
+# Hand-written 2020 outcomes merged with 2020_targets.csv by iso3 (back-test).
+#  yield10_end_pct    10-year local-currency government bond yield, 31 Dec 2020 (central banks,
+#                     OECD MEI long-term rates; rounded). Empty = no liquid benchmark.
+#  credit_growth_pct  nominal growth of bank credit to the private sector, Dec 2020 / Dec 2019
+#                     (national central banks and supervisors: Fed H.8, PBoC RMB loans, BoJ,
+#                     ECB MFI loans, BoE, BCB, Banxico, RBI, CBR, BDDK, OJK, SAMA, SARB; rounded)
+iso3,yield10_end_pct,credit_growth_pct
+USA,0.93,4.0
+CHN,3.15,12.8
+JPN,0.02,5.3
+DEU,-0.57,4.0
+GBR,0.20,4.0
+FRA,-0.34,7.0
+ITA,0.54,4.0
+ESP,0.04,2.5
+CAN,0.68,5.5
+KOR,1.71,9.0
+AUS,0.97,1.8
+BRA,6.90,15.6
+MEX,5.53,-2.5
+IND,5.87,6.0
+RUS,5.91,10.8
+TUR,12.48,35.0
+IDN,5.89,-2.4
+SAU,,14.0
+ZAF,8.73,1.5
+ARG,,

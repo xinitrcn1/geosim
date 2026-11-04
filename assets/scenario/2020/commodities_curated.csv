@@ -1,0 +1,74 @@
+# Commodity production and consumption shares of the world total, 2019 (hand-written; rounded).
+# ROW gets the remainder of each column. gov_take = share of the production value collected
+# by the state (royalties, taxes, state-firm profits; rough; oil uses nations_curated.csv).
+# Sources: gas and coal - BP Statistical Review of World Energy 2020; grains (wheat, maize,
+# rice) - FAOSTAT 2019 production and domestic supply; metals (iron ore by value ~60%,
+# copper ~40%) - USGS Mineral Commodity Summaries 2020, World Steel / ICSG consumption.
+iso3,commodity,production_share,consumption_share,gov_take
+USA,gas,0.231,0.215,0.05
+RUS,gas,0.170,0.113,0.40
+CHN,gas,0.044,0.078,0.20
+CAN,gas,0.044,0.030,0.10
+SAU,gas,0.029,0.029,0.50
+AUS,gas,0.039,0.012,0.15
+IDN,gas,0.017,0.011,0.30
+IND,gas,0.007,0.015,0.20
+ARG,gas,0.010,0.012,0.20
+MEX,gas,0.007,0.023,0.30
+BRA,gas,0.006,0.009,0.20
+DEU,gas,0.001,0.022,0.00
+GBR,gas,0.010,0.020,0.10
+ITA,gas,0.001,0.018,0.00
+FRA,gas,0.000,0.011,0.00
+ESP,gas,0.000,0.009,0.00
+JPN,gas,0.001,0.027,0.00
+KOR,gas,0.000,0.014,0.00
+TUR,gas,0.000,0.011,0.00
+ZAF,gas,0.000,0.001,0.00
+CHN,coal,0.475,0.517,0.10
+IND,coal,0.077,0.118,0.20
+USA,coal,0.084,0.084,0.05
+AUS,coal,0.079,0.011,0.10
+IDN,coal,0.090,0.023,0.15
+RUS,coal,0.054,0.026,0.05
+ZAF,coal,0.036,0.023,0.05
+CAN,coal,0.007,0.002,0.05
+KOR,coal,0.000,0.019,0.00
+JPN,coal,0.000,0.031,0.00
+DEU,coal,0.007,0.014,0.00
+TUR,coal,0.005,0.011,0.00
+CHN,food,0.210,0.220,0.00
+USA,food,0.150,0.100,0.00
+IND,food,0.110,0.110,0.00
+BRA,food,0.040,0.030,0.00
+RUS,food,0.040,0.030,0.00
+ARG,food,0.030,0.008,0.10
+IDN,food,0.030,0.035,0.00
+CAN,food,0.020,0.010,0.00
+FRA,food,0.025,0.012,0.00
+AUS,food,0.010,0.005,0.00
+TUR,food,0.012,0.013,0.00
+DEU,food,0.015,0.012,0.00
+MEX,food,0.012,0.020,0.00
+ITA,food,0.006,0.010,0.00
+ESP,food,0.008,0.012,0.00
+GBR,food,0.008,0.010,0.00
+JPN,food,0.004,0.012,0.00
+KOR,food,0.002,0.008,0.00
+SAU,food,0.0005,0.008,0.00
+ZAF,food,0.006,0.006,0.00
+AUS,met,0.250,0.005,0.10
+BRA,met,0.120,0.015,0.10
+CHN,met,0.100,0.550,0.05
+IND,met,0.050,0.040,0.10
+RUS,met,0.040,0.020,0.05
+USA,met,0.040,0.060,0.02
+ZAF,met,0.040,0.005,0.08
+CAN,met,0.030,0.010,0.05
+MEX,met,0.020,0.010,0.05
+IDN,met,0.020,0.010,0.10
+JPN,met,0.000,0.040,0.00
+KOR,met,0.000,0.030,0.00
+DEU,met,0.000,0.030,0.00
+TUR,met,0.000,0.015,0.00
+ITA,met,0.000,0.010,0.00

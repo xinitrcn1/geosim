@@ -189,6 +189,100 @@ object{
 	property{ name{acc_days} type{double} }
 	property{ name{acc_bal_gov_start} type{double} }
 	property{ name{gini} type{float} }
+
+	property{ name{port_teu} type{float} }
+	property{ name{seaborne_share} type{float} }
+	property{ name{port_util} type{float} }
+	property{ name{port_dwell} type{float} }
+	property{ name{port_dwell0} type{float} }
+	property{ name{port_absent} type{float} }
+	property{ name{logistics_delay} type{float} }
+	property{ name{logistics_delay_slow} type{float} }
+	property{ name{input_inventory} type{float} }
+	property{ name{input_availability} type{float} }
+	property{ name{transit_prev} type{float} }
+	property{ name{freight_cost} type{float} }
+	property{ name{import_cost_index} type{float} }
+	property{ name{import_cost_prev} type{float} }
+	property{ name{trade_cost_factor} type{float} }
+	property{ name{domestic_logistics} type{float} }
+	property{ name{transit_days} type{array{uint8_t}{float}} }
+	property{ name{transit_days0} type{array{uint8_t}{float}} }
+	property{ name{land_share} type{array{uint8_t}{float}} }
+	property{ name{trade_distance} type{array{uint8_t}{float}} }
+	property{ name{pair_cost} type{array{uint8_t}{float}} }
+	property{ name{port_throughput0} type{float} }
+	property{ name{goods_export_share} type{float} }
+	property{ name{sea_import_share} type{float} }
+
+	property{ name{gross_output} type{array{uint8_t}{float}} }
+	property{ name{io_demand} type{array{uint8_t}{float}} }
+	property{ name{io_import} type{array{uint8_t}{float}} }
+	property{ name{io_stock} type{array{uint8_t}{float}} }
+	property{ name{io_stock_m} type{array{uint8_t}{float}} }
+	property{ name{io_constraint} type{array{uint8_t}{float}} }
+
+	property{ name{food_cpi_share} type{float} }
+	property{ name{energy_cpi_share} type{float} }
+	property{ name{food_price} type{float} }
+	property{ name{commodity_prod} type{array{uint8_t}{float}} }
+	property{ name{commodity_cons} type{array{uint8_t}{float}} }
+	property{ name{commodity_take} type{array{uint8_t}{float}} }
+	property{ name{commodity_demand} type{array{uint8_t}{float}} }
+	property{ name{commodity_tot} type{float} }
+	property{ name{commodity_rent} type{float} }
+
+	property{ name{loans_hh} type{double} }
+	property{ name{loans_firm} type{double} }
+	property{ name{loans_hh0} type{double} }
+	property{ name{loans_firm0} type{double} }
+	property{ name{loans_directed} type{double} }
+	property{ name{loans_prev} type{double} }
+	property{ name{loans_start} type{double} }
+	property{ name{bank_capital} type{double} }
+	property{ name{lending_spread} type{float} }
+	property{ name{lending_rate} type{float} }
+	property{ name{lending_rate0} type{float} }
+	property{ name{real_rate0} type{float} }
+	property{ name{state_bank_share} type{float} }
+	property{ name{cb_independence} type{float} }
+	property{ name{fx_loan_share} type{float} }
+	property{ name{fx_deposit_share} type{float} }
+	property{ name{npl} type{float} }
+	property{ name{npl0} type{float} }
+	property{ name{capital_ratio} type{float} }
+	property{ name{capital_ratio0} type{float} }
+	property{ name{credit_flow_hh} type{float} }
+	property{ name{credit_flow_firm} type{float} }
+	property{ name{credit_deposit_hh} type{float} }
+	property{ name{rate_loan_interest} type{float} }
+	property{ name{loan_interest_firm} type{float} }
+	property{ name{credit_growth} type{float} }
+	property{ name{credit_impulse} type{float} }
+	property{ name{capital_flight} type{float} }
+	property{ name{directed_credit} type{float} }
+	property{ name{credit_activism} type{float} }
+	property{ name{fx_passthrough_n} type{float} }
+
+	property{ name{yield10} type{float} }
+	property{ name{yield10_0} type{float} }
+	property{ name{term_premium0} type{float} }
+	property{ name{gov_rate0} type{float} }
+	property{ name{avg_maturity} type{float} }
+	property{ name{foreign_debt_share} type{float} }
+	property{ name{fx_debt_share} type{float} }
+	property{ name{cb_bonds} type{double} }
+	property{ name{qe_rate} type{float} }
+	property{ name{debt_prev} type{double} }
+
+	property{ name{youth_share} type{float} }
+	property{ name{youth_unemp_rel} type{float} }
+	property{ name{connectivity} type{float} }
+	property{ name{corruption} type{float} }
+	property{ name{emigrant_stock} type{float} }
+	property{ name{info_control} type{float} }
+	property{ name{info_control_prev} type{float} }
+	property{ name{urban_share} type{float} }
 }
 
 object{
@@ -241,6 +335,12 @@ object{
 	property{ name{new_deaths} type{float} }
 	property{ name{deaths_reported} type{float} }
 	property{ name{deaths7} type{float} }
+
+	property{ name{protest} type{float} }
+	property{ name{drive} type{float} }
+	property{ name{spark} type{float} }
+	property{ name{backfire} type{float} }
+	property{ name{protest_fatigue} type{float} }
 }
 
 object{
@@ -300,6 +400,10 @@ object{
 	property{ name{inc_sigma} type{float} }
 	property{ name{owner_share} type{float} }
 	property{ name{transfer_share} type{float} }
+	property{ name{group} type{social_group_id} }
+	property{ name{informal} type{float} }
+	property{ name{formal_rel} type{float} }
+	property{ name{network} type{float} }
 }
 
 object{
@@ -320,6 +424,11 @@ object{
 	property{ name{demand_exp} type{float} }
 	property{ name{skill} type{array{uint8_t}{float}} }
 	property{ name{npi_capacity} type{array{uint8_t}{float}} }
+	property{ name{shipped} type{float} }
+	property{ name{io_coeff} type{array{uint8_t}{float}} }
+	property{ name{value_added_share} type{float} }
+	property{ name{critical_input} type{float} }
+	property{ name{inventory_days} type{float} }
 }
 
 object{
@@ -387,6 +496,123 @@ object{
 	property{ name{demand0} type{float} }
 	property{ name{acc_price} type{double} }
 	property{ name{acc_days} type{double} }
+	property{ name{world_value} type{float} }
+	property{ name{demand_elasticity} type{float} }
+	property{ name{supply_elasticity} type{float} }
+	property{ name{inventory_days} type{float} }
+	property{ name{flow_sensitivity} type{float} }
+	property{ name{inventory_sensitivity} type{float} }
+	property{ name{price_speed} type{float} }
+	property{ name{harvest_sd} type{float} }
+	property{ name{harvest} type{float} }
+	property{ name{biofuel_share} type{float} }
+	property{ name{income_elasticity} type{float} }
+	property{ name{sector_weight} type{array{uint8_t}{float}} }
+	property{ name{supply_index} type{float} }
+}
+
+object{
+	name{social_group}
+	storage_type{contiguous}
+	size{512}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{nation} type{nation_id} }
+	property{ name{local_index} type{uint8_t} }
+	property{ name{pop_share} type{float} }
+	property{ name{edu_rel} type{float} }
+	property{ name{informal_rel} type{float} }
+	property{ name{wage_gap} type{float} }
+	property{ name{unemp_rel} type{float} }
+	property{ name{wealth_rel} type{float} }
+	property{ name{excluded} type{float} }
+	property{ name{network} type{float} }
+	property{ name{immigrant} type{uint8_t} }
+	property{ name{skill} type{array{uint8_t}{float}} }
+	property{ name{income_rel} type{float} }
+	property{ name{income_rel0} type{float} }
+	property{ name{unemployment} type{float} }
+	property{ name{grievance} type{float} }
+	property{ name{mobilisation} type{float} }
+}
+
+object{
+	name{sea_node}
+	storage_type{contiguous}
+	size{64}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{lat} type{float} }
+	property{ name{lon} type{float} }
+}
+
+object{
+	name{chokepoint}
+	storage_type{contiguous}
+	size{32}
+	tag{scenario}
+
+	property{ name{key} type{uint32_t} }
+	property{ name{capacity} type{float} }
+	property{ name{traffic0} type{float} }
+	property{ name{traffic} type{float} }
+	property{ name{flow0} type{float} }
+	property{ name{canal_days} type{float} }
+	property{ name{incident_rate} type{float} }
+	property{ name{incident_cut} type{float} }
+	property{ name{size_elasticity} type{float} }
+	property{ name{duration_median} type{float} }
+	property{ name{duration_sigma} type{float} }
+	property{ name{season_amp} type{float} }
+	property{ name{season_peak} type{float} }
+	property{ name{drought_rate} type{float} }
+	property{ name{drought_cut} type{float} }
+	property{ name{drought_days} type{float} }
+	property{ name{drought_left} type{float} }
+	property{ name{blocked_left} type{float} }
+	property{ name{blocked_elapsed} type{float} }
+	property{ name{incident_open} type{float} }
+	property{ name{conflict} type{float} }
+	property{ name{open} type{float} }
+	property{ name{queue} type{float} }
+	property{ name{wait_days} type{float} }
+	property{ name{incidents} type{float} }
+	property{ name{ship_days_lost} type{double} }
+}
+
+object{
+	name{sea_lane}
+	storage_type{contiguous}
+	size{256}
+	tag{scenario}
+
+	property{ name{from} type{sea_node_id} }
+	property{ name{to} type{sea_node_id} }
+	property{ name{nm} type{float} }
+	property{ name{chokepoint} type{chokepoint_id} }
+	property{ name{days} type{float} }
+}
+
+object{
+	name{shipping}
+	storage_type{contiguous}
+	size{1}
+	tag{scenario}
+
+	property{ name{fleet} type{float} }
+	property{ name{deployed} type{float} }
+	property{ name{demand} type{float} }
+	property{ name{demand0} type{float} }
+	property{ name{utilisation} type{float} }
+	property{ name{spot_rate} type{float} }
+	property{ name{contract_rate} type{float} }
+	property{ name{orderbook} type{float} }
+	property{ name{acc_rate} type{double} }
+	property{ name{acc_days} type{double} }
+	property{ name{acc_idle} type{double} }
+	property{ name{world_trade} type{float} }
 }
 
 object{
@@ -402,6 +628,7 @@ object{
 	property{ name{econ_weight} type{float} }
 	property{ name{order_ideal} type{float} }
 	property{ name{fiscal_hawk} type{float} }
+	property{ name{credit_bias} type{float} }
 	property{ name{override_mode} type{array{uint8_t}{uint8_t}} }
 	property{ name{override_value} type{array{uint8_t}{float}} }
 	property{ name{last_pragmatic} type{array{uint8_t}{float}} }
@@ -639,4 +866,45 @@ relationship{
 		index_storage{list}
 	}
 	primary_key{party}
+}
+
+relationship{
+	name{port_access}
+	storage_type{erasable}
+	size{512}
+	tag{scenario}
+
+	link{
+		object{nation}
+		name{nation}
+		type{many}
+		index_storage{list}
+	}
+	link{
+		object{sea_node}
+		name{node}
+		type{many}
+		index_storage{list}
+	}
+	property{ name{share} type{float} }
+}
+
+relationship{
+	name{littoral}
+	storage_type{erasable}
+	size{128}
+	tag{scenario}
+
+	link{
+		object{chokepoint}
+		name{chokepoint}
+		type{many}
+		index_storage{list}
+	}
+	link{
+		object{nation}
+		name{nation}
+		type{many}
+		index_storage{list}
+	}
 }

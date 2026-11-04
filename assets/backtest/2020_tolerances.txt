@@ -11,3 +11,10 @@ band{ metric{gov_net_lending_pct} abs{4.0}              min_pass{0.60} }
 band{ metric{deaths_per_million}  factor{3.0} pathogen{cov} min_pass{0.60} }
 # Brent 2020 mean of EIA daily spot (assets/backtest/2020_brent.csv) = 41.96 USD/bbl.
 band{ metric{oil_price_mean} real{41.96} abs{6.0} }
+# Bonds and credit (assets/backtest/2020_targets_curated.csv).
+band{ metric{yield10_end_pct}     abs{1.0}              min_pass{0.60} }
+band{ metric{credit_growth_pct}   abs{6.0}              min_pass{0.60} }
+# Container shipping (global). Drewry WCI / SCFI 2020 mean vs 2019 mean ~1.5; idle fleet peaked at
+# ~11.6% in May 2020 (Alphaliner). The 2020H2 rate surge is a known gap (docs/12).
+band{ metric{freight_index_mean} real{1.5}  abs{0.3} }
+band{ metric{fleet_idle_peak}    real{0.116} abs{0.03} }
