@@ -1,0 +1,8 @@
+# Territorial claims on whole jurisdictions in the world 2020 scenario (hand-written; strength
+# 0..1). The pipeline adds claims for territory duplicated in a claimant's boundary file
+# (generated claims.csv merges these). Sources: PRC Anti-Secession Law (2005) on Taiwan;
+# Serbia's constitution (2006) on Kosovo; Huth & Allee (2002) / Issue Correlates of War
+# territorial claims dataset (Frederick, Hensel & Macaulay 2017) for the strength scale.
+claimant,holder,strength
+CHN,TWN,1.0
+SRB,XKX,0.8

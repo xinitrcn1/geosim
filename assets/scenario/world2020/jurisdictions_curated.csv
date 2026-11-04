@@ -1,0 +1,33 @@
+# Dependent jurisdictions of the world 2020 scenario: World Bank economies under another state's
+# sovereignty, with the autonomy of their own policy (0 = the sovereign decides, 1 = fully
+# autonomous). Autonomy is a judgement from the constitutional arrangement (hand-written;
+# approximate): Basic Laws of Hong Kong (1990) and Macao (1993), "one country, two systems";
+# US territories (Puerto Rico commonwealth; unincorporated territories); Kingdom of the
+# Netherlands constituent countries (Charter 1954); Danish home rule (Faroe 1948, Greenland
+# self-government 2009); British Overseas Territories and Crown Dependencies; French
+# collectivités sui generis / d'outre-mer (New Caledonia Nouméa Accord 1998).
+# The pipeline also uses this table to assign ADM1 regions duplicated in the sovereign's
+# boundary file (e.g. Hong Kong and Macau in China's) to the jurisdiction.
+iso3,sovereign,autonomy
+HKG,CHN,0.7
+MAC,CHN,0.7
+PRI,USA,0.6
+GUM,USA,0.4
+VIR,USA,0.4
+ASM,USA,0.4
+MNP,USA,0.4
+ABW,NLD,0.8
+CUW,NLD,0.8
+SXM,NLD,0.8
+GRL,DNK,0.8
+FRO,DNK,0.8
+BMU,GBR,0.8
+CYM,GBR,0.8
+GIB,GBR,0.6
+IMN,GBR,0.8
+CHI,GBR,0.8
+TCA,GBR,0.6
+VGB,GBR,0.7
+NCL,FRA,0.6
+PYF,FRA,0.6
+MAF,FRA,0.5

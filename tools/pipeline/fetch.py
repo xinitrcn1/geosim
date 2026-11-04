@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download raw datasets for the 2020 scenario (initial state + back-test targets) into data/raw/ (not committed).
+"""Download raw datasets for the 2020 and 2008 scenarios (initial state + back-test targets) into data/raw/ (not committed).
 
 Standard library only. Re-running skips files that already exist unless
 --force is given. Every source is listed in SOURCES with its licence, which
@@ -60,6 +60,7 @@ WDI_INDICATORS = {
     "SP.DYN.CDRT.IN": "death_rate_per_1000",
     "BX.TRF.PWKR.DT.GD.ZS": "remittances_in_pct",
     "BM.TRF.PWKR.CD.DT": "remittances_out_usd",
+    "AG.LND.TOTL.K2": "land_area_km2",
 }
 
 SOURCES = [
@@ -164,6 +165,20 @@ def main() -> int:
     print("Brent (EIA RBRTE)")
     get("https://raw.githubusercontent.com/datasets/oil-prices/main/data/brent-daily.csv",
         raw / "brent.csv", args.force)
+
+    # The 2008 calibration slice (build_slice2008.py): 2007 state, 2008-09 outcomes.
+    print("2008 slice: World Bank WDI 2000-2010, WGI 2003-2007, BIS policy rates 2007-12..2009-12")
+    (raw / "wdi2008").mkdir(parents=True, exist_ok=True)
+    for code in WDI_INDICATORS:
+        get(f"https://api.worldbank.org/v2/country/{countries}/indicator/{code}"
+            f"?date=2000:2010&format=json&per_page=2000",
+            raw / "wdi2008" / f"{code}.json", args.force)
+    for code in ("GOV_WGI_VA.EST", "GOV_WGI_GE.EST"):
+        get(f"https://api.worldbank.org/v2/country/all/indicator/{code}?date=2003:2007&format=json&per_page=20000",
+            raw / "wdi2008" / f"WGI_{code}.json", args.force)
+    get(f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.{areas}"
+        f"?startPeriod=2007-12-01&endPeriod=2009-12-31&format=csv",
+        raw / "bis_cbpol_2008.csv", args.force)
 
     (raw / "sources.json").write_text(json.dumps(SOURCES, indent=1))
     print("done")

@@ -88,11 +88,11 @@ def load_wdi(raw: pathlib.Path, sub: str = "wdi"):
     return out
 
 
-def load_wgi(raw: pathlib.Path):
-    """-> {"voice": {iso: v}, "effectiveness": {iso: v}}: latest 2015-2019 WGI estimates."""
+def load_wgi(raw: pathlib.Path, sub: str = "wdi_all"):
+    """-> {"voice": {iso: v}, "effectiveness": {iso: v}}: latest WGI estimates in the file."""
     out = {}
     for code, field in (("GOV_WGI_VA.EST", "voice"), ("GOV_WGI_GE.EST", "effectiveness")):
-        path = raw / "wdi_all" / f"WGI_{code}.json"
+        path = raw / sub / f"WGI_{code}.json"
         vals = {}
         if path.exists():
             rows = json.loads(path.read_text())[1] or []
@@ -149,21 +149,22 @@ def ymd(s: str) -> str:
 
 # ---------------------------------------------------------------- nations
 
-def build_nations(wdi, curated):
-    """Macro state for SLICE + ROW (ROW = WLD minus SLICE)."""
+def build_nations(wdi, curated, year=2019):
+    """Macro state for SLICE + ROW (ROW = WLD minus SLICE) at the end of `year`."""
     rows = {}
     names = wdi["_names"]
+    trend_years, inflation_years = range(year - 4, year + 1), range(year - 2, year + 1)
 
     def nation_row(iso):
-        g = lambda f, y=2019: latest(wdi, f, iso, y)
+        g = lambda f, y=year: latest(wdi, f, iso, y)
         r = {
             "iso3": iso, "name": names.get(iso, iso),
             "population": g("population"), "pop_0_14_pct": g("pop_0_14_pct"),
             "pop_65up_pct": g("pop_65up_pct"), "labor_force": g("labor_force"),
             "unemployment_pct": g("unemployment_pct"), "lfp_rate_pct": g("lfp_rate_pct"),
             "gdp_usd": g("gdp_usd"), "gdp_ppp": g("gdp_ppp"),
-            "trend_growth_pct": mean_years(wdi, "real_gdp_growth_pct", iso, range(2015, 2020)),
-            "inflation_trend_pct": mean_years(wdi, "cpi_inflation_pct", iso, range(2017, 2020)),
+            "trend_growth_pct": mean_years(wdi, "real_gdp_growth_pct", iso, trend_years),
+            "inflation_trend_pct": mean_years(wdi, "cpi_inflation_pct", iso, inflation_years),
             "hh_cons_pct": g("hh_cons_pct"), "gov_cons_pct": g("gov_cons_pct"),
             "investment_pct": g("investment_pct"), "exports_pct": g("exports_pct"),
             "imports_pct": g("imports_pct"), "gov_revenue_pct": g("gov_revenue_pct"),
@@ -203,8 +204,8 @@ def build_nations(wdi, curated):
     row["unemployment_pct"] = residual_ratio("unemployment_pct", "labor_force")
     row["vulnerable_emp_pct"] = residual_ratio("vulnerable_emp_pct", "labor_force")
     row["lfp_rate_pct"] = w["lfp_rate_pct"]
-    row["trend_growth_pct"] = mean_years(wdi, "real_gdp_growth_pct", "WLD", range(2015, 2020))
-    row["inflation_trend_pct"] = mean_years(wdi, "cpi_inflation_pct", "WLD", range(2017, 2020))
+    row["trend_growth_pct"] = mean_years(wdi, "real_gdp_growth_pct", "WLD", trend_years)
+    row["inflation_trend_pct"] = mean_years(wdi, "cpi_inflation_pct", "WLD", inflation_years)
     for f in ("gov_net_lending_pct", "gov_debt_pct", "gini", "tertiary_attainment_pct"):
         row[f] = None
     rows[ROW] = row
@@ -221,13 +222,13 @@ def build_nations(wdi, curated):
     return rows
 
 
-def sector_split(wdi, iso, nation, fallback=None):
+def sector_split(wdi, iso, nation, fallback=None, year=2019):
     """7-sector VA and employment shares from WDI's 3-sector data.
     `fallback(field)` supplies a value when the nation has none (e.g. a group median)."""
     src = "WLD" if iso == ROW else iso
 
     def g(f):
-        v = latest(wdi, f, src)
+        v = latest(wdi, f, src, year)
         return fallback(f) if v is None and fallback else v
     agr, ind, srv = g("va_agr_pct") or 4.0, g("va_ind_pct") or 28.0, g("va_srv_pct") or 64.0
     man = g("va_man_pct") or ind * 0.55
@@ -401,7 +402,7 @@ def epidemic_seeds(ox, isos=SLICE):
 
 # ---------------------------------------------------------------- BIS
 
-def policy_rate_events(raw, filename="bis_cbpol.csv", iso2=ISO2, euro=EURO_AREA):
+def policy_rate_events(raw, filename="bis_cbpol.csv", iso2=ISO2, euro=EURO_AREA, start="2020-01-01", end="2020-12-31"):
     series = defaultdict(list)
     with (raw / filename).open(newline="") as f:
         for r in csv.DictReader(f):
@@ -411,21 +412,21 @@ def policy_rate_events(raw, filename="bis_cbpol.csv", iso2=ISO2, euro=EURO_AREA)
     iso_for_area = defaultdict(list)
     for iso, a in iso2.items():
         iso_for_area["XM" if iso in euro else a].append(iso)
-    out = [f"# {GEN}", "# Source: BIS WS_CBPOL daily policy rates. Initial 2020-01-01 value plus each change.",
+    out = [f"# {GEN}", f"# Source: BIS WS_CBPOL daily policy rates. Initial {start} value plus each change to {end}.",
            "# Euro area (XM) rate applies to every euro member.", ""]
     n = 0
     seen = set()
     for area, obs in sorted(series.items()):
         obs = sorted(set(obs))
         last = None
-        initial = [v for d, v in obs if d <= "2020-01-01"]
+        initial = [v for d, v in obs if d <= start]
         if initial:
             last = initial[-1]
             for iso in iso_for_area.get(area, []):
-                out.append(f"policy_rate{{ date{{2020-01-01}} nation{{{iso}}} rate_pct{{{fmt(last, 3)}}} }}")
+                out.append(f"policy_rate{{ date{{{start}}} nation{{{iso}}} rate_pct{{{fmt(last, 3)}}} }}")
                 n += 1
         for d, v in obs:
-            if d <= "2020-01-01" or d > "2020-12-31" or v == last:
+            if d <= start or d > end or v == last:
                 continue
             for iso in iso_for_area.get(area, []):
                 line = f"policy_rate{{ date{{{d}}} nation{{{iso}}} rate_pct{{{fmt(v, 3)}}} }}"
@@ -453,11 +454,11 @@ def targets(wdi, ox, nations, isos=SLICE):
     return rows
 
 
-def brent(raw):
+def brent(raw, year=2020):
     rows = []
     with (raw / "brent.csv").open(newline="") as f:
         for r in csv.DictReader(f):
-            if r["Date"].startswith("2020") and r["Price"]:
+            if r["Date"].startswith(str(year)) and r["Price"]:
                 rows.append([r["Date"], float(r["Price"])])
     return rows
 

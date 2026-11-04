@@ -11,9 +11,12 @@ gridded data (WorldPop, DOSE) later:
   population share  = 0.98 x share of Natural Earth populated-place population
                       + 0.02 x share of land area (weights fitted to census shares of
                       27 reference regions in USA/IND/CHN/DEU/BRA: mean error x1.5)
-  overlaps          = a region whose centroid lies inside a smaller nation's
-                      boundaries belongs to that nation (e.g. Taiwan, Hong Kong
-                      and Macau in China's ADM1 file)
+  jurisdictions     = dependent territories (Hong Kong, Macau, Puerto Rico, ...) are
+                      nations with a sovereignty link (jurisdictions_curated.csv); a
+                      region duplicated in a sovereign's or claimant's ADM1 file belongs
+                      to the jurisdiction / holder, and claims.csv records claims
+                      (claims_curated.csv plus such duplicates). geoBoundaries gbOpen
+                      2020 files have no such duplicates (China's excludes HKG, MAC, TWN).
   urban share       = place population / estimated population, rescaled to the
                       national urbanisation rate
   GDP share         = population share x (1 + URBAN_PREMIUM x (urban_r - urban_n))
@@ -52,9 +55,9 @@ NUMERIC = ["population", "pop_0_14_pct", "pop_65up_pct", "labor_force", "unemplo
            "investment_pct", "exports_pct", "imports_pct", "gov_revenue_pct", "gov_net_lending_pct",
            "gov_debt_pct", "gini", "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct",
            "vulnerable_emp_pct", "birth_rate_per_1000", "death_rate_per_1000",
-           "remittances_in_pct", "remittances_out_usd"]
+           "remittances_in_pct", "remittances_out_usd", "land_area_km2"]
 # Ratios imputed from income-group medians when missing (levels are never imputed).
-IMPUTE = [c for c in NUMERIC if c not in ("population", "labor_force", "gdp_usd", "gdp_ppp")]
+IMPUTE = [c for c in NUMERIC if c not in ("population", "labor_force", "gdp_usd", "gdp_ppp", "land_area_km2")]
 
 # Institutional defaults by World Bank income group (rough OECD/ILO-informed priors;
 # nations_curated.csv overrides them where better values are known).
@@ -190,16 +193,29 @@ def load_boundaries(raw, nations):
     return out, total
 
 
-# TODO(jurisdictions): dependent territories inside a sovereign's ADM1 file (Hong Kong and
-# Macau in China's, Puerto Rico in the USA's, ...) become their own jurisdictions with a
-# sovereignty link, and duplicated territory becomes a claim; see docs/12 open issues.
+# Jurisdictions. Dependent territories inside a sovereign's ADM1 file (Hong Kong and Macau
+# in China's, ...) are their own nations with a sovereignty link
+# (jurisdictions_curated.csv, read by the scenario loader); claimed territory duplicated in
+# a claimant's file (Taiwan in China's) belongs to its holder and becomes a claim
+# (claims.csv = claims_curated.csv + the duplicates found here). Regions are only
+# reassigned between such pairs, so neighbours sharing a border (Noord-Brabant and the
+# Baarle-Hertog enclaves) are never confused.
 
 
-def owned_by_smaller(iso, rp, box, bounds, total, threshold=0.6):
-    """A region belongs to a smaller nation if most of its boundary vertices lie inside it."""
+def read_pairs(path, a, b):
+    """(a, b) pairs from a curated csv, e.g. (sovereign, jurisdiction)."""
+    if not path.exists():
+        return set()
+    rows = csv.DictReader(line for line in path.open() if not line.startswith("#"))
+    return {(r[a], r[b]) for r in rows}
+
+
+def owned_by_smaller(iso, rp, box, bounds, total, allowed, threshold=0.6):
+    """A region of `iso` belongs to a smaller nation `other` (one of `allowed[iso]`: its
+    dependencies and the territories it claims) if most of its boundary vertices lie inside it."""
     pts = [p for poly in rp for ring in poly for p in ring[::max(1, len(ring) // 40)]]
     for other, items in bounds.items():
-        if other == iso or not items or total[other] >= total[iso]:
+        if other == iso or other not in allowed.get(iso, ()) or not items or total[other] >= total[iso]:
             continue
         for _, orp, b in items:
             if b[2] < box[0] or b[0] > box[2] or b[3] < box[1] or b[1] > box[3]:
@@ -210,8 +226,8 @@ def owned_by_smaller(iso, rp, box, bounds, total, threshold=0.6):
     return None
 
 
-def build_regions(raw, nations, countries, places):
-    """-> regions list, adjacency list, dropped overlaps."""
+def build_regions(raw, nations, countries, places, allowed):
+    """-> regions list, adjacency list, dropped overlaps (iso, name, owner)."""
     regions = []
     adjacency = []
     dropped = []
@@ -222,15 +238,15 @@ def build_regions(raw, nations, countries, places):
         for k, (f, rp, box) in enumerate(bounds[iso]):
             area, (lon, lat) = geo.area_and_centroid(rp)
             props = f.get("properties", {})
-            owner = owned_by_smaller(iso, rp, box, bounds, total)
+            owner = owned_by_smaller(iso, rp, box, bounds, total, allowed)
             if owner:
-                dropped.append(f"{iso}:{props.get('shapeName')}->{owner}")
+                dropped.append((iso, props.get("shapeName"), owner))
                 continue
             polys.append(rp)
             info.append({"name": props.get("shapeName") or f"{iso}-{k}", "code": props.get("shapeISO") or "",
                          "area": area, "lon": lon, "lat": lat, "bbox": geo.bbox(rp)})
-        if not info:
-            info = [{"name": n["name"], "code": iso, "area": 1000.0,
+        if not info:  # no ADM1 boundaries (e.g. Hong Kong, Macau): one region of the nation's land area
+            info = [{"name": n["name"], "code": iso, "area": n.get("land_area_km2") or 1000.0,
                      "lon": countries[iso]["lon"], "lat": countries[iso]["lat"], "bbox": None}]
             polys = [[]]
 
@@ -356,8 +372,23 @@ def main() -> int:
                  f"{GEN}. 7-sector split as in the 2020 slice; income-group medians where WDI has gaps.")
 
     places = load_places(raw)
-    regions, adjacency, dropped = build_regions(raw, nations, countries, places)
-    print("overlapping regions reassigned to the smaller nation:", ", ".join(dropped))
+    dependencies = read_pairs(scen / "jurisdictions_curated.csv", "sovereign", "iso3")
+    claimed = read_pairs(scen / "claims_curated.csv", "claimant", "holder")
+    allowed = defaultdict(set)
+    for a, b in dependencies | claimed:
+        allowed[a].add(b)
+    regions, adjacency, dropped = build_regions(raw, nations, countries, places, allowed)
+    print("duplicated regions assigned to their jurisdiction:", ", ".join(f"{a}:{n}->{o}" for a, n, o in dropped))
+    # Claims: curated, plus territory a claimant's boundary file duplicates (not a dependency).
+    claims = {(a, b): s for a, b, s in ((r["claimant"], r["holder"], r["strength"])
+              for r in csv.DictReader(line for line in (scen / "claims_curated.csv").open() if not line.startswith("#")))} \
+        if (scen / "claims_curated.csv").exists() else {}
+    for a, _, o in dropped:
+        if (a, o) not in dependencies and (a, o) not in claims:
+            claims[(a, o)] = "1.0"
+    ba.write_csv(scen / "claims.csv", ["claimant", "holder", "strength"],
+                 [[a, b, s] for (a, b), s in sorted(claims.items()) if a in nations and b in nations],
+                 f"{GEN}. claims_curated.csv plus territory duplicated in a claimant's ADM1 file.")
     ba.write_csv(scen / "regions.csv", ["region", "iso3", "name", "code", "lat", "lon", "area_km2", "pop_share",
                                         "gdp_share", "urban_share"],
                  [[r["id"], r["iso3"], r["name"], r["code"], r["lat"], r["lon"], r["area_km2"], r["pop_share"],
