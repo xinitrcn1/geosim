@@ -84,8 +84,7 @@ adjacencies** and ~10.3k NPI, policy-rate, fiscal and epidemic-seed events.
   neighbours sharing a border are never confused (this fixed Noord-Brabant
   being given to Belgium through the Baarle-Hertog enclaves).
 
-The world scenario builds and runs (spatial LOD switches on above
-`lod_min_nations`), with tolerance bands in
+The world scenario builds and runs, with tolerance bands in
 `assets/backtest/world2020_tolerances.txt`, but it is **not calibrated
 yet**: it lacks the curated tables (parties, groups, finance, organisations
 and others fall back to defaults), and the 2020 slice remains the

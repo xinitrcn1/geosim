@@ -10,7 +10,6 @@ void advance_day(game_state& state) {
     update_ai(state);
     update_epidemic(state);
     update_vaccination(state);
-    update_lod(state);
     update_logistics(state);
     update_commodity_markets(state);
     update_economy(state);

@@ -28,7 +28,7 @@ assign each region a shard `region_id % K`, so every region is processed
 
 | Cadence | Systems (implemented) |
 |---------|---------|
-| Daily, unsharded | scenario events, executive crisis reactions and central-bank meetings (`ai.cpp`, incl. FX intervention and macroprudential buffers), epidemics (SEIR per pathogen, commuting coupling), vaccination, variants, spatial LOD, logistics (chokepoints, routing, queues, ports, freight market), commodity markets (gas, coal, grains, metals) and the crude oil market, internet coupling and protest contagion, protest threshold cascade, organisation memberships (exits, elected terms; elections on 1 January) and the UN General Assembly session (15 September), indicators |
+| Daily, unsharded | scenario events, executive crisis reactions and central-bank meetings (`ai.cpp`, incl. FX intervention and macroprudential buffers), epidemics (SEIR per pathogen, commuting coupling), vaccination, variants, logistics (chokepoints, routing, queues, ports, freight market), commodity markets (gas, coal, grains, metals) and the crude oil market, internet coupling and protest contagion, protest threshold cascade, organisation memberships (exits, elected terms; elections on 1 January) and the UN General Assembly session (15 September), indicators |
 | Weekly, 7 shards (by nation) | economy (demand, production network, prices, labour flows, incomes), firms (cash flow, exit, entry), executive lever choices (incl. the policy catalogue of `policy.cpp` and `reforms.cpp`) |
 | "Month" = 28 days, 28 shards (by region or nation) | demography (age bands, mortality, mobility), migration, identity groups, opinion, social capital, unrest drive and PSI (national and regional), politics (vote intention, elections, parties, Overton window), institutions (bills, confidence, courts, military), politics extensions (court appointments, identity legitimacy, willingness to serve), geopolitics (trust, threat, sanctions, war), disputes and diplomacy, treaties and agreements (treaty objects, rebels), WTO disputes, strategy (goals and plan steps), finance (FX, spreads, default), credit, bonds, labour (wages, unions, minimum wage), fiscal (taxes, compliance, public investment), reform channels (tax rates, wealth tax, subsidies, vintage capital, regional housing, fiscal equalisation), assets, long run (capital hysteresis, trend growth, climate), climate policy and disasters, technology diffusion, strata split / merge, cabinets / governors / lobbies, internet value diffusion and cyber operations |
 
@@ -92,14 +92,9 @@ Implemented in `longcampaign.cpp` unless noted.
   cohorts ([04](04-society.md#demography)).
 - **Climate.** A DICE-lite carbon cycle and damage function, carbon pricing,
   energy vintages and disasters ([03](03-economy.md#growth--long-run)).
-- **Spatial LOD** (daily). Quiet nations (small changes in output and
-  unemployment, no epidemic threat, protest, war or player override) drop from
-  the weekly to a 28-day economy step (a per-lane step length in the SIMD pop
-  pass, so money stays conserved); an alert promotes them back at once. It is
-  a performance device for the full world: it runs only in scenarios with at
-  least `lod_min_nations` nations, so the calibration slice keeps full detail,
-  or everywhere under `lod_force` (reduced-detail forks). LOD by region and by
-  the player's focus is planned.
+- **No spatial LOD.** Every nation runs at full detail; the full world is to
+  meet the performance budget by optimisation rather than by lowering the
+  detail of quiet nations (an earlier spatial LOD was removed).
 
 ## Determinism
 
@@ -182,8 +177,7 @@ the ledger keeps, per nation and flow kind, the top 4 causes
 - `fork_job` runs a fork on a **worker thread**: the state is copied before
   the thread starts, so the caller keeps simulating the live state; the UI
   runs up to two at once.
-- **Reduced detail** (`fork_options::reduced`): every nation at low detail
-  (28-day economy steps, `lod_force`) and agents frozen on their current
+- **Reduced detail** (`fork_options::reduced`): agents frozen on their current
   levers (`ai_frozen`, cached plans). Faster and approximate; the UI labels it
   so. Aggregated pops in reduced forks are planned.
 

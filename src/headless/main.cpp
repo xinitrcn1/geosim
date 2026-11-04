@@ -159,12 +159,19 @@ int main(int argc, char** argv) {
         daily.open(opt["daily"]);
         geosim::sim::write_daily_header(daily);
     }
+    // --trace ISO: one nation's internal state each day, to stdout before the summary.
+    dcon::nation_id traced;
+    if(opt.count("trace")) {
+        traced = geosim::sim::find_nation(*state, opt["trace"]);
+        if(traced) geosim::sim::write_trace_header(std::cout);
+    }
     geosim::sim::begin_measurement(*state);
     for(int d = 0; d < days; ++d) {
         geosim::sim::advance_day(*state);
         if(daily) {
             geosim::sim::write_daily_rows(*state, daily);
         }
+        if(traced) geosim::sim::write_trace_row(*state, traced, std::cout);
     }
     const auto summary = geosim::sim::summarize(*state);
     if(opt.count("flows")) {

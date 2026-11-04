@@ -253,7 +253,9 @@ void update_demography(game_state& state) {
         const float mortality = std::clamp(std::pow(income_rel, -static_cast<float>(P.mortality_income))
                                                * (1.0f - static_cast<float>(P.mortality_health) * n.get_health_spending()), 0.5f, 2.0f);
         const float old_deaths = retired_size * n.get_death_rate_old() * years * mortality;
-        const float young_deaths = (population - retired_size) * static_cast<float>(P.young_mortality) * years * mortality;
+        // Non-negative even if the region's head-count and its pops disagree (a negative
+        // death toll would scale workers up; docs/13).
+        const float young_deaths = std::max(0.0f, population - retired_size) * static_cast<float>(P.young_mortality) * years * mortality;
         remove_alive(state, r.id, age_old, old_deaths);
         remove_alive(state, r.id, age_young, young_deaths);
         const float epi_old = r.get_epi_deaths_old();

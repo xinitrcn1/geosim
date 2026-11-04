@@ -22,7 +22,7 @@ the same code, uncalibrated ([11](11-data-calibration.md#world-2020-dataset)).
 |----------------|--------------|
 | SFC ledger ([02](02-simulation-core.md#accounting-core)) | **Yes.** Pops, firms, government, finance, rest of world per nation; every payment via `sim::transfer`; conservation tested |
 | "Why?" flows | **Yes.** Year-to-date flows by kind per nation with the top 4 cause tags each (`--flows ISO3`), decision journal (levers, bills, elections, coups, wars, cyber operations, chokepoint incidents, treaties, agreements, UN and WTO votes, variants, plan steps, term limits, court seats) |
-| Cadence scheduler | **Yes.** Daily: events, AI, epidemic, vaccination, variants, LOD, logistics, commodities, oil, internet coupling, protest cascade, organisation memberships and GA sessions. Weekly (7 shards): economy, firms, executive levers. 28-day shards: society, groups, politics, institutions, geopolitics, diplomacy, treaties, agreements, organisations, strategy, reforms, finance, credit, bonds, labour, fiscal, assets, long run, technology, climate policy, strata |
+| Cadence scheduler | **Yes.** Daily: events, AI, epidemic, vaccination, variants, logistics, commodities, oil, internet coupling, protest cascade, organisation memberships and GA sessions. Weekly (7 shards): economy, firms, executive levers. 28-day shards: society, groups, politics, institutions, geopolitics, diplomacy, treaties, agreements, organisations, strategy, reforms, finance, credit, bonds, labour, fiscal, assets, long run, technology, climate policy, strata |
 | Determinism, saves, forks | **Yes.** DCON serialisation; save -> load -> continue is bit-identical; counterfactual forks copy the state in memory and run ahead, on a worker thread and optionally at reduced detail (`sim/fork.hpp`) |
 | Error handling | **Yes.** `-fno-exceptions -fno-rtti`; first error with file:line through `core::diagnostics` ([09](09-engine-architecture.md)) |
 | Production | **Yes.** Dynamic input-output network with input stocks and critical inputs (Pichler et al. 2022); capacity from NPIs, sickness, strikes, cyber damage, disasters; LES demand and sector markups |
@@ -45,7 +45,7 @@ the same code, uncalibrated ([11](11-data-calibration.md#world-2020-dataset)).
 ## Day loop (`src/sim/simulation.cpp`)
 
 ```
-apply_events -> update_ai -> epidemic -> vaccination -> lod -> logistics -> commodities
+apply_events -> update_ai -> epidemic -> vaccination -> logistics -> commodities
   -> economy -> firms -> oil -> demography -> migration -> groups -> internet -> opinion
   -> social capital -> unrest (drive) -> protest (cascade) -> politics -> institutions
   -> geopolitics -> finance -> credit -> bonds -> labour -> fiscal -> assets -> treaties

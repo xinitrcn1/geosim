@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include <cmath>
+#include <cstdlib>
 #include <map>
 
 namespace geosim::sim {
@@ -155,6 +156,48 @@ void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out)
                       g.get_pop_share(), g.get_income_rel0(), g.get_income_rel(), g.get_unemployment() * 100.0f,
                       size > 0.0 ? informal / size : 0.0, g.get_excluded(), g.get_grievance(), g.get_mobilisation());
         out << line;
+    }
+}
+
+void write_trace_header(std::ostream& out) {
+    out << "date,gf,core_price,cpi,wage_real,population,pops,pop_size,employed,emp_gov,unemployed,inactive,gdp_real,gdp0_daily,"
+           "gov_spend,bal_gov,defense,health,education,police,rd,public_inv,war_effort,fx,trend_growth,stw_cov,fiscal_cum\n";
+}
+
+void write_trace_row(game_state const& state, dcon::nation_id n, std::ostream& out) {
+    auto const& w = state.world;
+    const auto gs = state.derived.gov_sector ? static_cast<uint8_t>(state.derived.gov_sector.index()) : uint8_t(0xFF);
+    double size = 0, emp = 0, emp_gov = 0, une = 0, ina = 0;
+    int pops = 0;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        for(auto loc : own.get_region().get_pop_location()) {
+            auto p = loc.get_pop();
+            ++pops;
+            size += p.get_size();
+            for(uint8_t s = 0; s < state.derived.sector_count; ++s) {
+                emp += p.get_employed(s);
+                if(s == gs) emp_gov += p.get_employed(s);
+            }
+            une += p.get_unemployed();
+            ina += p.get_inactive();
+        }
+    }
+    out << core::format_date(core::date_from_tick(state.current_tick - 1, state.epoch_days)) << ',' << w.nation_get_gf(n) << ',' << w.nation_get_core_price(n) << ','
+        << w.nation_get_cpi(n) << ',' << w.nation_get_wage_real(n) << ',' << w.nation_get_population(n) << ',' << pops << ',' << size << ',' << emp << ','
+        << emp_gov << ',' << une << ',' << ina << ',' << w.nation_get_gdp_real(n) << ',' << w.nation_get_gdp0_daily(n) << ',' << w.nation_get_gov_spend(n) << ','
+        << w.nation_get_bal_gov(n) << ',' << w.nation_get_defense_share(n) << ',' << w.nation_get_health_spending(n) << ',' << w.nation_get_education_spending(n) << ','
+        << w.nation_get_police(n) << ',' << w.nation_get_rd_spending(n) << ',' << w.nation_get_public_investment(n) << ',' << w.nation_get_war_effort(n) << ','
+        << w.nation_get_exchange_rate(n) << ',' << w.nation_get_trend_growth(n) << ',' << w.nation_get_stw_coverage(n) << ',' << w.nation_get_fiscal_announced_cum(n) << '\n';
+    if(std::getenv("GEOSIM_TRACE_POPS")) {
+        for(auto own : w.nation_get_region_ownership(n)) {
+            for(auto loc : own.get_region().get_pop_location()) {
+                auto p = loc.get_pop();
+                double e = 0;
+                for(uint8_t s = 0; s < state.derived.sector_count; ++s) e += p.get_employed(s);
+                out << "  pop " << p.id.index() << " r" << own.get_region().id.index() << " k" << int(p.get_kind()) << " st" << int(p.get_stratum())
+                    << " size " << p.get_size() << " emp " << e << " une " << p.get_unemployed() << " ina " << p.get_inactive() << " rpop " << own.get_region().get_population() << '\n';
+            }
+        }
     }
 }
 

@@ -17,13 +17,7 @@
 // into a precarious stratum with their share of savings, weights and job slots.
 // When the stratum's jobless share has converged back to its parent's, it merges.
 // Sizes, money and job slots are conserved in both directions.
-//
-// Spatial LOD (daily). Quiet nations - small changes in output and unemployment,
-// no epidemic threat, protest, war or player override - drop from the weekly to a
-// 28-day economy step; an alert promotes them back at once. A performance device
-// for the full world: it runs only in scenarios with many nations (lod_min_nations),
-// so the calibration slice keeps full detail, or everywhere under lod_force
-// (reduced-detail forks).
+
 
 #include "core/keys.hpp"
 #include "core/scheduler.hpp"
@@ -326,38 +320,5 @@ void update_strata(game_state& state) {
     }
 }
 
-// ---------------------------------------------------------------- spatial LOD
-void update_lod(game_state& state) {
-    auto& w = state.world;
-    auto const& P = state.params;
-    const bool enabled = P.lod_force != 0.0 || static_cast<double>(w.nation_size()) >= P.lod_min_nations;
-    for(auto n : w.in_nation) {
-        if(!enabled) {
-            n.set_lod(0);
-            continue;
-        }
-        if(P.lod_force != 0.0) {
-            n.set_lod(1);
-            continue;
-        }
-        const float gdp = n.get_gdp_real() / std::max(1.0f, n.get_gdp0_daily() * n.get_gf());
-        const float u = n.get_unemployment();
-        bool alert = std::abs(gdp - n.get_lod_last_gdp()) > static_cast<float>(P.lod_gdp_tolerance) / 7.0f
-                     || std::abs(u - n.get_lod_last_u()) > 0.002f / 7.0f || n.get_threat() > 0.1f || n.get_war_effort() > 0.0f;
-        for(auto own : n.get_region_ownership()) alert = alert || own.get_region().get_unrest() > 1.0f;
-        if(auto exec = n.get_executive_seat().get_agent()) {
-            for(uint8_t l = 0; l < state.derived.lever_count; ++l) alert = alert || exec.get_override_mode(l) != 0;
-        }
-        n.set_lod_last_gdp(gdp);
-        n.set_lod_last_u(u);
-        if(alert) {
-            n.set_lod_calm_days(0.0f);
-            n.set_lod(0); // promoted at once
-        } else {
-            n.set_lod_calm_days(n.get_lod_calm_days() + 1.0f);
-            if(n.get_lod_calm_days() >= static_cast<float>(P.lod_calm_days)) n.set_lod(1);
-        }
-    }
-}
 
 } // namespace geosim::sim

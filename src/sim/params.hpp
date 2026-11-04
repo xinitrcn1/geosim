@@ -395,10 +395,6 @@
     X(split_jobless_gap, 0.25, "jobless share of a worker pop above the natural unemployment rate that splits off a precarious stratum") \
     X(split_min_size, 1e5, "smallest pop that can split")                                                \
     X(merge_jobless_gap, 0.08, "jobless-share gap below which a precarious stratum merges back")         \
-    X(lod_min_nations, 50.0, "spatial LOD runs only in scenarios with at least this many nations (performance device)") \
-    X(lod_calm_days, 56.0, "quiet days before a nation drops to the monthly economy step")               \
-    X(lod_gdp_tolerance, 0.002, "GDP-index change per week that still counts as quiet")                  \
-    X(lod_force, 0.0, "1 = every nation at low detail (reduced-detail forks)")                           \
     X(ai_frozen, 0.0, "1 = agents keep their current levers (reduced-detail forks: cached plans)")       \
     X(formative_values, 0.3, "survival-values shift of a cohort entering at full insecurity (Inglehart 1997)") \
     X(tech_income_lag, 4.0, "extra adoption lag (years) per unit log income gap to the frontier (recent technologies; Comin & Hobijn 2010)") \
@@ -488,6 +484,8 @@
     X(rebel_support, 1.0, "insurgency end-hazard divisor from rivals' support for rebels (Cunningham 2010)") \
     X(aid_rate, 0.002, "crisis aid per year (share of donor GDP) per unit recipient need (Alesina & Dollar 2000)") \
     X(aid_income, 25000.0, "GDP per capita (USD) above which nations give crisis aid")                   \
+    X(aid_need_gdp, 0.02, "crisis aid per year (share of recipient GDP) at full need and strong ties (OECD DAC humanitarian flows)") \
+    X(aid_recipient_cap, 0.05, "programme aid per donor at most this share of recipient GDP per year (ODA/GNI of large recipients)") \
     X(fta_ratification, 1.0, "ratification hurdle: lobby pressure x 10 against the governing seat share (Putnam 1988)") \
     /* ---- international organisations (docs/06) ---- */                                              \
     X(unsc_veto_threshold, -0.1, "P5 support below which a permanent member vetoes (Voeten 2001)")         \

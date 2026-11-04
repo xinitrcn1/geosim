@@ -110,7 +110,6 @@ struct observed_adoption {
 void init_technologies(game_state& state, std::vector<observed_adoption> const& observed);
 void update_technology(game_state& state);
 void update_strata(game_state& state);
-void update_lod(game_state& state);
 [[nodiscard]] float tech_oil_factor(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float tech_emission_factor(game_state const& state);
 [[nodiscard]] float tech_vaccine_factor(game_state const& state);

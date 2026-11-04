@@ -56,6 +56,11 @@ void write_logistics(game_state const& state, std::ostream& out);
 // war / dispute pairs, for checking event rates.
 void write_journal_counts(game_state const& state, std::ostream& out);
 
+// One nation's internal state, one row per call (headless --trace ISO): for finding
+// where a runaway starts (docs/13).
+void write_trace_header(std::ostream& out);
+void write_trace_row(game_state const& state, dcon::nation_id n, std::ostream& out);
+
 void write_daily_header(std::ostream& out);
 void write_daily_rows(game_state const& state, std::ostream& out);
 

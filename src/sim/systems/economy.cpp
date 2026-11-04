@@ -82,18 +82,14 @@ float world_manufacturing_index(game_state const& state, dcon::nation_id n) {
     return den > 0.0 ? static_cast<float>(num / den) : 1.0f;
 }
 
-// Weekly shard; nations at low detail (spatial LOD, longcampaign.cpp) only every
-// fourth week, with a 28-day step.
+// Weekly shard (every nation at full detail; spatial LOD was removed).
 bool due(game_state const& state, dcon::nation_id n, bool probe) {
     if(probe) return true;
-    if(!is_due(static_cast<uint32_t>(n.index()), static_cast<tick_t>(state.current_tick), weekly)) return false;
-    if(!state.world.nation_get_lod(n)) return true;
-    return (static_cast<uint32_t>(state.current_tick) / weekly.period_days) % 4u == static_cast<uint32_t>(n.index()) % 4u;
+    return is_due(static_cast<uint32_t>(n.index()), static_cast<tick_t>(state.current_tick), weekly);
 }
 
-float step_days(game_state const& state, dcon::nation_id n, bool probe) {
-    if(probe) return 1.0f;
-    return state.world.nation_get_lod(n) ? 4.0f * static_cast<float>(weekly.period_days) : static_cast<float>(weekly.period_days);
+float step_days(game_state const&, dcon::nation_id, bool probe) {
+    return probe ? 1.0f : static_cast<float>(weekly.period_days);
 }
 
 // ---------------------------------------------------------------- 1. nation pre-pass

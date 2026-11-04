@@ -89,6 +89,9 @@ struct builder {
     std::map<std::string, nation_input> inputs;
     std::map<std::string, std::vector<region_input>> regions_of; // optional regions.csv
     std::map<std::string, dcon::region_id> region_by_id;
+    // The input row of each created region (by region index). Relationship iteration
+    // order is not the input order, so regions must be matched by identity (docs/13).
+    std::map<uint32_t, region_input> input_of_region;
     std::vector<std::string> order;
 
     void warn(std::string msg) { report.warnings.push_back(std::move(msg)); }
@@ -694,10 +697,10 @@ struct builder {
 
     void create_region(dcon::nation_id n, nation_input const& in, region_input const& ri) {
         auto& w = state.world;
-        // At least a few hundred people per region: empty ADM1 units would divide by zero.
-        const double pop = std::max(in.population * ri.pop_share, std::min(500.0, 0.01 * in.population));
+        const double pop = std::max(in.population * ri.pop_share, 10.0); // a floor (empty ADM1 units divide by zero) that barely moves national totals
         const auto r = w.create_region();
         region_by_id[ri.id] = r;
+        input_of_region[static_cast<uint32_t>(r.index())] = ri;
         w.force_create_region_ownership(r, n);
         w.region_set_owner(r, n);
         w.region_set_shard(r, static_cast<int32_t>(static_cast<uint32_t>(n.index()) % weekly.shards));
@@ -938,13 +941,11 @@ struct builder {
         // until regional tables are provided), then pops per region and group.
         std::array<double, 4> kind_size{};
         std::array<double, 4> kind_wealth{};
-        std::size_t ridx = 0;
-        auto const& rlist = regions_of.count(in.iso) ? regions_of[in.iso] : std::vector<region_input>{};
         for(auto own : w.nation_get_region_ownership(n)) {
             auto reg = own.get_region();
             const double share = reg.get_population() / in.population;
-            region_input const* ri = ridx < rlist.size() ? &rlist[ridx] : nullptr;
-            ++ridx;
+            const auto found = input_of_region.find(static_cast<uint32_t>(reg.id.index()));
+            region_input const* ri = found != input_of_region.end() ? &found->second : nullptr;
             std::array<double, max_sectors> va_sh{};
             std::array<double, max_sectors> emp_sh{};
             for(uint8_t s = 0; s < S; ++s) {

@@ -314,12 +314,8 @@ object{
 	property{ name{tag_code} type{array{uint16_t}{uint32_t}} }
 	property{ name{tag_amount} type{array{uint16_t}{double}} }
 	property{ name{tag_rest} type{array{uint16_t}{double}} }
-	property{ name{lod} type{uint8_t} }
 	property{ name{econ_dt} type{float} }
 	property{ name{econ_due} type{float} }
-	property{ name{lod_calm_days} type{float} }
-	property{ name{lod_last_gdp} type{float} }
-	property{ name{lod_last_u} type{float} }
 	property{ name{tech_adoption} type{array{uint16_t}{float}} }
 	property{ name{tech_lag} type{array{uint16_t}{float}} }
 	property{ name{tech_offset} type{array{uint16_t}{float}} }

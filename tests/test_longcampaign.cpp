@@ -4,8 +4,7 @@
 //     that filters the internet adopts later;
 //  2. strata: a jobless shock splits a precarious stratum off a worker pop; once
 //     its members are back in work it merges again; money is conserved;
-//  3. spatial LOD: forced low detail keeps the no-shock baseline steady, and a
-//     player override promotes the nation back to full detail;
+//  3. a no-shock half year stays near the calibrated path and conserves money;
 //  4. forks: a reduced-detail fork and a threaded fork both run.
 
 #include "sim/fork.hpp"
@@ -119,32 +118,19 @@ int main() {
         CHECK(std::abs(sim::world_money(*s) - money0) <= 1e-9 * std::abs(money0) + 1.0);
     }
 
-    // 3. Spatial LOD.
+    // 3. No-shock steadiness over half a year (every nation at full detail).
     {
         auto s = make();
-        s->params.lod_force = 1.0;
         const double money0 = sim::world_money(*s);
         for(int d = 0; d < 180; ++d) sim::advance_day(*s);
-        int worst = 0;
         float worst_gdp = 1.0f;
         for(auto n : s->world.in_nation) {
             const float g = n.get_gdp_real() / (n.get_gdp0_daily() * n.get_gf());
             if(std::abs(g - 1.0f) > std::abs(worst_gdp - 1.0f)) worst_gdp = g;
-            worst += n.get_lod() ? 1 : 0;
         }
-        std::printf("low detail: %d nations at monthly economy steps, worst GDP index after 180 days %.4f\n", worst, worst_gdp);
+        std::printf("worst GDP index after 180 days %.4f\n", worst_gdp);
         CHECK(std::abs(worst_gdp - 1.0f) < 0.05f);
         CHECK(std::abs(sim::world_money(*s) - money0) <= 1e-9 * std::abs(money0) + 1.0);
-        // Natural LOD with a promotion on an override.
-        s->params.lod_force = 0.0;
-        s->params.lod_min_nations = 0.0;
-        s->params.lod_calm_days = 0.0;
-        sim::update_lod(*s);
-        const auto usa = sim::find_nation(*s, "USA");
-        const auto exec = s->world.nation_get_agent_from_executive_seat(usa);
-        s->world.agent_set_override_mode(exec, 0, static_cast<uint8_t>(sim::override_mode::advise));
-        sim::update_lod(*s);
-        CHECK(s->world.nation_get_lod(usa) == 0);
     }
 
     // 4. Forks.

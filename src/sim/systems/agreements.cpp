@@ -125,7 +125,8 @@ void update_agreements(game_state& state) {
         }
         case treaty_kind::migration: {
             const auto b = t.get_b(); // origin paid by destination a
-            const double aid = P.migration_deal_aid * a.get_gdp0() * a.get_core_price() * years;
+            // Within the donor's budget and at most aid_recipient_cap of the origin's GDP.
+            const double aid = std::min(P.migration_deal_aid * a.get_gdp0() * a.get_core_price(), P.aid_recipient_cap * b.get_gdp0() * b.get_core_price()) * years;
             cause_scope c(state, journal_cause(a.id, journal_agreement));
             transfer(state, account::government(a.id), account::rest_of_world(a.id), aid, flow::aid);
             transfer(state, account::rest_of_world(b.id), account::government(b.id), aid, flow::aid);
@@ -144,7 +145,7 @@ void update_agreements(game_state& state) {
                 log_agreement(state, a.id, b.id, treaty_kind::conditional_aid, 0.0f);
                 break;
             }
-            const double aid = P.aid_rate * a.get_gdp0() * a.get_core_price() * years;
+            const double aid = std::min(P.aid_rate * a.get_gdp0() * a.get_core_price(), P.aid_recipient_cap * b.get_gdp0() * b.get_core_price()) * years;
             cause_scope c(state, journal_cause(a.id, journal_agreement));
             transfer(state, account::government(a.id), account::rest_of_world(a.id), aid, flow::aid);
             transfer(state, account::rest_of_world(b.id), account::government(b.id), aid, flow::aid);

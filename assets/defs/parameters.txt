@@ -364,10 +364,6 @@ imf_catalytic{2}                         # spread relief (pp) of a programme (ca
 split_jobless_gap{0.25}                  # jobless share of a worker pop above the natural unemployment rate that splits off a precarious stratum
 split_min_size{100000}                   # smallest pop that can split
 merge_jobless_gap{0.08}                  # jobless-share gap below which a precarious stratum merges back
-lod_min_nations{50}                      # spatial LOD runs only in scenarios with at least this many nations (performance device)
-lod_calm_days{56}                        # quiet days before a nation drops to the monthly economy step
-lod_gdp_tolerance{0.002}                 # GDP-index change per week that still counts as quiet
-lod_force{0}                             # 1 = every nation at low detail (reduced-detail forks)
 ai_frozen{0}                             # 1 = agents keep their current levers (reduced-detail forks: cached plans)
 formative_values{0.3}                    # survival-values shift of a cohort entering at full insecurity (Inglehart 1997)
 tech_income_lag{4}                       # extra adoption lag (years) per unit log income gap to the frontier (recent technologies; Comin & Hobijn 2010)
@@ -453,6 +449,8 @@ intervention_gain{1}                     # insurgency end-hazard gain from outsi
 rebel_support{1}                         # insurgency end-hazard divisor from rivals' support for rebels (Cunningham 2010)
 aid_rate{0.002}                          # crisis aid per year (share of donor GDP) per unit recipient need (Alesina & Dollar 2000)
 aid_income{25000}                        # GDP per capita (USD) above which nations give crisis aid
+aid_need_gdp{0.02}                       # crisis aid per year (share of recipient GDP) at full need and strong ties (OECD DAC humanitarian flows)
+aid_recipient_cap{0.05}                  # programme aid per donor at most this share of recipient GDP per year (ODA/GNI of large recipients)
 fta_ratification{1}                      # ratification hurdle: lobby pressure x 10 against the governing seat share (Putnam 1988)
 unsc_veto_threshold{-0.1}                # P5 support below which a permanent member vetoes (Voeten 2001)
 un_sanction_level{0.5}                   # sanction floor every member applies under a UNSC sanctions resolution

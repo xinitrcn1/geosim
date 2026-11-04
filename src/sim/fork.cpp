@@ -45,7 +45,6 @@ fork_result run_fork(game_state const& state, int days, std::function<void(game_
         return result;
     }
     if(options.reduced) {
-        copy->params.lod_force = 1.0;
         copy->params.ai_frozen = 1.0;
     }
     if(change) change(*copy);
@@ -62,7 +61,6 @@ fork_job::fork_job(game_state const& state, int days, std::function<void(game_st
         return;
     }
     if(options.reduced) {
-        copy_->params.lod_force = 1.0;
         copy_->params.ai_frozen = 1.0;
     }
     if(change) change(*copy_);

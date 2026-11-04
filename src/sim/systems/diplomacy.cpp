@@ -230,19 +230,30 @@ void update_diplomacy(game_state& state) {
         n.set_disaster_seen(n.get_disaster_losses());
         const float need = n.get_occupied() + 0.5f * insurgent + (n.get_imf_program() > 0.0f ? 0.3f : 0.0f) + 5.0f * disaster;
         float received = 0.0f;
+        // The recipient's need sets the total (a share of its own GDP); donors share it by
+        // their ties, each within its aid budget. Sizing aid by donor GDP instead let
+        // hundreds of donors swamp a small economy (docs/13).
         if(need > 0.0f && n.get_gdp_pc0() < static_cast<float>(P.aid_income)) {
+            std::vector<std::pair<dcon::nation_id, float>> donors;
+            float bonds = 0.0f;
             for(auto d : w.in_nation) {
                 if(d.id == n.id || d.get_gdp_pc0() < static_cast<float>(P.aid_income) || d.get_at_war(kn) > 0.0f) continue;
                 // Elected Security Council members draw more (Kuziemko & Werker 2006).
                 const float bond = std::max(0.0f, d.get_trust(kn) - 0.3f) * (1.0f + d.get_alliance(kn)) * (org_role_of(state, org_kind::security, n.id) == static_cast<int>(org_role::elected) ? 1.5f : 1.0f)
                                    * (0.5f + un_alignment(state, d.id, n.id));
                 if(bond <= 0.0f) continue;
-                const double donor_gdp = d.get_gdp0() * d.get_core_price() * d.get_gf();
-                const double amount = P.aid_rate * donor_gdp * years * std::min(1.0f, need) * bond;
+                donors.emplace_back(d.id, bond);
+                bonds += bond;
+            }
+            const double recipient_gdp = n.get_gdp0() * n.get_core_price() * n.get_gf();
+            const double total = P.aid_need_gdp * recipient_gdp * years * std::min(1.0f, need) * std::min(1.0f, bonds);
+            for(auto const& [d, bond] : donors) {
+                const double budget = P.aid_rate * w.nation_get_gdp0(d) * w.nation_get_core_price(d) * w.nation_get_gf(d) * years;
+                const double amount = std::min(budget, total * bond / bonds);
                 cause_scope c(state, journal_cause(n.id, journal_treaty));
-                transfer(state, account::government(d.id), account::rest_of_world(d.id), amount, flow::aid);
+                transfer(state, account::government(d), account::rest_of_world(d), amount, flow::aid);
                 transfer(state, account::rest_of_world(n.id), account::government(n.id), amount, flow::aid);
-                n.set_trust(static_cast<uint16_t>(d.id.index()), std::min(1.0f, n.get_trust(static_cast<uint16_t>(d.id.index())) + 0.02f));
+                n.set_trust(static_cast<uint16_t>(d.index()), std::min(1.0f, n.get_trust(static_cast<uint16_t>(d.index())) + 0.02f));
                 received += static_cast<float>(amount);
             }
         }
