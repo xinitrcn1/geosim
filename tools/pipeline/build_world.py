@@ -56,6 +56,9 @@ NUMERIC = ["population", "pop_0_14_pct", "pop_65up_pct", "labor_force", "unemplo
            "gov_debt_pct", "gini", "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct",
            "vulnerable_emp_pct", "birth_rate_per_1000", "death_rate_per_1000",
            "remittances_in_pct", "remittances_out_usd", "land_area_km2"]
+# Shares that must be strictly positive (zeros are data gaps).
+POSITIVE = {"hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct", "imports_pct", "gov_revenue_pct",
+            "lfp_rate_pct", "urban_pct", "hospital_beds_per_1000", "birth_rate_per_1000", "death_rate_per_1000", "gini"}
 # Ratios imputed from income-group medians when missing (levels are never imputed).
 IMPUTE = [c for c in NUMERIC if c not in ("population", "labor_force", "gdp_usd", "gdp_ppp", "land_area_km2")]
 
@@ -113,9 +116,10 @@ def build_nations(wdi, countries, extra):
     imputed = defaultdict(int)
 
     def median(field, group):
-        vals = [x[field] for x in by_group.get(group, []) if x[field] is not None]
+        ok = lambda v: v is not None and (field not in POSITIVE or v > 0)
+        vals = [x[field] for x in by_group.get(group, []) if ok(x[field])]
         if not vals:
-            vals = [x[field] for x in rows.values() if x[field] is not None]
+            vals = [x[field] for x in rows.values() if ok(x[field])]
         return statistics.median(vals) if vals else None
 
     gdp_pc = {g: median_ratio(by_group[g], "gdp_usd", "population") for g in by_group}
@@ -130,7 +134,9 @@ def build_nations(wdi, countries, extra):
             r["labor_force"] = r["population"] * lf_rate[r["income"]]
             imputed["labor_force"] += 1
         for f in IMPUTE:
-            if r[f] is None:
+            # Expenditure and structure shares cannot be zero or negative; WDI reports 0 for
+            # some discontinued series (e.g. Venezuela after 2014) - treat them as missing.
+            if r[f] is None or (f in POSITIVE and r[f] <= 0):
                 r[f] = median(f, r["income"])
                 imputed[f] += 1
         epl, repl, cov, rep = INSTITUTIONS.get(r["income"], INSTITUTIONS["UMC"])
@@ -269,6 +275,8 @@ def build_regions(raw, nations, countries, places, allowed):
             s = (PLACE_WEIGHT * city[i] / tot_city if tot_city > 0 else 0.0) \
                 + ((1 - PLACE_WEIGHT) if tot_city > 0 else 1.0) * r["area"] / tot_area
             pop_share.append(s)
+        # Every region keeps a sliver of population (uninhabited ADM1 units still exist).
+        pop_share = [max(s, 1e-6) for s in pop_share]
         ps = sum(pop_share) or 1.0
         pop_share = [s / ps for s in pop_share]
 
@@ -325,8 +333,8 @@ def region_sectors(regions, nation_sectors):
         m_emp = ras(m_emp, [r["pop_share"] for r in regs], [emp[s] for s in sectors])
         for i, r in enumerate(regs):
             for j, s in enumerate(sectors):
-                rows.append([r["id"], s, m_va[i][j] / va[s] if va[s] > 0 else 0.0,
-                             m_emp[i][j] / emp[s] if emp[s] > 0 else 0.0])
+                rows.append([r["id"], s, f"{m_va[i][j] / va[s] if va[s] > 0 else 0.0:.8g}",
+                             f"{m_emp[i][j] / emp[s] if emp[s] > 0 else 0.0:.8g}"])
     return rows
 
 
@@ -391,8 +399,9 @@ def main() -> int:
                  f"{GEN}. claims_curated.csv plus territory duplicated in a claimant's ADM1 file.")
     ba.write_csv(scen / "regions.csv", ["region", "iso3", "name", "code", "lat", "lon", "area_km2", "pop_share",
                                         "gdp_share", "urban_share"],
-                 [[r["id"], r["iso3"], r["name"], r["code"], r["lat"], r["lon"], r["area_km2"], r["pop_share"],
-                   r["gdp_share"], r["urban_share"]] for r in regions],
+                 # Shares at full precision (four decimals would round small islands to zero).
+                 [[r["id"], r["iso3"], r["name"], r["code"], r["lat"], r["lon"], r["area_km2"], f"{r['pop_share']:.8g}",
+                   f"{r['gdp_share']:.8g}", r["urban_share"]] for r in regions],
                  f"{GEN}. geoBoundaries ADM1 + Natural Earth populated places (see module docstring for proxies).")
     ba.write_csv(scen / "region_sectors.csv", ["region", "sector", "va_share", "emp_share"],
                  region_sectors(regions, nation_sectors),

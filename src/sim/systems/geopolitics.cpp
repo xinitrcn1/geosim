@@ -31,6 +31,7 @@
 //   young lack jobs (Fearon & Laitin 2003; Cederman, Wimmer & Min 2010;
 //   Collier & Hoeffler 2004), with deaths and destruction in the region.
 
+#include "core/keys.hpp"
 #include "core/rng.hpp"
 #include "core/scheduler.hpp"
 #include "sim/model.hpp"
@@ -83,6 +84,12 @@ void log_event(game_state& state, dcon::nation_id n, dcon::nation_id other, uint
 }
 
 } // namespace
+
+// A shared majority religion; the unaffiliated and residual categories share none.
+static bool shared_religion(uint32_t a, uint32_t b) {
+    constexpr uint32_t none = core::pack_key("none"), other = core::pack_key("othe"), oth = core::pack_key("oth");
+    return a != 0 && a == b && a != none && a != other && a != oth && a != core::pack_key("other");
+}
 
 float claim_of(game_state const& state, dcon::nation_id claimant, dcon::nation_id holder) {
     return claim_strength(state, claimant, holder);
@@ -401,7 +408,7 @@ void update_geopolitics(game_state& state) {
             // Cultural affinity: common language and religion (Guiso, Sapienza & Zingales 2009),
             // constant, so it sits in the trust level, not in its changes.
             const float culture = (n.get_language() != 0 && n.get_language() == m.get_language() ? static_cast<float>(P.language_trust) : 0.0f)
-                                  + (n.get_religion() != 0 && n.get_religion() == m.get_religion() ? static_cast<float>(P.religion_trust) : 0.0f);
+                                  + (shared_religion(n.get_religion(), m.get_religion()) ? static_cast<float>(P.religion_trust) : 0.0f);
             const float trust_target = std::clamp(0.5f + 0.25f * n.get_alliance(k) - 0.4f * regime_distance(state, n.id, m.id)
                                                       - 0.3f * sanctioned - 0.5f * war - 0.2f * claims
                                                       - static_cast<float>(P.credibility_trust) * (1.0f - m.get_credibility())

@@ -508,8 +508,6 @@
     X(pension_ageing, 1.0, "elasticity of pension outlays to the old-age share relative to 2019")        \
     X(gatsby_slope, 1.4, "intergenerational earnings elasticity per unit Gini (Corak 2013 Great Gatsby curve)") \
     X(mobility_rate, 0.01, "annual share of low-skill workers moving up a tier at zero IGE (Chetty et al. 2014)") \
-    X(cohort_replacement, 0.02, "annual share of the adult population replaced by new cohorts (Inglehart 1977)") \
-    X(formative_security, 0.5, "self-expression of a new cohort per unit secure upbringing (scarcity hypothesis)") \
     X(police_crime, 0.3, "crime elasticity to police spending (Chalfin & McCrary 2017; Levitt 1997)")    \
     X(trust_region_unrest, 0.05, "regional trust lost per unrest level")                                 \
     X(commute_rate, 0.02, "daily share of infection pressure from adjacent regions (commuting; Balcan et al. 2009)") \

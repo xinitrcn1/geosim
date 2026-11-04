@@ -683,7 +683,8 @@ struct builder {
 
     void create_region(dcon::nation_id n, nation_input const& in, region_input const& ri) {
         auto& w = state.world;
-        const double pop = in.population * ri.pop_share;
+        // At least a few hundred people per region: empty ADM1 units would divide by zero.
+        const double pop = std::max(in.population * ri.pop_share, std::min(500.0, 0.01 * in.population));
         const auto r = w.create_region();
         region_by_id[ri.id] = r;
         w.force_create_region_ownership(r, n);

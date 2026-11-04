@@ -209,6 +209,24 @@ void decide_bank_tools(game_state& state, dcon::agent_id bank) {
     }
 }
 
+// Fiscal capacity of a region: its value added per head relative to the nation's,
+// as far as revenue is decentralised and not equalised (Boadway & Shah 2009).
+float fiscal_capacity_of(game_state const& state, dcon::nation_id n, dcon::region_id r) {
+    auto const& w = state.world;
+    auto const& P = state.params;
+    float gdp_n = 0.0f, pop_n = 0.0f;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        for(uint8_t s = 0; s < state.derived.sector_count; ++s) gdp_n += own.get_region().get_va0(s);
+        pop_n += own.get_region().get_population();
+    }
+    float gdp_r = 0.0f;
+    for(uint8_t s = 0; s < state.derived.sector_count; ++s) gdp_r += w.region_get_va0(r, s);
+    const float pop_r = w.region_get_population(r);
+    const float rel = gdp_n > 0.0f && pop_n > 0.0f && pop_r > 0.0f ? (gdp_r / pop_r) / (gdp_n / pop_n) : 1.0f;
+    const float gap = (1.0f - rel) * w.nation_get_decentralisation(n) * (1.0f - static_cast<float>(P.equalisation_gain) * w.nation_get_equalisation(n));
+    return std::clamp(1.0f - gap, 0.2f, 2.0f);
+}
+
 void init_reforms(game_state& state) {
     auto& w = state.world;
     for(auto n : w.in_nation) {
@@ -216,6 +234,12 @@ void init_reforms(game_state& state) {
         n.set_gini_ref(n.get_gini());
         n.set_vintage_tfp(1.0f);
         n.set_equalisation(0.5f);
+    }
+    // The 2019 capacities are the calibrated baseline (unrest responds to changes).
+    for(auto own : w.in_region_ownership) {
+        const float c = fiscal_capacity_of(state, own.get_nation().id, own.get_region().id);
+        own.get_region().set_fiscal_capacity(c);
+        own.get_region().set_fiscal_capacity0(c);
     }
 }
 
@@ -271,19 +295,9 @@ void update_reforms(game_state& state) {
                                                                 * static_cast<float>(P.depreciation) / 0.05f * (ratio - 1.0f) * years));
         }
         // Sub-national fiscal capacity and equalisation.
-        float gdp_n = 0.0f, pop_n = 0.0f;
         for(auto own : n.get_region_ownership()) {
             auto r = own.get_region();
-            for(uint8_t s = 0; s < state.derived.sector_count; ++s) gdp_n += r.get_va0(s);
-            pop_n += r.get_population();
-        }
-        for(auto own : n.get_region_ownership()) {
-            auto r = own.get_region();
-            float gdp_r = 0.0f;
-            for(uint8_t s = 0; s < state.derived.sector_count; ++s) gdp_r += r.get_va0(s);
-            const float rel = gdp_n > 0.0f && pop_n > 0.0f && r.get_population() > 0.0f ? (gdp_r / r.get_population()) / (gdp_n / pop_n) : 1.0f;
-            const float gap = (1.0f - rel) * n.get_decentralisation() * (1.0f - static_cast<float>(P.equalisation_gain) * n.get_equalisation());
-            r.set_fiscal_capacity(std::clamp(1.0f - gap, 0.2f, 2.0f));
+            r.set_fiscal_capacity(fiscal_capacity_of(state, n.id, r.id));
             // Regional house prices: national prices x local demand over a supply elasticity.
             const float growth = r.get_population_r0() > 0.0f ? r.get_population() / r.get_population_r0() : 1.0f;
             r.set_house_price_r(n.get_house_price() * std::pow(std::max(0.2f, growth), 1.0f / static_cast<float>(P.housing_supply)));

@@ -537,7 +537,7 @@ object{
 	property{ name{psi_region} type{float} }
 	property{ name{trust_r} type{float} }
 	property{ name{fiscal_capacity} type{float} }
-	property{ name{enemy_control} type{float} }
+	property{ name{fiscal_capacity0} type{float} }
 	property{ name{ruggedness} type{float} }
 	property{ name{crisis_days} type{float} }
 }

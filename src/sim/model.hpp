@@ -86,7 +86,7 @@ enum class org_role : uint8_t { member = 0, elected = 1, permanent = 2 };
 // treaty.kind (systems/agreements.cpp)
 enum class treaty_kind : uint8_t { climate = 0, migration = 1, debt_relief = 2, conditional_aid = 3, power_sharing = 4, count };
 
-// region.age_band (systems/demography.cpp): 0-14, 15-29, 30-49, 50-64, 65+
+// region.age_band (systems/society.cpp, update_demography): 0-14, 15-29, 30-49, 50-64, 65+
 inline constexpr uint8_t age_bands = 5;
 
 // nation.portfolio_party: ministries held by coalition parties (Gamson's law).
@@ -176,7 +176,7 @@ inline constexpr uint8_t journal_goal = 0xED;          // before = old goal, aft
 inline constexpr uint8_t journal_alliance_call = 0xEC; // pragmatic = ally index, after = 1 joined / 0 declined
 inline constexpr uint8_t journal_dispute = 0xEB;       // pragmatic = partner, before/after = hostility level (0 ends; 2..5)
 inline constexpr uint8_t journal_concession = 0xEA;    // target concedes to sanctions; pragmatic = sender
-inline constexpr uint8_t journal_unsc = 0xE9;          // pragmatic = target, before = kind (0 ceasefire, 1 sanctions, 2 peacekeeping), after = 1 adopted / 0 vetoed / -1 too few votes
+inline constexpr uint8_t journal_unsc = 0xE9;          // pragmatic = target, before = kind (0 ceasefire, 1 sanctions, 2 peacekeeping, 3 HRC shaming), after = 1 adopted / 0 vetoed / -1 too few votes
 inline constexpr uint8_t journal_wto = 0xE8;           // pragmatic = respondent, before = 0 filed / 1 ruled, after = 1 complied / 0 retaliation / -1 appealed into the void
 inline constexpr uint8_t journal_variant = 0xE7;       // pragmatic = pathogen index, after = variant number
 inline constexpr uint8_t journal_term_limit = 0xE6;    // after = 1 evaded, 0 respected (new leader)

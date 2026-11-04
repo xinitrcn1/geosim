@@ -94,7 +94,7 @@ void update_politics_ext(game_state& state) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
         n.set_tenure_days(n.get_tenure_days() + days);
         // Court vacancies and appointments.
-        const float p = years / static_cast<float>(P.court_vacancy_years) * 9.0f / 9.0f;
+        const float p = years / static_cast<float>(P.court_vacancy_years) ;
         if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::elections), static_cast<uint32_t>(state.current_tick),
                            0x6D000000u + static_cast<uint32_t>(n.id.index())) < p) {
             const float before = n.get_judicial();

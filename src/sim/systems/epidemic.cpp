@@ -152,8 +152,17 @@ void update_epidemic(game_state& state) {
                     }
                     return nq > 0.0f ? iq / nq : 0.0f;
                 };
-                for(auto adj : r.get_region_adjacency_as_a()) commute += adj.get_weight() * std::max(0.0f, prevalence_of(adj.get_b().id) - own_prev);
-                for(auto adj : r.get_region_adjacency_as_b()) commute += adj.get_weight() * std::max(0.0f, prevalence_of(adj.get_a().id) - own_prev);
+                // Weighted mean over neighbours (adjacency weights are relative: shared border length).
+                float wsum = 0.0f;
+                for(auto adj : r.get_region_adjacency_as_a()) {
+                    commute += adj.get_weight() * std::max(0.0f, prevalence_of(adj.get_b().id) - own_prev);
+                    wsum += adj.get_weight();
+                }
+                for(auto adj : r.get_region_adjacency_as_b()) {
+                    commute += adj.get_weight() * std::max(0.0f, prevalence_of(adj.get_a().id) - own_prev);
+                    wsum += adj.get_weight();
+                }
+                commute = wsum > 0.0f ? commute / wsum : 0.0f;
                 const float internal = D.npi_movement != 0xFF ? npi_fraction(state, n, D.npi_movement) : 0.0f;
                 commute *= static_cast<float>(P.commute_rate) * pop * (1.0f - 0.8f * internal);
             }

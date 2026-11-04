@@ -319,7 +319,7 @@ void update_demography(game_state& state) {
                     if(w.pop_get_stratum(p) != static_cast<uint8_t>(stratum::base)) continue;
                     const auto q = find_pop(state, pops, static_cast<uint8_t>(k + 1), w.pop_get_group(p));
                     if(!q) continue;
-                    // Movers are the unemployed and the young: they re-enter as job seekers.
+                    // Movers are job seekers (retraining while unemployed): they re-enter the higher tier as seekers.
                     const float people = std::min(w.pop_get_unemployed(p), workforce(state, p) * up);
                     if(people <= 0.0f) continue;
                     const float frac = people / std::max(1.0f, workforce(state, p));
@@ -680,7 +680,7 @@ void update_unrest(game_state& state) {
                              + static_cast<float>(P.unrest_psi) * r.get_psi_region()) * amplifier
                             + exit_blocked + backlash + strikes
                             // Fiscally starved regions resent the centre (Boadway & Shah 2009).
-                            + 0.2f * std::max(0.0f, 1.0f - r.get_fiscal_capacity());
+                            + 0.2f * std::max(0.0f, r.get_fiscal_capacity0() - r.get_fiscal_capacity());
         r.set_drive(std::clamp(drive, 0.0f, 2.0f));
     }
 }
