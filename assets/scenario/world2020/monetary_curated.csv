@@ -1,0 +1,134 @@
+# Monetary regimes of the world scenario, end-2019 (hand-written). regime: own | union | peg.
+#   union: area = name of the currency union; one central-bank agent sets the rate for all members.
+#          anchor (optional): the union's currency is pegged, so all members follow that nation.
+#   peg:   anchor = ISO3 of the anchor currency's nation; the central bank follows its rate.
+#          Covers conventional pegs, currency boards and the use of another nation's currency
+#          (no separate legal tender). DEU stands for the euro area as an anchor.
+#   reserve: reserve-currency status 0..1 (lowers sovereign risk premia); US dollar = 1.
+# Nations not listed run their own currency (float, managed float, crawl or basket).
+#
+# Sources:
+#  euro area membership 2019 (19 states): ECB.
+#  regimes: IMF Annual Report on Exchange Arrangements and Exchange Restrictions 2019
+#           (de facto classification, April 2019): no separate legal tender, currency boards,
+#           conventional pegs to a single currency. Basket pegs (KWT, FJI, LBY, MAR, ...) and
+#           crawls are left as own currencies.
+#  currency unions: BCEAO (WAEMU, CFA franc XOF) and BEAC (CEMAC, CFA franc XAF), both pegged
+#           to the euro; ECCB (ECCU, EC dollar, currency board on the US dollar since 1976);
+#           Common Monetary Area (LSO, NAM, SWZ at par with the rand).
+#  reserve: IMF COFER, shares of allocated world reserves 2019Q4 (USD 60.7 %, EUR 20.6 %,
+#           JPY 5.7 %, GBP 4.6 %, CNY 2.0 %, CAD 1.9 %, AUD 1.7 %, CHF 0.15 %), mapped to 0..1
+#           as in the 2020 slice (USD 1, EUR 0.6, JPY/GBP 0.4, CNY/CAD/AUD 0.2); CHF 0.1 for
+#           its safe-haven role (Ranaldo & Soderlind 2010) despite its small reserve share.
+iso3,regime,area,anchor,reserve
+USA,own,,,1.0
+JPN,own,,,0.4
+GBR,own,,,0.4
+CHN,own,,,0.2
+CAN,own,,,0.2
+AUS,own,,,0.2
+CHE,own,,,0.1
+AUT,union,EUR,,0.6
+BEL,union,EUR,,0.6
+CYP,union,EUR,,0.6
+DEU,union,EUR,,0.6
+ESP,union,EUR,,0.6
+EST,union,EUR,,0.6
+FIN,union,EUR,,0.6
+FRA,union,EUR,,0.6
+GRC,union,EUR,,0.6
+IRL,union,EUR,,0.6
+ITA,union,EUR,,0.6
+LTU,union,EUR,,0.6
+LUX,union,EUR,,0.6
+LVA,union,EUR,,0.6
+MLT,union,EUR,,0.6
+NLD,union,EUR,,0.6
+PRT,union,EUR,,0.6
+SVK,union,EUR,,0.6
+SVN,union,EUR,,0.6
+BEN,union,XOF,DEU,0
+BFA,union,XOF,DEU,0
+CIV,union,XOF,DEU,0
+GNB,union,XOF,DEU,0
+MLI,union,XOF,DEU,0
+NER,union,XOF,DEU,0
+SEN,union,XOF,DEU,0
+TGO,union,XOF,DEU,0
+CMR,union,XAF,DEU,0
+CAF,union,XAF,DEU,0
+TCD,union,XAF,DEU,0
+COG,union,XAF,DEU,0
+GNQ,union,XAF,DEU,0
+GAB,union,XAF,DEU,0
+ATG,union,XCD,USA,0
+DMA,union,XCD,USA,0
+GRD,union,XCD,USA,0
+KNA,union,XCD,USA,0
+LCA,union,XCD,USA,0
+VCT,union,XCD,USA,0
+ECU,peg,,USA,0
+SLV,peg,,USA,0
+PAN,peg,,USA,0
+TLS,peg,,USA,0
+FSM,peg,,USA,0
+MHL,peg,,USA,0
+PLW,peg,,USA,0
+PRI,peg,,USA,0
+VIR,peg,,USA,0
+GUM,peg,,USA,0
+ASM,peg,,USA,0
+MNP,peg,,USA,0
+TCA,peg,,USA,0
+VGB,peg,,USA,0
+HKG,peg,,USA,0
+DJI,peg,,USA,0
+ABW,peg,,USA,0
+BHS,peg,,USA,0
+BHR,peg,,USA,0
+BRB,peg,,USA,0
+BLZ,peg,,USA,0
+BMU,peg,,USA,0
+CYM,peg,,USA,0
+CUW,peg,,USA,0
+SXM,peg,,USA,0
+CUB,peg,,USA,0
+ERI,peg,,USA,0
+IRQ,peg,,USA,0
+JOR,peg,,USA,0
+LBN,peg,,USA,0
+OMN,peg,,USA,0
+QAT,peg,,USA,0
+SAU,peg,,USA,0
+ARE,peg,,USA,0
+TKM,peg,,USA,0
+MAC,peg,,HKG,0
+MNE,peg,,DEU,0
+XKX,peg,,DEU,0
+AND,peg,,DEU,0
+MCO,peg,,DEU,0
+SMR,peg,,DEU,0
+MAF,peg,,DEU,0
+BIH,peg,,DEU,0
+BGR,peg,,DEU,0
+DNK,peg,,DEU,0
+CPV,peg,,DEU,0
+COM,peg,,DEU,0
+STP,peg,,DEU,0
+NCL,peg,,DEU,0
+PYF,peg,,DEU,0
+FRO,peg,,DNK,0
+GRL,peg,,DNK,0
+KIR,peg,,AUS,0
+NRU,peg,,AUS,0
+TUV,peg,,AUS,0
+BRN,peg,,SGP,0
+BTN,peg,,IND,0
+NPL,peg,,IND,0
+LSO,peg,,ZAF,0
+NAM,peg,,ZAF,0
+SWZ,peg,,ZAF,0
+IMN,peg,,GBR,0
+CHI,peg,,GBR,0
+GIB,peg,,GBR,0
+LIE,peg,,CHE,0

@@ -77,13 +77,13 @@ WORLD_WDI = {
     "SP.POP.TOTL.MA.ZS": "male_pct",
     "SP.POP.1519.MA.5Y": "male_15_19_pct", "SP.POP.2024.MA.5Y": "male_20_24_pct", "SP.POP.2529.MA.5Y": "male_25_29_pct",
     "SP.POP.1519.FE.5Y": "female_15_19_pct", "SP.POP.2024.FE.5Y": "female_20_24_pct", "SP.POP.2529.FE.5Y": "female_25_29_pct",
-    "FS.AST.PRVT.GD.ZS": "private_credit_pct",       # IMF IFS via WDI
+    "FD.AST.PRVT.GD.ZS": "private_credit_pct",       # bank credit; IMF IFS via WDI
     "FB.AST.NPER.ZS": "npl_pct",                     # IMF FSI via WDI
     "FR.INR.LNDP": "lending_spread_pp",              # IMF IFS via WDI
     "FI.RES.TOTL.MO": "reserves_months",
     "GB.XPD.RSDV.GD.ZS": "rd_pct",                   # UNESCO UIS via WDI
     "IS.SHP.GOOD.TU": "port_teu",                    # Lloyd's / UNCTAD via WDI
-    "TM.TAX.MRCH.WM.AR.ZS": "tariff_pct",            # WITS via WDI
+    "TM.TAX.MRCH.SM.FN.ZS": "tariff_pct",            # MFN simple mean; WITS via WDI
 }
 
 SOURCES = [

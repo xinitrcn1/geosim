@@ -13,7 +13,7 @@ Every value comes from a published dataset (fetch.py fetch_world_extras -> data/
     emigrant_stock_pct   emigrants abroad, % of the home population, mid-2019 (UN DESA International
                          Migrant Stock 2020, interpolated 2015-2020)
   finance.csv
-    private_credit_pct   domestic credit to the private sector, % GDP (WDI FS.AST.PRVT.GD.ZS; else
+    private_credit_pct   domestic credit to the private sector by banks, % GDP (WDI FD.AST.PRVT.GD.ZS; else
                          World Bank Fiscal Space Database pscy)
     npl_pct              non-performing loans, % of gross loans (WDI FB.AST.NPER.ZS)
     capital_ratio_pct    regulatory capital / risk-weighted assets (World Bank GFDD.SI.05)
@@ -21,7 +21,7 @@ Every value comes from a published dataset (fetch.py fetch_world_extras -> data/
     avg_maturity_years   average maturity of government debt (Fiscal Space avglife)
     foreign_debt_share   share of government debt held abroad (Fiscal Space fordebtsh)
     fx_debt_share        foreign-currency share of government debt (Fiscal Space fxsovsh)
-    tariff_pct           applied tariff, trade-weighted mean, all products (WITS via WDI)
+    tariff_pct           MFN tariff, simple mean, all products (WITS via WDI; as the curated slice)
     union_density        trade-union members / employees (ILOSTAT ILR_TUMT_NOC_RT)
     bargaining_coverage  employees covered by collective agreements (ILOSTAT ILR_CBCT_NOC_RT)
   nations_ext.csv
@@ -244,12 +244,12 @@ def build(raw: pathlib.Path, nations: dict, countries: dict):
     fin = []
     for iso in order:
         fsv = lambda sheet: _latest(fs[sheet].get(iso, {}))
-        credit = g("FS.AST.PRVT.GD.ZS", iso, 9)
+        credit = g("FD.AST.PRVT.GD.ZS", iso, 9)
         if credit is None:
             credit = fsv("pscy")
         share = lambda v: v / 100.0 if v is not None else None
         fin.append([iso, credit, g("FB.AST.NPER.ZS", iso), _latest(gfdd.get(iso, {})), g("FR.INR.LNDP", iso, 9), fsv("avglife"),
-                    share(fsv("fordebtsh")), share(fsv("fxsovsh")), g("TM.TAX.MRCH.WM.AR.ZS", iso),
+                    share(fsv("fordebtsh")), share(fsv("fxsovsh")), g("TM.TAX.MRCH.SM.FN.ZS", iso),
                     share(_latest(ilo_ud.get(iso, {}), 9)), share(_latest(ilo_cb.get(iso, {}), 9))])
 
     ext = []

@@ -1667,6 +1667,8 @@ struct builder {
                 }
                 if(regime == "union") {
                     union_of[iso] = std::string(m.get(row, "area"));
+                    // A pegged union (CFA franc zones, ECCU): every member follows the anchor.
+                    if(const auto anchor = m.get(row, "anchor"); !anchor.empty()) peg_of[iso] = std::string(anchor);
                 } else if(regime == "peg") {
                     peg_of[iso] = std::string(m.get(row, "anchor"));
                 } else if(regime != "own") {
