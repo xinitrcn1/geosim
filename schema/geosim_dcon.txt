@@ -734,8 +734,9 @@ object{
 object{
 	name{commodity}
 	storage_type{contiguous}
-	size{8}
+	size{64}
 	tag{scenario}
+	property{ name{extractive} type{uint8_t} }
 
 	property{ name{restraint} type{float} }
 	property{ name{key} type{uint32_t} }

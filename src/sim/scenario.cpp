@@ -63,6 +63,7 @@ struct nation_input {
     double presidential = 0, veto = 0.3, defense = 2.0, carbon_price = 0.0, top1 = 0.0;
     // society_curated.csv
     double youth_share = 0.33, youth_unemp_rel = 2.5, social_media = 0.5, corruption_cpi = 50.0, emigrant_stock = 0.03, net_freedom = 60.0;
+    bool net_freedom_set = false; // else derived from voice (load_nation_extras)
     struct group {
         std::string key;
         double share = 1, edu_rel = 1, informal_rel = 1, wage_gap = 0, unemp_rel = 1, wealth_rel = 1, excluded = 0, network = 0.3;
@@ -91,6 +92,7 @@ struct builder {
     std::map<std::string, uint8_t> npi_by_key;
     std::map<std::string, nation_input> inputs;
     std::map<std::string, std::vector<region_input>> regions_of; // optional regions.csv
+    std::array<double, max_sectors> region_tilt{};                 // sectors.txt region_tilt
     std::map<std::string, dcon::region_id> region_by_id;
     // The input row of each created region (by region index). Relationship iteration
     // order is not the input order, so regions must be matched by identity (docs/13).
@@ -137,6 +139,7 @@ struct builder {
                 return;
             }
             for(auto const& node : core::load_defs(path, diag)) {
+                if(scenario_file && node.key == "base") continue; // inherited tables (base_scenario_dir)
                 if(scenario_file && node.key == "start") {
                     const auto d = core::parse_date(node.text);
                     if(!d) {
@@ -252,6 +255,7 @@ struct builder {
             w.sector_set_import_intensity(id, static_cast<float>(node.num_or("import_intensity", 1.0, path, diag)));
             w.sector_set_voluntary_distancing(id, static_cast<float>(node.num_or("voluntary_distancing", 0.0, path, diag)));
             w.sector_set_teleworkable(id, static_cast<float>(node.num_or("teleworkable", 0.0, path, diag)));
+            region_tilt[id.index()] = node.num_or("region_tilt", 0.0, path, diag);
             if(auto d = node.find("demand")) {
                 w.sector_set_demand_hh(id, static_cast<float>(d->num_or("hh", 0.0, path, diag)));
                 w.sector_set_demand_gov(id, static_cast<float>(d->num_or("gov", 0.0, path, diag)));
@@ -313,6 +317,14 @@ struct builder {
     // ------------------------------------------------------------ nation data
     void load_nations() {
         const std::string dir = assets + "/scenario/" + scenario;
+        std::map<std::string, std::array<double, 3>> income_priors; // epl, benefit replacement, coverage
+        if(exists(assets + "/defs/income_priors.csv")) {
+            const auto ip = core::csv_table::load(assets + "/defs/income_priors.csv", diag);
+            for(std::size_t row = 0; row < ip.rows(); ++row) {
+                income_priors[std::string(ip.get(row, "income"))] = {ip.number_or(row, "epl", 0.35), ip.number_or(row, "benefit_replacement", 0.3),
+                                                                      ip.number_or(row, "benefit_coverage", 0.15)};
+            }
+        }
         const auto t = core::csv_table::load(dir + "/nations.csv", diag);
         auto pct = [&](std::size_t row, std::string_view col, double fallback, nation_input const& in) {
             auto v = t.number(row, col);
@@ -362,7 +374,20 @@ struct builder {
             in.oil_consumption = t.number_or(row, "oil_consumption_mbd", -1.0);
             // Institutions and reporting from the generated table (world: income-group
             // priors or data); curated values below override them.
+            // Seasons: the capital's latitude in tropics-widths (+1 north of the Tropic of
+            // Cancer, -1 south of Capricorn); a curated or tabled value overrides it.
+            in.hemisphere = std::clamp(in.lat / 23.5, -1.0, 1.0);
             in.hemisphere = t.number_or(row, "hemisphere", in.hemisphere);
+            // Labour institutions: the income group's priors (defs/income_priors.csv), then
+            // any value in the table.
+            if(t.has_column("income")) {
+                auto pr = income_priors.find(std::string(t.get(row, "income")));
+                if(pr != income_priors.end()) {
+                    in.epl = pr->second[0];
+                    in.benefit_replacement = pr->second[1];
+                    in.benefit_coverage = pr->second[2];
+                }
+            }
             in.epl = t.number_or(row, "epl", in.epl);
             in.benefit_replacement = t.number_or(row, "benefit_replacement", in.benefit_replacement);
             in.benefit_coverage = t.number_or(row, "benefit_coverage", in.benefit_coverage);
@@ -420,17 +445,21 @@ struct builder {
     // Optional per-nation tables: banking / bonds / prices, society, identity groups.
     // Nations without rows keep the defaults in nation_input (the full-world data
     // comes later; every mechanism must work with defaults).
+    // Each table is read in layers (layered_tables): this scenario's generated table, the
+    // base scenario's curated table, this scenario's curated table; a later layer only
+    // overrides the columns it has.
     void load_nation_extras(std::string const& dir) {
-        auto rows = [&](std::string const& file, auto&& fn) {
-            if(!exists(dir + "/" + file)) return;
-            const auto t = core::csv_table::load(dir + "/" + file, diag);
-            for(std::size_t row = 0; row < t.rows(); ++row) {
-                auto it = inputs.find(std::string(t.get(row, "iso3")));
-                if(it == inputs.end()) continue; // nation not in this scenario
-                fn(t, row, it->second);
+        auto rows = [&](std::string const& generated, std::string const& curated, auto&& fn) {
+            for(auto const& path : layered_tables(dir, generated, curated)) {
+                const auto t = core::csv_table::load(path, diag);
+                for(std::size_t row = 0; row < t.rows(); ++row) {
+                    auto it = inputs.find(std::string(t.get(row, "iso3")));
+                    if(it == inputs.end()) continue; // nation not in this scenario
+                    fn(t, row, it->second);
+                }
             }
         };
-        rows("finance_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+        rows("finance.csv", "finance_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             in.private_credit = t.number_or(row, "private_credit_pct", in.private_credit * 100.0) / 100.0;
             in.hh_credit_share = t.number_or(row, "hh_credit_share", in.hh_credit_share);
             in.state_bank_share = t.number_or(row, "state_bank_share", in.state_bank_share);
@@ -454,17 +483,36 @@ struct builder {
             in.tax_progressivity = t.number_or(row, "tax_progressivity", in.tax_progressivity);
             in.carbon_price = t.number_or(row, "carbon_price_usd", in.carbon_price);
         });
-        rows("society_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+        rows("society.csv", "society_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
             in.youth_share = t.number_or(row, "youth_share", in.youth_share);
             in.youth_unemp_rel = t.number_or(row, "youth_unemp_rel", in.youth_unemp_rel);
+            // Social-media users from internet users where only those are known: active
+            // social-media identities were ~84 % of internet users in 2020 (DataReportal
+            // "Digital 2020": 3.80 bn of 4.54 bn).
+            if(auto v = t.number(row, "internet_pct")) in.social_media = std::clamp(0.84 * *v / 100.0, 0.0, 1.0);
             in.social_media = t.number_or(row, "social_media_pct", in.social_media * 100.0) / 100.0;
             in.corruption_cpi = t.number_or(row, "corruption_cpi", in.corruption_cpi);
             in.emigrant_stock = t.number_or(row, "emigrant_stock_pct", in.emigrant_stock * 100.0) / 100.0;
-            in.net_freedom = t.number_or(row, "net_freedom", in.net_freedom);
+            if(auto v = t.number(row, "net_freedom")) {
+                in.net_freedom = *v;
+                in.net_freedom_set = true;
+            }
             in.trust = t.number_or(row, "trust_wvs", in.trust);
             in.top1 = t.number_or(row, "top1_share", in.top1);
         });
-        rows("groups_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+        // Internet freedom without a Freedom House score: fitted on the scored nations of the
+        // 2020 slice against WGI voice and accountability (Freedom on the Net 2020 vs WGI
+        // VA.EST 2019: score = 53.0 + 20.9 x voice, R^2 = 0.94, RMSE 5 points, n = 20).
+        for(auto& [iso, in] : inputs) {
+            if(!in.net_freedom_set) in.net_freedom = std::clamp(53.0 + 20.9 * in.voice, 2.0, 98.0);
+        }
+        // Identity groups: a layer that lists a nation replaces its groups from earlier layers.
+        std::map<std::string, std::string> groups_from; // nation -> the table its groups came from
+        rows("groups.csv", "groups_curated.csv", [&](core::csv_table const& t, std::size_t row, nation_input& in) {
+            if(groups_from[in.iso] != t.source()) {
+                in.groups.clear();
+                groups_from[in.iso] = t.source();
+            }
             nation_input::group g;
             g.key = std::string(t.get(row, "group"));
             g.share = t.number_or(row, "pop_share", 0.0);
@@ -527,7 +575,9 @@ struct builder {
             for(auto const& r : list) sum += r.pop_share;
             for(auto& r : list) r.pop_share = sum > 0.0 ? r.pop_share / sum : 1.0 / static_cast<double>(list.size());
         }
-        if(exists(dir + "/region_sectors.csv")) {
+        if(!exists(dir + "/region_sectors.csv")) {
+            derive_region_sectors();
+        } else {
             const auto rs = core::csv_table::load(dir + "/region_sectors.csv", diag);
             for(std::size_t row = 0; row < rs.rows(); ++row) {
                 auto it = index.find(std::string(rs.get(row, "region")));
@@ -539,6 +589,83 @@ struct builder {
                 r.va_share[sk->second] = rs.number_or(row, "va_share", 0.0);
                 r.emp_share[sk->second] = rs.number_or(row, "emp_share", 0.0);
                 r.has_sectors = true;
+            }
+        }
+    }
+
+    // Regional sector mix without region_sectors.csv. Regional GDP follows population,
+    // higher in more urban regions (GDP weight = population share x max(min factor, 1 +
+    // premium x (urban share - national urban share)); per head output rises with
+    // urbanisation, World Bank WDR 2009); each sector's output and jobs lean by its
+    // region_tilt (sectors.txt) and are rebalanced (RAS, 300 sweeps) to the regional totals
+    // and the national sector totals. This used to ship as region_sectors.csv, computed the
+    // same way by the pipeline.
+    void derive_region_sectors() {
+        auto const& P = state.params;
+        const uint8_t S = static_cast<uint8_t>(state.world.sector_size());
+        auto ras = [&](std::vector<std::array<double, max_sectors>>& m, std::vector<double> const& rows_t, std::array<double, max_sectors> const& cols_t) {
+            for(int it = 0; it < 300; ++it) {
+                for(uint8_t s = 0; s < S; ++s) {
+                    double sum = 0.0;
+                    for(auto const& r : m) sum += r[s];
+                    if(sum > 0.0) {
+                        for(auto& r : m) r[s] *= cols_t[s] / sum;
+                    }
+                }
+                for(std::size_t i = 0; i < m.size(); ++i) {
+                    double sum = 0.0;
+                    for(uint8_t s = 0; s < S; ++s) sum += m[i][s];
+                    if(sum > 0.0) {
+                        for(uint8_t s = 0; s < S; ++s) m[i][s] *= rows_t[i] / sum;
+                    }
+                }
+            }
+        };
+        for(auto& [iso, list] : regions_of) {
+            if(list.size() < 2) continue;
+            auto const& in = inputs[iso];
+            // Regional GDP shares.
+            std::vector<double> pop(list.size()), gdp(list.size());
+            double gsum = 0.0, urban_mean = 0.0;
+            for(std::size_t i = 0; i < list.size(); ++i) {
+                pop[i] = list[i].pop_share;
+                gdp[i] = pop[i] * std::max(P.region_gdp_min_factor, 1.0 + P.region_gdp_urban_premium * (list[i].urban - in.urban));
+                gsum += gdp[i];
+                urban_mean += list[i].urban * pop[i];
+            }
+            for(auto& g : gdp) g = gsum > 0.0 ? g / gsum : 1.0 / static_cast<double>(list.size());
+            if(urban_mean <= 0.0) urban_mean = 0.5;
+            auto tilt = [&](region_input const& r, uint8_t s) {
+                const double t = region_tilt[s], u = r.urban;
+                if(t < 0.0) return std::max(0.05, 1.0 - t * ((1.0 - u) / std::max(0.05, 1.0 - urban_mean) - 1.0));
+                if(t > 0.0) return std::max(0.05, 1.0 + t * (u / std::max(0.05, urban_mean) - 1.0));
+                return 1.0;
+            };
+            std::array<double, max_sectors> va{}, emp{};
+            double va_tot = 0.0, emp_tot = 0.0;
+            for(uint8_t s = 0; s < S; ++s) {
+                va_tot += in.va_share[s];
+                emp_tot += in.emp_share[s];
+            }
+            for(uint8_t s = 0; s < S; ++s) {
+                va[s] = va_tot > 0.0 ? in.va_share[s] / va_tot : 1.0 / S;
+                emp[s] = emp_tot > 0.0 ? in.emp_share[s] / emp_tot : 1.0 / S;
+            }
+            std::vector<std::array<double, max_sectors>> mv(list.size()), me(list.size());
+            for(std::size_t i = 0; i < list.size(); ++i) {
+                for(uint8_t s = 0; s < S; ++s) {
+                    mv[i][s] = gdp[i] * va[s] * tilt(list[i], s);
+                    me[i][s] = pop[i] * emp[s] * tilt(list[i], s);
+                }
+            }
+            ras(mv, gdp, va);
+            ras(me, pop, emp);
+            for(std::size_t i = 0; i < list.size(); ++i) {
+                for(uint8_t s = 0; s < S; ++s) {
+                    list[i].va_share[s] = va[s] > 0.0 ? mv[i][s] / va[s] : 0.0;
+                    list[i].emp_share[s] = emp[s] > 0.0 ? me[i][s] / emp[s] : 0.0;
+                }
+                list[i].has_sectors = true;
             }
         }
     }
@@ -1623,8 +1750,11 @@ struct builder {
                 w.sovereignty_set_autonomy(rel, static_cast<float>(j.number_or(row, "autonomy", 0.5)));
             }
         }
-        if(exists(dir + "/claims.csv")) {
-            const auto c = core::csv_table::load(dir + "/claims.csv", diag);
+        // Curated claims, then claims the pipeline found (territory duplicated in a claimant's
+        // boundary file); a later row for the same pair sets its strength.
+        for(char const* file : {"/claims_curated.csv", "/claims.csv"}) {
+            if(!exists(dir + file)) continue;
+            const auto c = core::csv_table::load(dir + file, diag);
             for(std::size_t row = 0; row < c.rows(); ++row) {
                 const auto claimant = find_nation(state, c.get(row, "claimant"));
                 const auto holder = find_nation(state, c.get(row, "holder"));
@@ -1882,8 +2012,8 @@ struct builder {
                 }
             }
         }
-        if(exists(dir + "/relations_curated.csv")) {
-            const auto t = core::csv_table::load(dir + "/relations_curated.csv", diag);
+        if(const auto relations = inherited_table(dir, "relations_curated.csv"); !relations.empty()) {
+            const auto t = core::csv_table::load(relations, diag);
             for(std::size_t row = 0; row < t.rows(); ++row) {
                 const auto a = find_nation(state, t.get(row, "from"));
                 const auto b = find_nation(state, t.get(row, "to"));
@@ -2133,8 +2263,8 @@ struct builder {
         {
             std::vector<observed_adoption> observed;
             const std::string tdir = assets + "/scenario/" + scenario;
-            if(exists(tdir + "/technology_curated.csv")) {
-                const auto t = core::csv_table::load(tdir + "/technology_curated.csv", diag);
+            for(auto const& path : layered_tables(tdir, "technology.csv", "technology_curated.csv")) {
+                const auto t = core::csv_table::load(path, diag);
                 for(std::size_t row = 0; row < t.rows(); ++row) {
                     const auto nation = find_nation(state, t.get(row, "iso3"));
                     dcon::technology_id tech;
@@ -2151,7 +2281,7 @@ struct builder {
         for(auto n : w.in_nation) {
             float ren = 0.0f;
             for(auto t : w.in_technology) {
-                if(t.get_emission_cut() > 0.0f) ren = n.get_tech_adoption(static_cast<uint8_t>(t.id.index()));
+                if(t.get_key() == core::pack_key("ren")) ren = n.get_tech_adoption(static_cast<uint8_t>(t.id.index())); // renewable power (technologies.txt)
             }
             n.set_fossil_share0(1.0f - ren);
             n.set_fossil_share(1.0f - ren);

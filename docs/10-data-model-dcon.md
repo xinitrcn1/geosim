@@ -29,7 +29,7 @@ events; [11](11-data-calibration.md#world-2020-dataset)).
 | `npi_indicator` | 32 | one OxCGRT indicator: role, maximum level, transmission effect |
 | `pathogen` | 8 | SEIR parameters, severity, cross-immunity, vaccine timing and efficacy, emergent-template flag |
 | `climate` | 1 | world CO2, temperature, damage, emissions; also the world remittance index |
-| `commodity` | 8 | world commodity market (crude oil, gas, coal, grains, metals): price, stocks, supply, demand, elasticities, harvest shock, biofuel share, sector weights |
+| `commodity` | 64 | world commodity market (crude oil plus `assets/defs/commodities.txt`: energy, grains, oilseeds, tropical crops, beef, cotton, timber, fertilisers, metals and minerals): price, stocks, supply, demand, elasticities, harvest shock, biofuel share, sector weights |
 | `social_group` | 512 | identity group of a nation: population share, education, informality, wage gap, unemployment, wealth, exclusion, network, immigrant flag, grievance, mobilisation |
 | `firm` | 4,096 | SME or large cohort of a nation × sector: capacity share, cash days, leverage, exit and entry, state ownership, board choices |
 | `technology` | 64 | diffusing technology: frontier year, speed, lag, TFP and sector gains, oil and emission cuts, connectivity gain, vaccine speed-up |

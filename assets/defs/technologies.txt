@@ -18,8 +18,148 @@
 # Outlook 2020, IRENA); AI services (frontier mid-2030s; productivity effects modest:
 # Brynjolfsson, Rock & Syverson 2021 J-curve); mRNA platform vaccines (first licensed 2020).
 
+#
+# Extended set (2020-2040 diffusion). Each line is preceded by its sources: adoption
+# timing (frontier_year, speed) and effect size. Logistic speed s means 10%->90% adoption
+# takes 4.4/s years. Where evidence on effects is thin the effect is set small and the
+# comment says so. Effects are deliberately conservative: sector_gain moves output only
+# when a nation deviates from its 2019 adoption path, and oil_cut / emission_cut compound
+# multiplicatively across technologies (floors 0.1 and 0.05 in longcampaign.cpp), so many
+# small cuts must not double count the renewables line.
+#
+# ORDER MATTERS: scenario.cpp (fossil_share0) and climate.cpp (clean vintages) treat the
+# LAST technology with emission_cut > 0 as renewable power. Keep every other emission-cut
+# technology above `ren`.
+
 tech{ key{ev}   name{Electric vehicles}     frontier_year{2031} speed{0.35} lag_years{2}  oil_cut{0.45} emission_cut{0.0} }
+# --- clean energy and efficiency (must stay above ren) ---
+# Grid batteries. Timing: IEA "Batteries and Secure Energy Transitions" (2024): storage to
+# grow ~6x to 1,500 GW by 2030 in net-zero pathways; BloombergNEF Battery Price Survey 2023
+# (pack ~139 USD/kWh, -~90% since 2010). Effect: enables renewable integration; most of the
+# CO2 gain is already in `ren`, so only a small extra cut (conservative).
+tech{ key{bess} name{Grid-scale batteries}  frontier_year{2032} speed{0.35} lag_years{2}  emission_cut{0.03} sector{ene} sector_gain{0.02} }
+# Heat pumps. Timing: IEA "The Future of Heat Pumps" (2022): ~10% of global space-heating
+# needs met by heat pumps in 2021, ~20% by 2030 under announced pledges; Nordic leaders
+# (Norway, Sweden) well past half. Effect: same report - heat pumps cut CO2 vs gas boilers
+# by >=20% even on today's grids; space/water heating ~10% of energy CO2; heating oil is a
+# few % of world oil demand (IEA Oil 2023) -> small oil and CO2 cuts.
+tech{ key{hpmp} name{Heat pumps}            frontier_year{2030} speed{0.25} lag_years{2}  oil_cut{0.03} emission_cut{0.04} }
+# LED lighting. Timing: IEA Tracking Report "Lighting" (2022): LEDs >50% of global lighting
+# sales by 2022; frontier stock past half around 2020. Effect: lighting ~15% of world
+# electricity (UNEP U4E/en.lighten); LEDs use 50-70% less -> ~2-3% of energy CO2; much of it
+# already realised by 2020, so the remaining effect is small.
+tech{ key{led}  name{LED lighting}          frontier_year{2020} speed{0.50} lag_years{1}  emission_cut{0.02} }
+# Efficient cooling. Timing: IEA "The Future of Cooling" (2018): space cooling ~10% of world
+# electricity, AC stock to triple by 2050; average units sold are far below best available
+# efficiency. Effect: Efficient Cooling Scenario halves cooling energy growth -> small cut.
+tech{ key{cool} name{Efficient air conditioning} frontier_year{2030} speed{0.25} lag_years{3} emission_cut{0.02} }
+# Efficient motors and variable-speed drives. Timing: IEA "Energy-Efficiency Policy
+# Opportunities for Electric Motor-Driven Systems" (Waide & Brunner 2011): motor systems use
+# 43-46% of world electricity; 20-30% savings cost-effective; IE3 minimum standards spreading
+# (EU 2017/2021, China 2021). Effect: ~2-3% of energy CO2 at full adoption; small TFP gain.
+tech{ key{mots} name{Efficient motor systems} frontier_year{2028} speed{0.20} lag_years{3} emission_cut{0.03} sector{man} sector_gain{0.01} }
+# Green hydrogen. Timing: IEA Global Hydrogen Review 2023: low-emission H2 <1% of ~95 Mt
+# production in 2022; announced projects could reach ~38 Mt by 2030 if all realised (most are
+# not at FID) -> late frontier. Effect: grey H2 emits ~900 Mt CO2/yr (~2.5% of energy CO2)
+# plus steel/ammonia/shipping substitution. Thin evidence on cost path: conservative.
+tech{ key{h2}   name{Green hydrogen}        frontier_year{2040} speed{0.25} lag_years{3}  emission_cut{0.03} }
+# Carbon capture (CCUS). Timing: IEA CCUS tracking (2023): ~45 Mt CO2/yr capture capacity
+# operating vs ~37 Gt emissions; pipeline ~400 Mt/yr by 2030 if realised; historic delivery
+# well below announcements. Effect: thin evidence at scale; small cut, late frontier.
+tech{ key{ccs}  name{Carbon capture}        frontier_year{2042} speed{0.20} lag_years{3}  emission_cut{0.04} }
+# Small modular reactors. Timing: NEA SMR Dashboard (2023) / IAEA ARIS: only demonstration
+# units operating (Akademik Lomonosov 2020, HTR-PM 2021); first Western units ~2030. Effect:
+# speculative; tiny cut, frontier after 2040 so little happens in the campaign.
+tech{ key{smr}  name{Small modular reactors} frontier_year{2045} speed{0.20} lag_years{4} emission_cut{0.02} }
+# --- original set ---
 tech{ key{ren}  name{Renewable power}       frontier_year{2033} speed{0.25} lag_years{2}  emission_cut{0.5} sector{ene} sector_gain{0.05} }
 tech{ key{ai}   name{AI services}           frontier_year{2034} speed{0.30} lag_years{3}  sector{osv} sector_gain{0.10} }
 tech{ key{bb5g} name{Mobile broadband / 5G} frontier_year{2024} speed{0.45} lag_years{2}  connectivity_gain{0.2} sector{osv} sector_gain{0.03} }
 tech{ key{mrna} name{mRNA vaccine platform} frontier_year{2021} speed{1.50} lag_years{1}  vaccine_speedup{0.5} }
+
+# --- transport ---
+# Electric trucks and buses. Timing: IEA Global EV Outlook 2023: electric shares of 2022
+# sales ~4.5% of buses (Finland >65%, China >80% of world e-bus sales) and ~1.2% of medium
+# and heavy trucks; 27 countries pledged 100% zero-emission truck/bus sales by 2040 (Global
+# MoU). Effect: road freight ~1/5 of world oil demand (IEA "The Future of Trucks" 2017);
+# stock turnover is slow, so oil_cut 0.15 at full adoption.
+tech{ key{etrk} name{Electric trucks and buses} frontier_year{2036} speed{0.30} lag_years{2} oil_cut{0.15} }
+# High-speed rail. Timing: UIC High-Speed Rail atlas (2023): ~59,000 km in service, ~2/3 in
+# China, which plans ~70,000 km by 2035 (Medium- and Long-Term Railway Plan 2016); most other
+# networks grow slowly (long infrastructure lags). Effect: Ahlfeldt & Feddersen (2018, J. Econ.
+# Geography): Cologne-Frankfurt line raised station-county GDP ~8.5% - local, partly
+# relocation; aggregate effect small. Air/car substitution on 300-800 km trips; rail ~2% of
+# transport energy (IEA "The Future of Rail" 2019) -> small oil cut.
+tech{ key{hsr}  name{High-speed rail}       frontier_year{2020} speed{0.20} lag_years{8}  oil_cut{0.02} sector{csv} sector_gain{0.01} }
+# Remote work tooling. Timing: Barrero, Bloom & Davis (2021, NBER w28731 "Why working from
+# home will stick"): US work-from-home days ~5% pre-2020 -> ~20% after; Dingel & Neiman
+# (2020): ~37% of US jobs teleworkable, fewer in poorer countries. Effect: Barrero et al.
+# estimate ~4.6% productivity gain, mostly commuting time not measured output -> small
+# sector gain; IEA 10-Point Plan to Cut Oil Use (2022): 3 home-working days/week for those
+# who can saves ~0.5 mb/d (~0.5% of world oil) -> oil_cut 0.01.
+tech{ key{rwk}  name{Remote work tooling}   frontier_year{2020} speed{0.60} lag_years{2}  oil_cut{0.01} sector{osv} sector_gain{0.02} }
+# --- manufacturing and business services ---
+# Industrial robots. Timing: IFR World Robotics 2023: world robot density 151 per 10,000
+# manufacturing employees in 2022 (doubled since 2016); Korea 1,012, Singapore 730, Germany
+# 415. Effect: Graetz & Michaels (2018, REStat): robot densification raised annual labour
+# productivity growth ~0.36 pp across 17 countries 1993-2007 - several % in manufacturing
+# over a decade. Halved for conservatism.
+tech{ key{robo} name{Industrial robots}     frontier_year{2026} speed{0.30} lag_years{3}  sector{man} sector_gain{0.06} }
+# Industrial IoT / smart factories. Timing: thin; McKinsey Global Institute (2015) "The
+# Internet of Things: Mapping the value beyond the hype" puts factory operations gains at
+# 10-25% of potential, adoption far from that. Overlaps robots and cloud: small gain.
+tech{ key{iiot} name{Industrial IoT}        frontier_year{2032} speed{0.25} lag_years{3}  sector{man} sector_gain{0.03} }
+# Additive manufacturing. Timing: Wohlers Report 2023: industry ~18 bn USD in 2022, well under
+# 1% of world manufacturing output -> late frontier. Effect: thin; tiny gain.
+tech{ key{am3d} name{Additive manufacturing} frontier_year{2040} speed{0.20} lag_years{3} sector{man} sector_gain{0.02} }
+# Cloud computing. Timing: Eurostat ICT usage in enterprises (2023): 45.2% of EU firms
+# (10+ employees) bought cloud services, Nordic leaders ~75-80%. Effect: Gal, Nicoletti,
+# Renault, Sorbe & Timiliotis (2019, OECD ECO WP 1533): cloud and other digital adoption
+# raise firm productivity, gains concentrated in already productive firms -> modest gain.
+tech{ key{cld}  name{Cloud computing}       frontier_year{2019} speed{0.35} lag_years{2}  sector{osv} sector_gain{0.03} }
+# Mobile money / digital payments. Timing: Global Findex 2021 (Demirguc-Kunt et al. 2022):
+# 76% of adults hold an account, 64% made or received a digital payment (57% in developing
+# economies); rich economies near saturation. Effect: Suri & Jack (2016, Science): M-Pesa
+# access lifted ~2% of Kenyan households out of poverty; aggregate productivity evidence
+# thin -> small gain to finance and business services.
+tech{ key{mmon} name{Mobile money and digital payments} frontier_year{2015} speed{0.40} lag_years{2} sector{osv} sector_gain{0.02} }
+# --- contact services and public sector ---
+# E-commerce. Timing: UNCTAD (2021) "COVID-19 and e-commerce": online share of retail rose
+# from 16% to 19% in 2020 across major economies; China ~27% of retail goods (NBS 2022); US
+# ~15% (Census 2023). Taken as share of the potential (~half of retail). Effect: Goolsbee &
+# Klenow (2018, AER P&P): online prices rose ~1.3 pp/yr slower than CPI for the same
+# categories -> modest efficiency gain in retail/distribution.
+tech{ key{ecom} name{E-commerce}            frontier_year{2024} speed{0.25} lag_years{2}  sector{csv} sector_gain{0.03} }
+# Telemedicine. Timing: McKinsey (2021) "Telehealth: a quarter-trillion-dollar post-COVID-19
+# reality?": US telehealth stabilised at ~13-17% of outpatient visits, ~38x pre-pandemic.
+# Effect on measured health-sector productivity: thin -> small gain.
+tech{ key{tmed} name{Telemedicine}          frontier_year{2024} speed{0.35} lag_years{3}  sector{gov} sector_gain{0.02} }
+# Digital government. Timing: UN E-Government Survey 2022: world average EGDI 0.61,
+# Denmark/Finland/Korea >0.95, Africa ~0.40. Effect: thin (case studies, e.g. Estonia X-Road)
+# -> small gain to public administration.
+tech{ key{egov} name{Digital government}    frontier_year{2018} speed{0.30} lag_years{3}  sector{gov} sector_gain{0.02} }
+# Genomic pathogen surveillance. Timing: WHO Global Genomic Surveillance Strategy 2022-2032
+# (30 Mar 2022): share of countries able to sequence rose from 54% (Mar 2021) to 68%
+# (Jan 2022). Effect: faster pathogen identification (SARS-CoV-2 genome public 10 Jan 2020,
+# vaccine designs within days); modest extra cut in vaccine development time.
+tech{ key{gseq} name{Genomic surveillance}  frontier_year{2021} speed{0.60} lag_years{2}  vaccine_speedup{0.1} }
+# Satellite broadband (LEO). Timing: ITU Facts and Figures 2023: ~2.6 bn people (33%)
+# offline; LEO constellations (Starlink ~2m+ users by 2023) target them; affordability is the
+# binding limit. Effect: small rise in connectivity, mainly rural/poor nations.
+tech{ key{sat}  name{Satellite broadband}   frontier_year{2032} speed{0.30} lag_years{3}  connectivity_gain{0.05} }
+# --- agriculture ---
+# Precision agriculture. Timing: USDA ERS (McFadden, Njuki & Griffin 2023, EIB-248): auto-
+# steer/guidance on >50% of US corn, soybean, wheat acres; adoption far lower elsewhere.
+# Effect: Schimmelpfennig (2016, USDA ERS ERR-217): operating profit gains ~1-3% from yield
+# mapping, guidance and variable-rate -> small sector gain.
+tech{ key{pag}  name{Precision agriculture} frontier_year{2016} speed{0.25} lag_years{4}  sector{agr} sector_gain{0.02} }
+# Gene-edited crops. Timing: few commercial products so far (high-GABA tomato, Japan 2021);
+# regulation diverges (US/Japan/Argentina permissive, EU restrictive until NGT reform) ->
+# late frontier, long lag. Effect: by analogy with GM crops, Klumper & Qaim (2014, PLoS ONE)
+# meta-analysis: +22% yields for adopting crops; only a few crops/traits -> 0.03 (thin).
+tech{ key{gedt} name{Gene-edited crops}     frontier_year{2038} speed{0.25} lag_years{5}  sector{agr} sector_gain{0.03} }
+# Drought-tolerant seeds. Timing: CIMMYT/IITA Drought Tolerant Maize for Africa (2007-2015)
+# and successors released ~200 DT maize varieties; adoption tens of % in leading countries.
+# Effect: Wossen et al. (2017, J. Environmental Management 203): DT maize raised yields ~15%
+# and cut downside risk in Nigeria; maize is a fraction of farm output -> small gain.
+tech{ key{dts}  name{Drought-tolerant seeds} frontier_year{2026} speed{0.30} lag_years{2} sector{agr} sector_gain{0.02} }

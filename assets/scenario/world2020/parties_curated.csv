@@ -1,4 +1,4 @@
-# Copied from the 2020 slice (curated for its 20 nations); other nations use the loader defaults (scenario.cpp create_politics).
+# World scenario party systems as of 2020-01-01: the 20 nations of the 2020 slice (copied unchanged) plus 152 nations added from survey and election data (see 'Added nations' below); other nations use the loader defaults (scenario.cpp create_politics).
 # Party systems of the 2020 slice nations as of 2020-01-01 (hand-written; rounded).
 # Replaces the three generic parties per nation. Parties and voters live in a two-dimensional
 # value space; parties adapt (Laver & Sergenti 2011) inside an Overton window. No rows for ROW.
@@ -58,6 +58,87 @@
 #  ZAF 2019 National Assembly.
 #  ARG 2019 Chamber: votes by alliance; seat shares are the whole chamber composition by bloc
 #      after 10 December 2019 (half the chamber is renewed per election).
+#
+# ---- Added nations (rows after ARG; 152 nations, compiled 2026-11; same columns, conventions) ----
+# Sources, positions (0-10 expert scales rescaled as (x-5)/5):
+#  EU members, NOR, CHE, ISL:  Chapel Hill Expert Survey 2019 (CHES2019V3, LRECON and GALTAN)
+#  ALB, BIH, MKD, MNE, SRB, XKX: CHES 2019 candidate-countries survey (Mean_Candidate_2019)
+#  BOL, CHL, COL, CRI, ECU, PER, PRY, URY, VEN (PSUV): CHES Latin America 2020 (aggregate v01)
+#  elsewhere: Global Party Survey 2019 (Norris 2020, party file V2.1; V4_Scale economic
+#    left-right, V6_Scale liberal-conservative social values), used only where the country panel
+#    has >= 3 experts; NZL and ISR also from GPS (not in CHES 2019). V-Party was not used (its
+#    download is behind a registration form).
+# Sources, results:
+#  EU/OECD members (AUT BEL BGR CHE CYP CZE DNK EST FIN GRC HRV HUN IRL ISL ISR LTU LUX LVA MLT
+#    NLD NOR NZL POL PRT ROU SVK SVN SWE): ParlGov development version (Doring & Manow;
+#    parlgov.org view_election / view_cabinet, retrieved 2026-11), cabinet in office on
+#    2020-01-01.
+#  elsewhere: national electoral commission figures as compiled in the English Wikipedia election
+#    articles ({{Election results}} tables and infoboxes, retrieved 2026-11; IPU Parline blocks
+#    automated access), checked against GPS PartyPerVote where available; government membership is
+#    expert judgement from the cabinet in office on 2020-01-01.
+# Expert judgement (no usable survey reading; ParlGov family defaults not used) for all OTH rows
+#    and: BEL DEFI; FIN LIIK; IRL IA; PRT IL, CH, LIV; ISR BW; PAK TLP; THA PPRP, ACT (and the
+#    missing economic score of BJT, CTP); CHL FRVS; KEN FORD; IRQ QAR (KDP economic); KAZ AJ
+#    (social); MMR MIL; UKR SN, HOL; BFA MPP; HND (all); BLR IND; MDA ACUM, SOR; BEN (all); TTO
+#    PNM, UNC and JAM (all; GPS readings implausible); GEO APG; MOZ RENA, MDM (social); TKM
+#    (economic); MDV PNC; XKX AAK; ARM RPA, ARF; AZE YAP; TUN QT, PDL, CD, KAR, ECH; PAN CD
+#    (social); GUY APNU; SUR ACOM (economic); GTM VAM, UCN, SEM, BIEN, VAL; PSE (all); COG, GAB,
+#    LBR, SLE, TGO, GNB, NAM, DJI, SEN, LKA, COD, NER, UZB (all; GPS panel < 3 experts or country
+#    not surveyed); BWA AP, BPF; MYS DAP, BERS, AMAN, GPS, MCA; STP (social); DOM PLD (economic),
+#    PRD; PHL PDP, NUP, LAK; LBN MAR; ETH TPLF; EGY NFP, WAFD (social), HDP, IND; IRN, JOR (all);
+#    PRK; NIC FSLN (social; GPS 1.5 implausible); BDI CNDD (economic), IOH; GRD, LCA, VCT, DMA,
+#    ATG, KNA, SYC, LIE (all); the no-party rows (ARE, OMN, QAT, KWT, BHR, BRN, SWZ, SDN, SSD,
+#    SOM).
+# Proxy scores (survey score of a predecessor, alliance or alliance leader): MYS PKR (Pakatan
+#    Harapan), UMNO (Barisan Nasional); BGR OP (NFSB); POL LEW (SLD), PSL (PSL); MNE KLJ (DEMOS),
+#    DF (NOVA); TUN TT (Nidaa Tounes); MDG IRD (MAPAR); ETH PP (EPRDF); BOL UD (Democrats); UKR
+#    OPZZ and OB (Opposition Bloc 2014); ISR LAB (Zionist Union), DU (Meretz), YAM (Jewish Home).
+# Vote shares proxied (national list votes not published or not comparable): HND, TKM, SYR, COG,
+#    GAB, TGO, MLI, EGY, IRN, JOR, VNM, LAO, ETH, UZB use seat shares; COD and NGA use the
+#    2018/2019 presidential first-round shares of the coalitions; one-party and no-party rows use
+#    1.0 (CHN convention).
+# Approximate (shares or composition less certain): COD (coalition seat totals), HRV (People's
+#    Coalition list split by seats), IRQ and LBN (caretaker cabinets), IRN (factions), DOM and MYS
+#    (vote base), KGZ (coalition), MLI, ETH, MKD, BIH, XKX, PHL, PNG.
+# Nations kept on generic L / C / R parties: AFG (non-partisan SNTV legislature), HTI (fragmented;
+#    parliament lapsed January 2020), LBY and YEM (rival governments), CAF, GMB, MRT, MUS, COM,
+#    SLB, VUT, TCD (results too uncertain or too old), HKG and MAC (SARs), the dependent
+#    territories and the micro-states not listed here.
+# Notes per added nation:
+#  AUT 2019. Bierlein expert caretaker cabinet on 2020-01-01; the OeVP-Green coalition (agreed 1
+#      January, sworn in 7 January 2020) is marked as government because the loader needs one.
+#  BEL 2019 Chamber; Wilmes I minority cabinet (MR, CD&V, Open VLD).
+#  CHE 2019; the four Federal Council parties are the government. CYP 2016; presidential system.
+#  HRV 2016; People's Coalition vote (32.2%) split between SDP (+HSS, HSU) and HNS by seats; HNS
+#      joined the Plenkovic cabinet in 2017.
+#  HUN 2018; Fidesz-KDNP joint list, constituency and list seats combined.
+#  IRL 2016 first preferences; Fine Gael minority cabinet with the Independent Alliance.
+#  ISR September 2019; transitional Netanyahu cabinet (Likud, Shas, UTJ, Yamina).
+#  LTU 2016; the LSDDP split from the LSDP (in cabinet since 2017) is not separated.
+#  NZL 2017 party votes; Greens hold ministerial posts outside cabinet, marked as government.
+#  POL 2019 Sejm; Koalicja Polska includes Kukiz'15. ROU 2016; PNL minority cabinet (Orban I).
+#  BOL 2014 (the October 2019 election was annulled); Anez interim cabinet (Democrats) marked.
+#  CHL 2017 Chamber of Deputies. COL 2018 Chamber; Duque cabinet of CD and Conservatives.
+#  GTM 2019 Congress; FCN-Nacion (Morales) governs until 14 January 2020.
+#  PER 2016 Congress (dissolved 30 September 2019; snap election 26 January 2020); Vizcarra
+#      (elected on the PPK ticket) marked through PPK. URY 2019; Frente Amplio governs until 1
+#      March 2020.
+#  VEN 2015 National Assembly (MUD incl. 3 indigenous seats); Maduro government (PSUV).
+#  KHM 2018 (CNRP dissolved). MMR 2015 Pyithu Hluttaw incl. 110 appointed military seats.
+#  MYS 2018 seats as elected (later defections not reflected); vote shares approximate.
+#  NPL 2017 PR votes; UML and Maoist Centre merged into the Nepal Communist Party in 2018.
+#  PAK 2018 incl. reserved seats. PHL 2019 district votes; party-list seats in OTH.
+#  THA 2019; OTH holds the small parties of the Prayut coalition (marked government).
+#  TWN 2016 party-list votes. IRQ 2018; Abdul-Mahdi caretaker cabinet. LBN 2018; Hariri caretaker
+#      cabinet (Lebanese Forces ministers resigned October 2019).
+#  UKR 2019 list votes; seat shares of the 424 filled seats (Crimea and occupied Donbas vacant).
+#  ETH 2015; EPRDF and allied parties merged into the Prosperity Party in December 2019 except the
+#      TPLF (38 Tigray seats). EGY 2015 House incl. 28 appointed members (OTH).
+#  IRN 2016 Majlis by faction (List of Hope vs Principlists; seats as reported, votes proxied).
+#  UZB December 2019 / January 2020 election (first round 22 December 2019), final seats.
+#  SDN transitional (no legislature) after April 2019; SSD and SOM no party-based elections.
+#  KNA 2015; Team Unity cabinet (PAM, CCM, PLP). SYC 2016; President Faure (United Seychelles).
 iso3,party,name,econ,social,vote_share,seat_share,in_government,family
 USA,DEM,Democratic Party,-0.25,-0.40,0.534,0.540,0,lib
 USA,REP,Republican Party,0.65,0.70,0.448,0.460,1,con
@@ -184,3 +265,819 @@ ARG,FDT,Frente de Todos,-0.40,-0.10,0.453,0.467,1,soc
 ARG,JXC,Juntos por el Cambio,0.50,0.10,0.407,0.451,0,con
 ARG,CF,Consenso Federal,0.10,0.20,0.059,0.043,0,oth
 ARG,OTH,"Other parties (FIT-U, provincial parties, etc.)",-0.30,0.00,0.081,0.039,0,oth
+AUT,OVP,Austrian People's Party (OeVP),0.38,0.42,0.375,0.388,1,chr
+AUT,SPO,Social Democratic Party of Austria (SPOe),-0.28,-0.24,0.212,0.219,0,soc
+AUT,FPO,Freedom Party of Austria (FPOe),0.30,0.78,0.162,0.169,0,rad_right
+AUT,GRUE,The Greens - The Green Alternative,-0.50,-0.72,0.139,0.142,1,grn
+AUT,NEOS,NEOS - The New Austria,0.42,-0.54,0.081,0.082,0,lib
+AUT,OTH,"Other parties (JETZT, KPOe, etc.)",-0.20,-0.20,0.031,0.000,0,oth
+BEL,NVA,New Flemish Alliance (N-VA),0.58,0.22,0.160,0.167,0,reg
+BEL,VB,Vlaams Belang,0.00,0.60,0.119,0.120,0,rad_right
+BEL,PS,Socialist Party (francophone),-0.55,-0.42,0.095,0.133,0,soc
+BEL,CDV,Christian Democratic and Flemish (CD&V),0.12,0.25,0.089,0.080,1,chr
+BEL,PTB,Workers' Party of Belgium (PVDA-PTB),-0.93,-0.08,0.086,0.080,0,rad_left
+BEL,VLD,Open Flemish Liberals and Democrats (Open VLD),0.43,-0.51,0.085,0.080,1,lib
+BEL,MR,Reformist Movement (MR),0.38,-0.36,0.076,0.093,1,lib
+BEL,SPA,Socialist Party Differently (sp.a),-0.38,-0.45,0.067,0.060,0,soc
+BEL,ECOL,Ecolo,-0.50,-0.78,0.061,0.087,0,grn
+BEL,GRN,Groen,-0.47,-0.77,0.061,0.053,0,grn
+BEL,CDH,Humanist Democratic Centre (cdH),-0.07,0.00,0.037,0.033,0,chr
+BEL,DEFI,DeFI,0.20,-0.30,0.022,0.013,0,lib
+BEL,OTH,Other parties,0.00,0.20,0.041,0.000,0,oth
+BGR,GERB,GERB (Citizens for European Development of Bulgaria),0.22,0.15,0.335,0.396,1,con
+BGR,BSP,BSP for Bulgaria,-0.40,0.43,0.279,0.333,0,soc
+BGR,OP,"United Patriots (NFSB, VMRO, Ataka)",0.09,0.78,0.093,0.113,1,rad_right
+BGR,DPS,Movement for Rights and Freedoms (DPS),-0.01,0.23,0.092,0.108,0,reg
+BGR,VOL,Volya,0.07,0.71,0.043,0.050,0,oth
+BGR,OTH,"Other parties (Reformist Bloc, Yes Bulgaria, DOST, etc.)",0.30,0.00,0.157,0.000,0,oth
+CHE,SVP,Swiss People's Party (SVP/UDC),0.64,0.87,0.256,0.265,1,rad_right
+CHE,SP,Social Democratic Party (SP/PS),-0.67,-0.73,0.168,0.195,1,soc
+CHE,FDP,FDP.The Liberals,0.62,0.00,0.151,0.145,1,lib
+CHE,GPS,Green Party (GPS/PES),-0.69,-0.85,0.132,0.140,0,grn
+CHE,CVP,Christian Democratic People's Party (CVP/PDC),0.05,0.15,0.114,0.125,1,chr
+CHE,GLP,Green Liberal Party (GLP/PVL),0.22,-0.53,0.078,0.080,0,lib
+CHE,BDP,Conservative Democratic Party (BDP),0.16,0.22,0.024,0.015,0,con
+CHE,EVP,Evangelical People's Party (EVP),-0.13,0.42,0.021,0.015,0,chr
+CHE,OTH,"Other parties (EDU, Lega, PdA, etc.)",0.20,0.40,0.056,0.020,0,oth
+CYP,DISY,Democratic Rally (DISY),0.60,0.30,0.307,0.321,1,con
+CYP,AKEL,Progressive Party of Working People (AKEL),-0.50,-0.50,0.257,0.286,0,com
+CYP,DIKO,Democratic Party (DIKO),0.20,0.20,0.145,0.161,0,con
+CYP,EDEK,Movement for Social Democracy (EDEK),-0.10,0.20,0.062,0.054,0,soc
+CYP,SYM,Citizens' Alliance,-0.10,-0.30,0.060,0.054,0,oth
+CYP,KIN,Solidarity Movement,0.40,0.50,0.052,0.054,0,con
+CYP,KOP,Movement of Ecologists - Citizens' Cooperation,-0.20,-0.40,0.048,0.036,0,grn
+CYP,ELAM,National Popular Front (ELAM),0.50,1.00,0.037,0.036,0,rad_right
+CYP,OTH,Other parties,0.00,0.20,0.032,0.000,0,oth
+CZE,ANO,ANO 2011,-0.10,0.15,0.296,0.390,1,lib
+CZE,ODS,Civic Democratic Party (ODS),0.54,0.41,0.113,0.125,0,con
+CZE,PIR,Czech Pirate Party,-0.13,-0.80,0.108,0.110,0,oth
+CZE,SPD,Freedom and Direct Democracy (SPD),-0.07,0.87,0.106,0.110,0,rad_right
+CZE,KSCM,Communist Party of Bohemia and Moravia (KSCM),-0.79,0.61,0.078,0.075,0,com
+CZE,CSSD,Czech Social Democratic Party (CSSD),-0.48,-0.02,0.073,0.075,1,soc
+CZE,KDU,KDU-CSL,0.11,0.56,0.058,0.050,0,chr
+CZE,TOP,TOP 09,0.47,-0.03,0.053,0.035,0,con
+CZE,STAN,Mayors and Independents (STAN),0.32,-0.18,0.052,0.030,0,lib
+CZE,OTH,Other parties,0.20,0.20,0.063,0.000,0,oth
+DNK,S,Social Democrats,-0.26,0.00,0.259,0.268,1,soc
+DNK,V,Venstre (Liberal Party),0.37,0.07,0.234,0.240,0,lib
+DNK,DF,Danish People's Party,-0.11,0.60,0.087,0.089,0,rad_right
+DNK,RV,Danish Social Liberal Party,0.13,-0.73,0.086,0.089,0,lib
+DNK,SF,Socialist People's Party,-0.50,-0.49,0.077,0.078,0,rad_left
+DNK,EL,Red-Green Alliance,-0.80,-0.79,0.069,0.073,0,rad_left
+DNK,KF,Conservative People's Party,0.51,0.21,0.066,0.067,0,con
+DNK,ALT,The Alternative,-0.36,-0.81,0.030,0.028,0,grn
+DNK,NB,The New Right,0.71,0.66,0.024,0.022,0,rad_right
+DNK,LA,Liberal Alliance,0.74,-0.23,0.023,0.022,0,lib
+DNK,OTH,Other parties (incl. Faroe and Greenland seats),0.10,0.30,0.045,0.022,0,oth
+EST,REF,Estonian Reform Party,0.49,-0.38,0.289,0.337,0,lib
+EST,KESK,Estonian Centre Party,-0.25,-0.08,0.231,0.257,1,soc
+EST,EKRE,Conservative People's Party of Estonia (EKRE),-0.06,0.91,0.178,0.188,1,rad_right
+EST,IS,Isamaa,0.42,0.48,0.114,0.119,1,con
+EST,SDE,Social Democratic Party,-0.32,-0.66,0.098,0.099,0,soc
+EST,E200,Estonia 200,0.17,-0.57,0.044,0.000,0,lib
+EST,OTH,Other parties,0.00,0.00,0.046,0.000,0,oth
+FIN,SDP,Social Democratic Party of Finland,-0.36,-0.34,0.177,0.200,1,soc
+FIN,PS,Finns Party,0.29,0.76,0.175,0.195,0,rad_right
+FIN,KOK,National Coalition Party,0.57,0.01,0.170,0.190,0,con
+FIN,KESK,Centre Party,0.21,0.34,0.138,0.155,1,agr
+FIN,VIHR,Green League,-0.17,-0.81,0.115,0.100,1,grn
+FIN,VAS,Left Alliance,-0.69,-0.70,0.082,0.080,1,rad_left
+FIN,SFP,Swedish People's Party,0.24,-0.46,0.045,0.045,1,lib
+FIN,KD,Christian Democrats,0.14,0.76,0.039,0.025,0,chr
+FIN,LIIK,Movement Now,0.50,-0.20,0.022,0.005,0,lib
+FIN,OTH,Other parties (incl. Aland Coalition),0.00,0.20,0.036,0.005,0,oth
+GRC,ND,New Democracy,0.44,0.49,0.399,0.527,1,con
+GRC,SYRZ,SYRIZA,-0.56,-0.51,0.315,0.287,0,rad_left
+GRC,KNAL,Movement for Change (KINAL; PASOK),-0.16,-0.22,0.081,0.073,0,soc
+GRC,KKE,Communist Party of Greece (KKE),-0.98,0.33,0.053,0.050,0,com
+GRC,EL,Greek Solution,-0.12,0.88,0.037,0.033,0,rad_right
+GRC,MERA,MeRA25,-0.65,-0.87,0.034,0.030,0,rad_left
+GRC,OTH,"Other parties (Golden Dawn, Popular Unity, etc.)",0.00,0.50,0.081,0.000,0,oth
+HRV,HDZ,Croatian Democratic Union (HDZ coalition),-0.03,0.42,0.352,0.404,1,chr
+HRV,SDP,"Social Democratic Party (People's Coalition: SDP, HSS, HSU)",-0.23,-0.54,0.268,0.298,0,soc
+HRV,HNS,Croatian People's Party - Liberal Democrats (HNS),0.26,-0.62,0.054,0.060,1,lib
+HRV,MOST,Bridge of Independent Lists (Most),0.15,0.70,0.094,0.086,0,con
+HRV,ZZ,Human Shield (Zivi zid),-0.36,-0.01,0.059,0.053,0,oth
+HRV,B365,Bandic Milan 365,-0.27,0.21,0.038,0.013,0,oth
+HRV,IDS,Istrian Democratic Assembly,0.05,-0.73,0.022,0.020,0,reg
+HRV,OTH,Other parties and national minority seats,0.00,0.20,0.113,0.066,0,oth
+HUN,FIDE,Fidesz-KDNP,-0.25,0.84,0.493,0.668,1,con
+HUN,JOBB,Jobbik,-0.17,0.61,0.191,0.131,0,rad_right
+HUN,MSZP,Hungarian Socialist Party - Dialogue (MSZP-P),-0.20,-0.25,0.119,0.101,0,soc
+HUN,LMP,Politics Can Be Different (LMP),-0.25,-0.39,0.071,0.040,0,grn
+HUN,DK,Democratic Coalition (DK),-0.07,-0.57,0.054,0.045,0,soc
+HUN,MOM,Momentum Movement,0.19,-0.68,0.031,0.000,0,lib
+HUN,EGY,Together (Egyutt),-0.07,-0.71,0.007,0.005,0,lib
+HUN,OTH,"Other parties, German minority and independents",0.00,0.30,0.036,0.010,0,oth
+IRL,FG,Fine Gael,0.29,-0.14,0.255,0.316,1,chr
+IRL,FF,Fianna Fail,0.09,0.14,0.244,0.278,0,con
+IRL,SF,Sinn Fein,-0.57,-0.11,0.138,0.146,0,rad_left
+IRL,LAB,Labour Party,-0.29,-0.43,0.066,0.044,0,soc
+IRL,IA,Independent Alliance,0.00,0.10,0.042,0.038,1,oth
+IRL,AAA,Solidarity - People Before Profit,-0.92,-0.60,0.040,0.038,0,rad_left
+IRL,SD,Social Democrats,-0.53,-0.43,0.030,0.019,0,soc
+IRL,GP,Green Party,-0.37,-0.57,0.027,0.013,0,grn
+IRL,OTH,Independents and other parties (incl. Ceann Comhairle),0.00,0.10,0.158,0.108,0,oth
+ISL,D,Independence Party,0.48,-0.08,0.252,0.254,1,con
+ISL,VG,Left-Green Movement,-0.52,-0.84,0.169,0.175,1,grn
+ISL,S,Social Democratic Alliance,-0.36,-0.68,0.121,0.111,0,soc
+ISL,M,Centre Party,0.24,0.28,0.109,0.111,0,con
+ISL,B,Progressive Party,0.00,-0.28,0.107,0.127,1,agr
+ISL,P,Pirate Party,-0.16,-0.92,0.092,0.095,0,oth
+ISL,F,People's Party,-0.20,0.04,0.069,0.063,0,oth
+ISL,C,Reform Party (Vidreisn),0.32,-0.76,0.067,0.063,0,lib
+ISL,OTH,Other parties,0.00,0.00,0.014,0.000,0,oth
+LTU,TSLK,Homeland Union - Lithuanian Christian Democrats,0.35,0.33,0.226,0.220,0,con
+LTU,LVZS,Lithuanian Farmers and Greens Union,-0.20,0.69,0.225,0.383,1,agr
+LTU,LSDP,Social Democratic Party of Lithuania,-0.44,-0.45,0.150,0.121,0,soc
+LTU,LRLS,Liberal Movement,0.65,-0.62,0.094,0.099,0,lib
+LTU,LCP,Lithuanian Centre Party,-0.24,0.72,0.063,0.007,0,oth
+LTU,LLRA,Electoral Action of Poles in Lithuania,-0.44,0.89,0.057,0.057,1,reg
+LTU,TT,Order and Justice,-0.15,0.73,0.056,0.057,1,rad_right
+LTU,DP,Labour Party,-0.02,0.22,0.049,0.014,0,oth
+LTU,OTH,Other parties and independents,0.00,0.20,0.080,0.043,0,oth
+LUX,CSV,Christian Social People's Party (CSV),0.10,0.20,0.271,0.350,0,chr
+LUX,DP,Democratic Party (DP),0.10,-0.20,0.164,0.200,1,lib
+LUX,LSAP,Luxembourg Socialist Workers' Party (LSAP),-0.20,-0.20,0.157,0.167,1,soc
+LUX,GRE,The Greens (dei greng),-0.10,-0.40,0.141,0.150,1,grn
+LUX,ADR,Alternative Democratic Reform Party (ADR),0.40,0.60,0.080,0.067,0,con
+LUX,PIR,Pirate Party Luxembourg,0.10,0.00,0.062,0.033,0,oth
+LUX,DL,The Left (dei Lenk),-0.70,-0.50,0.047,0.033,0,rad_left
+LUX,OTH,Other parties,-0.20,0.00,0.078,0.000,0,oth
+LVA,SDPS,Social Democratic Party Harmony,-0.20,0.25,0.199,0.230,0,soc
+LVA,KPV,Who Owns the State? (KPV LV),0.00,0.10,0.143,0.160,1,oth
+LVA,JKP,New Conservative Party,0.24,0.42,0.137,0.160,1,con
+LVA,AP,Development/For!,0.18,-0.62,0.120,0.130,1,lib
+LVA,NA,National Alliance,0.22,0.62,0.111,0.130,1,rad_right
+LVA,ZZS,Union of Greens and Farmers,0.09,0.53,0.100,0.110,0,agr
+LVA,JV,New Unity,0.44,-0.04,0.067,0.080,1,con
+LVA,OTH,"Other parties (Latvian Association of Regions, Russian Union, etc.)",0.00,0.30,0.122,0.000,0,oth
+MLT,PL,Labour Party,0.29,-0.60,0.550,0.552,1,soc
+MLT,PN,Nationalist Party,0.29,0.31,0.437,0.448,0,chr
+MLT,OTH,Other parties,-0.20,-0.20,0.013,0.000,0,oth
+NLD,VVD,People's Party for Freedom and Democracy (VVD),0.63,0.00,0.213,0.220,1,lib
+NLD,PVV,Party for Freedom (PVV),0.29,0.45,0.131,0.133,0,rad_right
+NLD,CDA,Christian Democratic Appeal (CDA),0.34,0.43,0.124,0.127,1,chr
+NLD,D66,Democrats 66,0.25,-0.72,0.122,0.127,1,lib
+NLD,GL,GreenLeft,-0.52,-0.83,0.091,0.093,0,grn
+NLD,SP,Socialist Party,-0.72,-0.14,0.091,0.093,0,rad_left
+NLD,PVDA,Labour Party (PvdA),-0.28,-0.38,0.057,0.060,0,soc
+NLD,CU,ChristianUnion,-0.14,0.63,0.034,0.033,1,chr
+NLD,PVDD,Party for the Animals,-0.36,-0.42,0.032,0.033,0,grn
+NLD,50P,50PLUS,-0.11,0.12,0.031,0.027,0,oth
+NLD,SGP,Reformed Political Party (SGP),0.43,0.98,0.021,0.020,0,con
+NLD,DENK,DENK,-0.30,0.51,0.021,0.020,0,oth
+NLD,FVD,Forum for Democracy,0.82,0.67,0.018,0.013,0,rad_right
+NLD,OTH,Other parties,0.00,0.00,0.014,0.000,0,oth
+NOR,AP,Labour Party,-0.32,-0.36,0.274,0.290,0,soc
+NOR,H,Conservative Party,0.46,0.08,0.250,0.266,1,con
+NOR,FRP,Progress Party,0.58,0.36,0.152,0.160,1,rad_right
+NOR,SP,Centre Party,-0.10,0.32,0.103,0.112,0,agr
+NOR,SV,Socialist Left Party,-0.70,-0.78,0.060,0.065,0,rad_left
+NOR,V,Liberal Party,0.32,-0.64,0.044,0.047,1,lib
+NOR,KRF,Christian Democratic Party,0.00,0.56,0.042,0.047,1,chr
+NOR,MDG,Green Party,-0.22,-0.62,0.032,0.006,0,grn
+NOR,R,Red Party,-0.92,-0.72,0.024,0.006,0,rad_left
+NOR,OTH,Other parties,0.00,0.20,0.019,0.000,0,oth
+POL,PIS,Law and Justice (United Right),-0.41,0.83,0.436,0.511,1,con
+POL,KO,Civic Coalition (PO-led),0.31,-0.07,0.274,0.291,0,con
+POL,LEW,"The Left (SLD, Wiosna, Razem)",-0.22,-0.29,0.126,0.107,0,soc
+POL,PSL,"Polish Coalition (PSL, Kukiz'15)",-0.13,0.42,0.086,0.065,0,agr
+POL,KONF,Confederation Liberty and Independence,0.81,0.91,0.068,0.024,0,rad_right
+POL,OTH,Other parties (incl. German Minority),0.00,0.30,0.011,0.002,0,oth
+PRT,PS,Socialist Party,-0.20,-0.12,0.382,0.470,1,soc
+PRT,PSD,Social Democratic Party (PSD),0.30,0.40,0.292,0.343,0,con
+PRT,BE,Left Bloc,-0.80,-0.65,0.100,0.083,0,rad_left
+PRT,CDU,Unitary Democratic Coalition (PCP-PEV),-0.88,0.03,0.067,0.052,0,com
+PRT,CDS,CDS - People's Party,0.70,0.78,0.044,0.022,0,chr
+PRT,PAN,People-Animals-Nature (PAN),-0.23,-0.20,0.035,0.017,0,grn
+PRT,IL,Liberal Initiative,0.70,-0.30,0.014,0.004,0,lib
+PRT,CH,Chega,0.40,0.85,0.014,0.004,0,rad_right
+PRT,LIV,Livre,-0.50,-0.70,0.011,0.004,0,grn
+PRT,OTH,Other parties,0.00,0.20,0.042,0.000,0,oth
+ROU,PSD,Social Democratic Party (PSD),-0.33,0.65,0.455,0.468,0,soc
+ROU,PNL,National Liberal Party (PNL),0.45,0.20,0.200,0.210,1,lib
+ROU,USR,Save Romania Union (USR),0.30,-0.47,0.089,0.091,0,lib
+ROU,UDMR,Democratic Alliance of Hungarians in Romania (UDMR),0.14,0.21,0.062,0.064,0,reg
+ROU,ALDE,Alliance of Liberals and Democrats (ALDE),0.23,0.25,0.056,0.061,0,lib
+ROU,PMP,People's Movement Party (PMP),0.47,0.44,0.053,0.055,0,con
+ROU,OTH,Other parties and national minority seats,0.00,0.40,0.085,0.052,0,oth
+SVK,SMER,Direction - Social Democracy (Smer-SD),-0.30,0.57,0.283,0.327,1,soc
+SVK,SAS,Freedom and Solidarity (SaS),0.62,-0.36,0.121,0.140,0,lib
+SVK,OLAN,Ordinary People and Independent Personalities (OLaNO),0.20,0.36,0.110,0.127,0,con
+SVK,SNS,Slovak National Party (SNS),-0.11,0.79,0.086,0.100,1,rad_right
+SVK,LSNS,People's Party Our Slovakia (LSNS),-0.21,0.96,0.080,0.093,0,rad_right
+SVK,SR,We Are Family (Sme Rodina),-0.03,0.69,0.066,0.073,0,rad_right
+SVK,MH,Most-Hid,0.15,-0.04,0.065,0.073,1,reg
+SVK,SIET,Network (Siet),0.55,-0.20,0.056,0.067,0,con
+SVK,KDH,Christian Democratic Movement (KDH),0.24,0.61,0.049,0.000,0,chr
+SVK,SMK,Party of the Hungarian Community (SMK),0.11,0.43,0.041,0.000,0,reg
+SVK,OTH,Other parties,0.00,0.20,0.042,0.000,0,oth
+SVN,SDS,Slovenian Democratic Party (SDS),0.50,0.75,0.249,0.278,0,con
+SVN,LMS,List of Marjan Sarec (LMS),-0.07,-0.07,0.126,0.144,1,lib
+SVN,SD,Social Democrats (SD),-0.39,-0.49,0.099,0.111,1,soc
+SVN,SMC,Modern Centre Party (SMC),0.03,-0.19,0.098,0.111,1,lib
+SVN,LEV,The Left (Levica),-0.86,-0.80,0.093,0.100,0,rad_left
+SVN,NSI,New Slovenia - Christian Democrats (NSi),0.47,0.60,0.072,0.078,0,chr
+SVN,SAB,Party of Alenka Bratusek (SAB),-0.13,-0.33,0.051,0.056,1,lib
+SVN,DSUS,Democratic Party of Pensioners (DeSUS),-0.34,0.01,0.049,0.056,1,oth
+SVN,SNS,Slovenian National Party (SNS),0.26,0.69,0.042,0.044,0,rad_right
+SVN,OTH,Other parties and national minority seats,0.00,0.20,0.121,0.022,0,oth
+SWE,S,Swedish Social Democratic Party,-0.18,-0.12,0.283,0.287,1,soc
+SWE,M,Moderate Party,0.54,0.19,0.198,0.201,0,con
+SWE,SD,Sweden Democrats,0.12,0.75,0.175,0.178,0,rad_right
+SWE,C,Centre Party,0.60,-0.55,0.086,0.089,0,lib
+SWE,V,Left Party,-0.65,-0.61,0.080,0.080,0,rad_left
+SWE,KD,Christian Democrats,0.45,0.41,0.063,0.063,0,chr
+SWE,L,Liberals,0.42,-0.35,0.055,0.057,0,lib
+SWE,MP,Green Party,-0.21,-0.68,0.044,0.046,1,grn
+SWE,OTH,Other parties,0.00,0.00,0.015,0.000,0,oth
+NZL,NAT,National Party,0.47,0.37,0.444,0.467,0,con
+NZL,LAB,Labour Party,-0.14,-0.33,0.369,0.383,1,soc
+NZL,NZF,New Zealand First,0.28,0.57,0.072,0.075,1,oth
+NZL,GRN,Green Party,-0.44,-0.62,0.063,0.067,1,grn
+NZL,ACT,ACT New Zealand,0.66,-0.26,0.005,0.008,0,lib
+NZL,OTH,"Other parties (TOP, Maori Party, etc.)",0.00,0.00,0.047,0.000,0,oth
+ISR,BW,Blue and White,0.20,0.00,0.260,0.275,0,lib
+ISR,LIK,Likud,0.64,0.53,0.251,0.267,1,con
+ISR,JL,Joint List,-0.55,-0.40,0.106,0.108,0,reg
+ISR,SHAS,Shas,-0.42,0.82,0.074,0.075,1,oth
+ISR,YB,Yisrael Beiteinu,0.60,-0.38,0.070,0.067,0,rad_right
+ISR,UTJ,United Torah Judaism,-0.46,0.85,0.061,0.058,1,oth
+ISR,YAM,Yamina,0.50,0.68,0.059,0.058,1,rad_right
+ISR,LAB,Labor-Gesher,-0.28,-0.48,0.048,0.050,0,soc
+ISR,DU,Democratic Union (Meretz-led),-0.63,-0.92,0.043,0.042,0,soc
+ISR,OTH,"Other parties (Otzma Yehudit, etc.)",0.30,0.90,0.028,0.000,0,oth
+PAK,PTI,Pakistan Tehreek-e-Insaf,-0.11,0.29,0.318,0.442,1,con
+PAK,PMLN,Pakistan Muslim League (N),0.16,0.57,0.243,0.243,0,con
+PAK,PPP,Pakistan Peoples Party,-0.25,-0.30,0.130,0.161,0,soc
+PAK,MMA,Muttahida Majlis-e-Amal,-0.06,0.83,0.048,0.044,0,oth
+PAK,TLP,Tehreek-e-Labbaik Pakistan,0.00,0.95,0.042,0.000,0,oth
+PAK,GDA,Grand Democratic Alliance,0.30,0.55,0.024,0.009,1,reg
+PAK,MQM,Muttahida Qaumi Movement - Pakistan,0.00,-0.16,0.014,0.020,1,reg
+PAK,PMLQ,Pakistan Muslim League (Q),0.44,0.67,0.010,0.015,1,con
+PAK,BAP,Balochistan Awami Party,0.00,0.23,0.006,0.015,1,reg
+PAK,OTH,Other parties and independents,0.10,0.50,0.165,0.053,0,oth
+THA,PPRP,Palang Pracharat Party,0.20,0.70,0.237,0.232,1,con
+THA,PTP,Pheu Thai Party,-0.30,-0.20,0.223,0.272,0,soc
+THA,FFP,Future Forward Party,0.20,-0.93,0.176,0.162,0,lib
+THA,DEM,Democrat Party,0.40,0.70,0.111,0.106,1,con
+THA,BJT,Bhumjaithai Party,0.20,-0.20,0.105,0.102,1,con
+THA,TLP,Thai Liberal Party,-0.20,0.40,0.023,0.020,0,oth
+THA,CTP,Chartthaipattana Party,0.20,0.40,0.022,0.020,1,con
+THA,PCC,Prachachart Party,-0.20,0.33,0.014,0.014,0,oth
+THA,NEP,New Economics Party,-0.60,-0.60,0.014,0.012,0,oth
+THA,ACT,Action Coalition for Thailand,0.40,0.70,0.012,0.010,1,con
+THA,OTH,Other parties (mostly in the government coalition),0.10,0.50,0.063,0.050,1,oth
+AGO,MPLA,People's Movement for the Liberation of Angola (MPLA),-0.30,0.64,0.611,0.682,1,soc
+AGO,UNIT,UNITA,0.12,0.64,0.267,0.232,0,con
+AGO,CASA,CASA-CE,0.13,0.40,0.094,0.073,0,oth
+AGO,OTH,"Other parties (PRS, FNLA, etc.)",0.20,0.60,0.028,0.014,0,oth
+BOL,MAS,Movement for Socialism (MAS-IPSP),-0.45,0.20,0.610,0.677,0,rad_left
+BOL,UD,"Democratic Unity (UN, Democrats)",0.70,0.50,0.245,0.246,1,con
+BOL,PDC,Christian Democratic Party,0.52,0.71,0.091,0.077,0,chr
+BOL,OTH,Other parties,0.00,0.00,0.054,0.000,0,oth
+CMR,RDPC,Cameroon People's Democratic Movement (CPDM),0.00,0.90,0.635,0.822,1,con
+CMR,SDF,Social Democratic Front,-0.27,0.75,0.126,0.100,0,soc
+CMR,UNDP,National Union for Democracy and Progress,0.60,0.73,0.119,0.028,1,oth
+CMR,MRC,Cameroon Renaissance Movement,0.80,0.87,0.035,0.006,0,lib
+CMR,UDC,Cameroon Democratic Union,0.60,0.80,0.018,0.022,0,oth
+CMR,UPC,Union of the Peoples of Cameroon,-0.13,0.80,0.017,0.017,0,oth
+CMR,OTH,Other parties,0.00,0.50,0.050,0.006,0,oth
+CHL,RN,National Renewal,0.42,0.37,0.183,0.232,1,con
+CHL,UDI,Independent Democratic Union,0.79,0.82,0.164,0.194,1,con
+CHL,EVO,Evopoli,0.47,0.11,0.044,0.039,1,lib
+CHL,PS,Socialist Party of Chile,-0.38,-0.36,0.100,0.123,0,soc
+CHL,PPD,Party for Democracy,-0.28,-0.40,0.063,0.052,0,soc
+CHL,PC,Communist Party of Chile,-0.76,-0.14,0.047,0.052,0,com
+CHL,PRSD,Social Democrat Radical Party,-0.22,-0.10,0.037,0.052,0,soc
+CHL,RD,Democratic Revolution,-0.54,-0.77,0.059,0.065,0,rad_left
+CHL,PH,Humanist Party,-0.67,-0.77,0.043,0.032,0,rad_left
+CHL,DC,Christian Democratic Party,0.00,0.21,0.106,0.090,0,chr
+CHL,FRVS,Social Green Regionalist Federation,-0.30,-0.20,0.016,0.026,0,reg
+CHL,OTH,"Other parties and independents (Liberal Party, Equality, Greens, etc.)",-0.30,-0.30,0.138,0.045,0,oth
+ECU,AP,PAIS Alliance,-0.18,0.00,0.391,0.540,1,soc
+ECU,CREO,CREO-SUMA (Alliance for Change),0.60,0.45,0.201,0.248,0,con
+ECU,PSC,Social Christian Party,0.52,0.43,0.159,0.109,0,con
+ECU,FE,Fuerza Ecuador,0.27,0.55,0.047,0.007,0,oth
+ECU,ID,Democratic Left,-0.25,-0.20,0.038,0.029,0,soc
+ECU,PSP,Patriotic Society Party,0.23,0.29,0.029,0.015,0,oth
+ECU,MUPP,Pachakutik,-0.54,-0.13,0.027,0.029,0,reg
+ECU,OTH,Other parties and provincial movements,0.00,0.20,0.108,0.022,0,oth
+KEN,JP,Jubilee Party,0.47,0.46,0.402,0.484,1,con
+KEN,ODM,Orange Democratic Movement,0.00,0.67,0.192,0.215,0,soc
+KEN,WDM,Wiper Democratic Movement - Kenya,0.25,0.70,0.051,0.066,0,oth
+KEN,ANC,Amani National Congress,0.40,0.70,0.038,0.042,0,oth
+KEN,FORD,Forum for the Restoration of Democracy - Kenya,0.20,0.40,0.033,0.035,0,oth
+KEN,KANU,Kenya African National Union,0.50,0.68,0.024,0.028,0,con
+KEN,OTH,Other parties and independents,0.10,0.50,0.260,0.131,0,oth
+NPL,UML,CPN (Unified Marxist-Leninist) (merged into NCP 2018),-0.51,-0.10,0.332,0.440,1,com
+NPL,NC,Nepali Congress,0.53,-0.53,0.328,0.229,0,soc
+NPL,MC,CPN (Maoist Centre) (merged into NCP 2018),-0.76,-0.05,0.137,0.193,1,com
+NPL,RJPN,Rastriya Janata Party Nepal,0.15,0.45,0.049,0.062,0,reg
+NPL,SSFN,"Federal Socialist Forum, Nepal",0.03,-0.29,0.049,0.058,0,reg
+NPL,OTH,Other parties and independents,0.10,0.40,0.105,0.018,0,oth
+KHM,CPP,Cambodian People's Party,0.03,0.63,0.768,1.000,1,con
+KHM,FUN,FUNCINPEC,0.10,0.56,0.059,0.000,0,con
+KHM,LDP,League for Democracy Party,0.50,0.07,0.049,0.000,0,lib
+KHM,OTH,Other parties,0.00,0.50,0.124,0.000,0,oth
+COL,PLC,Colombian Liberal Party,0.26,0.01,0.175,0.203,0,lib
+COL,CD,Democratic Centre,0.81,0.89,0.170,0.186,1,con
+COL,CR,Radical Change,0.51,0.50,0.153,0.174,0,con
+COL,U,Social Party of National Unity (Partido de la U),0.33,0.24,0.130,0.145,0,con
+COL,PCC,Colombian Conservative Party,0.69,0.86,0.129,0.122,1,con
+COL,AV,Green Alliance,0.01,-0.59,0.063,0.052,0,grn
+COL,MIRA,Independent Movement of Absolute Renovation (MIRA),0.64,0.89,0.041,0.006,0,chr
+COL,PDA,Alternative Democratic Pole,-0.44,-0.46,0.031,0.012,0,rad_left
+COL,OTH,"Other parties (FARC, Citizen Option, Decentes, ethnic seats, etc.)",-0.10,0.20,0.108,0.099,0,oth
+IRQ,SAIR,Alliance Towards Reform (Sairoon),-0.40,-0.20,0.145,0.164,1,oth
+IRQ,FATH,Fatah Alliance,-0.40,0.60,0.132,0.146,1,oth
+IRQ,NASR,Victory Alliance (Nasr),-0.40,0.60,0.110,0.128,0,oth
+IRQ,KDP,Kurdistan Democratic Party,0.20,-0.20,0.085,0.076,1,reg
+IRQ,SOL,State of Law Coalition,-0.20,0.60,0.070,0.076,0,oth
+IRQ,WAT,Al-Wataniya,-0.40,-0.20,0.060,0.064,0,oth
+IRQ,PUK,Patriotic Union of Kurdistan,-0.40,-0.20,0.060,0.055,1,reg
+IRQ,HIK,National Wisdom Movement (Hikma),-0.40,0.60,0.056,0.058,0,oth
+IRQ,QAR,Iraqi Decision Alliance,0.30,0.60,0.035,0.043,0,oth
+IRQ,OTH,Other lists and minority seats,-0.10,0.40,0.247,0.191,0,oth
+MAR,PJD,Justice and Development Party (PJD),0.20,0.96,0.279,0.316,1,oth
+MAR,PAM,Authenticity and Modernity Party (PAM),0.20,-0.68,0.209,0.258,0,lib
+MAR,PI,Istiqlal Party,-0.13,0.80,0.107,0.116,0,con
+MAR,RNI,National Rally of Independents (RNI),0.12,-0.30,0.094,0.094,1,lib
+MAR,MP,Popular Movement,-0.33,0.40,0.068,0.068,1,con
+MAR,USFP,Socialist Union of Popular Forces (USFP),-0.40,-0.36,0.062,0.051,1,soc
+MAR,PPS,Party of Progress and Socialism,-0.20,-0.60,0.047,0.030,0,soc
+MAR,UC,Constitutional Union,-0.13,0.07,0.045,0.048,1,lib
+MAR,OTH,Other parties,-0.20,0.20,0.088,0.018,0,oth
+GHA,NPP,New Patriotic Party,0.53,-0.07,0.525,0.615,1,con
+GHA,NDC,National Democratic Congress,-0.40,0.40,0.423,0.385,0,soc
+GHA,OTH,Other parties and independents,0.00,0.30,0.052,0.000,0,oth
+CIV,RHDP,Rally of Houphouetists for Democracy and Peace (RHDP),0.50,-0.12,0.503,0.655,1,lib
+CIV,FPI,Ivorian Popular Front,-0.43,0.32,0.058,0.012,0,soc
+CIV,UDPC,Union for Democracy and Peace in Cote d'Ivoire,-0.30,0.20,0.030,0.024,0,oth
+CIV,OTH,Independents and other parties,0.20,0.30,0.409,0.310,0,oth
+KAZ,NO,Nur Otan,0.00,0.80,0.822,0.857,1,con
+KAZ,AJ,Ak Zhol,1.00,0.50,0.072,0.071,0,lib
+KAZ,QKHP,Communist People's Party of Kazakhstan,-1.00,0.90,0.071,0.071,0,com
+KAZ,OTH,Other parties,0.00,0.50,0.035,0.000,0,oth
+TWN,DPP,Democratic Progressive Party,-0.15,-0.25,0.441,0.602,1,lib
+TWN,KMT,Kuomintang,0.20,0.60,0.269,0.310,0,con
+TWN,PFP,People First Party,0.17,0.56,0.065,0.027,0,con
+TWN,NPP,New Power Party,-0.28,-0.51,0.061,0.044,0,oth
+TWN,OTH,Other parties and independents,0.00,0.30,0.164,0.018,0,oth
+UGA,NRM,National Resistance Movement,0.00,0.73,0.489,0.689,1,con
+UGA,FDC,Forum for Democratic Change,-0.40,0.25,0.127,0.100,0,soc
+UGA,DP,Democratic Party,0.10,0.67,0.043,0.045,0,chr
+UGA,UPC,Uganda People's Congress,-0.40,0.47,0.021,0.014,0,soc
+UGA,OTH,Independents and other parties,0.00,0.50,0.320,0.152,0,oth
+ZMB,PF,Patriotic Front,-0.27,0.76,0.420,0.513,1,soc
+ZMB,UPND,United Party for National Development,0.67,0.56,0.417,0.372,0,lib
+ZMB,MMD,Movement for Multi-Party Democracy,0.15,0.80,0.027,0.019,0,lib
+ZMB,OTH,Independents and other parties,0.00,0.50,0.136,0.096,0,oth
+VEN,MUD,Democratic Unity Roundtable (MUD),0.22,-0.03,0.562,0.671,0,con
+VEN,PSUV,Great Patriotic Pole (PSUV-led),-0.76,0.53,0.379,0.329,1,rad_left
+VEN,OTH,Other parties,-0.20,0.20,0.059,0.000,0,oth
+MMR,NLD,National League for Democracy,-0.07,0.23,0.572,0.580,1,lib
+MMR,USDP,Union Solidarity and Development Party,-0.02,0.82,0.283,0.068,0,con
+MMR,MIL,"Military appointees (Tatmadaw, 25% of seats)",0.10,0.85,0.000,0.250,0,oth
+MMR,ANP,Arakan National Party,-0.40,0.80,0.022,0.027,0,reg
+MMR,SNLD,Shan Nationalities League for Democracy,-0.15,0.50,0.016,0.027,0,reg
+MMR,OTH,Other parties and independents,-0.10,0.50,0.107,0.048,0,oth
+GIN,RPG,Rally of the Guinean People (RPG),-0.60,0.80,0.463,0.465,1,soc
+GIN,UFDG,Union of Democratic Forces of Guinea,0.70,0.10,0.305,0.325,0,lib
+GIN,UFR,Union of Republican Forces,1.00,0.10,0.070,0.088,0,lib
+GIN,OTH,Other parties,0.00,0.40,0.162,0.123,0,oth
+SYR,NPF,National Progressive Front (Ba'ath-led),-0.40,0.00,0.800,0.800,1,oth
+SYR,OTH,Independents,0.00,0.60,0.200,0.200,0,oth
+PER,FP,Popular Force,0.56,0.80,0.363,0.562,0,con
+PER,PPK,Peruvians for Change (PPK),0.76,0.17,0.165,0.138,1,lib
+PER,FA,Broad Front,-0.60,-0.32,0.139,0.154,0,rad_left
+PER,APP,Alliance for the Progress of Peru,0.39,0.49,0.092,0.069,0,con
+PER,APRA,Popular Alliance (APRA-PPC),0.45,0.49,0.083,0.038,0,con
+PER,AP,Popular Action,0.23,0.35,0.072,0.038,0,con
+PER,OTH,Other parties,0.00,0.20,0.086,0.000,0,oth
+UKR,SN,Servant of the People,0.20,0.10,0.432,0.599,1,lib
+UKR,OPZZ,Opposition Platform - For Life,-0.24,0.53,0.131,0.101,0,oth
+UKR,BAT,Batkivshchyna (Fatherland),-0.44,0.28,0.082,0.061,0,oth
+UKR,ES,European Solidarity,0.53,0.55,0.081,0.059,0,con
+UKR,HOL,Holos,0.40,-0.20,0.058,0.047,0,lib
+UKR,RPL,Radical Party of Oleh Lyashko,-0.36,0.48,0.040,0.000,0,oth
+UKR,OB,Opposition Bloc - Party for Peace and Development,-0.24,0.53,0.030,0.014,0,oth
+UKR,OTH,Other parties and independents,0.20,0.40,0.146,0.118,0,oth
+BFA,MPP,People's Movement for Progress (MPP),-0.10,0.40,0.347,0.433,1,soc
+BFA,UPC,Union for Progress and Reform (UPC),0.60,0.33,0.205,0.260,0,lib
+BFA,CDP,Congress for Democracy and Progress (CDP),-0.40,0.67,0.132,0.142,0,con
+BFA,UNPS,Union for Rebirth / Sankarist Party,-0.60,-0.07,0.038,0.039,0,rad_left
+BFA,OTH,Other parties,0.00,0.50,0.278,0.126,0,oth
+TZA,CCM,Chama Cha Mapinduzi (CCM),0.25,0.63,0.551,0.690,1,soc
+TZA,CHAD,Chadema,-0.15,0.53,0.319,0.194,0,lib
+TZA,CUF,Civic United Front,0.15,0.57,0.087,0.111,0,lib
+TZA,OTH,"Other parties (ACT-Wazalendo, NCCR-Mageuzi, etc.)",-0.20,0.40,0.043,0.005,0,oth
+HND,PN,National Party of Honduras,0.50,0.60,0.477,0.477,1,con
+HND,LIBR,Liberty and Refoundation (LIBRE),-0.60,0.10,0.234,0.234,0,rad_left
+HND,PL,Liberal Party of Honduras,0.30,0.40,0.203,0.203,0,lib
+HND,OTH,"Other parties (PINU, Patriotic Alliance, UD, DC, PAC)",0.10,0.30,0.086,0.086,0,oth
+PNG,PNC,People's National Congress,0.00,0.80,0.132,0.252,1,con
+PNG,NA,National Alliance Party,-0.40,0.80,0.061,0.135,1,soc
+PNG,URP,United Resources Party,0.07,0.80,0.039,0.090,1,con
+PNG,PANG,Pangu Pati,-0.40,0.50,0.041,0.081,1,soc
+PNG,PPP,People's Progress Party,0.00,0.50,0.035,0.045,1,con
+PNG,PNGP,Papua New Guinea Party,0.30,0.80,0.027,0.045,0,con
+PNG,OTH,Other parties and independents,0.00,0.70,0.665,0.351,0,oth
+TJK,PDP,People's Democratic Party of Tajikistan,-0.33,0.25,0.681,0.810,1,con
+TJK,APT,Agrarian Party of Tajikistan,-0.27,0.13,0.121,0.079,0,agr
+TJK,PER,Party of Economic Reforms,-0.40,0.00,0.078,0.048,0,lib
+TJK,OTH,"Other parties (Socialist, Communist, Democratic)",-0.50,0.30,0.120,0.063,0,oth
+BLR,IND,Pro-government independents,-0.30,0.60,0.659,0.809,1,oth
+BLR,KPB,Communist Party of Belarus,-1.00,1.00,0.116,0.100,0,com
+BLR,RPTS,Republican Party of Labour and Justice,-0.93,1.00,0.074,0.055,0,oth
+BLR,LDPB,Liberal Democratic Party of Belarus,-0.80,0.93,0.058,0.009,0,rad_right
+BLR,OTH,"Other parties (incl. opposition BPF, UCP, BSDP)",0.40,-0.20,0.093,0.027,0,oth
+SRB,SNS,Serbia is Winning (SNS-led coalition),0.11,0.43,0.497,0.524,1,con
+SRB,SPS,SPS-JS coalition,-0.24,0.33,0.113,0.116,1,soc
+SRB,SRS,Serbian Radical Party,0.03,0.89,0.083,0.088,0,rad_right
+SRB,DJB,Enough is Enough (DJB),0.20,-0.27,0.062,0.064,0,lib
+SRB,DS,For a Just Serbia (DS-led),-0.16,-0.43,0.062,0.064,0,soc
+SRB,DVDS,Dveri - Democratic Party of Serbia,-0.07,0.71,0.052,0.052,0,rad_right
+SRB,LDP,"Alliance for a Better Serbia (LDP, LSV, SDS)",0.20,-0.40,0.052,0.052,0,lib
+SRB,OTH,Other parties and national minority lists,0.00,0.40,0.079,0.040,0,oth
+MDA,PSRM,Party of Socialists (PSRM),-0.50,0.56,0.311,0.347,1,soc
+MDA,ACUM,ACUM Bloc (PAS and DA),0.30,-0.10,0.268,0.257,0,lib
+MDA,PDM,Democratic Party of Moldova,0.10,0.24,0.236,0.297,0,oth
+MDA,SOR,Sor Party,-0.10,0.40,0.083,0.069,0,oth
+MDA,OTH,Other parties and independents,0.00,0.40,0.102,0.030,0,oth
+ALB,PS,Socialist Party of Albania,-0.05,-0.24,0.483,0.529,1,soc
+ALB,PD,Democratic Party of Albania,0.23,0.09,0.288,0.307,0,con
+ALB,LSI,Socialist Movement for Integration,-0.15,0.12,0.143,0.136,0,soc
+ALB,PDIU,"Party for Justice, Integration and Unity",0.15,0.46,0.048,0.021,0,reg
+ALB,OTH,Other parties,0.00,0.30,0.038,0.007,0,oth
+MKD,VMRO,VMRO-DPMNE coalition,0.25,0.73,0.394,0.425,0,con
+MKD,SDSM,Social Democratic Union (SDSM coalition),-0.22,-0.26,0.379,0.408,1,soc
+MKD,DUI,Democratic Union for Integration,-0.09,0.50,0.075,0.083,1,reg
+MKD,BESA,Besa Movement,0.04,0.64,0.050,0.042,0,reg
+MKD,AA,Alliance for Albanians,0.09,0.62,0.030,0.025,0,reg
+MKD,DPA,Democratic Party of Albanians,0.18,0.63,0.027,0.017,0,reg
+MKD,OTH,Other parties,-0.20,0.40,0.045,0.000,0,oth
+BEN,UP,Progressive Union,0.30,0.30,0.558,0.566,1,lib
+BEN,BR,Republican Bloc,0.30,0.30,0.442,0.434,1,lib
+BEN,OTH,Other parties (opposition excluded from the 2019 ballot),0.00,0.20,0.000,0.000,0,oth
+TTO,PNM,People's National Movement,0.10,0.30,0.517,0.561,1,soc
+TTO,UNC,United National Congress (People's Partnership),0.00,0.20,0.396,0.415,0,soc
+TTO,COP,Congress of the People,0.40,0.20,0.060,0.024,0,lib
+TTO,OTH,Other parties,0.00,0.20,0.027,0.000,0,oth
+GEO,GD,Georgian Dream,-0.08,0.50,0.487,0.767,1,oth
+GEO,UNM,United National Movement,0.68,-0.05,0.271,0.180,0,lib
+GEO,APG,Alliance of Patriots of Georgia,0.00,0.80,0.050,0.040,0,rad_right
+GEO,OTH,Other parties and independents,0.30,0.20,0.192,0.013,0,oth
+MOZ,FREL,FRELIMO,0.20,-0.40,0.713,0.736,1,soc
+MOZ,RENA,RENAMO,0.50,0.50,0.223,0.240,0,con
+MOZ,MDM,Democratic Movement of Mozambique (MDM),0.60,0.30,0.042,0.024,0,lib
+MOZ,OTH,Other parties,0.00,0.30,0.022,0.000,0,oth
+MNG,MPP,Mongolian People's Party,-0.26,0.25,0.451,0.855,1,soc
+MNG,DP,Democratic Party,0.15,-0.30,0.331,0.118,0,con
+MNG,MPRP,Mongolian People's Revolutionary Party,-0.66,0.47,0.080,0.013,0,soc
+MNG,OTH,Other parties and independents,0.00,0.20,0.138,0.013,0,oth
+KGZ,SDPK,Social Democratic Party of Kyrgyzstan,-0.10,0.60,0.276,0.317,1,soc
+KGZ,RAZ,Respublika-Ata Zhurt,0.10,0.40,0.202,0.233,1,con
+KGZ,KP,Kyrgyzstan Party,0.07,0.47,0.130,0.150,1,con
+KGZ,OP,Onuguu-Progress,0.10,0.60,0.094,0.108,0,con
+KGZ,BB,Bir Bol,0.40,0.60,0.086,0.100,0,con
+KGZ,AM,Ata Meken Socialist Party,-0.05,0.40,0.078,0.092,0,soc
+KGZ,OTH,Other parties,0.00,0.50,0.134,0.000,0,oth
+TKM,DPT,Democratic Party of Turkmenistan,-0.20,0.40,0.440,0.440,1,oth
+TKM,PIE,Party of Industrialists and Entrepreneurs,0.20,0.40,0.088,0.088,0,oth
+TKM,APT,Agrarian Party of Turkmenistan,-0.10,0.40,0.088,0.088,0,agr
+TKM,OTH,Independents nominated by public organisations,-0.20,0.40,0.384,0.384,0,oth
+BTN,DNT,Druk Nyamrup Tshogpa,-0.20,-0.05,0.549,0.638,1,soc
+BTN,DPT,Druk Phuensum Tshogpa,0.40,-0.07,0.450,0.362,0,con
+MDV,MDP,Maldivian Democratic Party,0.10,-0.27,0.458,0.747,1,lib
+MDV,JP,Jumhooree Party,0.30,0.40,0.112,0.057,1,con
+MDV,PPM,Progressive Party of Maldives,-0.04,0.52,0.091,0.057,0,con
+MDV,PNC,People's National Congress,0.20,0.70,0.066,0.034,0,con
+MDV,MDA,Maldives Development Alliance,0.10,0.55,0.032,0.023,0,con
+MDV,OTH,Independents and other parties,0.10,0.50,0.241,0.080,0,oth
+SGP,PAP,People's Action Party,-0.29,0.77,0.699,0.933,1,con
+SGP,WP,Workers' Party,-0.35,0.15,0.125,0.067,0,soc
+SGP,OTH,"Other parties (SDP, NSP, Reform Party, etc.)",-0.10,-0.10,0.176,0.000,0,oth
+TLS,AMP,"Alliance for Change and Progress (CNRT, PLP, KHUNTO)",0.23,0.33,0.496,0.523,1,con
+TLS,FRET,FRETILIN,-0.57,-0.24,0.342,0.354,0,soc
+TLS,PD,Democratic Party,-0.17,-0.04,0.081,0.077,0,oth
+TLS,FDD,Democratic Development Front,0.10,0.25,0.055,0.046,0,oth
+TLS,OTH,Other parties,0.00,0.30,0.026,0.000,0,oth
+FJI,FF,FijiFirst,-0.57,-0.04,0.500,0.529,1,oth
+FJI,SDL,Social Democratic Liberal Party (SODELPA),0.24,0.58,0.399,0.412,0,con
+FJI,NFP,National Federation Party,-0.06,-0.23,0.074,0.059,0,soc
+FJI,OTH,Other parties,0.00,0.00,0.027,0.000,0,oth
+NGA,APC,All Progressives Congress,0.00,0.51,0.556,0.561,1,con
+NGA,PDP,Peoples Democratic Party,0.17,0.23,0.412,0.356,0,con
+NGA,OTH,Other parties and vacant seats,0.00,0.40,0.032,0.083,0,oth
+BIH,SDA,Party of Democratic Action (SDA),0.08,0.57,0.170,0.214,1,con
+BIH,SNSD,Alliance of Independent Social Democrats (SNSD),-0.03,0.52,0.160,0.143,1,reg
+BIH,SDS,Serb Democratic Party (SDS coalition),0.03,0.49,0.098,0.071,0,con
+BIH,SDP,Social Democratic Party of BiH,-0.27,-0.06,0.091,0.119,0,soc
+BIH,HDZ,Croatian Democratic Union of BiH (HDZ BiH coalition),0.12,0.54,0.090,0.119,1,chr
+BIH,DF,Democratic Front - Civic Alliance,-0.18,0.00,0.058,0.071,0,soc
+BIH,PDP,Party of Democratic Progress,0.05,0.15,0.051,0.048,0,con
+BIH,SBB,Union for a Better Future of BiH,0.15,0.22,0.042,0.048,0,con
+BIH,DNS,Democratic People's Alliance,0.04,0.30,0.042,0.024,0,con
+BIH,NS,Our Party (Nasa stranka),0.00,-0.58,0.029,0.048,0,lib
+BIH,OTH,Other parties,0.00,0.50,0.169,0.095,0,oth
+MNE,DPS,Democratic Party of Socialists (DPS),0.04,-0.14,0.414,0.444,1,soc
+MNE,DF,Democratic Front,0.29,0.82,0.203,0.222,0,rad_right
+MNE,KLJ,"Key Coalition (DEMOS, SNP, URA)",-0.13,0.03,0.111,0.111,0,oth
+MNE,DCG,Democratic Montenegro,-0.07,0.12,0.100,0.099,0,lib
+MNE,SDP,Social Democratic Party of Montenegro,-0.33,-0.46,0.052,0.049,0,soc
+MNE,SD,Social Democrats of Montenegro,-0.17,-0.25,0.033,0.025,1,soc
+MNE,BS,Bosniak Party,0.09,0.64,0.032,0.025,1,reg
+MNE,OTH,Other parties and minority lists,0.00,0.50,0.055,0.025,0,oth
+XKX,VV,Vetevendosje,-0.11,0.05,0.263,0.242,0,soc
+XKX,LDK,Democratic League of Kosovo,0.19,0.13,0.245,0.233,0,con
+XKX,PDK,Democratic Party of Kosovo,0.17,0.24,0.212,0.200,1,con
+XKX,AAK,Alliance for the Future of Kosovo (100% Kosovo),0.30,0.50,0.115,0.108,1,con
+XKX,SL,Serb List (Srpska lista),0.10,0.38,0.064,0.083,1,reg
+XKX,NISM,NISMA-AKR-PD,-0.13,0.23,0.050,0.050,1,con
+XKX,OTH,Other minority parties,0.00,0.50,0.051,0.083,0,oth
+ARM,MS,My Step Alliance,0.03,-0.40,0.704,0.667,1,lib
+ARM,PAP,Prosperous Armenia,0.29,0.64,0.083,0.197,0,con
+ARM,BA,Bright Armenia,0.40,-0.18,0.064,0.136,0,lib
+ARM,RPA,Republican Party of Armenia,0.30,0.60,0.047,0.000,0,con
+ARM,ARF,Armenian Revolutionary Federation,-0.20,0.60,0.039,0.000,0,rad_right
+ARM,OTH,Other parties,0.00,0.40,0.063,0.000,0,oth
+AZE,YAP,New Azerbaijan Party,0.10,0.60,0.472,0.552,1,con
+AZE,OTH,Independents and minor parties,0.10,0.50,0.528,0.448,0,oth
+MDG,IRD,Isika Rehetra Miaraka amin'i Andry Rajoelina (IRD),-0.33,0.52,0.348,0.556,1,oth
+MDG,TIM,Tiako i Madagasikara (TIM),0.00,0.00,0.108,0.106,0,con
+MDG,OTH,Independents and other parties,0.00,0.40,0.544,0.338,0,oth
+MWI,DPP,Democratic Progressive Party,-0.28,0.76,0.260,0.323,1,con
+MWI,MCP,Malawi Congress Party,-0.16,0.70,0.223,0.286,0,con
+MWI,UTM,United Transformation Movement,-0.13,0.17,0.099,0.021,0,oth
+MWI,UDF,United Democratic Front,-0.28,0.52,0.046,0.052,1,con
+MWI,PP,People's Party,-0.37,0.17,0.024,0.026,0,soc
+MWI,OTH,Independents and other parties,0.00,0.50,0.348,0.292,0,oth
+ZWE,ZANU,ZANU-PF,-0.17,0.67,0.524,0.663,1,oth
+ZWE,MDCA,MDC Alliance,0.42,-0.33,0.346,0.326,0,lib
+ZWE,OTH,Other parties and independents,0.10,0.40,0.130,0.011,0,oth
+TUN,ENN,Ennahda,0.68,0.68,0.196,0.240,1,oth
+TUN,QT,Heart of Tunisia (Qalb Tounes),0.40,0.30,0.146,0.175,0,lib
+TUN,PDL,Free Destourian Party,0.30,0.50,0.066,0.078,0,con
+TUN,CD,Democratic Current,-0.20,-0.10,0.064,0.101,0,soc
+TUN,KAR,Dignity Coalition (Al Karama),0.20,0.90,0.059,0.097,0,oth
+TUN,ECH,People's Movement (Echaab),-0.50,0.40,0.045,0.069,0,soc
+TUN,TT,Tahya Tounes,0.53,-0.45,0.041,0.065,1,lib
+TUN,OTH,Other parties and independents,0.10,0.20,0.383,0.175,0,oth
+RWA,RPF,Rwandan Patriotic Front coalition,-0.12,0.63,0.740,0.755,1,oth
+RWA,PSD,Social Democratic Party,-0.35,0.87,0.088,0.094,1,soc
+RWA,PL,Liberal Party,0.00,0.60,0.078,0.075,1,lib
+RWA,DGPR,Democratic Green Party of Rwanda,-0.47,0.40,0.046,0.038,0,grn
+RWA,PSI,PS-Imberakuri,-0.40,0.73,0.046,0.038,0,oth
+RWA,OTH,Other parties,0.00,0.50,0.003,0.000,0,oth
+PRY,ANR,National Republican Association - Colorado Party,0.44,0.91,0.391,0.525,1,con
+PRY,PLRA,Authentic Radical Liberal Party and GANAR alliance,0.27,0.60,0.298,0.375,0,lib
+PRY,PPQ,Beloved Fatherland Party,0.69,0.89,0.045,0.037,0,con
+PRY,PH,Hagamos Party,0.51,0.77,0.032,0.025,0,con
+PRY,PEN,National Encounter Party,0.02,0.51,0.032,0.025,0,oth
+PRY,OTH,Other parties,0.00,0.40,0.202,0.012,0,oth
+URY,FA,Broad Front (Frente Amplio),-0.38,-0.60,0.405,0.424,1,soc
+URY,PN,National Party,0.43,0.45,0.297,0.303,0,con
+URY,PC,Colorado Party,0.33,0.03,0.128,0.131,0,lib
+URY,CA,Open Cabildo,0.42,0.88,0.115,0.111,0,rad_right
+URY,OTH,"Other parties (Independent Party, PERI, Partido de la Gente)",0.20,0.20,0.055,0.030,0,oth
+CRI,PLN,National Liberation Party,0.38,0.18,0.195,0.298,0,soc
+CRI,PRN,National Restoration Party,0.53,0.96,0.182,0.246,0,con
+CRI,PAC,Citizens' Action Party,0.00,-0.49,0.163,0.175,1,soc
+CRI,PUSC,Social Christian Unity Party,0.67,0.71,0.146,0.158,0,chr
+CRI,PIN,National Integration Party,0.51,0.66,0.077,0.070,0,con
+CRI,PRSC,Social Christian Republican Party,0.62,0.75,0.042,0.035,0,chr
+CRI,FA,Broad Front,-0.49,-0.78,0.040,0.018,0,rad_left
+CRI,OTH,Other parties,0.20,0.30,0.155,0.000,0,oth
+PAN,PRD,Democratic Revolutionary Party,0.20,-0.25,0.300,0.493,1,soc
+PAN,CD,Democratic Change,0.60,0.60,0.225,0.254,0,con
+PAN,PAN,Panamenista Party,0.60,0.20,0.173,0.113,0,con
+PAN,MOL,Nationalist Republican Liberal Movement (MOLIRENA),0.70,0.40,0.051,0.070,1,con
+PAN,OTH,Independents and other parties,0.20,0.30,0.251,0.070,0,oth
+SLV,AREN,Nationalist Republican Alliance (ARENA),0.77,0.80,0.417,0.440,0,con
+SLV,FMLN,Farabundo Marti National Liberation Front (FMLN),-0.52,-0.20,0.245,0.274,0,rad_left
+SLV,GANA,Grand Alliance for National Unity (GANA),0.50,0.64,0.115,0.119,1,con
+SLV,PCN,National Coalition Party,0.64,0.76,0.109,0.107,0,con
+SLV,PDC,Christian Democratic Party,0.15,0.70,0.031,0.036,0,chr
+SLV,OTH,Other parties,0.00,0.30,0.083,0.024,0,oth
+NIC,FSLN,Sandinista National Liberation Front (FSLN),-0.60,-0.70,0.659,0.778,1,rad_left
+NIC,PLC,Constitutionalist Liberal Party,0.80,0.80,0.153,0.144,0,con
+NIC,PLI,Independent Liberal Party,0.73,0.80,0.067,0.022,0,lib
+NIC,ALN,Nicaraguan Liberal Alliance,0.80,0.60,0.057,0.022,0,lib
+NIC,OTH,"Other parties (Conservative Party, APRE, YATAMA)",0.40,0.60,0.064,0.033,0,oth
+JAM,JLP,Jamaica Labour Party,0.30,0.40,0.501,0.508,1,con
+JAM,PNP,People's National Party,-0.10,0.30,0.497,0.492,0,soc
+JAM,OTH,Other parties and independents,0.00,0.30,0.002,0.000,0,oth
+GUY,APNU,A Partnership for National Unity + Alliance for Change,0.10,0.30,0.503,0.508,1,oth
+GUY,PPPC,People's Progressive Party/Civic,-0.20,-0.20,0.492,0.492,0,soc
+GUY,OTH,Other parties,0.00,0.30,0.005,0.000,0,oth
+SUR,NDP,National Democratic Party,-0.33,0.10,0.455,0.510,1,oth
+SUR,V7,V7 (VHP-led alliance),-0.20,0.00,0.373,0.353,0,oth
+SUR,ACOM,A-Combination,0.00,0.00,0.106,0.098,0,reg
+SUR,DOE,Party for Democracy and Development through Unity (DOE),-0.40,-0.40,0.043,0.020,0,oth
+SUR,OTH,Other parties,0.00,0.30,0.023,0.020,0,oth
+BHS,FNM,Free National Movement,-0.20,0.53,0.570,0.897,1,con
+BHS,PLP,Progressive Liberal Party,-0.40,0.80,0.369,0.103,0,lib
+BHS,OTH,Other parties (DNA) and independents,0.00,0.50,0.061,0.000,0,oth
+BRB,BLP,Barbados Labour Party,0.00,-0.60,0.735,1.000,1,soc
+BRB,DLP,Democratic Labour Party,0.40,0.40,0.218,0.000,0,soc
+BRB,OTH,"Other parties (Solutions Barbados, UPP) and independents",0.00,0.30,0.047,0.000,0,oth
+BLZ,UDP,United Democratic Party,0.47,0.53,0.505,0.613,1,con
+BLZ,PUP,People's United Party,0.00,0.47,0.478,0.387,0,soc
+BLZ,OTH,Other parties,0.00,0.40,0.017,0.000,0,oth
+GTM,UNE,National Unity of Hope (UNE),-0.20,0.40,0.178,0.338,0,soc
+GTM,VAM,Vamos,0.50,0.70,0.080,0.100,0,con
+GTM,UCN,National Change Union (UCN),0.30,0.40,0.054,0.075,0,con
+GTM,SEM,Semilla,-0.30,-0.40,0.053,0.044,0,soc
+GTM,FCN,National Convergence Front (FCN-Nacion),0.50,0.80,0.052,0.050,1,con
+GTM,BIEN,Bienestar Nacional,0.40,0.60,0.048,0.050,0,con
+GTM,VIVA,Vision with Values (VIVA),0.70,0.90,0.047,0.044,0,con
+GTM,VAL,Valor,0.60,0.80,0.046,0.056,0,con
+GTM,OTH,"Other parties (Humanist Party, CREO, Todos, Winaq, etc.)",0.20,0.40,0.442,0.244,0,oth
+PSE,HAM,Hamas (Change and Reform),0.00,0.90,0.444,0.561,0,oth
+PSE,FAT,Fatah,-0.10,0.30,0.414,0.341,1,soc
+PSE,PFLP,Martyr Abu Ali Mustafa list (PFLP),-0.80,0.00,0.042,0.023,0,rad_left
+PSE,OTH,Other lists and independents,-0.20,0.20,0.100,0.076,0,oth
+COG,PCT,Congolese Party of Labour (PCT),-0.10,0.50,0.636,0.636,1,soc
+COG,UPAD,Pan-African Union for Social Democracy (UPADS),-0.10,0.30,0.053,0.053,0,soc
+COG,OTH,Other parties and independents,0.00,0.40,0.311,0.311,0,oth
+GAB,PDG,Gabonese Democratic Party (PDG),0.10,0.50,0.685,0.685,1,con
+GAB,LD,The Democrats,0.10,0.40,0.077,0.077,0,oth
+GAB,RV,Restoration of Republican Values,0.10,0.40,0.042,0.042,0,oth
+GAB,OTH,Other parties and independents,0.10,0.40,0.196,0.196,0,oth
+GNQ,PDGE,Democratic Party of Equatorial Guinea (PDGE),0.27,0.77,0.920,0.990,1,con
+GNQ,CI,Citizens for Innovation (dissolved 2018),0.60,0.27,0.058,0.010,0,lib
+GNQ,OTH,Other parties,0.00,0.50,0.022,0.000,0,oth
+LBR,CDC,Coalition for Democratic Change (CDC),-0.10,0.40,0.156,0.288,1,oth
+LBR,UP,Unity Party,0.30,0.40,0.143,0.274,0,con
+LBR,LP,Liberty Party,0.20,0.30,0.086,0.041,0,lib
+LBR,PUP,People's Unification Party,0.10,0.40,0.059,0.068,0,oth
+LBR,ALP,All Liberian Party,0.20,0.40,0.050,0.041,0,oth
+LBR,OTH,Other parties and independents,0.10,0.40,0.506,0.288,0,oth
+SLE,APC,All People's Congress (APC),0.20,0.40,0.399,0.515,0,con
+SLE,SLPP,Sierra Leone People's Party (SLPP),-0.10,0.40,0.389,0.371,1,soc
+SLE,NGC,National Grand Coalition,0.20,0.30,0.087,0.030,0,lib
+SLE,C4C,Coalition for Change,0.00,0.40,0.048,0.061,0,oth
+SLE,OTH,Other parties and independents,0.00,0.40,0.077,0.023,0,oth
+TGO,UNIR,Union for the Republic (UNIR),0.10,0.50,0.648,0.648,1,con
+TGO,UFC,Union of Forces for Change (UFC),0.00,0.40,0.077,0.077,1,oth
+TGO,OTH,Independents and other parties (main opposition boycotted),0.10,0.40,0.275,0.275,0,oth
+GNB,PAIG,African Party for the Independence of Guinea and Cape Verde (PAIGC),-0.10,0.30,0.352,0.461,1,soc
+GNB,MAD,Movement for Democratic Alternation (Madem G15),0.20,0.40,0.211,0.265,0,con
+GNB,PRS,Party for Social Renewal (PRS),0.00,0.40,0.211,0.206,0,oth
+GNB,APU,Assembly of the People United (APU-PDGB),0.10,0.40,0.085,0.049,1,oth
+GNB,OTH,Other parties,0.00,0.40,0.141,0.020,0,oth
+NAM,SWAP,SWAPO Party,-0.10,0.30,0.655,0.656,1,soc
+NAM,PDM,Popular Democratic Movement,0.40,0.20,0.167,0.167,0,lib
+NAM,LPM,Landless People's Movement,-0.60,0.30,0.047,0.042,0,rad_left
+NAM,OTH,Other parties,0.00,0.30,0.131,0.135,0,oth
+BWA,BDP,Botswana Democratic Party,-0.07,-0.04,0.527,0.667,1,con
+BWA,UDC,Umbrella for Democratic Change,-0.10,-0.16,0.359,0.263,0,soc
+BWA,AP,Alliance for Progressives,0.20,0.30,0.051,0.018,0,lib
+BWA,BPF,Botswana Patriotic Front,-0.10,0.40,0.044,0.053,0,oth
+BWA,OTH,Other parties and independents,0.00,0.30,0.019,0.000,0,oth
+LSO,ABC,All Basotho Convention,-0.20,0.13,0.405,0.400,1,con
+LSO,DC,Democratic Congress,-0.10,0.00,0.258,0.250,0,oth
+LSO,LCD,Lesotho Congress for Democracy,-0.16,0.12,0.089,0.092,0,soc
+LSO,AD,Alliance of Democrats,-0.47,-0.60,0.073,0.075,1,oth
+LSO,MEC,Movement for Economic Change,-0.20,-0.80,0.051,0.050,0,oth
+LSO,BNP,Basotho National Party,-0.12,0.53,0.040,0.042,1,con
+LSO,OTH,Other parties,0.00,0.40,0.084,0.092,0,oth
+CPV,MPD,Movement for Democracy (MpD),0.73,0.07,0.545,0.556,1,lib
+CPV,PAIC,African Party for the Independence of Cape Verde (PAICV),-0.40,-0.25,0.382,0.403,0,soc
+CPV,UCID,Democratic and Independent Cape Verdean Union,0.40,0.80,0.069,0.042,0,chr
+CPV,OTH,Other parties,0.00,0.20,0.004,0.000,0,oth
+STP,ADI,Independent Democratic Action (ADI),-0.60,0.30,0.437,0.455,0,oth
+STP,MLST,MLSTP/PSD,0.60,0.30,0.421,0.418,1,soc
+STP,PCD,PCD-MDFM-UDD coalition,0.80,0.30,0.099,0.091,1,oth
+STP,OTH,"Other parties (MCISTP, etc.)",0.00,0.30,0.043,0.036,0,oth
+DJI,UMP,Union for the Presidential Majority (UMP),0.00,0.60,0.878,0.877,1,con
+DJI,UDJ,UDJ-PDD,0.10,0.40,0.109,0.108,0,oth
+DJI,OTH,Other parties,0.00,0.50,0.013,0.015,0,oth
+DOM,PLD,Dominican Liberation Party (PLD),0.20,0.30,0.459,0.558,1,lib
+DOM,PRM,Modern Revolutionary Party (PRM),-0.30,0.00,0.224,0.221,0,soc
+DOM,PRSC,Social Christian Reformist Party (PRSC),0.53,0.70,0.101,0.095,0,chr
+DOM,PRD,Dominican Revolutionary Party (PRD),0.00,0.40,0.086,0.084,1,soc
+DOM,OTH,Other parties,0.00,0.40,0.130,0.042,0,oth
+PHL,PDP,PDP-Laban,0.10,0.70,0.312,0.270,1,oth
+PHL,NP,Nacionalista Party,0.29,0.17,0.161,0.138,1,con
+PHL,NPC,Nationalist People's Coalition,0.42,0.30,0.143,0.122,1,con
+PHL,NUP,National Unity Party,0.30,0.50,0.095,0.082,1,con
+PHL,LP,Liberal Party,0.38,-0.04,0.057,0.059,0,lib
+PHL,LAK,Lakas-CMD,0.30,0.60,0.051,0.039,1,chr
+PHL,OTH,"Other parties, independents and party-list seats",0.00,0.40,0.180,0.289,0,oth
+BGD,AL,Awami League,-0.23,-0.30,0.750,0.857,1,soc
+BGD,JP,Jatiya Party (Ershad),0.37,-0.10,0.052,0.080,0,con
+BGD,BNP,Bangladesh Nationalist Party,0.12,0.36,0.117,0.020,0,con
+BGD,OTH,Other parties and independents,0.10,0.60,0.081,0.043,0,oth
+SEN,BBY,United in Hope (Benno Bokk Yakaar),0.10,0.40,0.495,0.758,1,lib
+SEN,MWS,Manko Wattu Senegal (PDS-led),0.30,0.40,0.167,0.115,0,lib
+SEN,MTS,Manko Taxawu Senegal,-0.10,0.30,0.117,0.042,0,soc
+SEN,PUR,Party for Unity and Rally,0.00,0.80,0.047,0.018,0,oth
+SEN,OTH,Other parties,0.00,0.40,0.174,0.067,0,oth
+LKA,UNFG,United National Front for Good Governance (UNP-led),0.40,0.20,0.457,0.471,0,con
+LKA,UPFA,United People's Freedom Alliance (SLFP and SLPP),-0.10,0.70,0.424,0.422,1,con
+LKA,JVP,Janatha Vimukthi Peramuna,-0.70,0.10,0.049,0.027,0,rad_left
+LKA,TNA,Tamil National Alliance,-0.10,0.00,0.046,0.071,0,reg
+LKA,OTH,Other parties,0.00,0.40,0.025,0.009,0,oth
+LBN,FPM,Free Patriotic Movement (Strong Lebanon),0.13,0.33,0.155,0.227,1,oth
+LBN,FM,Future Movement,0.49,0.36,0.146,0.156,1,lib
+LBN,AMAL,Amal Movement,-0.07,0.57,0.119,0.133,1,oth
+LBN,LF,Lebanese Forces,0.45,0.06,0.096,0.117,0,con
+LBN,HZB,Hezbollah,-0.29,0.93,0.164,0.094,1,oth
+LBN,PSP,Progressive Socialist Party,-0.04,0.23,0.046,0.070,1,soc
+LBN,AZM,Azm Movement,0.33,-0.40,0.022,0.031,0,lib
+LBN,KAT,Kataeb Party,0.42,0.00,0.018,0.023,0,con
+LBN,MAR,Marada Movement,0.00,0.60,0.018,0.023,1,con
+LBN,OTH,Other parties and independents,0.00,0.40,0.214,0.125,0,oth
+COD,FCC,Common Front for Congo (FCC),0.00,0.60,0.238,0.682,1,oth
+COD,CACH,"Heading for Change (CACH: UDPS, UNC)",-0.10,0.50,0.386,0.094,1,soc
+COD,LAM,Lamuka,0.30,0.40,0.348,0.224,0,lib
+COD,OTH,Other parties,0.00,0.50,0.028,0.000,0,oth
+ETH,PP,Prosperity Party (EPRDF and allies until December 2019),-0.29,0.55,0.929,0.929,1,oth
+ETH,TPLF,Tigray People's Liberation Front,-0.40,0.30,0.069,0.069,0,reg
+ETH,OTH,Independents,0.00,0.50,0.002,0.002,0,oth
+EGY,NFP,Nation's Future Party,-0.60,0.60,0.089,0.089,1,con
+EGY,FEP,Free Egyptians Party,0.07,-0.40,0.109,0.109,0,lib
+EGY,WAFD,New Wafd Party,0.00,0.50,0.060,0.060,1,lib
+EGY,HDP,Homeland Defenders Party,0.00,0.60,0.030,0.030,1,oth
+EGY,NOUR,Al-Nour Party,-0.20,0.90,0.018,0.018,0,oth
+EGY,IND,Independents (mostly pro-government),0.00,0.60,0.545,0.545,1,oth
+EGY,OTH,Other parties and appointed members,0.00,0.50,0.149,0.148,0,oth
+IRN,HOPE,List of Hope (reformists and moderates),0.20,0.40,0.417,0.417,1,lib
+IRN,PRIN,Principlists,-0.10,0.90,0.286,0.286,0,con
+IRN,OTH,Independents and minority seats,0.00,0.70,0.297,0.297,0,oth
+JOR,IND,Pro-government independents and tribal lists,0.10,0.60,0.885,0.885,1,oth
+JOR,IAF,National Coalition for Reform (Islamic Action Front),0.10,0.85,0.115,0.115,0,oth
+VNM,CPV,Communist Party of Vietnam,-0.67,0.56,0.958,0.958,1,com
+VNM,OTH,Non-party deputies (Fatherland Front nominees),-0.20,0.60,0.042,0.042,0,oth
+LAO,LPRP,Lao People's Revolutionary Party,-0.40,0.74,0.966,0.966,1,com
+LAO,OTH,Non-party deputies,-0.20,0.70,0.034,0.034,0,oth
+CUB,PCC,Communist Party of Cuba,-0.88,0.15,1.000,1.000,1,com
+PRK,WPK,Workers' Party of Korea,-0.95,0.95,1.000,1.000,1,com
+ERI,PFDJ,People's Front for Democracy and Justice (PFDJ),-0.87,0.80,1.000,1.000,1,com
+ARE,RUL,Ruling families and Federal Supreme Council (no parties),0.30,0.80,1.000,1.000,1,oth
+OMN,RUL,Sultan and royal establishment (no parties),0.10,0.85,1.000,1.000,1,oth
+QAT,RUL,Emir and royal establishment (no parties),0.20,0.85,1.000,1.000,1,oth
+KWT,RUL,Emir's government and National Assembly (no legal parties),0.10,0.80,1.000,1.000,1,oth
+BHR,RUL,Royal establishment and Council of Representatives (no legal parties),0.20,0.85,1.000,1.000,1,oth
+BRN,RUL,Sultan and royal establishment (no elected legislature),0.10,0.95,1.000,1.000,1,oth
+SWZ,RUL,King and Tinkhundla establishment (no parties),0.10,0.85,1.000,1.000,1,oth
+SDN,TRN,Transitional authorities (Sovereignty Council and Hamdok cabinet; no elected legislature),0.00,0.60,1.000,1.000,1,oth
+SSD,SPLM,"Sudan People's Liberation Movement (transitional, appointed legislature)",-0.10,0.60,1.000,1.000,1,oth
+SOM,FGS,"Federal Government (clan-based 4.5 parliament, no parties)",0.20,0.80,1.000,1.000,1,oth
+GRD,NNP,New National Party,0.30,0.40,0.589,1.000,1,con
+GRD,NDC,National Democratic Congress,-0.10,0.30,0.405,0.000,0,soc
+GRD,OTH,Other parties,0.00,0.30,0.006,0.000,0,oth
+LCA,UWP,United Workers Party,0.30,0.40,0.548,0.647,1,con
+LCA,SLP,Saint Lucia Labour Party,-0.10,0.30,0.441,0.353,0,soc
+LCA,OTH,Independents,0.00,0.30,0.011,0.000,0,oth
+VCT,ULP,Unity Labour Party,-0.20,0.30,0.523,0.533,1,soc
+VCT,NDP,New Democratic Party,0.30,0.40,0.474,0.467,0,con
+VCT,OTH,Other parties,0.00,0.30,0.003,0.000,0,oth
+DMA,DLP,Dominica Labour Party,-0.10,0.40,0.590,0.857,1,soc
+DMA,UWP,United Workers' Party,0.30,0.40,0.410,0.143,0,con
+ATG,ABLP,Antigua and Barbuda Labour Party,0.00,0.40,0.592,0.882,1,soc
+ATG,UPP,United Progressive Party,0.30,0.40,0.371,0.059,0,con
+ATG,OTH,"Other parties (Barbuda People's Movement, DNA)",0.00,0.40,0.037,0.059,0,oth
+KNA,SKNL,Saint Kitts and Nevis Labour Party,-0.10,0.30,0.393,0.273,0,soc
+KNA,PAM,People's Action Movement (Team Unity),0.30,0.40,0.279,0.364,1,con
+KNA,CCM,Concerned Citizens' Movement (Team Unity),0.10,0.40,0.130,0.182,1,reg
+KNA,NRP,Nevis Reformation Party,0.10,0.40,0.108,0.091,0,reg
+KNA,PLP,People's Labour Party (Team Unity),0.00,0.40,0.090,0.091,1,oth
+SYC,LDS,Linyon Demokratik Seselwa,0.20,0.20,0.496,0.576,0,lib
+SYC,US,United Seychelles (People's Party),-0.10,0.30,0.492,0.424,1,soc
+SYC,OTH,Other parties,0.00,0.30,0.012,0.000,0,oth
+LIE,FBP,Progressive Citizens' Party,0.40,0.40,0.352,0.360,1,con
+LIE,VU,Patriotic Union,0.30,0.40,0.337,0.320,1,con
+LIE,DU,The Independents (DU),0.30,0.70,0.184,0.200,0,oth
+LIE,FL,Free List,-0.40,-0.60,0.126,0.120,0,grn
+NER,PNDS,Nigerien Party for Democracy and Socialism (PNDS-Tarayya),-0.20,0.40,0.357,0.439,1,soc
+NER,MODN,MODEN/FA Lumana Africa,0.20,0.40,0.129,0.146,0,con
+NER,MNSD,National Movement for the Development of Society (MNSD-Nassara),0.20,0.50,0.102,0.117,1,con
+NER,MPR,Patriotic Movement for the Republic (MPR-Jamhuriya),0.10,0.50,0.072,0.076,1,oth
+NER,OTH,Other parties,0.00,0.50,0.340,0.222,0,oth
+MLI,RPM,Rally for Mali (RPM),0.40,0.60,0.449,0.449,1,soc
+MLI,URD,Union for the Republic and Democracy (URD),0.40,0.60,0.116,0.116,0,lib
+MLI,ADEM,Alliance for Democracy in Mali (ADEMA-PASJ),0.40,0.60,0.109,0.109,1,soc
+MLI,OTH,Other parties and independents,0.00,0.60,0.326,0.327,0,oth
+BDI,CNDD,CNDD-FDD,-0.10,0.40,0.748,0.711,1,oth
+BDI,IOH,Independents of Hope (Amizero y'Abarundi),0.00,0.50,0.139,0.248,0,oth
+BDI,UPRO,Union for National Progress (UPRONA),-0.80,0.60,0.031,0.017,1,oth
+BDI,OTH,Other parties and co-opted members,0.00,0.50,0.082,0.025,0,oth
+MYS,PKR,People's Justice Party (PKR),-0.03,-0.30,0.170,0.212,1,lib
+MYS,DAP,Democratic Action Party (DAP),-0.10,-0.30,0.175,0.189,1,soc
+MYS,BERS,Malaysian United Indigenous Party (Bersatu),0.20,0.60,0.061,0.059,1,con
+MYS,AMAN,National Trust Party (Amanah),0.00,0.40,0.055,0.050,1,oth
+MYS,UMNO,United Malays National Organisation (UMNO),0.35,0.58,0.211,0.243,0,con
+MYS,PAS,Malaysian Islamic Party (PAS),0.05,0.92,0.170,0.081,0,oth
+MYS,GPS,"Sarawak Parties Alliance (PBB, PRS, PDP, SUPP; BN in 2018)",0.20,0.50,0.038,0.086,0,reg
+MYS,MCA,Malaysian Chinese Association (MCA),0.30,0.30,0.055,0.005,0,con
+MYS,WAR,Sabah Heritage Party (Warisan),-0.07,0.07,0.023,0.036,1,reg
+MYS,OTH,Other parties and independents,0.10,0.40,0.042,0.041,0,oth
+UZB,LDP,Liberal Democratic Party of Uzbekistan (UzLiDeP),0.40,0.60,0.353,0.353,1,lib
+UZB,MT,National Revival Democratic Party (Milliy Tiklanish),0.20,0.80,0.240,0.240,0,con
+UZB,ADO,Justice Social Democratic Party (Adolat),-0.20,0.60,0.160,0.160,0,soc
+UZB,PDP,People's Democratic Party of Uzbekistan,-0.50,0.60,0.147,0.147,0,soc
+UZB,ECO,Ecological Party of Uzbekistan,0.00,0.50,0.100,0.100,0,grn

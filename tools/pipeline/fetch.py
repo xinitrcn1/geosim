@@ -67,6 +67,25 @@ WDI_INDICATORS = {
     "ST.INT.DPRT": "tourist_departures",
 }
 
+# Further WDI indicators for the full world's society, finance and extension tables
+# (build_world.py -> society.csv, finance.csv, nations_ext.csv, logistics.csv).
+WORLD_WDI = {
+    "IT.NET.USER.ZS": "internet_pct",               # ITU via WDI
+    "SL.UEM.1524.ZS": "youth_unemployment_pct",      # ILO modelled estimates via WDI
+    "SL.UEM.TOTL.ZS": "unemployment_pct",
+    "SP.POP.1564.TO.ZS": "pop_15_64_pct",            # UN World Population Prospects via WDI
+    "SP.POP.TOTL.MA.ZS": "male_pct",
+    "SP.POP.1519.MA.5Y": "male_15_19_pct", "SP.POP.2024.MA.5Y": "male_20_24_pct", "SP.POP.2529.MA.5Y": "male_25_29_pct",
+    "SP.POP.1519.FE.5Y": "female_15_19_pct", "SP.POP.2024.FE.5Y": "female_20_24_pct", "SP.POP.2529.FE.5Y": "female_25_29_pct",
+    "FS.AST.PRVT.GD.ZS": "private_credit_pct",       # IMF IFS via WDI
+    "FB.AST.NPER.ZS": "npl_pct",                     # IMF FSI via WDI
+    "FR.INR.LNDP": "lending_spread_pp",              # IMF IFS via WDI
+    "FI.RES.TOTL.MO": "reserves_months",
+    "GB.XPD.RSDV.GD.ZS": "rd_pct",                   # UNESCO UIS via WDI
+    "IS.SHP.GOOD.TU": "port_teu",                    # Lloyd's / UNCTAD via WDI
+    "TM.TAX.MRCH.WM.AR.ZS": "tariff_pct",            # WITS via WDI
+}
+
 SOURCES = [
     ("World Bank WDI", "https://data.worldbank.org", "CC BY 4.0"),
     ("World Bank Worldwide Governance Indicators (VA.EST, GE.EST)", "https://info.worldbank.org/governance/wgi", "CC BY 4.0"),
@@ -77,6 +96,23 @@ SOURCES = [
     ("Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)", "https://github.com/datasets/oil-prices", "Public domain (EIA) / PDDL"),
     ("The Economist excess-deaths model (estimated excess deaths by country)", "https://github.com/TheEconomist/covid-19-the-economist-global-excess-deaths-model", "CC BY 4.0"),
     ("Our World in Data energy dataset (Energy Institute Statistical Review of World Energy; EIA)", "https://github.com/owid/energy-data", "CC BY 4.0"),
+    ("World Bank Fiscal Space Database (Kose, Kurlat, Ohnsorge & Sugawara 2022, J. Int. Money and Finance 128; "
+     "general-government debt and balance from IMF WEO and historical sources; debt composition)",
+     "https://www.worldbank.org/en/research/brief/fiscal-space", "CC BY 4.0"),
+    ("World Bank Global Financial Development Database (GFDD.SI.05 bank regulatory capital to risk-weighted assets)",
+     "https://www.worldbank.org/en/publication/gfdr/data/global-financial-development-database", "CC BY 4.0"),
+    ("World Bank Worldwide Governance Indicators: control of corruption (CC.EST)", "https://info.worldbank.org/governance/wgi", "CC BY 4.0"),
+    ("WHO Global Health Observatory: hospital beds per 10,000 (WHS6_102)", "https://www.who.int/data/gho", "CC BY-NC-SA 3.0 IGO"),
+    ("ILOSTAT: trade union density (ILR_TUMT_NOC_RT_A) and collective bargaining coverage (ILR_CBCT_NOC_RT_A)",
+     "https://ilostat.ilo.org", "CC BY 4.0"),
+    ("Transparency International Corruption Perceptions Index 2019", "https://www.transparency.org/en/cpi/2019",
+     "CC BY-ND 4.0 (scores used unmodified)"),
+    ("UN DESA International Migrant Stock 2020 (by destination and origin)",
+     "https://www.un.org/development/desa/pd/content/international-migrant-stock", "UN terms of use (free reuse with attribution)"),
+    ("Nunn & Puga (2012) Ruggedness: the blessing of bad geography in Africa, REStat 94(1); country data",
+     "https://diegopuga.org/data/rugged/", "Free for research use with citation"),
+    ("Unicode CLDR supplemental territoryInfo and language aliases (language populations per territory)",
+     "https://github.com/unicode-org/cldr-json", "Unicode License v3"),
 ]
 
 # World map (tools/pipeline/build_map.py -> assets/map/world.gsmap).
@@ -111,6 +147,32 @@ def fetch_map(raw: pathlib.Path, force: bool) -> None:
     get(NE_URL + "ne_10m_admin_0_countries.geojson", d / "ne_10m_admin_0_countries.geojson", force)
     get(NE_URL + "ne_50m_lakes.geojson", d / "ne_50m_lakes.geojson", force)
     get(WORLDCLIM_PREC_URL, d / "wc2.1_10m_prec.zip", force)
+
+
+def fetch_world_extras(raw: pathlib.Path, force: bool) -> None:
+    """Inputs of the full world's society, finance and extension tables (build_world.py)."""
+    print("World extras: WDI society / finance indicators, Fiscal Space, GFDD, WGI, WHO, ILOSTAT, TI, UN DESA, Nunn-Puga, CLDR")
+    d = raw / "world_extra"
+    (d / "wdi").mkdir(parents=True, exist_ok=True)
+    for code in WORLD_WDI:
+        get(f"https://api.worldbank.org/v2/country/all/indicator/{code}?date=2010:2020&format=json&per_page=20000",
+            d / "wdi" / f"{code}.json", force)
+    get("https://api.worldbank.org/v2/country/all/indicator/GOV_WGI_CC.EST?date=2015:2019&format=json&per_page=20000",
+        d / "wgi_cc.json", force)
+    get("https://api.worldbank.org/v2/sources/32/country/all/series/GFDD.SI.05/time/YR2015;YR2016;YR2017;YR2018;YR2019"
+        "?format=json&per_page=2000", d / "gfdd_si05.json", force)
+    get("https://www.worldbank.org/content/dam/theworldbankgroupasset/document/2026/fiscal-space-database/Fiscal-space-data.xlsx",
+        d / "fiscal_space.xlsx", force)
+    get("https://ghoapi.azureedge.net/api/WHS6_102", d / "who_beds.json", force)
+    get("https://rplumber.ilo.org/data/indicator/?id=ILR_TUMT_NOC_RT_A&format=.csv", d / "ilo_union_density.csv", force)
+    get("https://rplumber.ilo.org/data/indicator/?id=ILR_CBCT_NOC_RT_A&format=.csv", d / "ilo_bargaining_coverage.csv", force)
+    get("https://images.transparencycdn.org/images/2019_CPI_FULLDATA.zip", d / "ti_cpi2019.zip", force)
+    get("https://www.un.org/development/desa/pd/sites/www.un.org.development.desa.pd/files/"
+        "undesa_pd_2020_ims_stock_by_sex_destination_and_origin.xlsx", d / "undesa_ims2020.xlsx", force)
+    get("https://diegopuga.org/data/rugged/rugged_data.zip", d / "rugged_data.zip", force)
+    cldr = "https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-core/supplemental/"
+    get(cldr + "territoryInfo.json", d / "cldr_territory_info.json", force)
+    get(cldr + "aliases.json", d / "cldr_aliases.json", force)
 
 
 def pick_adm1(meta):
@@ -150,6 +212,7 @@ def main() -> int:
     ap.add_argument("--raw", default="data/raw")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--map-only", action="store_true", help="only the world-map inputs (build_map.py)")
+    ap.add_argument("--no-map", action="store_true", help="skip the world-map inputs (~230 MB)")
     args = ap.parse_args()
     raw = pathlib.Path(args.raw)
     if args.map_only:
@@ -204,6 +267,9 @@ def main() -> int:
     print("Natural Earth populated places")
     get("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_populated_places_simple.geojson",
         raw / "ne_populated_places.geojson", args.force)
+    # France's overseas regions (absent from geoBoundaries' ADM1 file): admin-0 map units.
+    get("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_map_units.geojson",
+        raw / "ne_10m_admin_0_map_units.geojson", args.force)
 
     print("Brent (EIA RBRTE)")
     get("https://raw.githubusercontent.com/datasets/oil-prices/main/data/brent-daily.csv",
@@ -230,7 +296,9 @@ def main() -> int:
         f"?startPeriod=2007-12-01&endPeriod=2009-12-31&format=csv",
         raw / "bis_cbpol_2008.csv", args.force)
 
-    fetch_map(raw, args.force)
+    fetch_world_extras(raw, args.force)
+    if not args.no_map:
+        fetch_map(raw, args.force)
 
     (raw / "sources.json").write_text(json.dumps(SOURCES, indent=1))
     print("done")

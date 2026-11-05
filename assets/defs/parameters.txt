@@ -95,6 +95,8 @@ vote_retrospective{1}                    # weight of the incumbent's performance
 vote_health_weight{0.1}                  # performance penalty per daily death per million
 vote_temperature{0.3}                    # logit temperature of vote choice
 vote_retrospective_cap{0.15}             # most vote utility performance can cost or win the incumbent (saturating; partisans discount bad news, Bartels 2002)
+request_window_days{21}                  # days a player-controlled agent has to answer a request before its AI answers
+request_cooldown_days{180}               # days before an agent asks again after a request
 vote_memory_years{1.5}                   # years over which voters' reference for performance adapts (myopic retrospection; Healy & Lenz 2014)
 legitimacy_years{1}                      # adjustment time of legitimacy (years)
 force_legitimacy_cost{0.1}               # legitimacy lost per year per forced lever
@@ -437,6 +439,8 @@ retirement_debt{0.5}                     # pragmatic later retirement (years) pe
 education_tertiary{0.02}                 # tertiary-share rise per year per % GDP of extra education spending (lagged)
 health_beds{0.5}                         # hospital beds per 1000 added per year per % GDP of extra health spending
 capital_controls_trigger{5}              # portfolio outflow (% GDP/yr) at which controls become pragmatic
+region_gdp_urban_premium{0.8}            # regional GDP per head rises by this x (urban share - national urban share) when regions carry no sector data (World Bank WDR 2009)
+region_gdp_min_factor{0.3}               # floor of a region's GDP per head relative to the national mean in that derivation
 district_exponent{1.5}                   # seat-vote exponent of single-member districts inside one region (geographic sorting flattens the cube law; US House 2012-20 ~1.5)
 party_anchor{0.7}                        # weight of a mainstream party's core position against its voters' centroid (activists, primaries; Aldrich 1983)
 cube_law{3}                              # seat-vote exponent of single-member districts within a region (Taagepera 1986)

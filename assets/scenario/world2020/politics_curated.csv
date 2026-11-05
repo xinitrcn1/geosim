@@ -1,4 +1,4 @@
-# Copied from the 2020 slice (curated for its 20 nations); other nations use the loader defaults (scenario.cpp create_politics).
+# World scenario political systems: the 20 nations of the 2020 slice (copied unchanged) plus the 152 nations added with parties_curated.csv (see 'Added nations' below); other nations use the loader defaults (scenario.cpp create_politics).
 # Political systems and 2020 incumbents (hand-written; approximate, to be replaced by ParlGov /
 # Manifesto Project data). Every nation gets three generic parties L / C / R
 # (economic left-right -0.5 / 0 / +0.5; L more secular and self-expressive, R more traditional).
@@ -11,6 +11,26 @@
 #  pr_threshold: national legal threshold for PR seats (DEU 5%, TUR 10% in 2018, ...); smd_share:
 #  share of seats elected in single-member districts in mixed systems (JPN 62%, KOR 84%, MEX 60%,
 #  ITA 37%; DEU is compensatory, so its result is proportional). system: pr | fptp | mixed | two_round | none.
+# Added nations (rows after ARG; one row for every nation added to parties_curated.csv, 2026-11):
+#  system: electoral system of the lower / unicameral house; none where WGI voice < -1.4 (the
+#    loader's own rule: AZE, BDI, BHR, EGY, ERI, GNQ, IRN, KHM, LAO, PRK, QAT, SDN, SOM, SSD, SYR,
+#    TJK, TKM, UZB, VEN), plus the one-party states CUB and VNM, the no-party monarchies ARE, BRN,
+#    KWT, OMN, SWZ (SAU convention) and PSE (no national election since 2006). mixed = parallel;
+#    compensatory systems (BOL, NZL, LSO, THA) get smd_share 0 as DEU does. term_years:
+#    legislative term.
+#  next_election: actual date of the next lower-house election for parliamentary systems
+#    (presidential 0), earliest presidential or legislative date for presidential 1; UKR is the
+#    scheduled March 2024 presidential date (not held under martial law); empty for system none.
+#  presidential: 1 where the executive is not responsible to the legislature (presidential and
+#    president-dominated systems, incl. CHE's Federal Council).
+#  veto: Henisz POLCON-III (h_polcon3, latest year <= 2019, i.e. 2016, from the QoG Standard
+#    time-series dataset, January 2024 release), rounded to 0.05; capped at 0.15 for system none
+#    (as the RUS row); expert judgement for TLS 0.4, XKX 0.4, PSE 0.1, SSD 0.1 (not in POLCON).
+#  defense_pct: nations.csv defense_pct (SIPRI via WDI), the value the loader would use anyway.
+#  incumbent: L / C / R from the seat-weighted economic position of the governing parties
+#    (< -0.15 L, > 0.15 R); the loader only reads it for nations with generic parties.
+#  pr_threshold / smd_share: national legal thresholds and SMD seat shares (IPU Parline /
+#    electoral laws as summarised in the election articles); 0 where there is none.
 iso3,system,term_years,next_election,incumbent,presidential,veto,defense_pct,pr_threshold,smd_share
 USA,fptp,4,2020-11-03,R,1,0.85,3.4,0,1
 CHN,none,5,,C,0,0,1.9,0,0
@@ -32,3 +52,155 @@ IDN,pr,5,2024-02-14,C,1,0.45,0.8,0.04,0
 SAU,none,0,,C,0,0,8.0,0,0
 ZAF,pr,5,2024-05-29,L,0,0.35,1.0,0,0
 ARG,pr,4,2023-10-22,L,1,0.45,0.7,0.03,0
+AUT,pr,5,2024-09-29,C,0,0.4,0.8,0.04,0
+BEL,pr,5,2024-06-09,R,0,0.7,0.9,0.05,0
+BGR,pr,4,2021-04-04,R,0,0.55,3.2,0.04,0
+CHE,pr,4,2023-10-22,R,1,0.4,0.7,0,0
+CYP,pr,5,2021-05-30,R,1,0.5,1.8,0.036,0
+CZE,pr,4,2021-10-08,L,0,0.6,1.2,0.05,0
+DNK,pr,4,2022-11-01,L,0,0.55,1.3,0.02,0
+EST,pr,4,2023-03-05,C,0,0.55,2.0,0.05,0
+FIN,pr,4,2023-04-02,L,0,0.55,1.4,0,0
+GRC,pr,4,2023-05-21,R,0,0.45,2.6,0.03,0
+HRV,pr,4,2020-07-05,C,0,0.5,1.6,0.05,0
+HUN,mixed,4,2022-04-03,L,0,0.45,1.3,0.05,0.53
+IRL,pr,5,2020-02-08,R,0,0.5,0.3,0,0
+ISL,pr,4,2021-09-25,C,0,0.5,0.0,0.05,0
+LTU,mixed,4,2020-10-11,L,0,0.55,2.0,0.05,0.50
+LUX,pr,5,2023-10-08,C,0,0.5,0.5,0,0
+LVA,pr,4,2022-10-01,R,0,0.55,2.1,0.05,0
+MLT,pr,5,2022-03-26,R,0,0.35,0.5,0,0
+NLD,pr,4,2021-03-17,R,0,0.7,1.3,0.0067,0
+NOR,pr,4,2021-09-13,R,0,0.5,1.8,0.04,0
+POL,pr,4,2023-10-15,L,0,0.45,2.0,0.05,0
+PRT,pr,4,2022-01-30,L,0,0.45,1.4,0,0
+ROU,pr,4,2020-12-06,R,0,0.25,1.8,0.05,0
+SVK,pr,4,2020-02-29,L,0,0.5,1.7,0.05,0
+SVN,pr,4,2022-04-24,L,0,0.5,1.1,0.04,0
+SWE,pr,4,2022-09-11,L,0,0.55,1.1,0.04,0
+NZL,mixed,3,2020-10-17,C,0,0.45,1.3,0.05,0
+ISR,pr,4,2020-03-02,R,0,0.6,5.0,0.0325,0
+PAK,fptp,5,2024-02-08,C,0,0.3,3.5,0,0
+THA,mixed,4,2023-05-14,R,0,0.4,1.3,0,0
+AGO,pr,5,2022-08-24,L,1,0.25,1.8,0,0
+BOL,mixed,5,2020-10-18,R,1,0.4,1.5,0.03,0
+CMR,fptp,5,2020-02-09,C,1,0,1.1,0,0
+CHL,pr,4,2021-11-21,R,1,0.1,1.9,0,0
+ECU,pr,4,2021-02-07,L,1,0.35,2.2,0,0
+KEN,fptp,5,2022-08-09,R,1,0.4,1.1,0,0
+NPL,mixed,5,2022-11-20,L,0,0.45,1.2,0.03,0.60
+KHM,none,5,,C,0,0.15,1.6,0,0
+COL,pr,4,2022-03-13,R,1,0.65,3.1,0.03,0
+IRQ,pr,4,2021-10-10,L,0,0.55,3.2,0,0
+MAR,pr,5,2021-09-08,C,0,0.3,2.9,0.03,0
+GHA,fptp,4,2020-12-07,R,1,0.35,0.3,0,0
+CIV,fptp,5,2020-10-31,R,1,0.45,0.9,0,0
+KAZ,pr,5,2021-01-10,C,1,0,1.0,0.07,0
+TWN,mixed,4,2020-01-11,C,1,0.3,1.5,0.05,0.70
+UGA,fptp,5,2021-01-14,C,1,0.3,1.7,0,0
+ZMB,fptp,5,2021-08-12,L,1,0.2,1.3,0,0
+VEN,none,5,,L,1,0.15,2.2,0,0
+MMR,fptp,5,2020-11-08,C,1,0.4,2.0,0,0
+GIN,mixed,5,2020-03-22,L,1,0.45,1.5,0,0.33
+SYR,none,4,,L,1,0,4.1,0,0
+PER,pr,5,2020-01-26,R,1,0.15,1.2,0.05,0
+UKR,mixed,5,2024-03-31,R,1,0.1,4.1,0.05,0.50
+BFA,pr,5,2020-11-22,C,1,0.5,2.2,0,0
+TZA,fptp,5,2020-10-28,R,1,0,1.1,0,0
+HND,pr,4,2021-11-28,R,1,0.5,1.6,0,0
+PNG,fptp,5,2022-07-04,C,0,0.5,0.4,0,0
+TJK,none,5,,L,1,0.15,1.0,0,0
+BLR,two_round,4,2020-08-09,L,1,0,1.6,0,1
+SRB,pr,4,2020-06-21,C,0,0.35,2.2,0.05,0
+MDA,mixed,4,2021-07-11,L,0,0.55,0.3,0.05,0.50
+ALB,pr,4,2021-04-25,C,0,0.3,1.3,0.03,0
+MKD,pr,4,2020-07-15,L,0,0.45,1.2,0,0
+BEN,pr,4,2021-04-11,R,1,0.55,0.5,0.10,0
+TTO,fptp,5,2020-08-10,C,0,0.45,0.7,0,1
+GEO,mixed,4,2020-10-31,C,0,0.55,1.8,0.05,0.49
+MOZ,pr,5,2024-10-09,R,1,0.35,1.4,0,0
+MNG,fptp,4,2020-06-24,L,0,0.35,0.7,0,1
+KGZ,pr,5,2020-10-04,C,0,0.25,2.7,0.07,0
+TKM,none,5,,L,1,0,1.3,0,0
+BTN,fptp,5,2023-11-30,L,0,0,1.5,0,1
+MDV,fptp,5,2023-09-09,C,1,0.5,1.3,0,1
+SGP,fptp,5,2020-07-10,L,0,0.2,2.8,0,1
+TLS,pr,5,2023-05-21,R,0,0.4,1.7,0.04,0
+FJI,pr,4,2022-12-14,L,0,0.35,1.4,0.05,0
+NGA,fptp,4,2023-02-25,C,1,0.35,0.5,0,1
+BIH,pr,4,2022-10-02,C,0,0,0.8,0.03,0
+MNE,pr,4,2020-08-30,C,0,0.45,1.3,0.03,0
+XKX,pr,4,2021-02-14,R,0,0.4,0.8,0.05,0
+ARM,pr,5,2021-06-20,C,0,0.45,4.8,0.05,0
+AZE,none,5,,C,1,0,3.8,0,1
+MDG,fptp,5,2023-11-16,L,1,0.55,0.5,0,1
+MWI,fptp,5,2020-06-23,L,1,0.5,0.8,0,1
+ZWE,mixed,5,2023-08-23,L,1,0.35,0.7,0,0.78
+TUN,pr,5,2022-12-17,R,0,0.5,2.4,0,0
+RWA,pr,5,2024-07-15,C,1,0.4,1.2,0.05,0
+PRY,pr,5,2023-04-30,R,1,0.5,1.0,0,0
+URY,pr,5,2024-10-27,L,1,0.5,1.9,0,0
+CRI,pr,4,2022-02-06,C,1,0.15,0.0,0,0
+PAN,mixed,5,2024-05-05,R,1,0.25,0.0,0,0.37
+SLV,pr,3,2021-02-28,R,1,0.2,1.2,0,0
+NIC,pr,5,2021-11-07,L,1,0.3,0.6,0,0
+JAM,fptp,5,2020-09-03,R,0,0.4,1.7,0,1
+GUY,pr,5,2020-03-02,C,1,0.35,1.3,0,0
+SUR,pr,5,2020-05-25,L,1,0.4,1.3,0,0
+BHS,fptp,5,2021-09-16,L,0,0.25,1.5,0,1
+BRB,fptp,5,2022-01-19,C,0,0.35,1.5,0,1
+BLZ,fptp,5,2020-11-11,R,0,0.35,1.0,0,1
+GTM,pr,4,2023-06-25,R,1,0.1,0.4,0,0
+PSE,none,4,,C,1,0.1,1.5,0,0
+COG,two_round,5,2021-03-21,C,1,0,2.1,0,1
+GAB,two_round,5,2023-08-26,C,1,0.05,1.6,0,1
+GNQ,none,5,,R,1,0,1.3,0,0
+LBR,fptp,6,2023-10-10,C,1,0.7,0.4,0,1
+SLE,fptp,5,2023-06-24,C,1,0.4,0.4,0,1
+TGO,pr,5,2020-02-22,C,1,0.35,2.4,0,0
+GNB,pr,4,2023-06-04,C,0,0.3,1.5,0,0
+NAM,pr,5,2024-11-27,C,1,0.2,3.3,0,0
+BWA,fptp,5,2024-10-30,C,0,0.3,3.1,0,1
+LSO,mixed,5,2022-10-07,L,0,0.5,1.9,0,0
+CPV,pr,5,2021-04-18,R,0,0.3,0.4,0,0
+STP,pr,4,2022-09-25,R,0,0.35,1.5,0,0
+DJI,pr,5,2021-04-09,C,1,0.3,1.5,0,0
+DOM,pr,4,2020-07-05,R,1,0.25,0.7,0,0
+PHL,mixed,3,2022-05-09,R,1,0.15,1.1,0.02,0.80
+BGD,fptp,5,2024-01-07,L,0,0.25,1.2,0,1
+SEN,mixed,5,2022-07-31,C,1,0.25,1.5,0,0.64
+LKA,pr,5,2020-08-05,C,1,0.2,1.8,0.05,0
+LBN,pr,4,2022-05-15,C,0,0.55,4.7,0,0
+COD,pr,5,2023-12-20,C,1,0.7,0.7,0,0
+ETH,fptp,5,2021-06-21,L,0,0.1,0.6,0,1
+EGY,none,5,,C,1,0.15,1.2,0,0
+IRN,none,4,,R,1,0,2.1,0,0
+JOR,pr,4,2020-11-10,C,0,0.05,4.6,0,0
+VNM,none,5,,L,0,0.1,2.2,0,0
+LAO,none,5,,L,0,0.05,0.2,0,0
+CUB,none,5,,L,0,0,2.9,0,0
+PRK,none,5,,L,0,0,1.5,0,0
+ERI,none,5,,L,1,0,1.5,0,0
+ARE,none,0,,R,0,0,5.6,0,0
+OMN,none,0,,C,0,0,7.4,0,0
+QAT,none,0,,R,0,0,1.5,0,0
+KWT,none,4,,C,0,0.15,5.2,0,0
+BHR,none,4,,R,0,0,4.0,0,0
+BRN,none,0,,C,0,0,3.1,0,0
+SWZ,none,5,,C,0,0,1.9,0,0
+SDN,none,0,,C,1,0,1.6,0,0
+SSD,none,0,,C,1,0.1,3.8,0,0
+SOM,none,4,,R,1,0.15,0.8,0,0
+GRD,fptp,5,2022-06-23,R,0,0,1.3,0,1
+LCA,fptp,5,2021-07-26,R,0,0.3,1.3,0,1
+VCT,fptp,5,2020-11-05,L,0,0.35,1.3,0,1
+DMA,fptp,5,2022-12-06,C,0,0.5,1.3,0,1
+ATG,fptp,5,2023-01-18,C,0,0.2,1.5,0,1
+KNA,fptp,5,2020-06-05,R,0,0.6,1.5,0,1
+SYC,mixed,5,2020-10-24,C,1,0,1.2,0,0.76
+LIE,pr,4,2021-02-07,R,0,0.5,1.5,0.08,0
+NER,pr,5,2020-12-27,C,1,0.55,1.9,0,0
+MLI,two_round,5,2020-03-29,R,1,0.5,2.8,0,1
+BDI,none,5,,C,1,0.15,2.8,0,0
+MYS,fptp,5,2022-11-19,C,0,0.35,0.9,0,1
+UZB,none,5,,R,1,0,2.5,0,0

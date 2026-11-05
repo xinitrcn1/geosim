@@ -306,7 +306,7 @@ def main() -> int:
     for iso in isos:
         k = 0
         for f, rp, box in bounds[iso]:
-            if bw.owned_by_smaller(iso, rp, box, bounds, total, allowed):
+            if bw.territory_of(iso, f.get("properties") or {}, allowed) or bw.owned_by_smaller(iso, rp, box, bounds, total, allowed):
                 continue
             rid = f"{iso}-{k:03d}"
             k += 1

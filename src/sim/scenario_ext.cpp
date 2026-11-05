@@ -13,7 +13,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <numbers>
 #include <sstream>
@@ -26,6 +29,13 @@ namespace {
 bool exists(std::string const& path) {
     std::error_code ec;
     return std::filesystem::exists(path, ec) && !ec;
+}
+
+std::string read_text(std::string const& path) {
+    std::ifstream in(path, std::ios::binary);
+    if(!in) return {};
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    return text;
 }
 
 dcon::sea_node_id find_node(game_state const& state, std::string_view key) {
@@ -53,6 +63,43 @@ float great_circle_km(float lat1, float lon1, float lat2, float lon2) {
 }
 
 } // namespace
+
+std::string base_scenario_dir(std::string const& dir) {
+    // scenario.txt is a defs file; `base{NAME}` outside comments names the base scenario.
+    const std::string text = read_text(dir + "/scenario.txt");
+    std::size_t at = 0;
+    while((at = text.find("base{", at)) != std::string::npos) {
+        const auto line_start = text.rfind('\n', at);
+        const auto comment = text.find('#', line_start == std::string::npos ? 0 : line_start + 1);
+        const auto end = text.find('}', at);
+        if(end == std::string::npos) break;
+        if(comment == std::string::npos || comment > at) {
+            std::string name = text.substr(at + 5, end - at - 5);
+            while(!name.empty() && std::isspace(static_cast<unsigned char>(name.back()))) name.pop_back();
+            while(!name.empty() && std::isspace(static_cast<unsigned char>(name.front()))) name.erase(name.begin());
+            const auto slash = dir.find_last_of('/');
+            return name.empty() ? std::string{} : (slash == std::string::npos ? name : dir.substr(0, slash + 1) + name);
+        }
+        at = end;
+    }
+    return {};
+}
+
+std::vector<std::string> layered_tables(std::string const& dir, std::string const& generated, std::string const& curated) {
+    std::vector<std::string> out;
+    if(!generated.empty() && exists(dir + "/" + generated)) out.push_back(dir + "/" + generated);
+    const std::string base = base_scenario_dir(dir);
+    if(!base.empty() && exists(base + "/" + curated)) out.push_back(base + "/" + curated);
+    if(exists(dir + "/" + curated)) out.push_back(dir + "/" + curated);
+    return out;
+}
+
+std::string inherited_table(std::string const& dir, std::string const& file) {
+    if(exists(dir + "/" + file)) return dir + "/" + file;
+    const std::string base = base_scenario_dir(dir);
+    if(!base.empty() && exists(base + "/" + file)) return base + "/" + file;
+    return {};
+}
 
 void load_sea_network(game_state& state, std::string const& assets_dir, core::diagnostics& diag) {
     const std::string path = assets_dir + "/defs/sea_lanes.txt";
@@ -161,6 +208,7 @@ void load_commodity_defs(game_state& state, std::string const& assets_dir, core:
         w.commodity_set_supply_index(id, 1.0f);
         w.commodity_set_harvest(id, 1.0f);
         w.commodity_set_world_value(id, num("world_value_bn", 100.0));
+        w.commodity_set_extractive(id, num("extractive", 0.0) > 0.0 ? 1 : 0);
         w.commodity_set_demand_elasticity(id, num("demand_elasticity", -0.1));
         w.commodity_set_supply_elasticity(id, num("supply_elasticity", 0.05));
         w.commodity_set_inventory_days(id, num("inventory_days", 30.0));
@@ -370,8 +418,8 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
     }
     // Awarded mega-events (FIFA World Cups, Olympic Games): one row per host and edition;
     // later editions are awarded in the simulation (megaevents.cpp).
-    if(exists(dir + "/megaevents_curated.csv")) {
-        const auto t = core::csv_table::load(dir + "/megaevents_curated.csv", diag);
+    if(const auto path = inherited_table(dir, "megaevents_curated.csv"); !path.empty()) {
+        const auto t = core::csv_table::load(path, diag);
         for(std::size_t row = 0; row < t.rows(); ++row) {
             const auto key = core::pack_key(t.get(row, "org"));
             dcon::organisation_id org;
@@ -409,19 +457,36 @@ void load_conflict_tables(game_state& state, std::string const& dir, core::diagn
         n.set_identity_legitimacy(0.7f);
         n.set_vaccine_priority(0.8f);
     }
-    if(exists(dir + "/nations_ext_curated.csv")) {
-        const auto t = core::csv_table::load(dir + "/nations_ext_curated.csv", diag);
+    // Defaults, then the layers (generated nations_ext.csv, the base scenario's and this
+    // scenario's nations_ext_curated.csv): a layer only sets the columns it has.
+    for(auto n : w.in_nation) {
+        n.set_rd_pct(1.0f);
+        n.set_reserves(6.0f);
+        n.set_reserves0(6.0f);
+        n.set_decentralisation(0.2f);
+        n.set_terrain(0.2f);
+        n.set_term_limit_years(0.0f);
+    }
+    for(auto const& path : layered_tables(dir, "nations_ext.csv", "nations_ext_curated.csv")) {
+        const auto t = core::csv_table::load(path, diag);
         for(std::size_t row = 0; row < t.rows(); ++row) {
             const auto n = find_nation(state, t.get(row, "iso3"));
             if(!n) continue;
-            w.nation_set_rd_pct(n, static_cast<float>(t.number_or(row, "rd_pct", 1.0)));
-            w.nation_set_reserves(n, static_cast<float>(t.number_or(row, "reserves_months", 6.0)));
-            w.nation_set_reserves0(n, w.nation_get_reserves(n));
-            w.nation_set_decentralisation(n, static_cast<float>(t.number_or(row, "decentralisation", 0.2)));
-            w.nation_set_terrain(n, static_cast<float>(t.number_or(row, "terrain", 0.2)));
-            w.nation_set_term_limit_years(n, static_cast<float>(t.number_or(row, "term_limit_years", 0.0)));
-            w.nation_set_language(n, core::pack_key(t.get(row, "language")));
-            w.nation_set_religion(n, core::pack_key(t.get(row, "religion")));
+            auto set = [&](char const* col, auto&& fn) {
+                if(t.has_column(col)) {
+                    if(auto v = t.number(row, col)) fn(static_cast<float>(*v));
+                }
+            };
+            set("rd_pct", [&](float v) { w.nation_set_rd_pct(n, v); });
+            set("reserves_months", [&](float v) {
+                w.nation_set_reserves(n, v);
+                w.nation_set_reserves0(n, v);
+            });
+            set("decentralisation", [&](float v) { w.nation_set_decentralisation(n, v); });
+            set("terrain", [&](float v) { w.nation_set_terrain(n, v); });
+            set("term_limit_years", [&](float v) { w.nation_set_term_limit_years(n, v); });
+            if(t.has_column("language") && !t.get(row, "language").empty()) w.nation_set_language(n, core::pack_key(t.get(row, "language")));
+            if(t.has_column("religion") && !t.get(row, "religion").empty()) w.nation_set_religion(n, core::pack_key(t.get(row, "religion")));
         }
     }
     for(auto own : w.in_region_ownership) own.get_region().set_ruggedness(own.get_nation().get_terrain());
@@ -489,12 +554,14 @@ void load_trade_tables(game_state& state, std::string const& dir, core::diagnost
         na.set_land_share(ka, 0.7f);
         nb.set_land_share(kb, 0.7f);
     }
-    if(exists(dir + "/logistics_curated.csv")) {
-        const auto t = core::csv_table::load(dir + "/logistics_curated.csv", diag);
+    for(auto const& path : layered_tables(dir, "logistics.csv", "logistics_curated.csv")) {
+        const auto t = core::csv_table::load(path, diag);
         for(std::size_t row = 0; row < t.rows(); ++row) {
             if(auto n = find_nation(state, t.get(row, "iso3"))) {
-                w.nation_set_port_teu(n, static_cast<float>(t.number_or(row, "port_teu_m", 0.0)));
-                w.nation_set_seaborne_share(n, static_cast<float>(std::clamp(t.number_or(row, "seaborne_share", 0.75), 0.0, 1.0)));
+                if(auto v = t.number(row, "port_teu_m")) w.nation_set_port_teu(n, static_cast<float>(*v));
+                if(t.has_column("seaborne_share")) {
+                    if(auto v = t.number(row, "seaborne_share")) w.nation_set_seaborne_share(n, static_cast<float>(std::clamp(*v, 0.0, 1.0)));
+                }
             }
         }
     }

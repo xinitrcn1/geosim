@@ -4,30 +4,190 @@
 #     target = price0 * exp(-flow_sensitivity * (supply - demand)/demand0
 #                           - inventory_sensitivity * (stocks - normal)/(demand0 * inventory_days))
 # Prices are indexes (1 = 2019 average). Producer and consumer shares per nation are in
-# assets/scenario/<year>/commodities_curated.csv.
+# assets/scenario/<year>/commodities_curated.csv (world2020: gas and coal also in the
+# generated commodities.csv). Keys are at most 4 characters; 'oil' is reserved.
 #
-#  world_value_bn      2019 world production value, USD bn (gas: ~4,000 bcm; coal: ~8 Gt;
-#                      grains: wheat + maize + rice ~2.7 Gt; metals: iron ore 2.4 Gt + copper
-#                      20 Mt). BP Statistical Review 2020, FAOSTAT, USGS; rounded.
-#  demand_elasticity   short-run price elasticity of demand (Labandeira, Labeaga & Lopez-Otero
-#                      2017 meta-analysis for energy; Roberts & Schlenker 2013 for grains)
+#  world_value_bn      2019 world production value, USD bn = 2019 world output x 2019 average
+#                      price, rounded. Quantities: FAOSTAT 2019 (crops, livestock, forestry),
+#                      USDA FAS PSD 2019/20 (stocks, use), ICO / ICCO crop year 2018/19,
+#                      USGS Mineral Commodity Summaries 2020 (MCS; minerals, 2019 estimates),
+#                      World Nuclear Association (uranium), BP Statistical Review 2020 (gas,
+#                      coal). Prices: World Bank Commodity Price Data ("Pink Sheet") 2019
+#                      annual averages unless noted.
+#  extractive{1}      a point-source resource (energy, ores, mined minerals): its production value
+#                      counts as resource rents (geopolitics.cpp war incentive; Collier & Hoeffler
+#                      2004 on lootable resources, Ross 2012 on rentier states). Crops, livestock,
+#                      timber and manufactured fertiliser are not rents.
+#  demand_elasticity   short-run price elasticity of demand
 #  supply_elasticity   short-run price elasticity of supply
-#  inventory_days      normal stocks in days of demand (grain stocks-to-use ~30%)
-#  harvest_sd          quarterly s.d. of the supply shock (weather)
-#  biofuel_share       demand share that tracks the crude price (maize ethanol, vegetable oils)
-#  income_elasticity   demand response to household income (Engel's law: food low)
+#  inventory_days      normal stocks in days of demand (USDA PSD ending stocks / use for crops)
+#  harvest_sd          quarterly s.d. of the supply shock (weather; crops only)
+#  biofuel_share       demand share that tracks the crude price (ethanol, biodiesel)
+#  income_elasticity   demand response to household income (Engel's law: staples low)
 #  weights{ sector{w} }  demand follows the activity of these sectors; without weights,
 #                      demand follows population and income.
+#
+# Food: wheat, maize and rice replace the former aggregate 'food' (grains, 550 bn) and iron
+# ore and copper replace 'met' (340 bn); the domestic food price (commodities.cpp) follows a
+# nation's own consumption-weighted index of the staple markets (whea, maiz, rice, sugr,
+# palm) and still accepts a legacy 'food' market if a mod defines one.
+# Elasticities, general: grains - Roberts & Schlenker 2013 (AER; caloric demand -0.05 to
+# -0.08, supply ~0.1); metals - Fally & Sayre 2018 (NBER WP 24965; short-run elasticities of
+# primary commodities near zero); energy - Labandeira, Labeaga & Lopez-Otero 2017.
 
-commodity{ key{gas}  name{Natural gas}  world_value_bn{800} demand_elasticity{-0.10} supply_elasticity{0.05}
+# ---- Energy -------------------------------------------------------------------------
+commodity{ key{gas}  name{Natural gas}  world_value_bn{800} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.05}
            inventory_days{60} flow_sensitivity{3.0} inventory_sensitivity{1.5} price_speed{0.05}
            weights{ ene{0.45} man{0.35} csv{0.10} gov{0.10} } }
-commodity{ key{coal} name{Coal}         world_value_bn{500} demand_elasticity{-0.05} supply_elasticity{0.08}
+commodity{ key{coal} name{Coal}         world_value_bn{500} extractive{1} demand_elasticity{-0.05} supply_elasticity{0.08}
            inventory_days{30} flow_sensitivity{3.0} inventory_sensitivity{1.0} price_speed{0.05}
            weights{ ene{0.65} man{0.35} } }
-commodity{ key{food} name{Grains}       world_value_bn{550} demand_elasticity{-0.05} supply_elasticity{0.05}
-           inventory_days{110} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.03}
-           harvest_sd{0.015} biofuel_share{0.10} income_elasticity{0.1} }
-commodity{ key{met}  name{Metals (iron ore, copper)} world_value_bn{340} demand_elasticity{-0.10} supply_elasticity{0.05}
-           inventory_days{30} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+# Uranium: WNA 2019 mine output 54,200 tU (63,900 t U3O8) x spot USD 25.6/lb U3O8 (UxC /
+# Cameco 2019 average) = 3.6 bn. Reactors cannot switch fuel and hold 2-3 years of fuel
+# (WNA Nuclear Fuel Report 2019), so demand is almost inelastic and stocks are large.
+commodity{ key{uran} name{Uranium}      world_value_bn{4} extractive{1} demand_elasticity{-0.02} supply_elasticity{0.03}
+           inventory_days{720} flow_sensitivity{3.0} inventory_sensitivity{1.0} price_speed{0.02}
+           weights{ ene{1.0} } }
+
+# ---- Grains and oilseeds ------------------------------------------------------------
+# Wheat: FAOSTAT 2019 766 Mt x US HRW USD 202/t = 155 bn. USDA PSD 2019/20 ending stocks
+# ~295 Mt / use ~747 Mt = 40% -> 145 days. Demand -0.06, supply 0.08 (Roberts & Schlenker
+# 2013). Biofuel ~1-2% (EU ethanol; OECD-FAO Agricultural Outlook 2020-2029).
+commodity{ key{whea} name{Wheat}        world_value_bn{155} demand_elasticity{-0.06} supply_elasticity{0.08}
+           inventory_days{145} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.03}
+           harvest_sd{0.015} biofuel_share{0.02} income_elasticity{0.05} }
+# Maize: FAOSTAT 2019 1,148 Mt x US No.2 yellow USD 170/t = 195 bn. Stocks ~300 Mt / use
+# ~1,135 Mt = 27% -> 95 days. ~15% of world use is ethanol (OECD-FAO 2020; US ~35%). Feed
+# demand follows meat consumption, so income elasticity is higher than for food grains.
+commodity{ key{maiz} name{Maize}        world_value_bn{195} demand_elasticity{-0.08} supply_elasticity{0.10}
+           inventory_days{95} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.03}
+           harvest_sd{0.020} biofuel_share{0.15} income_elasticity{0.20} }
+# Rice: FAOSTAT 2019 755 Mt paddy (~503 Mt milled) x Thai 5% broken USD 418/t = 210 bn.
+# Thinly traded (~9% of output; USDA). Stocks ~182 Mt / use ~495 Mt = 37% -> 135 days.
+commodity{ key{rice} name{Rice}         world_value_bn{210} demand_elasticity{-0.04} supply_elasticity{0.05}
+           inventory_days{135} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.03}
+           harvest_sd{0.010} income_elasticity{0.0} }
+# Soybeans: FAOSTAT 2019 334 Mt x USD 369/t = 125 bn. Stocks ~98 Mt / use ~355 Mt -> 100
+# days. Mostly crushed for feed meal (income-driven via meat) and oil (~20% of soy oil is
+# biodiesel; ~5% of bean value).
+commodity{ key{soy}  name{Soybeans}     world_value_bn{125} demand_elasticity{-0.10} supply_elasticity{0.10}
+           inventory_days{100} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.03}
+           harvest_sd{0.020} biofuel_share{0.05} income_elasticity{0.30} }
+# Palm oil: USDA PSD 2019/20 ~73 Mt x USD 601/t = 45 bn (incl. palm kernel oil ~ +10%).
+# ~20% goes to biodiesel (Indonesia B20/B30 mandate, EU). Stocks ~12% of use -> 45 days.
+# Perennial: short-run supply ~0.04; demand -0.15 (substitution among vegetable oils).
+commodity{ key{palm} name{Palm oil}     world_value_bn{45} demand_elasticity{-0.15} supply_elasticity{0.04}
+           inventory_days{45} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.04}
+           harvest_sd{0.015} biofuel_share{0.20} income_elasticity{0.30} }
+# Sugar: USDA PSD 2018/19 ~179 Mt raw value x ISA world 12.4 c/lb (USD 273/t) = 50 bn.
+# Brazil diverts cane to ethanol with the crude price (~half of its cane; ~20% of world
+# cane sugar equivalent). Stocks-to-use ~45% (ISO) -> 165 days.
+commodity{ key{sugr} name{Sugar}        world_value_bn{50} demand_elasticity{-0.05} supply_elasticity{0.08}
+           inventory_days{165} flow_sensitivity{4.0} inventory_sensitivity{1.0} price_speed{0.04}
+           harvest_sd{0.020} biofuel_share{0.20} income_elasticity{0.20} }
+
+# ---- Tropical crops, livestock, fibre, wood ------------------------------------------
+# Coffee: ICO 2018/19 crop 171 m bags (10.3 Mt) x ICO composite 100.5 c/lb = 23 bn.
+# Demand -0.15 (Okunade 1992, US short run -0.19); perennial supply ~0.03 (Wickens &
+# Greenfield 1973). Brazil frosts and the biennial cycle: harvest s.d. 0.03.
+commodity{ key{cofe} name{Coffee}       world_value_bn{23} demand_elasticity{-0.15} supply_elasticity{0.03}
+           inventory_days{120} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.04}
+           harvest_sd{0.030} income_elasticity{0.40} }
+# Cocoa: ICCO 2018/19 4.83 Mt x ICCO daily price average USD 2,340/t = 11 bn. Stocks-to-
+# grindings ~38% -> 140 days. Demand -0.15 for grindings; chocolate is income-elastic.
+# West African weather (harmattan, El Nino): harvest s.d. 0.03.
+commodity{ key{coco} name{Cocoa}        world_value_bn{11} demand_elasticity{-0.15} supply_elasticity{0.05}
+           inventory_days{140} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.04}
+           harvest_sd{0.030} income_elasticity{0.60} }
+# Beef: USDA FAS Livestock & Poultry 2019 ~61.6 Mt carcass weight x USD 4.73/kg (Pink Sheet
+# beef, Australia/NZ) = 290 bn. Demand -0.3 (farm level; retail -0.75 in Andreyeva, Long &
+# Brownell 2010 meta-analysis); supply 0.05 in the short run (cattle cycle: Rosen, Murphy &
+# Scheinkman 1994). Income elasticity 0.6 (Regmi & Seale 2010, USDA ERS). Frozen stocks
+# are small.
+commodity{ key{beef} name{Beef}         world_value_bn{290} demand_elasticity{-0.30} supply_elasticity{0.05}
+           inventory_days{20} flow_sensitivity{3.0} inventory_sensitivity{1.0} price_speed{0.04}
+           income_elasticity{0.60} }
+# Cotton: USDA/ICAC 2019/20 26.2 Mt lint x Cotlook A 77.9 c/lb (USD 1,718/t) = 45 bn.
+# Mill use follows textile manufacturing. Stocks-to-use ~80% (China reserve; ICAC) -> 250
+# days. Demand -0.10, supply 0.05.
+commodity{ key{cott} name{Cotton}       world_value_bn{45} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{250} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.04}
+           harvest_sd{0.020} weights{ man{1.0} } }
+# Timber (industrial roundwood): FAO Forest Products Yearbook 2019 ~2.0 bn m3 x ~USD 75/m3
+# (log export unit values, FAOSTAT forestry trade) = ~150 bn (approximate). Demand -0.2,
+# supply 0.1 (Buongiorno 2015, Global Forest Products Model elasticities).
+commodity{ key{timb} name{Timber}       world_value_bn{150} demand_elasticity{-0.20} supply_elasticity{0.10}
+           inventory_days{60} flow_sensitivity{3.0} inventory_sensitivity{1.0} price_speed{0.04}
+           weights{ con{0.60} man{0.40} } }
+
+# ---- Fertilisers --------------------------------------------------------------------
+# Demand follows agriculture; short-run fertiliser demand -0.15 (Denbaly & Vroomen 1993).
+# Potash: MCS 2020 ~42 Mt K2O (~70 Mt KCl) x muriate of potash USD 255/t = 18 bn.
+commodity{ key{pota} name{Potash}       world_value_bn{18} extractive{1} demand_elasticity{-0.15} supply_elasticity{0.05}
+           inventory_days{60} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.04}
+           weights{ agr{1.0} } }
+# Phosphate: MCS 2020 phosphate rock ~240 Mt x USD 88/t = 21 bn, plus processing to DAP /
+# MAP (DAP USD 306/t): market of rock and processed phosphates ~30 bn.
+commodity{ key{phos} name{Phosphate}    world_value_bn{30} extractive{1} demand_elasticity{-0.15} supply_elasticity{0.05}
+           inventory_days{60} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.04}
+           weights{ agr{1.0} } }
+# Nitrogen (ammonia, urea): MCS 2020 ammonia ~150 Mt N x urea USD 245/t / 0.46 N = 60 bn.
+# Made from natural gas (and coal in China); ~20% industrial use.
+commodity{ key{nitr} name{Nitrogen fertiliser} world_value_bn{60} demand_elasticity{-0.15} supply_elasticity{0.10}
+           inventory_days{30} flow_sensitivity{3.5} inventory_sensitivity{1.0} price_speed{0.05}
+           weights{ agr{0.80} man{0.20} } }
+
+# ---- Metals and minerals ------------------------------------------------------------
+# Iron ore: MCS 2020 ~2.5 Gt usable ore x USD 93.8/t (62% Fe CFR China) = 230 bn. China's
+# port stocks ~40 days of imports.
+commodity{ key{iron} name{Iron ore}     world_value_bn{230} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{35} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
            weights{ con{0.55} man{0.45} } }
+# Copper: MCS 2020 mine 20 Mt x LME USD 6,010/t = 120 bn. Visible + unreported stocks ~3-4
+# weeks of use (ICSG).
+commodity{ key{copp} name{Copper}       world_value_bn{120} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{25} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ con{0.30} man{0.50} ene{0.20} } }
+# Aluminium: MCS 2020 primary 64 Mt x LME USD 1,794/t = 115 bn. Large stocks (LME + China).
+commodity{ key{alum} name{Aluminium}    world_value_bn{115} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{50} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ con{0.25} man{0.75} } }
+# Nickel: MCS 2020 mine 2.7 Mt x LME USD 13,914/t = 38 bn. ~70% stainless steel, ~5%
+# batteries (INSG 2019).
+commodity{ key{nick} name{Nickel}       world_value_bn{38} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{40} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ man{0.80} con{0.20} } }
+# Lithium: MCS 2020 mine 77 kt Li (~410 kt LCE) x ~USD 11,700/t carbonate (MCS 2020) = 5 bn.
+# Low cost share in batteries: demand -0.05; mines take years: supply 0.03.
+commodity{ key{lith} name{Lithium}      world_value_bn{5} extractive{1} demand_elasticity{-0.05} supply_elasticity{0.03}
+           inventory_days{60} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ man{1.0} } }
+# Cobalt: MCS 2020 mine 140 kt x ~USD 33,000/t (MCS 2020 US spot USD 15.75/lb, less the
+# hydroxide discount) = 5 bn. Mostly a copper / nickel by-product: supply 0.03.
+commodity{ key{cobl} name{Cobalt}       world_value_bn{5} extractive{1} demand_elasticity{-0.05} supply_elasticity{0.03}
+           inventory_days{90} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ man{1.0} } }
+# Rare earths: MCS 2020 mine 210 kt REO; oxide market ~4 bn (approximate; China export unit
+# values). China also holds ~90% of separation and magnet making (IEA 2021, The Role of
+# Critical Minerals in Clean Energy Transitions). State reserves: 120 days.
+commodity{ key{ree}  name{Rare earths}  world_value_bn{4} extractive{1} demand_elasticity{-0.05} supply_elasticity{0.03}
+           inventory_days{120} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ man{1.0} } }
+# Platinum-group metals: MCS 2020 platinum 180 t x USD 864/oz + palladium 210 t x USD
+# 1,540/oz + rhodium ~ 18 bn. ~70% of demand is autocatalysts (Johnson Matthey PGM Market
+# Report 2020).
+commodity{ key{pgm}  name{Platinum-group metals} world_value_bn{18} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.03}
+           inventory_days{90} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ man{1.0} } }
+# Silicon (silicon metal + ferrosilicon; the feedstock of polysilicon for chips and solar
+# wafers): MCS 2020 ~6.7 Mt Si content x ~USD 1,800/t, plus polysilicon ~0.5 Mt x ~USD
+# 10/kg (Bernreuter Research 2020) = ~15 bn (approximate).
+commodity{ key{sili} name{Silicon}      world_value_bn{15} extractive{1} demand_elasticity{-0.10} supply_elasticity{0.05}
+           inventory_days{30} flow_sensitivity{4.0} inventory_sensitivity{1.5} price_speed{0.05}
+           weights{ man{1.0} } }
+# Gold: MCS 2020 mine 3,300 t x LBMA USD 1,393/oz = 148 bn. Demand (World Gold Council Gold
+# Demand Trends 2019): jewellery ~50%, bars and coins, ETFs, central banks ~15%, technology
+# ~8%. Jewellery demand is price-elastic (-0.3); huge above-ground stocks.
+commodity{ key{gold} name{Gold}         world_value_bn{148} extractive{1} demand_elasticity{-0.30} supply_elasticity{0.02}
+           inventory_days{365} flow_sensitivity{2.5} inventory_sensitivity{0.5} price_speed{0.04}
+           income_elasticity{1.0} }

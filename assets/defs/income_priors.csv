@@ -1,0 +1,15 @@
+# Labour-market institutions by World Bank income group: priors for nations without their own
+# values (nations_curated.csv overrides). Read by src/sim/scenario.cpp for scenarios whose
+# nations.csv has an income column (the full world).
+#  epl                    employment protection, OECD EPL index / 6 (strictness 0..1; OECD
+#                         Employment Protection Database 2019; ILO EPLex for non-OECD; rough medians)
+#  benefit_replacement    unemployment benefit as a share of the previous wage (OECD Tax-Benefit
+#                         models; ILO World Social Protection Report 2017-19)
+#  benefit_coverage       share of the unemployed receiving benefits (ILO World Social Protection
+#                         Report 2017-19, SDG 1.3.1 unemployed: high income ~45%, upper-middle ~15%,
+#                         lower-middle ~5%, low ~2%)
+income,epl,benefit_replacement,benefit_coverage
+HIC,0.35,0.55,0.45
+UMC,0.35,0.30,0.15
+LMC,0.40,0.20,0.05
+LIC,0.40,0.10,0.02

@@ -473,6 +473,8 @@
     X(education_tertiary, 0.02, "tertiary-share rise per year per % GDP of extra education spending (lagged)") \
     X(health_beds, 0.5, "hospital beds per 1000 added per year per % GDP of extra health spending")      \
     X(capital_controls_trigger, 5.0, "portfolio outflow (% GDP/yr) at which controls become pragmatic")  \
+    X(region_gdp_urban_premium, 0.8, "regional GDP per head rises by this x (urban share - national urban share) when regions carry no sector data (World Bank WDR 2009)") \
+    X(region_gdp_min_factor, 0.3, "floor of a region's GDP per head relative to the national mean in that derivation") \
     X(district_exponent, 1.5, "seat-vote exponent of single-member districts inside one region (geographic sorting flattens the cube law; US House 2012-20 ~1.5)") \
     X(party_anchor, 0.7, "weight of a mainstream party's core position against its voters' centroid (activists, primaries; Aldrich 1983)") \
     X(cube_law, 3.0, "seat-vote exponent of single-member districts within a region (Taagepera 1986)") \

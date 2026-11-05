@@ -1,8 +1,9 @@
 // World commodity markets other than crude oil (docs/03-economy.md#prices), daily.
 //
-// Gas, coal, grains and metals (assets/defs/commodities.txt) clear like the oil
-// market: demand follows the activity of the sectors that use each commodity
-// (or population and income for food), with a short-run price elasticity; supply
+// Gas, coal, crops, fertilisers and metals (assets/defs/commodities.txt) clear
+// like the oil market: demand follows the activity of the sectors that use each
+// commodity (or population and income for food), with a short-run price
+// elasticity; supply
 // follows producers' 2019 shares with a short-run supply elasticity and, for
 // grains, quarterly weather shocks; stocks absorb the gap and the price follows
 // flow and stock gaps (inventory theory of storage; Working 1949, Deaton &
@@ -14,7 +15,9 @@
 //    current account and so the exchange rate (finance.cpp);
 //  - resource rents: governments take a share of the production value change;
 //  - prices: the domestic relative price of food passes through part of the world
-//    grain price plus a distribution shock when internal freight is disrupted
+//    staple price (the nation's own consumption-weighted index of wheat, maize,
+//    rice, sugar and palm oil; a legacy aggregate 'food' market counts too) plus a
+//    distribution shock when internal freight is disrupted
 //    (lockdowns on trucking and markets; logistics.cpp). Food is inelastic, so a
 //    small supply cut moves prices a lot; with large CPI food weights (India ~46%)
 //    this drives headline inflation where food weights are large (Anand, Prasad &
@@ -30,6 +33,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <vector>
 
 namespace geosim::sim {
 
@@ -56,6 +60,15 @@ float demand_driver(game_state const& state, dcon::commodity_id c, dcon::nation_
     const float c0 = w.nation_get_c0(n) * gf;
     const float income = c0 > 0.0f ? w.nation_get_consumption(n) / c0 : 1.0f;
     return std::pow(std::max(0.1f, income), w.commodity_get_income_elasticity(c));
+}
+
+// Staple foods: the domestic food price follows them and their exporters ban exports
+// in price spikes.
+bool is_staple(uint32_t key) {
+    for(char const* k : {"food", "whea", "maiz", "rice", "sugr", "palm"}) {
+        if(key == core::pack_key(k)) return true;
+    }
+    return false;
 }
 
 } // namespace
@@ -85,12 +98,17 @@ void update_commodity_markets(game_state& state) {
         if(c.get_harvest() <= 0.0f) c.set_harvest(1.0f);
 
         double demand = 0.0, supply = 0.0, world_gf = 0.0, gf_weight = 0.0;
+        // Consumption shares may cover only the main consumers (curated tables without a
+        // ROW nation): scale them to the world total so the market starts in balance.
+        double cons_total = 0.0;
+        for(auto n : w.in_nation) cons_total += n.get_commodity_cons(ci);
+        const float cons_scale = cons_total > 0.0 ? static_cast<float>(1.0 / cons_total) : 1.0f;
         const float price_effect = std::pow(std::max(0.05f, rel), c.get_demand_elasticity());
         const float biofuel = c.get_biofuel_share();
         for(auto n : w.in_nation) {
             const float gf = std::max(0.01f, n.get_gf());
             const float driver = demand_driver(state, c.id, n.id);
-            const float d = n.get_commodity_cons(ci) * c.get_demand0() * gf * driver * price_effect
+            const float d = n.get_commodity_cons(ci) * cons_scale * c.get_demand0() * gf * driver * price_effect
                             * ((1.0f - biofuel) + biofuel * std::pow(std::max(0.05f, oil_rel), 0.5f));
             n.set_commodity_demand(ci, d);
             demand += d;
@@ -112,7 +130,7 @@ void update_commodity_markets(game_state& state) {
             hhi += sh * sh;
         }
         const float cartel = hhi > 0.15 ? std::clamp(static_cast<float>(P.cartel_cut) * static_cast<float>(hhi) * std::max(0.0f, 0.8f - rel) * 5.0f, 0.0f, 0.3f) : 0.0f;
-        const float ban = c.get_harvest_sd() > 0.0f ? std::clamp(static_cast<float>(P.export_ban) * std::max(0.0f, rel - 1.3f), 0.0f, 0.2f) : 0.0f;
+        const float ban = c.get_harvest_sd() > 0.0f && is_staple(c.get_key()) ? std::clamp(static_cast<float>(P.export_ban) * std::max(0.0f, rel - 1.3f), 0.0f, 0.2f) : 0.0f;
         c.set_restraint(cartel + ban);
         const float target = std::pow(std::max(0.05f, rel), c.get_supply_elasticity()) * c.get_harvest() * (1.0f - cartel - ban);
         idx += (target - idx) * 0.02f;
@@ -134,11 +152,13 @@ void update_commodity_markets(game_state& state) {
     }
 
     // Nation effects: terms of trade and rents (flows), domestic food price.
-    dcon::commodity_id food, gas;
+    std::vector<dcon::commodity_id> staples;
+    double staple_value = 0.0;
     for(auto c : w.in_commodity) {
-        const auto key = core::unpack_key(c.get_key());
-        if(key == "food") food = c.id;
-        if(key == "gas") gas = c.id;
+        if(c.id != D.oil && c.get_world_value() > 0.0f && is_staple(c.get_key())) {
+            staples.push_back(c.id);
+            staple_value += c.get_world_value();
+        }
     }
     for(auto n : w.in_nation) {
         const float gf = std::max(0.01f, n.get_gf());
@@ -156,15 +176,26 @@ void update_commodity_markets(game_state& state) {
         n.set_commodity_rent(static_cast<float>(rent));
 
         // Domestic relative food price: world pass-through + internal distribution shock.
+        // The staple index weights each market by the nation's consumption of it (Egypt
+        // feels wheat, Bangladesh rice); without consumption data, by world value.
         float target = 1.0f;
-        if(food) {
-            target += static_cast<float>(P.food_passthrough) * (w.commodity_get_price(food) / w.commodity_get_price0(food) - 1.0f);
+        if(!staples.empty()) {
+            double num = 0.0, den = 0.0, num_w = 0.0;
+            for(auto s : staples) {
+                const auto si = static_cast<uint8_t>(s.index());
+                const double rel = w.commodity_get_price(s) / w.commodity_get_price0(s) - 1.0;
+                const double wt = static_cast<double>(n.get_commodity_cons(si)) * w.commodity_get_world_value(s);
+                num += wt * rel;
+                den += wt;
+                num_w += w.commodity_get_world_value(s) * rel;
+            }
+            const double idx = den > 0.0 ? num / den : num_w / std::max(1e-9, staple_value);
+            target += static_cast<float>(P.food_passthrough) * static_cast<float>(idx);
         }
         target += static_cast<float>(P.food_logistics_shock) * (1.0f - n.get_domestic_logistics()) / 0.3f;
         float fp = n.get_food_price() > 0.0f ? n.get_food_price() : 1.0f;
         fp += (target - fp) / static_cast<float>(P.food_price_days);
         n.set_food_price(fp);
-        (void)gas;
     }
 }
 

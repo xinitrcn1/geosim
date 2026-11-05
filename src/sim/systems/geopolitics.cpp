@@ -168,11 +168,13 @@ void update_power(game_state& state) {
         const float tech = std::min(1.0f, 2.0f * n.get_tertiary_share()) * n.get_state_capacity();
         const float budget = n.get_defense_share0() > 0.0f ? std::clamp(n.get_defense_share() / n.get_defense_share0(), 0.3f, 5.0f) : 1.0f;
         n.set_military(n.get_power() * (0.5f + 0.5f * industry) * (1.0f + tech) * std::sqrt(budget));
-        // Resource rents relative to GDP (oil, gas, coal, metals at current prices).
+        // Resource rents relative to GDP: oil and the extractive commodities (energy, ores,
+        // mined minerals; commodities.txt extractive) at current prices. Crops and livestock
+        // are not point-source rents.
         double rents = 0.0;
         if(D.oil) rents += static_cast<double>(n.get_oil_production()) * 1e6 * 365.0 * w.commodity_get_price(D.oil);
         for(auto c : w.in_commodity) {
-            if(c.id == D.oil || c.get_world_value() <= 0.0f) continue;
+            if(c.id == D.oil || c.get_world_value() <= 0.0f || !c.get_extractive()) continue;
             const auto ci = static_cast<uint8_t>(c.id.index());
             if(ci < n.get_commodity_prod_size()) rents += static_cast<double>(n.get_commodity_prod(ci)) * c.get_world_value() * 1e9 * c.get_price() / c.get_price0();
         }

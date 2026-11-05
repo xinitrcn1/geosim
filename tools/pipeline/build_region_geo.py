@@ -291,18 +291,23 @@ def main() -> int:
                 out.append(str(v))
         return out
 
-    def write(path, header, rows):
+    def write(path, header, rows, columns=None):
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="", encoding="utf-8") as f:
             f.write(f"# {header}\n")
             w = csv.writer(f, lineterminator="\n")
-            w.writerow(["region", "iso3"] + COLUMNS)
+            w.writerow(columns or ["region", "iso3"] + COLUMNS)
             for r in rows:
                 w.writerow(r)
         print(f"wrote {path} ({len(rows)} rows)")
 
+    # The world's regions carry their nation, area and centroid in regions.csv: only the
+    # geography columns here (the slices, without a regions.csv, keep them all).
+    geo_only = [c for c in COLUMNS if c not in ("area_km2", "lat", "lon")]
+    keep = [COLUMNS.index(c) for c in geo_only]
     write(assets / "scenario" / "world2020" / "regions_geo.csv", f"{GEN}. {SOURCE_NOTE}",
-          [[reg["region"], reg["iso3"]] + fmt(per[idx]) for idx, reg in enumerate(regions)])
+          [[reg["region"]] + [fmt(per[idx])[k] for k in keep] for idx, reg in enumerate(regions)],
+          ["region"] + geo_only)
 
     # Slices: one row per nation (iso3); ROW = all world2020 nations outside the slice.
     for slice_name in ("2020", "2008"):

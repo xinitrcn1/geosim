@@ -497,7 +497,7 @@ def main() -> int:
         nations[ROW][col] = sum(v for v, _ in rest) / len(rest) if rest else 0.0
 
     cols = ["iso3", "name", "population", "pop_0_14_pct", "pop_65up_pct", "labor_force",
-            "unemployment_pct", "lfp_rate_pct", "gdp_usd", "gdp_ppp", "trend_growth_pct",
+            "unemployment_pct", "gdp_usd", "gdp_ppp", "trend_growth_pct",
             "inflation_trend_pct", "hh_cons_pct", "gov_cons_pct", "investment_pct", "exports_pct",
             "imports_pct", "gov_revenue_pct", "gov_net_lending_pct", "gov_debt_pct", "gini",
             "hospital_beds_per_1000", "tertiary_attainment_pct", "urban_pct", "vulnerable_emp_pct",

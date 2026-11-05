@@ -13,6 +13,7 @@
 // revenue.
 // Natural disasters are in disasters.cpp (a climate and tectonic state, not dice rolls).
 
+#include "core/keys.hpp"
 #include "core/rng.hpp"
 #include "core/scheduler.hpp"
 #include "sim/ledger.hpp"
@@ -83,7 +84,7 @@ void update_climate_policy(game_state& state) {
     // Renewables technology index (if defined) for the clean vintage share.
     uint8_t ren = 0xFF;
     for(auto t : w.in_technology) {
-        if(t.get_emission_cut() > 0.0f) ren = static_cast<uint8_t>(t.id.index());
+        if(t.get_key() == core::pack_key("ren")) ren = static_cast<uint8_t>(t.id.index()); // renewable power (technologies.txt)
     }
     for(auto n : w.in_nation) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;

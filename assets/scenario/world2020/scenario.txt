@@ -1,0 +1,8 @@
+# The full world, starting 2020-01-01 (the default epoch).
+#
+# base{2020}: the hand-curated tables of the 2020 slice apply to its 20 nations here too
+# (scenario_ext.cpp layered_tables / inherited_table), above this scenario's generated tables
+# and below its own *_curated files: finance, society, identity groups, nations_ext, logistics,
+# technology adoption; megaevents_curated.csv and relations_curated.csv are inherited whole.
+# Parameter overrides for this scenario would go here as name{value}.
+base{2020}

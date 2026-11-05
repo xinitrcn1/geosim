@@ -143,6 +143,30 @@ void init_firms(game_state& state) {
             }
         }
     }
+    // Customs and currency unions have one external tariff (decide_tariff harmonises it each
+    // week). Members' 2019 tariff data differ only by their import mix, so the union's
+    // GDP-weighted rate is everyone's starting tariff and baseline: otherwise the first
+    // harmonisation is a trade shock that never happened (EU members in the world dataset).
+    for(auto n : w.in_nation) {
+        double sum = 0.0, weight = 0.0;
+        std::vector<dcon::nation_id> members;
+        if(const auto cu = customs_union_of(state, n.id)) {
+            for(auto m : w.organisation_get_membership_as_organisation(cu)) members.push_back(m.get_member().id);
+        } else if(auto bank = w.nation_get_bank_from_monetary_authority(n.id); bank && !peg_anchor(state, n.id)) {
+            for(auto m : w.agent_get_monetary_authority(bank)) members.push_back(m.get_member().id);
+        }
+        if(members.size() < 2) continue;
+        for(auto m : members) {
+            sum += w.nation_get_gdp0(m) * w.nation_get_tariff0(m);
+            weight += w.nation_get_gdp0(m);
+        }
+        if(weight <= 0.0) continue;
+        const auto common = static_cast<float>(sum / weight);
+        for(auto m : members) {
+            w.nation_set_tariff(m, common);
+            w.nation_set_tariff0(m, common);
+        }
+    }
 }
 
 void update_firms(game_state& state) {

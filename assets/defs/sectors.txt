@@ -9,6 +9,13 @@
 # demand        prior share of each final-demand component (hh, gov, inv, exp) landing in this
 #               sector. The loader rescales them (RAS) so baseline sector value added matches data.
 # skills        employment mix by skill tier (low, mid, high); ILO/OECD occupation data, rounded
+# region_tilt   how a nation's sector output and jobs lean across its regions when the scenario has
+#               no region_sectors.csv: > 0 toward urban regions (services), < 0 toward rural ones
+#               (agriculture); 0 = in proportion to regional GDP / population. Regional mix =
+#               national mix x (1 + tilt x (urban share relative to the national mean - 1)),
+#               floored at 0.05 and rebalanced (RAS) to regional totals and national sector totals.
+#               Rough: services concentrate in cities, farming in the countryside (World Bank
+#               World Development Report 2009, Reshaping Economic Geography).
 # npi_capacity  capacity lost at the maximum level of each OxCGRT indicator (summed, capped at 95%).
 #               Contact services lose ~58% at every indicator's maximum, in line with the deepest
 #               observed 2020 hospitality/retail/transport output falls.
@@ -44,7 +51,7 @@
 #               src/sim/systems/internet.cpp).
 
 sector{
-	key{agr}
+	key{agr} region_tilt{-1.0}
 	teleworkable{0.08}
 	name{Agriculture}
 	role{generic}
@@ -120,7 +127,7 @@ sector{
 }
 
 sector{
-	key{csv}
+	key{csv} region_tilt{0.5}
 	teleworkable{0.1}
 	name{Contact-intensive services}
 	role{contact}
@@ -139,7 +146,7 @@ sector{
 }
 
 sector{
-	key{osv}
+	key{osv} region_tilt{1.0}
 	teleworkable{0.6}
 	name{Business, financial and other market services}
 	role{generic}
@@ -158,7 +165,7 @@ sector{
 }
 
 sector{
-	key{gov}
+	key{gov} region_tilt{0.3}
 	teleworkable{0.45}
 	name{Public administration, education and health}
 	role{government}

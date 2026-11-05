@@ -151,8 +151,13 @@ Sea-route distances also replace great-circle distances in trade gravity
 - **Crude oil** (`markets.cpp`, daily): demand from activity and personal
   mobility, producers' targets (OPEC+ decisions as events), and a price that
   follows flow and inventory gaps.
-- **Commodity markets** (`commodities.cpp`, daily): gas, coal, grains and
-  metals (`assets/defs/commodities.txt`) clear with the same stock-flow rule.
+- **Commodity markets** (`commodities.cpp`, daily): 27 markets
+  (`assets/defs/commodities.txt`): gas, coal, uranium; wheat, maize, rice,
+  soybeans, palm oil, sugar, coffee, cocoa, beef, cotton, timber; potash,
+  phosphate, nitrogen; iron ore, copper, aluminium, nickel, lithium, cobalt,
+  rare earths, platinum-group metals, silicon and gold. They clear with the
+  same stock-flow rule; consumption shares that cover only the main consumers
+  are scaled to the world total.
   Demand follows the sectors that use each commodity (or population and
   income for food) with a short-run price elasticity; supply follows 2019
   producer shares with a supply elasticity and, for grains, quarterly weather
@@ -161,14 +166,15 @@ Sea-route distances also replace great-circle distances in trade gravity
   through **terms of trade** (net exports × price change, which also moves the
   current account and the exchange rate), **resource rents** (the state's
   share of the production value change) and **food prices**: the domestic
-  relative food price passes through part of the world grain price plus a
+  relative food price passes through part of a staple index (wheat, maize,
+  rice, sugar, palm oil, weighted by the nation's own consumption) plus a
   distribution shock when internal freight is disrupted. With large CPI food
   weights this drives headline inflation (Anand, Prasad & Zhang 2015). Gas
   reaches the CPI through household energy.
   **Strategic supply** (`commodities.cpp`): when a market's producer
   concentration (Herfindahl of production shares) exceeds 0.15, a cartel
   restrains supply as the price falls below 80% of 2019 (`cartel_cut`;
-  Stigler 1964: cartels hold better when few and large); food exporters ban
+  Stigler 1964: cartels hold better when few and large); staple exporters ban
   exports in price spikes above 1.3× 2019 (`export_ban`), which deepens the
   spike (Martin & Anderson 2012 on 2008 and 2010–11; Headey 2011).
 - **Sector relative prices** (`economy.cpp`): markups follow capacity

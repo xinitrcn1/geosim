@@ -29,6 +29,17 @@ void update_anchor_end(game_state& state);
 
 [[nodiscard]] dcon::nation_id find_nation(game_state const& state, std::string_view iso3) noexcept;
 
+// Scenario inheritance (scenario_ext.cpp). scenario.txt `base{NAME}` names a scenario whose
+// curated tables this one inherits instead of keeping copies (the full world inherits the
+// 2020 slice's hand-curated values for its 20 nations).
+// The base scenario's directory ("" without one).
+[[nodiscard]] std::string base_scenario_dir(std::string const& scenario_dir);
+// The tables for one input, lowest precedence first: this scenario's generated table, the
+// base scenario's curated table, this scenario's curated table (existing files only).
+[[nodiscard]] std::vector<std::string> layered_tables(std::string const& scenario_dir, std::string const& generated, std::string const& curated);
+// This scenario's file, else the base scenario's (whole-file inheritance); "" if neither.
+[[nodiscard]] std::string inherited_table(std::string const& scenario_dir, std::string const& file);
+
 // Extension loaders (src/sim/scenario_ext.cpp): the shipping network and commodity
 // definitions (assets/defs, after nations exist), and per-nation ports, overland
 // shares, logistics and commodity tables (after calibration).
