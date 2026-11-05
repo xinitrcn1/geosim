@@ -212,8 +212,10 @@ void update_policy(game_state& state) {
                 const float local = r.get_new_infections() / std::max(1.0f, r.get_population()) * 1e6f;
                 const float pragmatic = std::clamp(1.0f + 0.002f * (local - 50.0f), 0.5f, 1.5f);
                 const float offset = pragmatic * (1.0f + static_cast<float>(P.governor_alignment) * distance * (w.agent_get_order_ideal(g) > 0.2f ? 1.0f : -1.0f));
-                r.set_npi_offset(std::clamp(offset, 0.3f, 1.7f));
-                w.agent_set_last_choice(g, static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::regional_npi)), r.get_npi_offset());
+                // Through the override (the player's governor; pressure from others): this
+                // lever used to bypass it.
+                const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::regional_npi));
+                r.set_npi_offset(std::clamp(apply_override(state, g, lev, std::clamp(offset, 0.3f, 1.7f), 0.0f, 2.0f), 0.0f, 2.0f));
             }
         }
     }

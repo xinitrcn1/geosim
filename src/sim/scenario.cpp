@@ -1803,6 +1803,7 @@ struct builder {
         load_parties(dir);
         if(diag.failed()) return;
         w.party_resize_heading(static_cast<uint32_t>(value_axis::count));
+        w.party_resize_anchor(static_cast<uint32_t>(value_axis::count));
         w.nation_resize_window_center(static_cast<uint32_t>(value_axis::count));
         w.nation_resize_window_width(static_cast<uint32_t>(value_axis::count));
         w.nation_resize_policy_position(static_cast<uint32_t>(value_axis::count));
@@ -1917,6 +1918,7 @@ struct builder {
         init_logistics_routes(state); // sea distances feed gravity trade shares
         init_geopolitics(state);
         init_logistics_flows(state);
+        update_trade_rivals(state);
         for(auto n : w.in_nation) {
             n.set_trade_access0(trade_access(state, n.id));
         }
@@ -2112,6 +2114,7 @@ struct builder {
         }
         load_events();
         if(diag.failed()) return;
+        update_anchor_end(state);
         distribute_oil();
         for(auto const& iso : order) {
             calibrate(find_nation(state, iso), inputs[iso]);
@@ -2224,6 +2227,24 @@ void rebuild_derived(game_state& state) {
             d.oil = c.id;
         }
     }
+    update_anchor_end(state);
+}
+
+void update_anchor_end(game_state& state) {
+    int32_t end = 0;
+    for(auto e : state.world.in_event) {
+        switch(static_cast<event_kind>(e.get_kind())) {
+        case event_kind::npi_level:
+        case event_kind::policy_rate:
+        case event_kind::fiscal_package:
+        case event_kind::job_retention:
+        case event_kind::test_trace_isolate:
+        case event_kind::oil_production:
+        case event_kind::oil_production_delta: end = std::max(end, e.get_tick()); break;
+        default: break;
+        }
+    }
+    state.derived.anchor_end = end;
 }
 
 scenario_report build_scenario(game_state& state, std::string const& assets_dir, std::string const& scenario) {

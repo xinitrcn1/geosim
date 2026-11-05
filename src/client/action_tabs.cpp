@@ -1,5 +1,7 @@
 #include "action_tabs.hpp"
 
+#include "parliament.hpp"
+
 #include "sim/model.hpp"
 #include "style.hpp"
 #include "ui_layout.hpp"
@@ -511,7 +513,7 @@ void diplomacy_body(ui_context& ui, sim_runner& sim, alert_feed& alerts, tabs_st
     const float ox = list.right() + pad * 2, ow = body.right() - ox;
     float oy = y;
     if(!t.has_target) {
-        note(ui, ox, oy, ow, t.subtab >= 1 && t.subtab <= 5 ? "No diplomatic options are modelled for this kind yet (pick one to see)." : "Pick a counterpart on the left.");
+        note(ui, ox, oy, ow, "Pick a counterpart on the left.");
         return;
     }
     label(ui, {ox, oy, ow, ui.px(22)}, t.target.label, style::flat_text, align::left, font_weight::semibold, 15);
@@ -524,8 +526,7 @@ void diplomacy_body(ui_context& ui, sim_runner& sim, alert_feed& alerts, tabs_st
         return;
     }
     if(d.actions.empty()) {
-        if(t.subtab >= 1 && t.subtab <= 5) oy = note(ui, ox, oy, ow, "No diplomatic options are modelled for this kind yet.");
-        else oy = note(ui, ox, oy, ow, std::string("No options toward this counterpart are modelled for a ") + kind_noun(who.kind) + ".");
+        oy = note(ui, ox, oy, ow, std::string("A ") + kind_noun(who.kind) + " has no channel to this counterpart in the simulation.");
     }
     const float rh = ui.px(32);
     const float btn_w = ui.px(230);
@@ -549,6 +550,7 @@ void diplomacy_body(ui_context& ui, sim_runner& sim, alert_feed& alerts, tabs_st
         order.agent = who.agent;
         order.nation = t.target.nation;
         order.organisation = t.target.organisation;
+        order.target_agent = t.target.agent;
         auto stepper = [&](char const* key, float& v, float lo, float hi, float step, std::string const& shown, std::string const& tip) {
             const float sb = ui.px(22), sy = oy + (rh - sb) * 0.5f;
             char sid[48];
@@ -586,6 +588,16 @@ void diplomacy_body(ui_context& ui, sim_runner& sim, alert_feed& alerts, tabs_st
             order.treaty = t.treaty;
             break;
         }
+        case action_input::amount: {
+            auto it = t.amounts.find(a.kind);
+            if(it == t.amounts.end()) it = t.amounts.emplace(a.kind, a.initial).first;
+            it->second = std::clamp(it->second, a.lo, a.hi);
+            char key[24];
+            std::snprintf(key, sizeof(key), "amount%u", a.kind);
+            stepper(key, it->second, a.lo, a.hi, a.step, fmt_value(it->second, a.step) + " " + a.unit, a.label + ": " + a.unit);
+            order.value = it->second;
+            break;
+        }
         case action_input::lobby: {
             auto const& levers = d.lobby_levers;
             if(levers.empty()) break;
@@ -595,19 +607,23 @@ void diplomacy_body(ui_context& ui, sim_runner& sim, alert_feed& alerts, tabs_st
             }
             lever_row const& lv = levers[static_cast<std::size_t>(t.lobby_lever)];
             const float sb = ui.px(22), sy = oy + (rh - sb) * 0.5f;
-            if(ui.flat_button("dipl.lobby.prev", {ix, sy, sb, sb}, "◀", ui.px(10))) {
+            char lid[48];
+            std::snprintf(lid, sizeof(lid), "dipl.lobby.prev.%u", a.kind);
+            if(ui.flat_button(lid, {ix, sy, sb, sb}, "◀", ui.px(10))) {
                 t.lobby_lever = (t.lobby_lever + static_cast<int>(levers.size()) - 1) % static_cast<int>(levers.size());
                 t.lobby_value = levers[static_cast<std::size_t>(t.lobby_lever)].current;
             }
             const float nw = ui.px(190);
             label(ui, {ix + sb + ui.px(4), oy, nw, rh}, lv.name, style::flat_text, align::left, font_weight::regular, 11);
-            if(ui.flat_button("dipl.lobby.next", {ix + sb + nw + ui.px(8), sy, sb, sb}, "▶", ui.px(10))) {
+            std::snprintf(lid, sizeof(lid), "dipl.lobby.next.%u", a.kind);
+            if(ui.flat_button(lid, {ix + sb + nw + ui.px(8), sy, sb, sb}, "▶", ui.px(10))) {
                 t.lobby_lever = (t.lobby_lever + 1) % static_cast<int>(levers.size());
                 t.lobby_value = levers[static_cast<std::size_t>(t.lobby_lever)].current;
             }
             ix += sb * 2 + nw + ui.px(8) + pad;
-            stepper("lobbyv", t.lobby_value, lv.lo, lv.hi, lv.step, fmt_value(t.lobby_value, lv.step) + " " + lv.unit,
-                    "The value you press for (the government's now: " + fmt_value(lv.current, lv.step) + ")");
+            std::snprintf(lid, sizeof(lid), "lobbyv.%u", a.kind);
+            stepper(lid, t.lobby_value, lv.lo, lv.hi, lv.step, fmt_value(t.lobby_value, lv.step) + " " + lv.unit,
+                    "The value you press for (theirs now: " + fmt_value(lv.current, lv.step) + ")");
             order.lever = lv.index;
             order.value = t.lobby_value;
             break;
@@ -756,39 +772,48 @@ void power_panel(ui_context& ui, sim_runner& sim, hud_state& st, int nation, boo
     const float content_bottom = body.bottom() - leanings_h - pad;
     if(!p.board.empty()) cards(p.board, y, content_bottom);
     if(democracy) {
-        // Hemicycle: arcs by seat share, left to right by economic position; the
-        // governing coalition gets an outer band.
+        // Parliament: one dot per representative on semicircular rows (parliament.hpp),
+        // parties left to right by economic position; government parties' dots carry a dark
+        // ring.
         std::vector<std::size_t> order(p.parties.size());
         for(std::size_t i = 0; i < order.size(); ++i) order[i] = i;
         std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return p.parties[a].position[2] < p.parties[b].position[2]; });
-        double seats = 0.0;
-        for(auto const& q : p.parties) seats += std::max(0.0f, q.seat);
+        std::vector<float> shares;
+        for(std::size_t oi : order) shares.push_back(std::max(0.0f, p.parties[oi].seat));
+        const int chamber = std::max(1, p.chamber > 0 ? p.chamber : 300);
+        const std::vector<int> seats = apportion(shares, chamber);
+        const std::vector<seat_dot> dots = parliament_layout(seats);
         const float R = std::min(body.w * 0.36f, std::max(ui.px(60), (content_bottom - y) * 0.42f));
         const float cx = body.x + body.w * 0.5f, cy = y + R + ui.px(6);
-        const rect sq{std::round(cx - R), std::round(cy - R), std::round(R * 2), std::round(R * 2)};
-        const float band = std::round(ui.px(5));
-        const rect outer{sq.x - band - ui.px(2), sq.y - band - ui.px(2), sq.w + (band + ui.px(2)) * 2, sq.h + (band + ui.px(2)) * 2};
-        float at = 0.5f;
-        int hovered = -1;
-        const float mx = ui.input().mouse_x - cx, my = -(ui.input().mouse_y - cy);
-        const float mr = std::sqrt(mx * mx + my * my);
-        const float mt = std::atan2(my, mx) / 6.2831853f;
-        if(seats > 0.0) {
-            for(std::size_t oi : order) {
+        if(!dots.empty()) {
+            const float mx = ui.input().mouse_x, my = ui.input().mouse_y;
+            int hovered = -1;
+            float best = 1e30f;
+            const float ring = std::max(1.0f, std::round(ui.px(1.5f)));
+            for(auto const& d : dots) {
+                const float px = cx + d.x * R, py = cy - d.y * R, r = std::max(1.5f, d.r * R);
+                const std::size_t oi = order[d.group];
                 party_row const& q = p.parties[oi];
-                const float f = static_cast<float>(std::max(0.0f, q.seat) / seats) * 0.5f;
-                if(f <= 0.0f) continue;
-                if(q.in_government) ui.arc(outer, at - f, at, 1.0f - band / (outer.w * 0.5f), style::flat_text);
-                ui.arc(sq, at - f, at, 0.48f, party_colour(p.parties, oi, p.iso3), std::max(1.0f, ui.px(1)));
-                if(my >= 0.0f && mr <= R && mr >= R * 0.48f && mt <= at && mt >= at - f) hovered = static_cast<int>(oi);
-                at -= f;
+                if(q.in_government) ui.arc({px - r - ring, py - r - ring, (r + ring) * 2, (r + ring) * 2}, 0.0f, 1.0f, 0.0f, style::flat_text);
+                ui.arc({px - r, py - r, r * 2, r * 2}, 0.0f, 1.0f, 0.0f, party_colour(p.parties, oi, p.iso3));
+                const float d2 = (mx - px) * (mx - px) + (my - py) * (my - py);
+                if(d2 <= (r + ring) * (r + ring) * 2.25f && d2 < best) {
+                    best = d2;
+                    hovered = static_cast<int>(oi);
+                }
             }
-            label(ui, {cx - R, cy - ui.px(34), R * 2, ui.px(18)}, fmt("Government %.0f%%", p.gov_seat_share * 100.0), style::flat_text, align::centre,
+            label(ui, {cx - R, cy - ui.px(30), R * 2, ui.px(18)}, fmt("%.0f seats", static_cast<double>(dots.size())), style::flat_text, align::centre,
                   font_weight::semibold, 13);
-            label(ui, {cx - R, cy - ui.px(16), R * 2, ui.px(16)}, "of seats (outer band)", style::flat_dim, align::centre, font_weight::regular, 10);
+            label(ui, {cx - R, cy - ui.px(13), R * 2, ui.px(14)}, fmt("government %.0f%% (ringed)", p.gov_seat_share * 100.0), style::flat_dim, align::centre,
+                  font_weight::regular, 10);
             if(hovered >= 0) {
                 auto const& q = p.parties[static_cast<std::size_t>(hovered)];
-                ui.tooltip(q.key + fmt(": %.1f%% of seats", q.seat * 100.0) + fmt(", %.1f%% of the vote", q.vote * 100.0) + (q.in_government ? ", in government" : ""));
+                int n = 0;
+                for(std::size_t k = 0; k < order.size(); ++k) {
+                    if(order[k] == static_cast<std::size_t>(hovered)) n = seats[k];
+                }
+                ui.tooltip(q.key + fmt(": %.0f seats", static_cast<double>(n)) + fmt(" (%.1f%%)", q.seat * 100.0) + fmt(", %.1f%% of the vote", q.vote * 100.0) +
+                           (q.in_government ? ", in government" : ""));
             }
         } else {
             label(ui, {body.x, y, body.w, R}, "No seats allocated yet", style::flat_dim, align::centre);

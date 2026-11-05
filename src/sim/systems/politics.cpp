@@ -38,6 +38,7 @@
 #include <cmath>
 #include <vector>
 
+
 namespace geosim::sim {
 
 namespace {
@@ -104,13 +105,24 @@ void update_window(game_state& state, dcon::nation_id n, float years, bool reset
 // The government's policy position: its party's position moved by what it does
 // (fiscal expansion and directed credit lean left; restrictions on movement and on
 // media lean toward the survival / order end of the self-expression axis).
-void update_policy_position(game_state& state, dcon::nation_id n, bool baseline = false) {
+// Fiscal packages count while they are recent: a memory of announcements that fades over
+// stimulus_memory_years (the cumulative total never fell, so a 2020 package kept a
+// government "left" for ever).
+void update_policy_position(game_state& state, dcon::nation_id n, bool baseline = false, float years = 0.0f) {
     auto& w = state.world;
     auto const& D = state.derived;
     const auto inc = w.nation_get_incumbent(n);
     std::array<float, axes> pos{};
     if(inc) pos = party_pos(state, inc);
-    pos[static_cast<uint8_t>(value_axis::economic_right)] -= 0.02f * w.nation_get_fiscal_announced_cum(n) + 0.03f * w.nation_get_directed_credit(n);
+    if(baseline) {
+        w.nation_set_fiscal_seen(n, w.nation_get_fiscal_announced_cum(n));
+        w.nation_set_stimulus_memory(n, 0.0f);
+    } else if(years > 0.0f) {
+        const float fresh = w.nation_get_fiscal_announced_cum(n) - w.nation_get_fiscal_seen(n);
+        w.nation_set_fiscal_seen(n, w.nation_get_fiscal_announced_cum(n));
+        w.nation_set_stimulus_memory(n, w.nation_get_stimulus_memory(n) * std::exp(-years / static_cast<float>(state.params.stimulus_memory_years)) + fresh);
+    }
+    pos[static_cast<uint8_t>(value_axis::economic_right)] -= 0.02f * w.nation_get_stimulus_memory(n) + 0.03f * w.nation_get_directed_credit(n);
     float stringency = 0.0f;
     int count = 0;
     for(uint8_t k = 0; k < D.npi_count; ++k) {
@@ -142,7 +154,7 @@ void update_policy_position(game_state& state, dcon::nation_id n, bool baseline 
     w.nation_set_policy_outside(n, std::max(0.0f, raw - w.nation_get_policy_outside0(n)));
 }
 
-void reindex_parties(game_state& state, dcon::nation_id n);
+void reindex_parties(game_state& state, dcon::nation_id n, std::vector<dcon::party_id> const& before);
 
 std::vector<dcon::party_id> parties_of(game_state const& state, dcon::nation_id n) {
     std::vector<dcon::party_id> out;
@@ -169,10 +181,35 @@ void log_event(game_state& state, dcon::nation_id n, uint8_t code, float before,
     w.decision_set_prior(d, NAN);
 }
 
+// Retrospective performance as one pop feels it: income and jobs (grievance), deaths,
+// and corruption made salient by hard times.
+float pop_performance(game_state const& state, dcon::pop_id pid, float deaths_pm) {
+    auto const& w = state.world;
+    auto const& P = state.params;
+    return -2.0f * w.pop_get_grievance(pid) - static_cast<float>(P.vote_health_weight) * deaths_pm
+           - static_cast<float>(P.corruption_vote) * std::max(0.0f, w.pop_get_salience(pid, static_cast<uint8_t>(issue::corruption)) - 0.05f);
+}
+
+// A new government starts with a clean slate: voters judge it on what changes on its
+// watch (the honeymoon; blame does not pass to the successor of those who caused it).
+void reset_performance(game_state& state, dcon::nation_id n) {
+    auto& w = state.world;
+    const float deaths_pm = reported_deaths_per_million_daily(state, n);
+    for(auto own : w.nation_get_region_ownership(n)) {
+        for(auto loc : own.get_region().get_pop_location()) loc.get_pop().set_perf_ref(pop_performance(state, loc.get_pop().id, deaths_pm));
+    }
+}
+
 // Recomputes every pop's party support and the national vote shares.
 // Party identification (Green, Palmquist & Schickler 2002): pops keep a share
 // `inertia` of their previous support, so vote intention moves gradually.
-void vote_intention(game_state& state, dcon::nation_id n, std::vector<dcon::party_id> const& parties, float inertia) {
+// Retrospective voting judges the incumbent on performance relative to a reference
+// that adapts over `vote_memory_years` (voters are myopic and reward change, not levels;
+// Healy & Lenz 2014; Achen & Bartels 2016), and its effect saturates
+// (`vote_retrospective_cap`): partisans discount bad news about their own side
+// (Bartels 2002), so no performance drives a major party to zero. `years` > 0 moves
+// the reference (the monthly update).
+void vote_intention(game_state& state, dcon::nation_id n, std::vector<dcon::party_id> const& parties, float inertia, float years = 0.0f) {
     auto& w = state.world;
     auto const& P = state.params;
     const auto incumbent = w.nation_get_incumbent(n);
@@ -187,16 +224,20 @@ void vote_intention(game_state& state, dcon::nation_id n, std::vector<dcon::part
             const float values_w = 0.3f + p.get_salience(static_cast<uint8_t>(issue::identity))
                                    + p.get_salience(static_cast<uint8_t>(issue::immigration))
                                    + p.get_salience(static_cast<uint8_t>(issue::environment));
-            // Retrospective performance felt by this pop (income, jobs, health) and
-            // corruption made salient by hard times.
-            const float performance = -2.0f * p.get_grievance() - static_cast<float>(P.vote_health_weight) * deaths_pm
-                                      - static_cast<float>(P.corruption_vote) * std::max(0.0f, p.get_salience(static_cast<uint8_t>(issue::corruption)) - 0.05f);
+            const float felt = pop_performance(state, p.id, deaths_pm);
+            const float cap = std::max(1e-3f, static_cast<float>(P.vote_retrospective_cap));
+            const float performance = cap * std::tanh((felt - p.get_perf_ref()) / cap);
+            if(years > 0.0f) p.set_perf_ref(p.get_perf_ref() + (felt - p.get_perf_ref()) * std::min(1.0f, years / static_cast<float>(P.vote_memory_years)));
             std::array<float, max_parties> u{};
             float umax = -1e30f;
             for(std::size_t j = 0; j < parties.size() && j < max_parties; ++j) {
                 float d2 = 0.0f;
                 for(uint8_t a = 0; a < static_cast<uint8_t>(value_axis::count); ++a) {
-                    const float d = p.get_values(a) - w.party_get_position(parties[j], a);
+                    float at = w.party_get_position(parties[j], a);
+                    // The thermostatic public judges the incumbent by what it does as well
+                    // as by its label (Wlezien 1995; Soroka & Wlezien 2010).
+                    if(parties[j] == incumbent && a == static_cast<uint8_t>(value_axis::economic_right)) at += static_cast<float>(P.thermostat) * (w.nation_get_policy_position(n, a) - at);
+                    const float d = p.get_values(a) - at;
                     d2 += (a == static_cast<uint8_t>(value_axis::economic_right) ? econ_w : values_w) * d * d;
                 }
                 const float out = outside_window(state, n, party_pos(state, parties[j]));
@@ -232,11 +273,12 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
     const std::size_t np = std::min<std::size_t>(parties.size(), max_parties);
     auto const& P = state.params;
     const auto system = static_cast<electoral_system>(w.nation_get_electoral_system(n));
-    // Single-member districts. With several regions: regional pluralities, each
-    // region's seats proportional to its population. With one region the districts
-    // are not resolved, so the seat-vote curve follows the cube law (Kendall & Stuart
-    // 1950; Taagepera 1986), softer under two-round runoffs (Duverger 1954; Blais &
-    // Loewen 2009 put runoff disproportionality between FPTP and PR).
+    // Single-member districts. A region (a state, a province) holds many districts, so
+    // its seats - in proportion to its population - split by the seat-vote curve of
+    // single-member districts, the cube law (Kendall & Stuart 1950; Taagepera 1986), on
+    // the region's vote, softer under two-round runoffs (Duverger 1954; Blais & Loewen
+    // 2009 put runoff disproportionality between FPTP and PR). Giving each region's seats
+    // to its plurality winner made a 54% national vote 97% of the US House.
     auto districts = [&](double exponent) {
         std::array<double, max_parties> out{};
         std::size_t regions = 0;
@@ -249,11 +291,20 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
             for(auto own : w.nation_get_region_ownership(n)) {
                 auto r = own.get_region();
                 std::array<double, max_parties> regional{};
+                double sum = 0.0;
                 for(auto loc : r.get_pop_location()) {
                     for(std::size_t j = 0; j < np; ++j) regional[j] += loc.get_pop().get_size() * loc.get_pop().get_party_support(static_cast<uint8_t>(j));
                 }
-                const auto winner = static_cast<std::size_t>(std::max_element(regional.begin(), regional.begin() + static_cast<std::ptrdiff_t>(np)) - regional.begin());
-                out[winner] += r.get_population();
+                // Within a region the districts are already sorted by geography (urban
+                // clustering, districting), so the curve is flatter than the national cube
+                // law: scaled by district_exponent / cube_law.
+                const double e = std::max(1.0, exponent * static_cast<double>(P.district_exponent) / std::max(1.0, static_cast<double>(P.cube_law)));
+                for(std::size_t j = 0; j < np; ++j) {
+                    regional[j] = std::pow(std::max(0.0, regional[j]), e);
+                    sum += regional[j];
+                }
+                if(sum <= 0.0) continue;
+                for(std::size_t j = 0; j < np; ++j) out[j] += r.get_population() * regional[j] / sum;
                 total += r.get_population();
             }
         } else {
@@ -301,6 +352,7 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
     switch(system) {
     case electoral_system::fptp: seats = districts(static_cast<double>(P.cube_law)); break;
     case electoral_system::two_round: seats = districts(0.5 * (1.0 + static_cast<double>(P.cube_law))); break;
+    // (mixed: below)
     case electoral_system::pr: seats = list_pr(); break;
     case electoral_system::mixed: {
         // Parallel (mixed-member majoritarian) systems: a share smd_share of seats from
@@ -371,7 +423,11 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
     }
     term_limit_check(state, n, before && before == parties[head]);
     w.nation_set_incumbent(n, parties[head]);
-    if(!before || before != parties[head]) w.nation_set_tenure_days(n, 0.0f);
+    if(!before || before != parties[head]) {
+        w.nation_set_tenure_days(n, 0.0f);
+        reset_performance(state, n);
+        w.nation_set_stimulus_memory(n, 0.0f); // its predecessor's packages are not its policy
+    }
     w.nation_set_gov_seat_share(n, static_cast<float>(best_seats));
     allocate_portfolios(state, n);
 
@@ -414,8 +470,13 @@ void adapt_parties(game_state& state, dcon::nation_id n, std::vector<dcon::party
                     weight += s;
                 }
             }
+            // Activists, donors and primaries tie a party to its core (Aldrich 1983; Adams &
+            // Merrill 2006): it moves toward its voters only part of the way from its anchor.
+            // Pure vote-seeking made both US parties converge on the median and the one
+            // that got there first win 80% of the vote.
             if(weight > 0.0) {
-                for(uint8_t a = 0; a < axes; ++a) target[a] = static_cast<float>(sum[a] / weight);
+                const float k = static_cast<float>(P.party_anchor);
+                for(uint8_t a = 0; a < axes; ++a) target[a] = (1.0f - k) * static_cast<float>(sum[a] / weight) + k * w.party_get_anchor(p, a);
             }
         } else if(strategy == party_strategy::hunter) {
             // Keep the heading while the vote grows; otherwise reverse it.
@@ -501,6 +562,7 @@ bool entry_and_exit(game_state& state, dcon::nation_id n, std::vector<dcon::part
     for(uint8_t a = 0; a < axes; ++a) {
         w.party_set_position(p, a, static_cast<float>(sum[a] / unrep));
         w.party_set_heading(p, a, 0.0f);
+        w.party_set_anchor(p, a, w.party_get_position(p, a));
     }
     w.party_set_vote_share(p, 0.0f);
     w.party_set_last_vote(p, 0.0f);
@@ -511,7 +573,12 @@ bool entry_and_exit(game_state& state, dcon::nation_id n, std::vector<dcon::part
 }
 
 // Local indices follow economic left-right order (coalitions are "connected" in it).
-void reindex_parties(game_state& state, dcon::nation_id n) {
+// Pops hold their support by local index, so `before` - the party list the support
+// arrays were written for (parties_of before any entry, exit or move) - lets every pop's
+// support follow its party to the new index; dissolved parties' support is dropped and
+// the rest renormalised, new parties start from nothing. Without this, a party that
+// crossed another on the economic axis swapped voters with it.
+void reindex_parties(game_state& state, dcon::nation_id n, std::vector<dcon::party_id> const& before) {
     auto& w = state.world;
     std::vector<dcon::party_id> list;
     for(auto m : w.nation_get_party_membership(n)) list.push_back(m.get_party().id);
@@ -520,14 +587,59 @@ void reindex_parties(game_state& state, dcon::nation_id n) {
                < w.party_get_position(b, static_cast<uint8_t>(value_axis::economic_right));
     });
     for(std::size_t i = 0; i < list.size(); ++i) w.party_set_local_index(list[i], static_cast<uint8_t>(i));
+    if(list == before) return;
+    // New slot of each old slot (-1: dissolved).
+    std::array<int, max_parties> to{};
+    to.fill(-1);
+    for(std::size_t j = 0; j < before.size() && j < max_parties; ++j) {
+        for(std::size_t i = 0; i < list.size() && i < max_parties; ++i) {
+            if(list[i] == before[j]) to[j] = static_cast<int>(i);
+        }
+    }
+    for(auto own : w.nation_get_region_ownership(n)) {
+        for(auto loc : own.get_region().get_pop_location()) {
+            auto p = loc.get_pop();
+            std::array<float, max_parties> old{}, now{};
+            for(std::size_t j = 0; j < max_parties && j < p.get_party_support_size(); ++j) old[j] = p.get_party_support(static_cast<uint8_t>(j));
+            float total = 0.0f;
+            for(std::size_t j = 0; j < before.size() && j < max_parties; ++j) {
+                if(to[j] >= 0) {
+                    now[static_cast<std::size_t>(to[j])] = old[j];
+                    total += old[j];
+                }
+            }
+            for(std::size_t i = 0; i < max_parties && i < p.get_party_support_size(); ++i) {
+                p.set_party_support(static_cast<uint8_t>(i), total > 0.0f ? now[i] / total : 0.0f);
+            }
+        }
+    }
 }
 
 } // namespace
+
+// A successful coup (here or by a player-controlled military, actions.cpp): elections and
+// liberties are curtailed, the new rulers are order-minded, legitimacy resets low, and
+// organisations with a democracy clause suspend the nation.
+void apply_coup(game_state& state, dcon::nation_id n) {
+    auto& w = state.world;
+    w.nation_set_electoral(n, w.nation_get_electoral(n) * 0.5f);
+    w.nation_set_liberal(n, w.nation_get_liberal(n) * 0.7f);
+    w.nation_set_legitimacy(n, 0.4f);
+    if(auto exec = w.nation_get_agent_from_executive_seat(n)) {
+        w.agent_set_order_ideal(exec, std::min(0.8f, w.agent_get_order_ideal(exec) + 0.2f));
+        w.agent_set_rho_base(exec, std::min(0.8f, w.agent_get_rho_base(exec) + 0.1f));
+    }
+    log_event(state, n, journal_coup, 0.0f, 1.0f);
+    on_coup(state, n);
+}
 
 void init_politics(game_state& state) {
     auto& w = state.world;
     for(auto n : w.in_nation) {
         const auto parties = parties_of(state, n.id);
+        for(auto p : parties) {
+            for(uint8_t a = 0; a < axes; ++a) w.party_set_anchor(p, a, w.party_get_position(p, a));
+        }
         update_window(state, n.id, 0.0f, true);
         update_policy_position(state, n.id, true);
         if(parties.empty()) continue;
@@ -611,20 +723,19 @@ void update_politics(game_state& state) {
     for(auto n : w.in_nation) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
         update_window(state, n.id, years, false);
-        update_policy_position(state, n.id);
+        update_policy_position(state, n.id, false, years);
         auto parties = parties_of(state, n.id);
         if(parties.empty()) continue;
 
-        vote_intention(state, n.id, parties, static_cast<float>(P.party_id_inertia));
+        vote_intention(state, n.id, parties, static_cast<float>(P.party_id_inertia), years);
         if(n.get_competitive()) {
             adapt_parties(state, n.id, parties, years);
-            if(entry_and_exit(state, n.id, parties, years)) {
-                reindex_parties(state, n.id);
-                parties = parties_of(state, n.id);
-                vote_intention(state, n.id, parties, 0.0f);
-            } else {
-                reindex_parties(state, n.id);
-            }
+            const bool changed = entry_and_exit(state, n.id, parties, years);
+            // `parties` may name a dissolved party now; only identities are compared.
+            reindex_parties(state, n.id, parties);
+            parties = parties_of(state, n.id);
+            // New parties draw support only from the next months' intention (inertia).
+            if(changed) vote_intention(state, n.id, parties, static_cast<float>(P.party_id_inertia));
         }
         const auto inc = n.get_incumbent();
         n.set_approval(inc ? std::clamp(0.5f * w.party_get_vote_share(inc) / n.get_approval0(), 0.0f, 1.0f) : 0.5f);
@@ -679,15 +790,7 @@ void update_politics(game_state& state) {
                             * (1.0f - coup_deterrence(state, n.id)); // democracy clauses (Powell, Lasley & Schiel 2016)
             if(core::uniform01(state.rng_seed, static_cast<uint32_t>(core::rng_stream::elections), static_cast<uint32_t>(state.current_tick),
                                static_cast<uint32_t>(n.id.index())) < p) {
-                n.set_electoral(n.get_electoral() * 0.5f);
-                n.set_liberal(n.get_liberal() * 0.7f);
-                n.set_legitimacy(0.4f);
-                if(auto exec = n.get_executive_seat().get_agent()) {
-                    exec.set_order_ideal(std::min(0.8f, exec.get_order_ideal() + 0.2f));
-                    exec.set_rho_base(std::min(0.8f, exec.get_rho_base() + 0.1f));
-                }
-                log_event(state, n.id, journal_coup, 0.0f, 1.0f);
-                on_coup(state, n.id);
+                apply_coup(state, n.id);
             }
         }
     }

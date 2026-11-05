@@ -674,6 +674,8 @@ void update_economy(game_state& state, economy_mode mode) {
     // Lanes of nations not due today keep their values (probe: everyone is due).
     auto lane_due = [&](auto nat) { return w.nation_get_econ_due(nat) > ve::fp_vector(0.5f); };
 
+    if(apply) update_trade_rivals(state); // exchange rates as of today (pair_access)
+
     // 1. nation pre-pass
     for(auto n : due_nations) {
         nation_prepass(state, n);

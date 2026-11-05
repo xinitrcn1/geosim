@@ -395,6 +395,16 @@ void update_migration(game_state& state) {
     };
     std::vector<move> moves;
 
+    // Per-nation lookups shared by every move this call (built only when a nation is
+    // due; they were recomputed per region pair and per pop: quadratic and worse at
+    // world scale).
+    bool any_due = false;
+    for(auto n : w.in_nation) any_due = any_due || is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence);
+    if(!any_due) return;
+    const std::size_t N = w.nation_size();
+    std::vector<dcon::social_group_id> arrival(N);
+    for(auto n : w.in_nation) arrival[n.id.index()] = arrival_group(state, n.id);
+
     // Internal (and cross-border) moves along adjacency, both directions.
     for(auto edge : w.in_region_adjacency) {
         const auto a = edge.get_a().id;
@@ -420,7 +430,7 @@ void update_migration(game_state& state) {
         for(uint8_t k = 0; k < worker_kinds; ++k) {
             for(auto x : pa.by_kind[k]) {
                 // Same group on the other side (domestic); immigrants abroad.
-                const auto y = domestic ? find_pop(state, pb, k, w.pop_get_group(x)) : find_pop(state, pb, k, arrival_group(state, nb));
+                const auto y = domestic ? find_pop(state, pb, k, w.pop_get_group(x)) : find_pop(state, pb, k, arrival[nb.index()]);
                 if(!y) continue;
                 // Housing costs deter moves to booming regions (Ganong & Shoag 2017).
                 const float housing = 0.3f * std::log(std::max(0.05f, w.region_get_house_price_r(b)) / std::max(0.05f, w.region_get_house_price_r(a)));
@@ -437,34 +447,48 @@ void update_migration(game_state& state) {
     // International moves between nations (gravity: toward larger economies).
     double world_pop = 0.0;
     for(auto n : w.in_nation) world_pop += n.get_population();
+    std::vector<dcon::region_id> capital(N);
+    std::vector<region_pops> capital_pops(N);
+    for(auto n : w.in_nation) {
+        capital[n.id.index()] = capital_region(state, n.id);
+        if(capital[n.id.index()]) capital_pops[n.id.index()] = pops_in(state, capital[n.id.index()]);
+    }
+    std::vector<uint8_t> deal(N);
     for(auto n : w.in_nation) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) {
             continue;
         }
-        const auto origin_region = capital_region(state, n.id);
+        const auto origin_region = capital[n.id.index()];
         if(!origin_region) continue;
-        const auto po = pops_in(state, origin_region);
+        region_pops const& po = capital_pops[n.id.index()];
+        // War at home pushes refugees out regardless of the income gap.
+        float at_war = 0.0f;
+        for(auto o : w.in_nation) at_war = std::max(at_war, n.get_at_war(static_cast<uint8_t>(o.id.index())));
+        // Destinations holding a migration deal with n.
+        std::fill(deal.begin(), deal.end(), uint8_t(0));
+        for(auto t : w.in_treaty) {
+            if(!t.get_active() || t.get_kind() != static_cast<uint8_t>(treaty_kind::migration)) continue;
+            if(t.get_a() == n.id && t.get_b()) deal[t.get_b().id.index()] = 1;
+            if(t.get_b() == n.id && t.get_a()) deal[t.get_a().id.index()] = 1;
+        }
         for(auto m : w.in_nation) {
             if(m.id == n.id) continue;
-            const auto dest_region = capital_region(state, m.id);
+            const auto dest_region = capital[m.id.index()];
             if(!dest_region) continue;
-            const auto pd = pops_in(state, dest_region);
+            region_pops const& pd = capital_pops[m.id.index()];
             const float open = (1.0f - 0.9f * restriction(n.id, D.npi_travel)) * (1.0f - 0.9f * restriction(m.id, D.npi_travel));
             // Migrant networks lower the cost of following (Massey et al. 1993; Beine,
             // Docquier & Ozden 2011): a diaspora from n already in m pulls more.
             const auto ni = static_cast<uint16_t>(n.id.index());
             const float network = 1.0f + static_cast<float>(P.diaspora_pull) * 100.0f * m.get_diaspora(ni) / std::max(1.0f, static_cast<float>(m.get_population()));
             // A migration deal (agreements.cpp) has the origin hold departures to that destination.
-            const float deal = has_treaty(state, treaty_kind::migration, m.id, n.id) ? 0.3f : 1.0f;
-            const float gravity = static_cast<float>(m.get_population() / world_pop) * network * m.get_immigration_openness() * deal;
-            const auto dest_group = arrival_group(state, m.id);
+            const float held = deal[m.id.index()] ? 0.3f : 1.0f;
+            const float gravity = static_cast<float>(m.get_population() / world_pop) * network * m.get_immigration_openness() * held;
+            const auto dest_group = arrival[m.id.index()];
             for(uint8_t k = 0; k < worker_kinds; ++k) {
               for(auto x : po.by_kind[k]) {
                 const auto y = find_pop(state, pd, k, dest_group);
                 if(!y) continue;
-                // War at home pushes refugees out regardless of the income gap.
-                float at_war = 0.0f;
-                for(auto o : w.in_nation) at_war = std::max(at_war, n.get_at_war(static_cast<uint8_t>(o.id.index())));
                 const float gap = std::log(expected(y) / expected(x)) - static_cast<float>(P.migration_cost_international)
                                   + static_cast<float>(P.refugee_push) * at_war * (1.0f + static_cast<float>(P.refugee_occupation) * n.get_occupied())
                                         * static_cast<float>(P.asylum_refugee) * m.get_asylum_openness();
@@ -537,17 +561,19 @@ void update_opinion(game_state& state) {
             const float size = std::max(1.0f, w.pop_get_size(p));
             const float loss = std::max(0.0f, 1.0f - w.pop_get_income(p) / std::max(1e-3f, w.pop_get_income_expected(p)));
             const float jobless = w.pop_get_unemployed(p) / size;
-            const float insecurity = std::clamp(2.0f * loss + 2.0f * jobless + 0.05f * deaths_pm, 0.0f, 1.0f);
+            // Insecurity is joblessness above the normal rate: the baseline itself must not
+            // move values (it made every public drift toward survival values in steady state).
+            const float insecurity = std::clamp(2.0f * loss + 2.0f * std::max(0.0f, jobless - n.get_unemployment0()) + 0.05f * deaths_pm, 0.0f, 1.0f);
             const float survival = -static_cast<float>(P.values_insecurity_pull) * insecurity * years;
             w.pop_set_values(p, static_cast<uint8_t>(value_axis::self_expression),
                              std::clamp(w.pop_get_values(p, static_cast<uint8_t>(value_axis::self_expression)) + survival, -1.0f, 1.0f));
-            // Losers move left (demand for redistribution); the public as a thermostat moves
-            // against the direction of economic policy (Wlezien 1995).
+            // Losers move left (demand for redistribution). The thermostatic public (Wlezien
+            // 1995) reacts to policy in vote choice (politics.cpp), not by moving its values:
+            // integrating it here fed back through the window centre and drove voters
+            // steadily away from whichever party governed.
             const uint8_t er = static_cast<uint8_t>(value_axis::economic_right);
-            const float thermo = static_cast<float>(P.thermostat) * (n.get_window_center(er) - n.get_policy_position(er));
             w.pop_set_values(p, er,
-                             std::clamp(w.pop_get_values(p, er) - static_cast<float>(P.values_loss_left) * w.pop_get_grievance(p) * years
-                                            + thermo * years, -1.0f, 1.0f));
+                             std::clamp(w.pop_get_values(p, er) - static_cast<float>(P.values_loss_left) * w.pop_get_grievance(p) * years, -1.0f, 1.0f));
             // Salience of issues.
             const auto home = w.pop_get_home(p);
             const float mig = 10.0f * std::abs(w.region_get_migration_net(home)) / std::max(1.0f, w.region_get_population(home));

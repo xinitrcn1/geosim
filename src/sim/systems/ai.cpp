@@ -53,15 +53,7 @@ float settle(game_state& state, dcon::agent_id a, uint8_t lev, blend_result cons
     const auto mode = static_cast<override_mode>(w.agent_get_override_mode(a, lev));
     float choice = r.choice;
     switch(mode) {
-    case override_mode::none: {
-        // Lobbying by firms or unions (actions.cpp): weak advice to the government while it lasts.
-        auto n = w.agent_get_home(a);
-        if(n && w.nation_get_lobby_until(n) > state.current_tick && w.nation_get_lobby_lever(n) == lev) {
-            const float k = w.nation_get_lobby_weight(n);
-            choice = std::clamp((r.choice + k * w.nation_get_lobby_value(n)) / (1.0f + k), lo, hi);
-        }
-        break;
-    }
+    case override_mode::none: choice = apply_pressure(state, a, lev, r.choice, lo, hi); break;
     case override_mode::advise: {
         // Advice is one more (strong) prior the agent weighs against its own targets.
         const float k = static_cast<float>(state.params.advise_weight);
@@ -159,7 +151,7 @@ void decide_npis(game_state& state, dcon::agent_id a, dcon::nation_id n, situati
     auto const& P = state.params;
     auto const& D = state.derived;
     const bool anchors = P.historical_anchors != 0.0 && w.nation_get_prior_npi_set(n);
-    const float kappa = static_cast<float>(P.anchor_prior_weight);
+    const float kappa = anchor_weight(state);
     const float rho = w.agent_get_rho(a);
     const float capacity = w.nation_get_state_capacity(n);
     const float u_rise = std::max(0.0f, w.nation_get_unemployment(n) - w.nation_get_unemployment0(n));
@@ -215,7 +207,7 @@ void decide_fiscal(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     auto const& P = state.params;
     auto const& D = state.derived;
     const float rho = w.agent_get_rho(a);
-    const float kappa = static_cast<float>(P.anchor_prior_weight);
+    const float kappa = anchor_weight(state);
 
     // Counter-cyclical support limited by fiscal space (debt relative to a soft limit).
     const double gdp_nominal = w.nation_get_gdp0(n) * w.nation_get_core_price(n);
@@ -338,7 +330,7 @@ void decide_job_retention(game_state& state, dcon::agent_id a, dcon::nation_id n
     auto const& P = state.params;
     auto const& D = state.derived;
     const float rho = w.agent_get_rho(a);
-    const float kappa = static_cast<float>(P.anchor_prior_weight);
+    const float kappa = anchor_weight(state);
     const bool anchors = P.historical_anchors != 0.0;
     const bool has = anchors && w.nation_get_prior_stw_set(n);
     // Pragmatic: capable states protect jobs when closures bite.
@@ -377,7 +369,7 @@ void decide_oil(game_state& state, dcon::agent_id a, dcon::nation_id n) {
     const float capacity = prod0 * oil_trend_index(state) * quota;
     const float market = capacity * std::pow(std::max(0.05f, price), w.nation_get_oil_supply_elasticity(n));
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::oil_target));
-    auto r = blend(market, capacity, w.agent_get_rho(a), anchors, w.nation_get_prior_oil(n), static_cast<float>(P.anchor_prior_weight),
+    auto r = blend(market, capacity, w.agent_get_rho(a), anchors, w.nation_get_prior_oil(n), anchor_weight(state),
                    0.0f, prod0 * 2.0f);
     const float before = w.nation_get_oil_target(n);
     const float after = settle(state, a, lev, r, 0.0f, prod0 * 2.0f);
@@ -447,7 +439,7 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
     pragmatic = std::max(static_cast<float>(P.effective_lower_bound), pragmatic);
     const uint8_t lev = static_cast<uint8_t>(D.lever_base + static_cast<uint8_t>(lever::policy_rate));
     auto r = blend(pragmatic, static_cast<float>(rate0), w.agent_get_rho(bank), anchored && P.historical_anchors != 0.0, prior,
-                   static_cast<float>(P.anchor_prior_weight), static_cast<float>(P.effective_lower_bound), 100.0f);
+                   anchor_weight(state), static_cast<float>(P.effective_lower_bound), 100.0f);
     const float before = w.nation_get_policy_rate(first);
     const float after = settle(state, bank, lev, r, static_cast<float>(P.effective_lower_bound), 100.0f);
     for(auto m : w.agent_get_monetary_authority(bank)) {
@@ -481,12 +473,28 @@ void decide_rate(game_state& state, dcon::agent_id bank) {
 
 } // namespace
 
+float anchor_weight(game_state const& state) {
+    const float k = static_cast<float>(state.params.anchor_prior_weight);
+    const int32_t over = state.current_tick - state.derived.anchor_end;
+    if(over <= 0) return k;
+    return k * std::exp(-static_cast<float>(over) / std::max(1.0f, static_cast<float>(state.params.anchor_fade_days)));
+}
+
+float apply_pressure(game_state const& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi) {
+    auto const& w = state.world;
+    if(w.agent_get_pressure_until(a) <= state.current_tick || w.agent_get_pressure_lever(a) != lev) return choice;
+    // Pressure from another agent (actions.cpp: lobbying, pressing, pacts, strikes): one
+    // more prior weighed by the presser's leverage while it lasts (Grossman & Helpman 1994).
+    const float k = std::max(0.0f, w.agent_get_pressure_weight(a));
+    return std::clamp((choice + k * w.agent_get_pressure_value(a)) / (1.0f + k), std::min(lo, hi), std::max(lo, hi));
+}
+
 float apply_override(game_state& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi) {
     auto& w = state.world;
     const float v = w.agent_get_override_value(a, lev);
     float out = choice;
     switch(static_cast<override_mode>(w.agent_get_override_mode(a, lev))) {
-    case override_mode::none: break;
+    case override_mode::none: out = apply_pressure(state, a, lev, choice, lo, hi); break;
     case override_mode::advise: {
         const float k = static_cast<float>(state.params.advise_weight);
         out = std::clamp((choice + k * v) / (1.0f + k), lo, hi);

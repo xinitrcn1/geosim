@@ -24,6 +24,8 @@ scenario_report build_scenario(game_state& state, std::string const& assets_dir,
 
 // Recomputes game_state::derived from world (call after build or load).
 void rebuild_derived(game_state& state);
+// The last tick of the historical anchors (derived_indices::anchor_end).
+void update_anchor_end(game_state& state);
 
 [[nodiscard]] dcon::nation_id find_nation(game_state const& state, std::string_view iso3) noexcept;
 

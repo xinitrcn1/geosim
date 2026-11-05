@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,7 @@ struct tabs_state {
     float sanction = 0.5f, aid = 0.2f, pledge = 50.0f, lobby_value = 0.0f;
     uint8_t treaty = 1;    // sim::treaty_kind (migration)
     int lobby_lever = -1;  // index into snapshot lobby_levers
+    std::map<uint8_t, float> amounts; // amount inputs by sim::action_kind
     uint32_t pending_action = 0; // seq of the action command in flight (0 = none)
     std::string pending_label;   // the action in flight
     std::string result;          // the last action's outcome, shown under the options

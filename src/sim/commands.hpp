@@ -38,6 +38,7 @@ struct cmd_set_ai {
 };
 struct cmd_action {
     uint32_t actor, target_nation, organisation; // no_index when absent
+    uint32_t target_agent;                       // no_index when absent
     uint8_t kind;                                // action_kind
     uint8_t treaty;                              // treaty_kind
     uint8_t lever;

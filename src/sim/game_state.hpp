@@ -45,6 +45,9 @@ struct derived_indices {
     uint8_t tech_count = 0;
     // The organisation of each kind (first defined), if any (organisations.cpp).
     dcon::organisation_id org[12];
+    // Tick of the last historical anchor (dated NPI, rate, fiscal, job-retention, TTI or
+    // oil decision); anchors fade after it (sim::anchor_weight).
+    int32_t anchor_end = 0;
 };
 
 struct game_state {

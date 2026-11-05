@@ -77,6 +77,18 @@ geopolitics, treaties). Executables: `geosim_headless` and, with
   partitioner, fixed chunks). The engine has no job system of its own.
   Reductions follow the determinism rules in
   [02](02-simulation-core.md#determinism).
+- **Thread cap:** `sim::set_thread_limit` (oneTBB `global_control`) caps the
+  workers at 2 by default (the client and `geosim_headless`, `--threads N`).
+  Parallel loops write only their own entity's fields and reduce SIMD lanes
+  into doubles serially, so output is bit-identical at any thread count.
+- **World-scale hot spots** (`--profile 1` prints wall time per system):
+  per-market Armington rivals once a day (`update_trade_rivals`, parallel
+  over markets, vectorised over suppliers; they were recomputed in every
+  pair-access call, O(N³) a day), one sorted income distribution per nation
+  for Gini, Palma and poverty (nations in parallel), migration lookups hoisted
+  out of the pair loops, and the epidemic pre-pass in parallel over regions.
+  world2020 (220 nations, 3,244 regions) went from 58 to ~16 ms per simulated
+  day on two cores (RelWithDebInfo).
 - **Build:** `cmake/Dcon.cmake` links oneTBB (a system package if found,
   otherwise built from source) and enables AVX2 + FMA (`-ffp-contract=on`), which `ve` needs to pick its
   SIMD backend.

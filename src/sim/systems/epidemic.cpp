@@ -83,8 +83,12 @@ void update_epidemic(game_state& state) {
     const auto date = core::date_from_tick(state.current_tick, state.epoch_days);
     const float season_phase = std::cos(2.0f * std::numbers::pi_v<float> * static_cast<float>(core::day_of_year(date) - 15) / 365.0f);
 
-    // ---- 1. pre-pass
-    for(auto r : w.in_region) {
+    // ---- 1. pre-pass, regions in parallel: each reads its neighbours' compartments
+    // (not written here) and writes only its own transmission inputs.
+    concurrency::parallel_for(uint32_t(0), static_cast<uint32_t>(w.region_size()), [&](uint32_t ri) {
+        const dcon::region_id rid{static_cast<dcon::region_id::value_base_t>(ri)};
+        if(!w.region_is_valid(rid)) return;
+        auto r = dcon::fatten(w, rid);
         const auto n = r.get_region_ownership().get_nation();
         const float pop = std::max(1.0f, r.get_population());
 
@@ -205,7 +209,7 @@ void update_epidemic(game_state& state) {
         const float beds = r.get_beds_per_1000() / 1000.0f * pop * static_cast<float>(P.epidemic_bed_share);
         const float overload = beds > 0.0f ? std::max(0.0f, hospital_need / beds - 1.0f) : 0.0f;
         r.set_ifr_mult(1.0f + static_cast<float>(P.overload_ifr_mult) * std::min(1.0f, overload));
-    }
+    }, concurrency::static_partitioner());
 
     // ---- 2. SIMD SEIR step (dt = 1 day), all pathogens per lane
     struct pathogen_consts {

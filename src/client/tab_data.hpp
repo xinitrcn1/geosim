@@ -68,6 +68,7 @@ struct power_snapshot {
     bool democracy = true;
     uint8_t electoral_system = 0;
     float electoral = 0, liberal = 0, legitimacy = 0, approval = 0, capture = 0, winning_coalition = 0, gov_seat_share = 0;
+    int chamber = 0;                    // seats in the lower chamber (parliament.hpp chamber_size)
     std::vector<party_row> parties;     // by seat share, largest first
     std::vector<figure_row> figures;    // autocracies (and always the main agents)
     std::vector<figure_row> board;      // the acting board and its firm
@@ -98,7 +99,9 @@ struct counterpart_row {
 };
 
 // The value an action takes (Diplomacy tab inputs).
-enum class action_input : uint8_t { none, sanction_level, aid_share, pledge, treaty, lobby };
+// lobby: a lever of the pressed agent and a value (snapshot lobby_levers); amount: a value
+// in [lo, hi] described by the sim (sim::action_option).
+enum class action_input : uint8_t { none, sanction_level, aid_share, pledge, treaty, lobby, amount };
 
 struct action_row {
     uint8_t kind = 0; // sim::action_kind
@@ -106,13 +109,15 @@ struct action_row {
     std::string label;
     bool available = false;
     std::string reason;
+    std::string unit;                       // amount inputs
+    float lo = 0, hi = 0, step = 0, initial = 0;
 };
 
 struct diplomacy_snapshot {
     bool valid = false;
     std::vector<counterpart_row> counterparts;
     std::vector<action_row> actions; // toward the selected counterpart
-    std::vector<lever_row> lobby_levers; // the government's levers a lobby may press on
+    std::vector<lever_row> lobby_levers; // the levers a lobby / press acts on: the pressed agent's (or the government's)
 };
 
 struct military_snapshot {
@@ -151,6 +156,7 @@ struct action_order {
     uint32_t agent = 0xFFFFFFFFu;
     uint32_t nation = 0xFFFFFFFFu;
     uint32_t organisation = 0xFFFFFFFFu;
+    uint32_t target_agent = 0xFFFFFFFFu; // actions toward another agent
     uint8_t treaty = 0xFF;
     uint8_t lever = 0;
     float value = 0;

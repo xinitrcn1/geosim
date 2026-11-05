@@ -304,19 +304,28 @@ void update_strata(game_state& state) {
         w.pop_set_balance_trend(parent, w.pop_get_balance_trend(parent) + w.pop_get_balance_trend(c));
         w.delete_pop(c);
     }
-    // Split: a large excess of jobless members forms a precarious stratum.
+    // Split: a large excess of jobless members forms a precarious stratum. Parents that
+    // already have one are found in one pass (a scan of every pop per candidate was
+    // quadratic in a world-scale downturn).
+    std::vector<uint8_t> has_stratum;
+    if(!base.empty()) {
+        has_stratum.assign(w.pop_size(), 0);
+        for(auto c : w.in_pop) {
+            const auto parent = c.get_parent();
+            if(parent && c.get_stratum() == static_cast<uint8_t>(stratum::precarious) && static_cast<std::size_t>(parent.id.index()) < has_stratum.size()) has_stratum[static_cast<std::size_t>(parent.id.index())] = 1;
+        }
+    }
     for(auto p : base) {
         if(w.pop_get_size(p) < static_cast<float>(P.split_min_size)) continue;
         // Jobless share beyond the nation's natural rate.
         const float gap = jobless_share(state, p) - w.nation_get_unemployment0(w.pop_get_nation(p));
         if(gap < static_cast<float>(P.split_jobless_gap)) continue;
-        bool has = false;
-        for(auto c : w.in_pop) has = has || (c.get_parent() == p && c.get_stratum() == static_cast<uint8_t>(stratum::precarious));
-        if(has) continue;
+        if(has_stratum[static_cast<std::size_t>(p.index())]) continue;
         double force = w.pop_get_unemployed(p) + w.pop_get_inactive(p);
         for(uint8_t s = 0; s < state.derived.sector_count; ++s) force += w.pop_get_employed(p, s);
         const auto child = create_stratum(state, p);
         move_jobless(state, p, child, static_cast<float>(gap * force));
+        has_stratum[static_cast<std::size_t>(p.index())] = 1;
     }
 }
 

@@ -4,6 +4,7 @@
 
 historical_anchors{1}                    # 1 = dated real-world decisions are priors for the AI; 0 = AI alone
 anchor_prior_weight{10}                  # weight of the historical anchor vs pragmatic+ideological targets (=1)
+anchor_fade_days{45}                     # e-folding time of the anchors' weight after the last dated decision in the data (the AI takes over)
 advise_weight{3}                         # weight of player advice relative to the agent's own choice
 ai_horizon_days{14}                      # epidemic projection horizon of executives (days)
 ai_case_tolerance{5}                     # detected cases/million/day tolerated at health weight 1
@@ -93,6 +94,8 @@ vote_distance_weight{4}                  # utility loss per squared distance to 
 vote_retrospective{1}                    # weight of the incumbent's performance in vote choice
 vote_health_weight{0.1}                  # performance penalty per daily death per million
 vote_temperature{0.3}                    # logit temperature of vote choice
+vote_retrospective_cap{0.15}             # most vote utility performance can cost or win the incumbent (saturating; partisans discount bad news, Bartels 2002)
+vote_memory_years{1.5}                   # years over which voters' reference for performance adapts (myopic retrospection; Healy & Lenz 2014)
 legitimacy_years{1}                      # adjustment time of legitimacy (years)
 force_legitimacy_cost{0.1}               # legitimacy lost per year per forced lever
 force_liberal_cost{0.05}                 # liberal-index loss per year per forced lever
@@ -107,7 +110,8 @@ window_stigma{3}                         # vote utility lost per squared distanc
 overton_legitimacy{0.3}                  # legitimacy target lost per unit of policy outside the window
 overton_backlash{0.5}                    # protest drive per unit of liberty-restricting policy outside the window
 overton_rally{0.6}                       # shift of the acceptable range toward restriction at full perceived threat (rally; Bol et al. 2021)
-thermostat{0.05}                         # annual opinion shift against the direction of economic policy (Wlezien 1995)
+thermostat{0.5}                          # weight of the government's economic policy, against its party's position, in where voters place the incumbent (thermostatic public; Wlezien 1995)
+stimulus_memory_years{2}                 # years over which a fiscal package stops shaping the government's economic position
 party_entry_distance{0.5}                # distance to the nearest party beyond which a voter is unrepresented
 party_entry_share{0.15}                  # unrepresented share of voters at which a challenger party forms
 party_exit_months{24}                    # months below 1% of the vote after which a party dissolves
@@ -266,7 +270,7 @@ censor_trigger{1.5}                      # unrest level at which an order-minded
 strike_capacity{0.03}                    # regional capacity lost per unrest level above 2
 net_control_scale{0.8}                   # starting domestic information control per unit (1 - net freedom)
 net_filter_threshold{0.4}                # lack of net freedom above which cross-border filtering starts
-net_diffusion{0.3}                       # annual value convergence toward coupled foreign publics (Gleditsch & Ward 2006)
+net_diffusion{0.03}                      # annual value convergence toward coupled foreign publics (Gleditsch & Ward 2006; values move over generations, so a few % a year at most)
 net_contagion{0.6}                       # protest drive per unit coupled foreign protest participation (share of x_max)
 net_tie_floor{0.02}                      # minimum tie between two societies (language, diaspora, media) besides trade
 net_digital_trade{0.3}                   # share of services exports and imports delivered online
@@ -433,7 +437,9 @@ retirement_debt{0.5}                     # pragmatic later retirement (years) pe
 education_tertiary{0.02}                 # tertiary-share rise per year per % GDP of extra education spending (lagged)
 health_beds{0.5}                         # hospital beds per 1000 added per year per % GDP of extra health spending
 capital_controls_trigger{5}              # portfolio outflow (% GDP/yr) at which controls become pragmatic
-cube_law{3}                              # seat-vote exponent of single-member districts in a one-region nation (Taagepera 1986)
+district_exponent{1.5}                   # seat-vote exponent of single-member districts inside one region (geographic sorting flattens the cube law; US House 2012-20 ~1.5)
+party_anchor{0.7}                        # weight of a mainstream party's core position against its voters' centroid (activists, primaries; Aldrich 1983)
+cube_law{3}                              # seat-vote exponent of single-member districts within a region (Taagepera 1986)
 lobby_tariff{0.05}                       # ideological tariff per unit lobby pressure (Grossman & Helpman 1994)
 governor_alignment{0.3}                  # regional NPI offset of a governor from the opposition per unit party distance
 rural_contact_rel{0.6}                   # transmissible contacts in rural vs urban populations (Rader et al. 2020; crowding)

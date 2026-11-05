@@ -100,12 +100,12 @@ struct point {
 std::vector<point> income_points(game_state const& state, dcon::nation_id n, float sigma_override);
 } // namespace
 
-float compute_gini(game_state const& state, dcon::nation_id n, float sigma_override) {
-    auto pts = income_points(state, n, sigma_override);
+namespace {
+// Gini of sorted points.
+float gini_of(std::vector<point> const& pts) {
     if(pts.empty()) {
         return 0.0f;
     }
-    std::sort(pts.begin(), pts.end(), [](point const& a, point const& b) { return a.x < b.x; });
     double weight_total = 0.0;
     double income_total = 0.0;
     for(auto const& pt : pts) {
@@ -125,12 +125,11 @@ float compute_gini(game_state const& state, dcon::nation_id n, float sigma_overr
 
 // Palma ratio (income share of the top 10% / bottom 40%) and relative poverty
 // (share below half the median), from the same quadrature as the Gini.
-void compute_distribution(game_state const& state, dcon::nation_id n, float& palma, float& poverty) {
-    auto pts = income_points(state, n, -1.0f);
+// Palma and poverty of sorted points.
+void distribution_of(std::vector<point> const& pts, float& palma, float& poverty) {
     palma = 0.0f;
     poverty = 0.0f;
     if(pts.empty()) return;
-    std::sort(pts.begin(), pts.end(), [](point const& a, point const& b) { return a.x < b.x; });
     double wt = 0.0, inc = 0.0;
     for(auto const& pt : pts) {
         wt += pt.weight;
@@ -159,15 +158,31 @@ void compute_distribution(game_state const& state, dcon::nation_id n, float& pal
     (void)inc;
 }
 
+std::vector<point> sorted_points(game_state const& state, dcon::nation_id n, float sigma_override) {
+    auto pts = income_points(state, n, sigma_override);
+    std::sort(pts.begin(), pts.end(), [](point const& a, point const& b) { return a.x < b.x; });
+    return pts;
+}
+} // namespace
+
+float compute_gini(game_state const& state, dcon::nation_id n, float sigma_override) {
+    return gini_of(sorted_points(state, n, sigma_override));
+}
+
+void compute_distribution(game_state const& state, dcon::nation_id n, float& palma, float& poverty) {
+    distribution_of(sorted_points(state, n, -1.0f), palma, poverty);
+}
+
 namespace {
 
 std::vector<point> income_points(game_state const& state, dcon::nation_id n, float sigma_override) {
     auto const& w = state.world;
     std::vector<point> pts;
-    std::array<double, quantiles> z{};
-    for(int j = 0; j < quantiles; ++j) {
-        z[static_cast<std::size_t>(j)] = inv_norm((j + 0.5) / quantiles);
-    }
+    static const std::array<double, quantiles> z = [] {
+        std::array<double, quantiles> q{};
+        for(int j = 0; j < quantiles; ++j) q[static_cast<std::size_t>(j)] = inv_norm((j + 0.5) / quantiles);
+        return q;
+    }();
 
     // Floor for people with no measured income (informal earnings, family support).
     double total_income = 0.0;
@@ -255,6 +270,22 @@ std::vector<point> income_points(game_state const& state, dcon::nation_id n, flo
 
 void update_indicators(game_state& state) {
     auto& w = state.world;
+    // Distribution of this day's shard: one sorted set of income points per nation for
+    // the Gini, Palma and poverty, nations in parallel (each writes only its own fields).
+    std::vector<dcon::nation_id> due;
+    for(auto n : w.in_nation) {
+        if(state.current_tick % 28 == static_cast<int32_t>(n.id.index() % 28)) due.push_back(n.id);
+    }
+    concurrency::parallel_for(std::size_t(0), due.size(), [&](std::size_t i) {
+        const auto n = due[i];
+        const auto pts = sorted_points(state, n, -1.0f);
+        float palma = 0.0f, poverty = 0.0f;
+        distribution_of(pts, palma, poverty);
+        w.nation_set_gini(n, gini_of(pts));
+        w.nation_set_palma(n, palma);
+        w.nation_set_poverty(n, poverty);
+        if(w.nation_get_poverty0(n) <= 0.0f) w.nation_set_poverty0(n, poverty);
+    }, concurrency::static_partitioner());
     for(auto n : w.in_nation) {
         double real = 0.0;
         for(uint8_t s = 0; s < state.derived.sector_count; ++s) {
@@ -265,14 +296,6 @@ void update_indicators(game_state& state) {
         n.set_acc_unemployment(n.get_acc_unemployment() + n.get_unemployment());
         n.set_acc_cpi(n.get_acc_cpi() + n.get_cpi());
         n.set_acc_days(n.get_acc_days() + 1.0);
-        if(state.current_tick % 28 == n.id.index() % 28) {
-            n.set_gini(compute_gini(state, n.id));
-            float palma = 0.0f, poverty = 0.0f;
-            compute_distribution(state, n.id, palma, poverty);
-            n.set_palma(palma);
-            n.set_poverty(poverty);
-            if(n.get_poverty0() <= 0.0f) n.set_poverty0(poverty);
-        }
     }
 }
 

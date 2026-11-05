@@ -43,6 +43,8 @@ void update_geopolitics(game_state& state);
 void update_power(game_state& state);
 // Bilateral export access (partners' import demand x trade share x sanctions/war).
 [[nodiscard]] float trade_access(game_state const& state, dcon::nation_id n);
+// Armington rivals of every market (nation.trade_rival); call before trade_access.
+void update_trade_rivals(game_state& state);
 void record_bilateral_exports(game_state& state, dcon::nation_id n, float exports);
 
 // Every 28 days: exchange rates, sovereign spreads and default, remittance index;
@@ -194,9 +196,18 @@ void compute_un_ideals(game_state& state);
 void init_geo_organisations(game_state& state);
 void update_geo_organisations(game_state& state);
 void on_coup(game_state& state, dcon::nation_id n);
+// A successful coup (politics.cpp): curtailed elections and liberties, order-minded rulers.
+void apply_coup(game_state& state, dcon::nation_id n);
 // The player's override on a lever decided outside the AI's blend (advise: a strong prior;
 // direct: the value within [lo, hi]; force: the value as given, at a political cost).
 [[nodiscard]] float apply_override(game_state& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi);
+// Weight of the historical anchors in the AI's blend: anchor_prior_weight while the data
+// lasts, fading after its last dated decision (else the AI held the last observed lockdown
+// for ever once the record ended).
+[[nodiscard]] float anchor_weight(game_state const& state);
+// Pressure from another agent on lever `lev` of `a` (actions.cpp), blended as weighted
+// advice while it lasts; apply_override applies it when the player sets no mode.
+[[nodiscard]] float apply_pressure(game_state const& state, dcon::agent_id a, uint8_t lev, float choice, float lo, float hi);
 [[nodiscard]] float coup_deterrence(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float alliance_burden_push(game_state const& state, dcon::nation_id n);
 [[nodiscard]] float club_sanction_shift(game_state const& state, dcon::nation_id n, dcon::nation_id target, float choice);
@@ -237,7 +248,30 @@ enum class action_kind : uint8_t {
     leave_membership,   // executive -> organisation: leave
     offer_power_sharing,// executive -> rebels of its nation: settlement (accepted at a stalemate)
     accept_settlement,  // rebel -> its government: seek a settlement (accepted if the state is weak or tired)
-    lobby,              // board / union -> its government: press for `value` on lever `lever` (advice to the AI)
+    lobby,              // board / union / central bank / military / governor -> its government: press for `value` on lever `lever`
+    // Toward another agent (action_request::target_agent), see actions.cpp:
+    press,              // any -> a domestic agent with levers: press for `value` on its lever `lever`
+    replace_cb_governor,// executive -> its central bank: less independence (refused by courts if it is protected)
+    rescue_firm,        // executive -> a domestic board: `value` % of GDP for state equity
+    social_pact,        // executive -> its union: a year of wage moderation
+    restrict_unions,    // executive -> its union: density and coverage fall
+    military_pay,       // executive -> its military: a bonus of `value` % of GDP buys loyalty
+    purge_officers,     // executive -> its military: loyalty for fighting power
+    joint_exercises,    // executive / military -> a foreign military: mutual trust
+    regional_transfer,  // executive -> a governor: `value` % of GDP of public investment in the region
+    counterinsurgency,  // executive / military -> its rebels: an offensive
+    arm_rebels,         // executive -> foreign rebels: strength rises, their government resents it
+    swap_line,          // central bank -> a foreign central bank: `value` months of imports (offer or request)
+    emergency_liquidity,// central bank -> a domestic board or governor: a loan of `value` % of GDP
+    freeze_rebel_funds, // central bank -> its rebels
+    strike,             // union -> a domestic board: lost output for job guarantees
+    general_strike,     // union -> its government: strong pressure on lever `lever`, with protest
+    wage_deal,          // board -> its union: jobs for wage restraint
+    rights_complaint,   // union / rebel -> a rights organisation: shames a repressive government
+    seize_power,        // military -> its government: a coup
+    demand_autonomy,    // governor -> its government: more decentralisation
+    foreign_backing,    // rebel -> a foreign government: arms from the government's rivals
+    court_defectors,    // rebel -> its military: loyalty falls
     count
 };
 struct action_request {
@@ -248,20 +282,27 @@ struct action_request {
     treaty_kind treaty = treaty_kind::count;
     uint8_t lever = 0;
     float value = 0.0f;
+    dcon::agent_id target_agent; // actions toward another agent
 };
+// The value an option takes beyond the built-in inputs (sanction level, aid, pledge, treaty).
+enum class action_value : uint8_t { none, amount, lever };
 struct action_option {
     action_kind kind;
     char const* label;
     bool available;      // allowed now for this actor and target
     std::string reason;  // why not (or what it would do)
+    action_value input = action_value::none; // amount: `value` in [lo, hi]; lever: one of the target's levers
+    char const* unit = nullptr;
+    float lo = 0, hi = 0, step = 0, initial = 0;
 };
 struct action_result {
     bool accepted = false;
     std::string message;
 };
-// What `actor` can do toward `target` / `organisation` (either may be empty).
+// What `actor` can do toward `target` / `organisation` / `target_agent` (any may be empty;
+// with a target agent only the options toward it are listed).
 [[nodiscard]] std::vector<action_option> available_actions(game_state const& state, dcon::agent_id actor, dcon::nation_id target,
-                                                           dcon::organisation_id organisation);
+                                                           dcon::organisation_id organisation, dcon::agent_id target_agent = {});
 // Performs it (call on the sim thread, between ticks).
 action_result perform_action(game_state& state, action_request const& request);
 void update_mega_events(game_state& state);

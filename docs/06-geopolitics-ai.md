@@ -508,9 +508,37 @@ granted that the model would not produce:
 - **Rebels:** the government's offer of power sharing is accepted at a mutually
   hurting stalemate or by losing rebels (Zartman 1989). Rebels can seek a settlement,
   which a weak or stalemated government accepts.
-- **Lobbying:** a firm's board or a union presses its government on one lever. The
-  government's AI weighs it as advice in proportion to the lobby's economic weight for
-  six months (Grossman & Helpman 1994).
+- **Lobbying:** a firm's board, a union, the central bank, the military or a governor
+  presses its government on one lever. The government's AI weighs it as advice in
+  proportion to the lobby's leverage for six months (Grossman & Helpman 1994).
+
+**Between agents** (`action_request::target_agent`; the Diplomacy subtabs). Pressure is
+one slot per agent (`agent.pressure_*`), weighed by the target's AI in `settle` and
+`apply_override` (`apply_pressure`), so it reaches every lever, including board and
+governor levers, which now pass through overrides too.
+
+| Actor → counterpart | Options |
+|---|---|
+| any → a domestic agent with levers | **Press** for a value on one of its levers. Leverage: government over a central bank 1 − independence (Cukierman 1992; Binder 2021), over a board 0.1 + 0.8 × state share, over a union 0.5 × coordination, over a governor by centralisation; central bank over the union independence × coordination (Hall & Franzese 1998); union over a board 0.5 × coverage; military over the government 0.6 × (1 − liberal) (Finer 1962); governor over the government by decentralisation |
+| government → own central bank | replace the governor (refused if judicial independence × CB independence > 0.45; independence −0.2, credibility and inflation expectations suffer) |
+| government → board | rescue package (% of GDP for state equity) |
+| government → union | social pact (a year of wage moderation, signed under slack, coordination or a left government; Avdagic et al. 2011); restrict union rights (courts may strike it down) |
+| government → military | pay rise (loyalty; Powell 2012); purge (loyalty for fighting power; Quinlivan 1999) |
+| government / military → foreign military | joint exercises (mutual trust; rivals take note) |
+| government → governor | regional transfer (public investment, less unrest) |
+| government / military → own rebels | power sharing (government); counter-insurgency (strength falls with capacity × loyalty, unrest where they fight) |
+| government → foreign rebels | arm them (strength up; trust and rivalry with their government; Salehyan 2009) |
+| central bank → foreign central bank | swap line: offered by a reserve issuer (or one with ≥ 8 months of reserves), requested from one that trusts you |
+| central bank → board / governor | emergency liquidity (a loan) / municipal liquidity facility |
+| central bank → own rebels | freeze their finances (needs state capacity) |
+| union → board / government | strike (lost output, job guarantees); general strike (strong pressure, protest) |
+| board → union | jobs for wage restraint (concession bargaining, when jobs are at risk) |
+| military → government | seize power (succeeds against illegitimate, unprotected governments; a failure purges the plotters) |
+| governor → government | demand autonomy (granted by governments that need regional support) |
+| rebels → foreign government / own military | seek backing from the government's rivals; court defectors where loyalty is low |
+| union / rebels → rights body | a complaint that shames a repressive government |
+
+Pairs without a modelled channel list no options.
 
 Lever metadata for the client (name, unit, range, owner, tab, whether it is a bill) is
 in `sim/levers.hpp`.

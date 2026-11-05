@@ -328,6 +328,8 @@ object{
 	property{ name{stranded} type{float} }
 	property{ name{portfolio_flow} type{float} }
 	property{ name{fdi_flow} type{float} }
+	property{ name{log_er} type{float} }
+	property{ name{trade_rival} type{float} }
 	property{ name{bilateral_exports} type{array{uint16_t}{float}} }
 	property{ name{top1_share0} type{float} }
 	property{ name{capital_income_share0} type{float} }
@@ -423,10 +425,6 @@ object{
 	property{ name{oil_unit_scale} type{float} }
 	property{ name{cartel_quota} type{float} }
 	property{ name{sanction_set} type{array{uint16_t}{float}} }
-	property{ name{lobby_lever} type{uint8_t} }
-	property{ name{lobby_value} type{float} }
-	property{ name{lobby_weight} type{float} }
-	property{ name{lobby_until} type{int32_t} }
 	property{ name{coordinated_stimulus} type{float} }
 	property{ name{mega_investment} type{float} }
 	property{ name{mega_exports} type{float} }
@@ -480,6 +478,8 @@ object{
 	property{ name{policy_position} type{array{uint16_t}{float}} }
 	property{ name{policy_outside} type{float} }
 	property{ name{policy_outside0} type{float} }
+	property{ name{fiscal_seen} type{float} }
+	property{ name{stimulus_memory} type{float} }
 	property{ name{window_outside0} type{float} }
 	property{ name{last_party_entry} type{int32_t} }
 }
@@ -628,6 +628,7 @@ object{
 	property{ name{salience} type{array{uint16_t}{float}} }
 	property{ name{income_expected} type{float} }
 	property{ name{party_support} type{array{uint16_t}{float}} }
+	property{ name{perf_ref} type{float} }
 	property{ name{grievance} type{float} }
 	property{ name{inc_sigma} type{float} }
 	property{ name{owner_share} type{float} }
@@ -934,6 +935,11 @@ object{
 	property{ name{last_prior} type{array{uint16_t}{float}} }
 	property{ name{last_choice} type{array{uint16_t}{float}} }
 	property{ name{last_ai_choice} type{array{uint16_t}{float}} }
+	property{ name{pressure_lever} type{uint8_t} }
+	property{ name{pressure_value} type{float} }
+	property{ name{pressure_weight} type{float} }
+	property{ name{pressure_until} type{int32_t} }
+	property{ name{pressure_from} type{agent_id} }
 }
 
 object{
@@ -954,6 +960,7 @@ object{
 	property{ name{valence} type{float} }
 	property{ name{low_vote_months} type{float} }
 	property{ name{heading} type{array{uint16_t}{float}} }
+	property{ name{anchor} type{array{uint16_t}{float}} }
 }
 
 object{

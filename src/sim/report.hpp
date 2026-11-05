@@ -51,6 +51,9 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out);
 // Identity groups of a nation: size, income relative to the national mean,
 // unemployment, informality, grievance.
 void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out);
+// A nation's party system, one row per call (headless --politics ISO3): day, the
+// incumbent, approval and each party's vote and seat share with its economic position.
+void write_politics_row(game_state const& state, dcon::nation_id n, std::ostream& out);
 // Chokepoints (state, incidents, queues) and the container freight market.
 void write_logistics(game_state const& state, std::ostream& out);
 // Journal event counts by kind (wars, disputes, coups, goals, treaties...) and the

@@ -205,9 +205,10 @@ void update_firms(game_state& state) {
                 // Hoarding: temporary (closure-driven) shocks are worth riding out.
                 const float shock = std::max(0.0f, 1.0f - st.util);
                 const float temporary = shock > 0.0f ? std::clamp(st.cut / shock, 0.0f, 1.0f) : 0.0f;
-                const float h = board_hoarding_choice(rho, coord, soe, temporary);
-                f.set_hoarding(h);
-                w.agent_set_last_choice(b, lh, h);
+                // Player overrides and other agents' pressure (strikes, deals) apply here;
+                // board levers used to bypass them.
+                const float h = apply_override(state, b, lh, board_hoarding_choice(rho, coord, soe, temporary), 0.0f, 1.0f);
+                f.set_hoarding(std::clamp(h, 0.0f, 1.0f));
                 // Investment drive (-0.5 .. 0.5 around the baseline plan).
                 const float pragmatic_i = std::clamp(n.get_util_smoothed() - 1.0f
                                                          - 0.02f * (n.get_lending_rate() - n.get_lending_rate0()), -0.5f, 0.5f);
@@ -218,9 +219,8 @@ void update_firms(game_state& state) {
                 const float swing = 1.0f + rho * ((0.5f - coord) - (pragmatic_i < 0.0f ? 2.0f * soe * bias : 0.0f));
                 // The economy's accelerator already moves investment with utilisation; the board
                 // adds only its ideological deviation from that response.
-                const float inv = std::clamp(pragmatic_i * (swing - 1.0f), -0.5f, 0.5f);
+                const float inv = std::clamp(apply_override(state, b, li, std::clamp(pragmatic_i * (swing - 1.0f), -0.5f, 0.5f), -1.0f, 1.0f), -1.0f, 1.0f);
                 f.set_investment_drive(inv);
-                w.agent_set_last_choice(b, li, inv);
                 const double wgt = static_cast<double>(f.get_share()) * w.nation_get_va0(n.id, s);
                 hoard_sum += wgt * h;
                 inv_sum += wgt * inv;

@@ -71,7 +71,8 @@ command_result apply_command(game_state& state, command const& c) {
         q.treaty = static_cast<treaty_kind>(c.u.action.treaty);
         q.lever = c.u.action.lever;
         q.value = c.u.action.value;
-        if(q.actor && !w.agent_is_valid(q.actor)) {
+        q.target_agent = id_of<dcon::agent_id>(c.u.action.target_agent);
+        if((q.actor && !w.agent_is_valid(q.actor)) || (q.target_agent && !w.agent_is_valid(q.target_agent))) {
             set_message(r, "No such agent");
             break;
         }
@@ -118,7 +119,8 @@ command make_action(action_request const& q, int32_t tick, uint32_t seq) {
     c.tag = command_tag::action;
     c.seq = seq;
     c.tick = tick;
-    c.u.action = {index_of(q.actor), index_of(q.target), index_of(q.organisation), static_cast<uint8_t>(q.kind), static_cast<uint8_t>(q.treaty), q.lever, q.value};
+    c.u.action = {index_of(q.actor), index_of(q.target), index_of(q.organisation), index_of(q.target_agent), static_cast<uint8_t>(q.kind),
+                  static_cast<uint8_t>(q.treaty), q.lever, q.value};
     return c;
 }
 

@@ -5,6 +5,8 @@
 
 #include "sim_runner.hpp"
 
+#include "parliament.hpp"
+
 #include "core/keys.hpp"
 #include "sim/game_state.hpp"
 #include "sim/levers.hpp"
@@ -268,6 +270,7 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
             ps.capture = w.nation_get_capture_index(p);
             ps.winning_coalition = w.nation_get_winning_coalition(p);
             ps.gov_seat_share = w.nation_get_gov_seat_share(p);
+            ps.chamber = chamber_size(ps.iso3, w.nation_get_population(p));
             ps.democracy = w.nation_get_competitive(p) != 0 && ps.electoral_system != static_cast<uint8_t>(sim::electoral_system::none) && ps.electoral >= 0.5f;
             const auto incumbent = w.nation_get_incumbent(p);
             for(auto m : w.nation_get_party_membership(p)) {
@@ -453,53 +456,60 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
                     d.counterparts.push_back(std::move(c));
                 }
             }
-            // The options toward the selected counterpart, filtered to those that belong to
-            // this subtab (the sim lists every option of the actor).
+            // The options toward the selected counterpart: the sim lists exactly the ones
+            // toward a nation, an organisation or another agent.
+            const counterpart_row& t = rq.target;
+            dcon::agent_id pressed; // whose levers a lobby / press acts on
             if(a) {
                 using sim::action_kind;
                 std::vector<sim::action_option> opts;
-                auto keep = [&](std::initializer_list<action_kind> kinds) {
-                    for(auto const& o : opts) {
-                        if(std::find(kinds.begin(), kinds.end(), o.kind) != kinds.end()) {
-                            action_input in = action_input::none;
-                            switch(o.kind) {
-                            case action_kind::set_sanction: in = action_input::sanction_level; break;
-                            case action_kind::send_aid: in = action_input::aid_share; break;
-                            case action_kind::climate_pledge: in = action_input::pledge; break;
-                            case action_kind::propose_treaty: in = action_input::treaty; break;
-                            case action_kind::lobby: in = action_input::lobby; break;
-                            default: break;
-                            }
-                            d.actions.push_back({static_cast<uint8_t>(o.kind), in, o.label ? o.label : "", o.available, o.reason});
-                        }
-                    }
-                };
-                const counterpart_row& t = rq.target;
                 if(sub == 0 && t.nation < count) {
                     opts = sim::available_actions(s, a, nid(t.nation), {});
-                    if(kind == agent_kind::executive && t.nation != out.nation) {
-                        keep({action_kind::set_sanction, action_kind::clear_sanction, action_kind::escalate_dispute, action_kind::back_down,
-                              action_kind::declare_war, action_kind::offer_peace, action_kind::send_aid, action_kind::propose_treaty});
-                    } else if(t.nation == out.nation) {
-                        keep({action_kind::lobby, action_kind::accept_settlement});
-                    }
-                } else if(sub == static_cast<int>(agent_kind::rebel) && t.agent < w.agent_size() && t.nation == out.nation) {
-                    opts = sim::available_actions(s, a, {}, {});
-                    keep({action_kind::offer_power_sharing});
+                    if(n && t.nation == out.nation) pressed = w.nation_get_agent_from_executive_seat(n);
+                } else if(sub >= 1 && sub <= 6 && t.agent < w.agent_size()) {
+                    pressed = aid(t.agent);
+                    opts = sim::available_actions(s, a, {}, {}, pressed);
                 } else if(sub == 7) {
                     if(t.organisation < w.organisation_size()) {
                         opts = sim::available_actions(s, a, {}, dcon::organisation_id{static_cast<dcon::organisation_id::value_base_t>(t.organisation)});
-                        keep({action_kind::apply_membership, action_kind::leave_membership});
+                        std::erase_if(opts, [](auto const& o) { return o.kind == action_kind::climate_pledge; });
                     } else if(t.label.rfind("Climate", 0) == 0) {
                         opts = sim::available_actions(s, a, {}, {});
-                        keep({action_kind::climate_pledge});
                     }
                 }
+                for(auto const& o : opts) {
+                    action_row row;
+                    row.kind = static_cast<uint8_t>(o.kind);
+                    row.label = o.label ? o.label : "";
+                    row.available = o.available;
+                    row.reason = o.reason;
+                    switch(o.kind) {
+                    case action_kind::set_sanction: row.input = action_input::sanction_level; break;
+                    case action_kind::send_aid: row.input = action_input::aid_share; break;
+                    case action_kind::climate_pledge: row.input = action_input::pledge; break;
+                    case action_kind::propose_treaty: row.input = action_input::treaty; break;
+                    default: break;
+                    }
+                    if(o.input == sim::action_value::lever) row.input = action_input::lobby;
+                    if(o.input == sim::action_value::amount) {
+                        row.input = action_input::amount;
+                        row.unit = o.unit ? o.unit : "";
+                        row.lo = o.lo, row.hi = o.hi, row.step = o.step, row.initial = o.initial;
+                    }
+                    d.actions.push_back(std::move(row));
+                }
             }
-            // A lobby presses on one of the government's levers.
-            if(a && (kind == agent_kind::board || kind == agent_kind::union_federation) && n) {
-                const auto gov = w.nation_get_agent_from_executive_seat(n);
-                collect_levers(s, gov, agent_kind::executive, {lever_tab::policies, lever_tab::fiscal}, false, d.lobby_levers);
+            // A lobby or a press acts on one of the pressed agent's levers.
+            if(pressed) {
+                const auto pk = static_cast<agent_kind>(w.agent_get_kind(pressed));
+                switch(pk) {
+                case agent_kind::executive: collect_levers(s, pressed, pk, {lever_tab::policies, lever_tab::fiscal}, false, d.lobby_levers); break;
+                case agent_kind::central_bank: collect_levers(s, pressed, pk, {lever_tab::monetary}, false, d.lobby_levers); break;
+                case agent_kind::board: collect_levers(s, pressed, pk, {lever_tab::firm}, false, d.lobby_levers); break;
+                case agent_kind::union_federation: collect_levers(s, pressed, pk, {lever_tab::labour}, false, d.lobby_levers); break;
+                case agent_kind::governor: collect_levers(s, pressed, pk, {lever_tab::regional}, false, d.lobby_levers); break;
+                default: break;
+                }
             }
             break;
         }

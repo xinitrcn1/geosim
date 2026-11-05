@@ -143,6 +143,36 @@ void write_flows(game_state const& state, dcon::nation_id n, std::ostream& out) 
     }
 }
 
+void write_politics_row(game_state const& state, dcon::nation_id n, std::ostream& out) {
+    auto const& w = state.world;
+    char line[200];
+    const auto inc = w.nation_get_incumbent(n);
+    std::snprintf(line, sizeof(line), "day %4d %s approval %.2f legit %.2f gov %s:", state.current_tick, core::unpack_key(w.nation_get_iso3(n)).c_str(),
+                  w.nation_get_approval(n), w.nation_get_legitimacy(n), inc ? core::unpack_key(w.party_get_key(inc)).c_str() : "-");
+    out << line;
+    double v[3] = {}, size = 0.0, griev = 0.0;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        for(auto loc : own.get_region().get_pop_location()) {
+            auto p = loc.get_pop();
+            for(uint8_t a = 0; a < 3; ++a) v[a] += p.get_size() * p.get_values(a);
+            griev += p.get_size() * p.get_grievance();
+            size += p.get_size();
+        }
+    }
+    if(size > 0.0) {
+        std::snprintf(line, sizeof(line), " opinion %+.2f/%+.2f/%+.2f griev %.2f policy %+.2f", v[0] / size, v[1] / size, v[2] / size, griev / size,
+                      w.nation_get_policy_position(n, static_cast<uint8_t>(value_axis::economic_right)));
+        out << line;
+    }
+    for(auto m : w.nation_get_party_membership(n)) {
+        auto p = m.get_party();
+        std::snprintf(line, sizeof(line), "  %s %.1f%%v %.1f%%s (econ %+.2f)", core::unpack_key(p.get_key()).c_str(), 100.0 * p.get_vote_share(),
+                      100.0 * p.get_seat_share(), p.get_position(static_cast<uint8_t>(value_axis::economic_right)));
+        out << line;
+    }
+    out << '\n';
+}
+
 void write_groups(game_state const& state, dcon::nation_id n, std::ostream& out) {
     auto const& w = state.world;
     out << "identity groups of " << core::unpack_key(w.nation_get_iso3(n))

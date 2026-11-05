@@ -69,7 +69,14 @@ The player can override any implemented agent
   left-right and GAL-TAN. Nations without rows get three generic parties.
 - **Voting.** Salience-weighted spatial distance to each party (Downs 1957)
   plus retrospective economic and health voting for the incumbent
-  (Lewis-Beck & Stegmaier 2000), logit choice; turnout by kind.
+  (Lewis-Beck & Stegmaier 2000), logit choice; turnout by kind. Voters judge
+  performance against a reference that adapts over `vote_memory_years`
+  (myopic retrospection; Healy & Lenz 2014) and resets when the government
+  changes (a new government is not blamed for its predecessor's record); the
+  effect saturates at `vote_retrospective_cap`, since partisans discount bad
+  news about their own side (Bartels 2002). The incumbent is placed partly by
+  what it does (`thermostat`: the government's economic policy position,
+  in which fiscal packages fade over `stimulus_memory_years`).
 - **Issue salience** over seven issues (economy, health, security, identity,
   immigration, environment, corruption) follows the crisis of the moment.
   Identity, immigration and environment weight the GAL-TAN axis; salient
@@ -81,8 +88,10 @@ The player can override any implemented agent
 - **Elections** on the national calendar with explicit seat formulas
   (`electoral_system`, `pr_threshold`, `smd_share` in `politics_curated.csv`):
   list PR by D'Hondt over a 500-seat chamber among parties above the legal
-  threshold (Turkey 10%, Germany 5%; Lijphart 1994, Gallagher 1991); FPTP by
-  regional pluralities, or the cube law in single-region nations (Kendall &
+  threshold (Turkey 10%, Germany 5%; Lijphart 1994, Gallagher 1991); FPTP:
+  each region's seats (in proportion to its population) split on its vote by
+  the seat-vote curve of its many districts, flattened by geographic sorting
+  (`district_exponent`), or the cube law in single-region nations (Kendall &
   Stuart 1950; Taagepera 1986); two-round systems with a softer exponent
   (Blais & Loewen 2009); parallel mixed systems (Japan, Italy, Korea, Mexico)
   as an `smd_share` blend. Government = minimal connected winning coalition in
@@ -149,8 +158,16 @@ Implemented per nation and value axis (`politics.cpp`):
   with prolonged restrictions.
 - **Backlash.** Liberty-restricting policy beyond the window adds protest
   drive ([04](04-society.md#unrest-the-temperature)).
-- **Thermostat.** Public opinion moves against the direction of economic
-  policy (Wlezien 1995; Soroka & Wlezien 2010).
+- **Thermostat.** The public reacts against the direction of economic policy
+  (Wlezien 1995; Soroka & Wlezien 2010) through vote choice: the incumbent is
+  placed between its party's position and its policy (`thermostat`). Values
+  themselves do not move with it (doing so fed back through the window and
+  drove voters away from whichever party governed).
+- **Party anchors.** Mainstream (aggregator) parties move toward their voters
+  only part of the way from their core position (`party_anchor`; activists
+  and primaries, Aldrich 1983; Adams & Merrill 2006), so two-party systems do
+  not collapse onto the median. Pops' support follows each party when parties
+  are reordered, enter or dissolve.
 
 ## Legislation
 

@@ -16,6 +16,30 @@
 //  - lobbying: firms and unions press their government on one lever; the government's AI
 //    weighs it as advice in proportion to the lobby's economic weight (Grossman & Helpman
 //    1994), for half a year.
+//
+// Between agents of every kind (the Diplomacy subtabs: central banks, firms, unions,
+// militaries, governors, rebels):
+//  - pressing: any agent can press a domestic agent that has levers (government, central
+//    bank, board, union, governor) for a value on one of them. The pressure is advice the
+//    target's AI weighs for six months (ai.cpp apply_pressure) by the presser's leverage
+//    over it (press_weight): governments over dependent central banks (Cukierman 1992;
+//    Binder 2021), state-owned boards and centralised governors; central banks over unions
+//    under coordinated bargaining (Hall & Franzese 1998); unions over boards by coverage;
+//    militaries over governments where institutions are weak (Finer 1962);
+//  - governments: replace the central-bank governor (courts protect an independent one),
+//    rescue a firm (cash for state equity), a social pact with the union (wage moderation;
+//    Avdagic, Rhodes & Visser 2011) or curbs on unions, pay or purge the military
+//    (coup-proofing: Powell 2012; Quinlivan 1999), regional transfers, counter-insurgency,
+//    arming another nation's rebels (Salehyan 2009), joint exercises with foreign militaries;
+//  - central banks: swap lines between central banks (2008 and 2020 dollar lines), emergency
+//    liquidity for firms and regions (the 2020 municipal facility), freezing rebel funds;
+//  - firms and unions: strikes, general strikes, jobs-for-wages deals (concession
+//    bargaining), complaints to rights bodies;
+//  - militaries: a coup against their government (Powell & Thyne 2011), counter-insurgency;
+//  - governors: demands for autonomy (bargained where governments need regional support);
+//  - rebels: foreign backing from the government's rivals, courting military defectors,
+//    appeals to rights bodies.
+// Pairs with no modelled channel (a central bank and a foreign army, say) list no options.
 
 #include "core/calendar.hpp"
 #include "core/keys.hpp"
@@ -102,6 +126,153 @@ void settle_rebels(game_state& state, dcon::nation_id n) {
     if(auto rebel = w.nation_get_rebel_agent(n)) w.agent_set_strength(rebel, 0.0f);
 }
 
+
+agent_kind kind_of(game_state const& state, dcon::agent_id a) { return static_cast<agent_kind>(state.world.agent_get_kind(a)); }
+
+dcon::firm_id firm_of(game_state const& state, dcon::agent_id board) {
+    for(auto f : state.world.in_firm) {
+        if(f.get_board() == board) return f.id;
+    }
+    return {};
+}
+
+dcon::region_id region_of(game_state const& state, dcon::agent_id governor) {
+    for(auto r : state.world.in_region) {
+        if(r.get_governor() == governor) return r.id;
+    }
+    return {};
+}
+
+// A board's weight in its nation: its firm's share of national output (x5, as lobbying).
+float board_weight(game_state const& state, dcon::agent_id board, dcon::nation_id n) {
+    double firm = 0.0, total = 0.0;
+    for(auto f : state.world.in_firm) {
+        if(f.get_nation() != n) continue;
+        total += f.get_share();
+        if(f.get_board() == board) firm += f.get_share();
+    }
+    return total > 0.0 ? static_cast<float>(firm / total) * 5.0f : 0.1f;
+}
+
+// Leverage of `actor` over a domestic agent `target` (0: no channel). The weight is the
+// advice weight of the pressure in the target's choice (1 = as strong as its own view).
+float press_weight(game_state const& state, dcon::agent_id actor, dcon::agent_id target) {
+    auto const& w = state.world;
+    const auto n = home_of(state, actor);
+    if(!n || !target || home_of(state, target) != n || actor == target) return 0.0f;
+    const auto ak = kind_of(state, actor), tk = kind_of(state, target);
+    const float cbi = w.nation_get_cb_independence(n);
+    const float coord = w.nation_get_coordination(n);
+    const float decent = w.nation_get_decentralisation(n);
+    auto soe = [&] {
+        const auto f = firm_of(state, target);
+        return f ? w.firm_get_soe_share(f) : w.nation_get_soe_share(n);
+    };
+    float k = 0.0f;
+    switch(tk) {
+    case agent_kind::executive:
+        switch(ak) {
+        case agent_kind::board: k = board_weight(state, actor, n); break;
+        case agent_kind::union_federation: k = w.nation_get_union_density(n); break;
+        case agent_kind::central_bank: k = 0.5f * cbi; break;
+        case agent_kind::military: k = 0.6f * (1.0f - w.nation_get_liberal(n)); break;
+        case agent_kind::governor: k = 0.1f + 0.4f * decent; break;
+        default: break;
+        }
+        break;
+    case agent_kind::central_bank:
+        switch(ak) {
+        case agent_kind::executive: k = 1.0f - cbi; break;
+        case agent_kind::board:
+        case agent_kind::union_federation: k = 0.1f * (1.0f - cbi); break;
+        case agent_kind::governor: k = 0.05f * (1.0f - cbi); break;
+        default: break;
+        }
+        break;
+    case agent_kind::board:
+        switch(ak) {
+        case agent_kind::executive: k = 0.1f + 0.8f * soe(); break;
+        case agent_kind::union_federation: k = 0.5f * w.nation_get_bargaining_coverage(n); break;
+        case agent_kind::governor: k = 0.05f + 0.1f * soe(); break;
+        default: break;
+        }
+        break;
+    case agent_kind::union_federation:
+        switch(ak) {
+        case agent_kind::executive: k = 0.5f * coord; break;
+        case agent_kind::central_bank: k = cbi * coord; break;
+        case agent_kind::board: k = 0.3f * coord; break;
+        default: break;
+        }
+        break;
+    case agent_kind::governor:
+        switch(ak) {
+        case agent_kind::executive: k = 0.3f + 0.6f * (1.0f - decent); break;
+        case agent_kind::governor: k = 0.2f; break;
+        case agent_kind::board: k = 0.1f; break;
+        case agent_kind::union_federation: k = 0.3f * w.nation_get_union_density(n); break;
+        default: break;
+        }
+        break;
+    default: break; // militaries and rebels have no levers to press on
+    }
+    return std::clamp(k, 0.0f, 1.0f) < 0.02f && k > 0.0f ? 0.02f : std::clamp(k, 0.0f, 1.0f);
+}
+
+// Is lever slot `lev` one of `kind`'s levers (NPIs are the government's)?
+bool owns_lever(game_state const& state, agent_kind kind, uint8_t lev) {
+    auto const& D = state.derived;
+    if(lev >= D.lever_count) return false;
+    if(lev < D.lever_base) return kind == agent_kind::executive;
+    return lever_table[lev - D.lever_base].owner == kind;
+}
+
+uint8_t lever_slot(game_state const& state, lever l) { return static_cast<uint8_t>(state.derived.lever_base + static_cast<uint8_t>(l)); }
+
+// Pressure on `target`'s lever for six months (or `days`).
+void put_pressure(game_state& state, dcon::agent_id target, dcon::agent_id from, uint8_t lev, float value, float weight, int days = 182) {
+    auto& w = state.world;
+    w.agent_set_pressure_lever(target, lev);
+    w.agent_set_pressure_value(target, value);
+    w.agent_set_pressure_weight(target, weight);
+    w.agent_set_pressure_until(target, state.current_tick + days);
+    w.agent_set_pressure_from(target, from);
+}
+
+double nominal_gdp(game_state const& state, dcon::nation_id n) {
+    return state.world.nation_get_gdp0(n) * state.world.nation_get_core_price(n);
+}
+
+// A firm's baseline daily costs (value added of its share of the sector), USD.
+double firm_daily(game_state const& state, dcon::firm_id f) {
+    auto const& w = state.world;
+    const auto n = w.firm_get_nation(f);
+    const auto s = static_cast<uint8_t>(w.firm_get_sector(f).id.index());
+    return std::max(1.0, static_cast<double>(w.firm_get_share(f)) * w.nation_get_va0(n, s) * w.nation_get_core_price(n));
+}
+
+float mean_protest_drive(game_state& state, dcon::nation_id n, float add) {
+    auto& w = state.world;
+    float pop = 0.0f, p = 0.0f;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        auto r = own.get_region();
+        r.set_protest(std::clamp(r.get_protest() + add, 0.0f, 1.0f));
+        p += r.get_protest() * r.get_population();
+        pop += r.get_population();
+    }
+    return pop > 0.0f ? p / pop : 0.0f;
+}
+
+bool lends_reserves(game_state const& state, dcon::nation_id n) {
+    return state.world.nation_get_reserve_currency(n) >= 0.3f || state.world.nation_get_reserves(n) >= 8.0f;
+}
+
+void rebels_defeated(game_state& state, dcon::nation_id n) {
+    auto& w = state.world;
+    for(auto own : w.nation_get_region_ownership(n)) own.get_region().set_insurgency(0.0f);
+    if(auto rebel = w.nation_get_rebel_agent(n)) w.agent_set_strength(rebel, 0.0f);
+}
+
 std::string fmt(char const* f, double x) {
     char buf[160];
     std::snprintf(buf, sizeof(buf), f, x);
@@ -110,13 +281,108 @@ std::string fmt(char const* f, double x) {
 
 } // namespace
 
-std::vector<action_option> available_actions(game_state const& state, dcon::agent_id actor, dcon::nation_id target, dcon::organisation_id organisation) {
+std::vector<action_option> available_actions(game_state const& state, dcon::agent_id actor, dcon::nation_id target, dcon::organisation_id organisation,
+                                               dcon::agent_id target_agent) {
     auto const& w = state.world;
     std::vector<action_option> out;
     if(!actor) return out;
     const auto kind = static_cast<agent_kind>(w.agent_get_kind(actor));
     const auto self = home_of(state, actor);
-    auto add = [&](action_kind k, char const* label, bool ok, std::string reason) { out.push_back({k, label, ok, std::move(reason)}); };
+    auto add = [&](action_kind k, char const* label, bool ok, std::string reason) {
+        out.push_back({k, label, ok, std::move(reason)});
+        return &out.back();
+    };
+    auto amount = [](action_option* o, char const* unit, float lo, float hi, float step, float initial) {
+        o->input = action_value::amount;
+        o->unit = unit;
+        o->lo = lo;
+        o->hi = hi;
+        o->step = step;
+        o->initial = initial;
+    };
+    if(target_agent) {
+        // Toward another agent (Diplomacy subtabs other than Governments and Organisations).
+        if(!w.agent_is_valid(target_agent) || target_agent == actor) return out;
+        const auto tk = kind_of(state, target_agent);
+        const auto there = home_of(state, target_agent);
+        const bool dom = there == self;
+        const float pw = press_weight(state, actor, target_agent);
+        const bool has_levers = tk == agent_kind::executive || tk == agent_kind::central_bank || tk == agent_kind::board || tk == agent_kind::union_federation
+                                || tk == agent_kind::governor;
+        if(dom && has_levers && pw > 0.0f) {
+            add(action_kind::press, "Press for a policy", true, fmt("advice weighed at %.2f of its own view for six months", pw))->input = action_value::lever;
+        }
+        const float strength = tk == agent_kind::rebel ? w.agent_get_strength(target_agent) : 0.0f;
+        switch(kind) {
+        case agent_kind::executive:
+            if(tk == agent_kind::central_bank && dom) {
+                const float guard = w.nation_get_judicial(self) * w.nation_get_cb_independence(self);
+                add(action_kind::replace_cb_governor, "Replace the governor", guard <= 0.45f,
+                    guard <= 0.45f ? fmt("independence %.2f falls; markets and your credibility suffer", w.nation_get_cb_independence(self))
+                                   : "the courts protect an independent governor's tenure");
+            } else if(tk == agent_kind::board && dom) {
+                amount(add(action_kind::rescue_firm, "Rescue package", true, "cash for state equity (% of GDP)"), "% of GDP", 0.05f, 3.0f, 0.05f, 0.2f);
+            } else if(tk == agent_kind::union_federation && dom) {
+                add(action_kind::social_pact, "Propose a social pact", true, "wage moderation for a year; unions sign in slack labour markets or under coordination");
+                add(action_kind::restrict_unions, "Restrict union rights", true, "density and coverage fall; protest, and courts may strike it down");
+            } else if(tk == agent_kind::military && dom) {
+                amount(add(action_kind::military_pay, "Raise military pay", true, fmt("loyalty %.2f; a one-off bonus (% of GDP)", w.nation_get_military_loyalty(self))),
+                       "% of GDP", 0.05f, 2.0f, 0.05f, 0.2f);
+                add(action_kind::purge_officers, "Purge the officer corps", true, "loyalty now, fighting power lost (coup-proofing)");
+            } else if(tk == agent_kind::military && !dom && there) {
+                const bool hostile = at_war(state, self, there) || w.nation_get_hostility(self, ix(there)) >= 2.0f;
+                add(action_kind::joint_exercises, "Hold joint exercises", !hostile, hostile ? "a hostile nation" : "mutual trust grows if they trust you");
+            } else if(tk == agent_kind::governor && dom) {
+                amount(add(action_kind::regional_transfer, "Regional transfer", true, "public investment in the region (% of GDP)"), "% of GDP", 0.01f, 1.0f, 0.01f, 0.05f);
+            } else if(tk == agent_kind::rebel && dom) {
+                add(action_kind::offer_power_sharing, "Offer power sharing", strength > 0.0f,
+                    strength > 0.0f ? fmt("stalemate %.2f (accepted above 0.3 or if they are weaker than the state)", stalemate_of(state, self)) : "no rebellion");
+                add(action_kind::counterinsurgency, "Counter-insurgency offensive", strength > 0.0f,
+                    strength > 0.0f ? fmt("strength %.2f; costs grievance where they fight", strength) : "no rebellion");
+            } else if(tk == agent_kind::rebel && !dom) {
+                add(action_kind::arm_rebels, "Arm the rebels", strength > 0.0f, strength > 0.0f ? "their government will hold it against you" : "no active rebellion");
+            }
+            break;
+        case agent_kind::central_bank:
+            if(tk == agent_kind::central_bank && !dom) {
+                const bool lend = lends_reserves(state, self);
+                amount(add(action_kind::swap_line, lend ? "Offer a swap line" : "Request a swap line", lend || lends_reserves(state, there),
+                           lend ? "lend them reserves (months of imports)" : lends_reserves(state, there) ? "they lend if they trust you" : "they hold no reserves to lend"),
+                       "months of imports", 0.5f, 6.0f, 0.5f, 2.0f);
+            } else if((tk == agent_kind::board || tk == agent_kind::governor) && dom) {
+                amount(add(action_kind::emergency_liquidity, tk == agent_kind::board ? "Emergency liquidity" : "Municipal liquidity facility", true,
+                           tk == agent_kind::board ? "lend to the firm against collateral (% of GDP)" : "buy the region's short-term debt (% of GDP)"),
+                       "% of GDP", 0.05f, 3.0f, 0.05f, 0.2f);
+            } else if(tk == agent_kind::rebel && dom) {
+                add(action_kind::freeze_rebel_funds, "Freeze rebel finances", strength > 0.0f && w.nation_get_state_capacity(self) >= 0.4f,
+                    strength <= 0.0f ? "no rebellion" : w.nation_get_state_capacity(self) >= 0.4f ? "works where the state reaches the banks" : "the state is too weak to enforce it");
+            }
+            break;
+        case agent_kind::board:
+            if(tk == agent_kind::union_federation && dom) add(action_kind::wage_deal, "Offer jobs for wage restraint", true, "you commit to keep staff; the union moderates wages");
+            break;
+        case agent_kind::union_federation:
+            if(tk == agent_kind::board && dom) add(action_kind::strike, "Strike at the firm", true, fmt("union density %.2f: costs the firm cash, wins job guarantees", w.nation_get_union_density(self)));
+            break;
+        case agent_kind::military:
+            if(tk == agent_kind::military && !dom && there) {
+                const bool hostile = at_war(state, self, there) || w.nation_get_hostility(self, ix(there)) >= 2.0f;
+                add(action_kind::joint_exercises, "Hold joint exercises", !hostile, hostile ? "a hostile nation" : "mutual trust grows if they trust you");
+            } else if(tk == agent_kind::rebel && dom) {
+                add(action_kind::counterinsurgency, "Counter-insurgency offensive", strength > 0.0f,
+                    strength > 0.0f ? fmt("strength %.2f; costs grievance where you fight", strength) : "no rebellion");
+            }
+            break;
+        case agent_kind::rebel:
+            if(tk == agent_kind::military && dom) {
+                add(action_kind::court_defectors, "Court defectors", w.agent_get_strength(actor) > 0.0f,
+                    fmt("their loyalty %.2f: defections where it is low", w.nation_get_military_loyalty(self)));
+            }
+            break;
+        default: break;
+        }
+        return out;
+    }
     switch(kind) {
     case agent_kind::executive: {
         if(target && target != self) {
@@ -134,12 +400,8 @@ std::vector<action_option> available_actions(game_state const& state, dcon::agen
             const bool poor = w.nation_get_gdp_pc0(target) < static_cast<float>(state.params.aid_income);
             add(action_kind::propose_treaty, "Propose a treaty", true,
                 poor ? "conditional aid or a migration deal" : "a migration deal (conditional aid only for poorer nations)");
-        } else {
+        } else if(!target && !organisation) {
             add(action_kind::climate_pledge, "Pledge a 2030 carbon price", true, fmt("current pledge %.0f USD/t", w.nation_get_climate_pledge(self)));
-            const auto rebel = w.nation_get_rebel_agent(self);
-            const bool rebels = rebel && w.agent_get_strength(rebel) > 0.0f;
-            add(action_kind::offer_power_sharing, "Offer the rebels power sharing", rebels,
-                rebels ? fmt("stalemate %.2f (accepted above 0.3 or if they are weaker than the state)", stalemate_of(state, self)) : "no rebellion");
         }
         if(organisation) {
             const auto m = membership_in(state, organisation, self);
@@ -150,14 +412,40 @@ std::vector<action_option> available_actions(game_state const& state, dcon::agen
     }
     case agent_kind::rebel: {
         const bool active = w.agent_get_strength(actor) > 0.0f;
-        add(action_kind::accept_settlement, "Seek a settlement", active, active ? "the government accepts if it is weak or the war is a stalemate" : "the rebellion is over");
+        if(target == self) {
+            add(action_kind::accept_settlement, "Seek a settlement", active, active ? "the government accepts if it is weak or the war is a stalemate" : "the rebellion is over");
+        } else if(target) {
+            add(action_kind::foreign_backing, "Seek their backing", active, active ? "rivals of your government arm you" : "the rebellion is over");
+        }
         break;
     }
     case agent_kind::board:
     case agent_kind::union_federation:
-        add(action_kind::lobby, "Lobby the government", bool(self), "press for a value on one lever (advice weighed by your economic weight)");
+    case agent_kind::central_bank:
+    case agent_kind::military:
+    case agent_kind::governor:
+        if(target == self && self) {
+            const auto gov = w.nation_get_agent_from_executive_seat(self);
+            const float pw = press_weight(state, actor, gov);
+            add(action_kind::lobby, kind == agent_kind::board || kind == agent_kind::union_federation ? "Lobby the government" : "Press the government", pw > 0.0f,
+                fmt("press for a value on one lever (advice weighed at %.2f)", pw))->input = action_value::lever;
+            if(kind == agent_kind::union_federation) {
+                add(action_kind::general_strike, "Call a general strike", true,
+                    fmt("press hard on one lever (weight %.2f); protest and lost output", 2.0f * w.nation_get_union_density(self)))->input = action_value::lever;
+            } else if(kind == agent_kind::military) {
+                add(action_kind::seize_power, "Seize power", true,
+                    fmt("legitimacy %.2f: coups succeed against weak, unpopular governments", w.nation_get_legitimacy(self)));
+            } else if(kind == agent_kind::governor) {
+                add(action_kind::demand_autonomy, "Demand more autonomy", true,
+                    fmt("decentralisation %.2f; granted by governments that need regional support", w.nation_get_decentralisation(self)));
+            }
+        }
         break;
     default: break;
+    }
+    if(organisation && (kind == agent_kind::union_federation || kind == agent_kind::rebel)) {
+        const bool rights = w.organisation_get_kind(organisation) == static_cast<uint8_t>(org_kind::rights);
+        add(action_kind::rights_complaint, "File a complaint", rights, rights ? "the body shames your government if it represses" : "only rights bodies hear complaints");
     }
     return out;
 }
@@ -361,27 +649,287 @@ action_result perform_action(game_state& state, action_request const& q) {
         settle_rebels(state, n);
         return done(true, "The government agreed to share power");
     }
-    case action_kind::lobby: {
-        if(q.lever >= state.derived.lever_count) return done(false, "Choose a lever");
-        // Weight: a board by its firm's share of national output, a union by its density.
-        float weight = 0.0f;
-        const auto kind = static_cast<agent_kind>(w.agent_get_kind(q.actor));
-        if(kind == agent_kind::union_federation) weight = w.nation_get_union_density(self);
-        else {
-            double firm = 0.0, total = 0.0;
-            for(auto f : w.in_firm) {
-                if(f.get_nation() != self) continue;
-                total += f.get_share();
-                if(f.get_board() == q.actor) firm += f.get_share();
+    case action_kind::lobby:
+    case action_kind::press:
+    case action_kind::general_strike: {
+        const auto target = q.kind == action_kind::press ? q.target_agent : w.nation_get_agent_from_executive_seat(self);
+        if(!target || !w.agent_is_valid(target)) return done(false, "No one to press");
+        if(!owns_lever(state, kind_of(state, target), q.lever)) return done(false, "Choose one of their levers");
+        float weight = press_weight(state, q.actor, target);
+        if(q.kind == action_kind::general_strike) {
+            if(kind_of(state, q.actor) != agent_kind::union_federation) return done(false, "Only unions call strikes");
+            // A general strike: twice the density's weight, mass protest and lost output.
+            const float density = w.nation_get_union_density(self);
+            weight = std::clamp(2.0f * density, 0.05f, 1.5f);
+            mean_protest_drive(state, self, 0.1f * density);
+            for(auto own : w.nation_get_region_ownership(self)) {
+                auto r = own.get_region();
+                r.set_unrest(r.get_unrest() + 0.5f * density);
             }
-            weight = total > 0.0 ? static_cast<float>(firm / total) * 5.0f : 0.1f;
+            w.nation_set_approval(self, std::max(0.0f, w.nation_get_approval(self) - 0.05f * density));
         }
-        weight = std::clamp(weight, 0.02f, 1.0f);
-        w.nation_set_lobby_lever(self, q.lever);
-        w.nation_set_lobby_value(self, q.value);
-        w.nation_set_lobby_weight(self, weight);
-        w.nation_set_lobby_until(self, state.current_tick + 182);
-        return done(true, fmt("The government will weigh your case (weight %.2f) for six months", weight));
+        if(weight <= 0.0f) return done(false, "You have no leverage over them");
+        put_pressure(state, target, q.actor, q.lever, q.value, weight);
+        return done(true, fmt(q.kind == action_kind::general_strike ? "The strike presses the government (weight %.2f) for six months"
+                                                                   : "They will weigh your case (weight %.2f) for six months",
+                              weight));
+    }
+    case action_kind::replace_cb_governor: {
+        const auto bank = q.target_agent;
+        if(!bank || kind_of(state, bank) != agent_kind::central_bank || home_of(state, bank) != self) return done(false, "Not your central bank");
+        const float cbi = w.nation_get_cb_independence(self);
+        if(w.nation_get_judicial(self) * cbi > 0.45f) return done(false, "The courts uphold the governor's tenure");
+        // A dependent bank leans toward the government's rate; investors price the lost
+        // anchor (Binder 2021 on political pressure and inflation expectations).
+        w.nation_set_cb_independence(self, std::max(0.0f, cbi - 0.2f));
+        w.nation_set_inflation_expect(self, w.nation_get_inflation_expect(self) + 0.5f * std::min(cbi, 0.2f) * 5.0f);
+        lose_credibility(state, self, 0.05f);
+        return done(true, fmt("A loyal governor takes over: independence %.2f", w.nation_get_cb_independence(self)));
+    }
+    case action_kind::rescue_firm: {
+        const auto f = firm_of(state, q.target_agent);
+        if(!f || w.firm_get_nation(f) != self) return done(false, "Not a domestic firm");
+        const double amount = std::clamp(static_cast<double>(q.value), 0.0, 3.0) / 100.0 * nominal_gdp(state, self);
+        cause_scope c(state, journal_cause(self, journal_player_action));
+        transfer(state, account::government(self), account::firms(self), amount, flow::fiscal_firms);
+        const double daily = firm_daily(state, f);
+        const float cash0 = w.firm_get_cash_days0(f);
+        w.firm_set_cash_days(f, std::min(4.0f * cash0, w.firm_get_cash_days(f) + static_cast<float>(amount / daily)));
+        // Cash for equity: the state's stake grows with the rescue relative to a year of value added.
+        w.firm_set_soe_share(f, std::min(1.0f, w.firm_get_soe_share(f) + static_cast<float>(std::min(0.5, amount / (daily * 365.0)))));
+        return done(true, fmt("%.2f bn USD injected; the state's stake rises", amount / 1e9));
+    }
+    case action_kind::social_pact: {
+        const auto u = q.target_agent;
+        if(!u || kind_of(state, u) != agent_kind::union_federation || home_of(state, u) != self) return done(false, "Not your union federation");
+        const bool slack = w.nation_get_unemployment(self) > w.nation_get_unemployment0(self) + 0.01f;
+        const bool coordinated = w.nation_get_coordination(self) >= 0.5f;
+        float left = 0.0f;
+        if(auto inc = w.nation_get_incumbent(self)) left = -w.party_get_position(inc, static_cast<uint8_t>(value_axis::economic_right));
+        if(!slack && !coordinated && left < 0.1f) return done(false, "Rejected: the union sees nothing to gain");
+        const uint8_t lev = lever_slot(state, lever::wage_push);
+        put_pressure(state, u, q.actor, lev, std::min(0.0f, w.agent_get_last_choice(u, lev)), 1.0f, 365);
+        w.nation_set_legitimacy(self, std::min(1.0f, w.nation_get_legitimacy(self) + 0.01f));
+        return done(true, "Pact signed: wage moderation for a year");
+    }
+    case action_kind::restrict_unions: {
+        if(!q.target_agent || kind_of(state, q.target_agent) != agent_kind::union_federation || home_of(state, q.target_agent) != self) return done(false, "Not your union federation");
+        if(w.nation_get_judicial(self) * w.nation_get_liberal(self) > 0.4f) return done(false, "Struck down: the courts protect freedom of association");
+        const float density = w.nation_get_union_density(self);
+        w.nation_set_union_density(self, density * 0.85f);
+        w.nation_set_bargaining_coverage(self, w.nation_get_bargaining_coverage(self) * 0.9f);
+        w.nation_set_liberal(self, std::max(0.0f, w.nation_get_liberal(self) - 0.02f));
+        mean_protest_drive(state, self, 0.1f * density);
+        return done(true, fmt("Union density falls to %.2f; protests follow", w.nation_get_union_density(self)));
+    }
+    case action_kind::military_pay: {
+        if(!q.target_agent || kind_of(state, q.target_agent) != agent_kind::military || home_of(state, q.target_agent) != self) return done(false, "Not your military");
+        const float share = std::clamp(q.value, 0.0f, 2.0f);
+        const double amount = share / 100.0 * nominal_gdp(state, self);
+        cause_scope c(state, journal_cause(self, journal_player_action));
+        transfer(state, account::government(self), account::firms(self), amount, flow::defense);
+        // Coup-proofing by pay: spending per soldier buys loyalty (Powell 2012; Leon 2014).
+        const float gain = std::min(0.3f, 0.3f * share);
+        w.nation_set_military_loyalty(self, std::min(1.0f, w.nation_get_military_loyalty(self) + gain));
+        return done(true, fmt("Loyalty rises to %.2f", w.nation_get_military_loyalty(self)));
+    }
+    case action_kind::purge_officers: {
+        if(!q.target_agent || kind_of(state, q.target_agent) != agent_kind::military || home_of(state, q.target_agent) != self) return done(false, "Not your military");
+        // Loyalists replace the competent: loyalty now, fighting power lost (Quinlivan 1999;
+        // Talmadge 2015).
+        w.nation_set_military_loyalty(self, std::max(w.nation_get_military_loyalty(self), 0.85f));
+        w.nation_set_military(self, w.nation_get_military(self) * 0.85f);
+        w.nation_set_willingness(self, w.nation_get_willingness(self) * 0.9f);
+        return done(true, "Officer corps purged: loyal, and weaker");
+    }
+    case action_kind::joint_exercises: {
+        const auto there = home_of(state, q.target_agent);
+        if(!there || there == self || kind_of(state, q.target_agent) != agent_kind::military) return done(false, "Choose a foreign military");
+        if(at_war(state, self, there) || w.nation_get_hostility(self, ix(there)) >= 2.0f) return done(false, "Not with a hostile nation");
+        if(w.nation_get_trust(there, ix(self)) < 0.4f) return done(false, "Declined: they distrust you");
+        w.nation_set_trust(there, ix(self), std::min(1.0f, w.nation_get_trust(there, ix(self)) + 0.05f));
+        w.nation_set_trust(self, ix(there), std::min(1.0f, w.nation_get_trust(self, ix(there)) + 0.05f));
+        // Their rivals read it as a signal.
+        for(auto x : w.in_nation) {
+            if(x.id == self || x.id == there) continue;
+            if(w.nation_get_rivalry(x.id, ix(there)) > 0.3f) x.set_threat_to(ix(self), std::min(1.0f, x.get_threat_to(ix(self)) + 0.02f));
+        }
+        return done(true, "Exercises held: mutual trust grows; their rivals take note");
+    }
+    case action_kind::regional_transfer: {
+        const auto r = region_of(state, q.target_agent);
+        if(!r || w.region_get_owner(r) != self) return done(false, "Not one of your regions");
+        const double amount = std::clamp(static_cast<double>(q.value), 0.0, 1.0) / 100.0 * nominal_gdp(state, self);
+        cause_scope c(state, journal_cause(self, journal_player_action));
+        transfer(state, account::government(self), account::firms(self), amount, flow::public_investment);
+        // Public capital in the region (its capacity) and goodwill.
+        double va = 0.0;
+        for(uint8_t s = 0; s < state.derived.sector_count; ++s) va += w.region_get_va0(r, s);
+        const float boost = va > 0.0 ? static_cast<float>(std::min(0.05, 0.1 * amount / (va * 365.0 * w.nation_get_core_price(self)))) : 0.0f;
+        for(uint8_t s = 0; s < state.derived.sector_count; ++s) w.region_set_capacity(r, s, w.region_get_capacity(r, s) * (1.0f + boost));
+        w.region_set_unrest(r, w.region_get_unrest(r) * 0.8f);
+        w.region_set_trust_r(r, std::min(1.0f, w.region_get_trust_r(r) + 0.02f));
+        return done(true, fmt("%.2f bn USD invested in the region", amount / 1e9));
+    }
+    case action_kind::counterinsurgency: {
+        const auto rebel = q.target_agent;
+        if(!rebel || kind_of(state, rebel) != agent_kind::rebel || home_of(state, rebel) != self) return done(false, "Not your rebels");
+        const float s = w.agent_get_strength(rebel);
+        if(s <= 0.0f) return done(false, "No rebellion");
+        const float loyalty = w.nation_get_military_loyalty(self);
+        if(loyalty < 0.3f) return done(false, "Refused: the army will not fight");
+        // Force against insurgents works with capacity and costs grievance where it falls
+        // (Lyall & Wilson 2009 on mechanised counter-insurgency).
+        const float hit = 0.2f * w.nation_get_state_capacity(self) * loyalty;
+        w.agent_set_strength(rebel, std::max(0.0f, s - hit));
+        for(auto own : w.nation_get_region_ownership(self)) {
+            auto r = own.get_region();
+            if(r.get_insurgency() > 0.0f) r.set_unrest(r.get_unrest() + 0.3f);
+        }
+        if(w.agent_get_strength(rebel) < 0.05f) {
+            rebels_defeated(state, self);
+            return done(true, "The rebellion is crushed");
+        }
+        return done(true, fmt("Rebel strength falls to %.2f", w.agent_get_strength(rebel)));
+    }
+    case action_kind::arm_rebels: {
+        const auto rebel = q.target_agent;
+        const auto there = home_of(state, rebel);
+        if(!rebel || kind_of(state, rebel) != agent_kind::rebel || !there || there == self) return done(false, "Choose a foreign rebellion");
+        if(w.agent_get_strength(rebel) <= 0.0f) return done(false, "No active rebellion");
+        const float gain = 0.1f * std::min(1.0f, 10.0f * w.nation_get_cinc(self));
+        w.agent_set_strength(rebel, std::min(1.0f, w.agent_get_strength(rebel) + gain));
+        w.nation_set_trust(there, ix(self), std::max(0.0f, w.nation_get_trust(there, ix(self)) - 0.2f));
+        w.nation_set_rivalry(there, ix(self), std::min(1.0f, w.nation_get_rivalry(there, ix(self)) + 0.2f));
+        w.nation_set_rivalry(self, ix(there), w.nation_get_rivalry(there, ix(self)));
+        return done(true, fmt("Arms delivered: rebel strength %.2f", w.agent_get_strength(rebel)));
+    }
+    case action_kind::swap_line: {
+        const auto there = home_of(state, q.target_agent);
+        if(!there || there == self || kind_of(state, q.target_agent) != agent_kind::central_bank) return done(false, "Choose a foreign central bank");
+        const float months = std::clamp(q.value, 0.0f, 6.0f);
+        if(lends_reserves(state, self)) {
+            // Offering: they draw on it if they need it.
+            w.nation_set_reserves(there, w.nation_get_reserves(there) + months);
+            w.nation_set_trust(there, ix(self), std::min(1.0f, w.nation_get_trust(there, ix(self)) + 0.05f));
+            return done(true, fmt("Swap line opened: their reserves rise to %.1f months", w.nation_get_reserves(there)));
+        }
+        if(!lends_reserves(state, there)) return done(false, "They hold no reserves to lend");
+        if(w.nation_get_trust(there, ix(self)) < 0.5f && w.nation_get_alliance(there, ix(self)) <= 0.0f) return done(false, "Declined: they do not trust you enough");
+        w.nation_set_reserves(self, w.nation_get_reserves(self) + months);
+        return done(true, fmt("Swap line granted: reserves %.1f months", w.nation_get_reserves(self)));
+    }
+    case action_kind::emergency_liquidity: {
+        const auto tk = kind_of(state, q.target_agent);
+        const double amount = std::clamp(static_cast<double>(q.value), 0.0, 3.0) / 100.0 * nominal_gdp(state, self);
+        cause_scope c(state, journal_cause(self, journal_player_action));
+        if(tk == agent_kind::board) {
+            const auto f = firm_of(state, q.target_agent);
+            if(!f || w.firm_get_nation(f) != self) return done(false, "Not a domestic firm");
+            // A loan, not a gift: cash now, more leverage.
+            transfer(state, account::finance(self), account::firms(self), amount, flow::credit);
+            const double daily = firm_daily(state, f);
+            w.firm_set_cash_days(f, std::min(4.0f * w.firm_get_cash_days0(f), w.firm_get_cash_days(f) + static_cast<float>(amount / daily)));
+            w.firm_set_leverage(f, w.firm_get_leverage(f) + static_cast<float>(amount / (daily * 365.0)));
+            return done(true, fmt("%.2f bn USD lent to the firm", amount / 1e9));
+        }
+        const auto r = region_of(state, q.target_agent);
+        if(!r || w.region_get_owner(r) != self) return done(false, "Not one of your regions");
+        transfer(state, account::finance(self), account::government(self), amount, flow::credit);
+        w.region_set_fiscal_capacity(r, std::min(2.0f, w.region_get_fiscal_capacity(r) + 0.05f));
+        return done(true, fmt("%.2f bn USD of the region's debt bought", amount / 1e9));
+    }
+    case action_kind::freeze_rebel_funds: {
+        const auto rebel = q.target_agent;
+        if(!rebel || kind_of(state, rebel) != agent_kind::rebel || home_of(state, rebel) != self) return done(false, "Not your rebels");
+        if(w.agent_get_strength(rebel) <= 0.0f) return done(false, "No rebellion");
+        if(w.nation_get_state_capacity(self) < 0.4f) return done(false, "The state cannot enforce it");
+        w.agent_set_strength(rebel, std::max(0.0f, w.agent_get_strength(rebel) - 0.05f * w.nation_get_state_capacity(self)));
+        return done(true, fmt("Rebel strength falls to %.2f", w.agent_get_strength(rebel)));
+    }
+    case action_kind::strike: {
+        const auto f = firm_of(state, q.target_agent);
+        if(!f || w.firm_get_nation(f) != self) return done(false, "Not a domestic firm");
+        const float density = w.nation_get_union_density(self), coverage = w.nation_get_bargaining_coverage(self);
+        // Days of output lost scale with organisation; the firm concedes job guarantees
+        // where the union is strong (Kennan 1986 on strike costs).
+        const float days = 10.0f * density;
+        w.firm_set_cash_days(f, w.firm_get_cash_days(f) - days);
+        if(density * (0.5f + coverage) < 0.15f) return done(false, fmt("The strike fizzles (density %.2f): the firm holds out", density));
+        put_pressure(state, q.target_agent, q.actor, lever_slot(state, lever::hoarding), 1.0f, std::clamp(density + coverage, 0.1f, 1.5f));
+        return done(true, fmt("The firm concedes job guarantees after %.0f days of lost output", days));
+    }
+    case action_kind::wage_deal: {
+        const auto u = q.target_agent;
+        if(!u || kind_of(state, u) != agent_kind::union_federation || home_of(state, u) != self) return done(false, "Not your union federation");
+        const auto f = firm_of(state, q.actor);
+        const bool slack = w.nation_get_unemployment(self) > w.nation_get_unemployment0(self) + 0.01f;
+        const bool distressed = f && w.firm_get_cash_days(f) < 0.5f * w.firm_get_cash_days0(f);
+        if(!slack && !distressed) return done(false, "Rejected: jobs are not at risk");
+        const uint8_t lw = lever_slot(state, lever::wage_push);
+        put_pressure(state, u, q.actor, lw, std::min(0.0f, w.agent_get_last_choice(u, lw)), std::clamp(0.5f * board_weight(state, q.actor, self), 0.05f, 1.0f), 365);
+        // The board's own commitment: keep staff.
+        put_pressure(state, q.actor, u, lever_slot(state, lever::hoarding), 0.9f, 1.0f, 365);
+        return done(true, "Deal: wage restraint for job guarantees, for a year");
+    }
+    case action_kind::rights_complaint: {
+        const auto o = q.organisation;
+        if(!o || w.organisation_get_kind(o) != static_cast<uint8_t>(org_kind::rights)) return done(false, "Only rights bodies hear complaints");
+        const bool repressed = w.nation_get_repression(self) >= 0.25f || w.nation_get_liberal(self) < w.nation_get_liberal0(self) - 0.05f;
+        if(!repressed) return done(false, "Dismissed: no case to answer");
+        w.nation_set_shamed(self, 1.0f);
+        w.nation_set_legitimacy(self, std::max(0.0f, w.nation_get_legitimacy(self) - 0.02f));
+        return done(true, "Upheld: your government is named and shamed");
+    }
+    case action_kind::seize_power: {
+        if(kind_of(state, q.actor) != agent_kind::military) return done(false, "Only the military can");
+        // Coups succeed against illegitimate governments, are deterred by democracy clauses,
+        // and fail where the regime is popular or protest backs it (Powell 2012; Powell &
+        // Thyne 2011; Singh 2014 on coordination among officers).
+        float protest = 0.0f, pop = 0.0f;
+        for(auto own : w.nation_get_region_ownership(self)) {
+            protest += own.get_region().get_protest() * own.get_region().get_population();
+            pop += own.get_region().get_population();
+        }
+        protest = pop > 0.0f ? protest / pop : 0.0f;
+        const float odds = (1.0f - w.nation_get_legitimacy(self)) * (1.0f - coup_deterrence(state, self)) * (1.0f - 0.5f * w.nation_get_electoral(self)) + protest;
+        if(odds < 0.5f) {
+            // A failed coup: officers purged, the government rallies support.
+            w.nation_set_military_loyalty(self, 0.9f);
+            w.nation_set_military(self, w.nation_get_military(self) * 0.8f);
+            w.nation_set_legitimacy(self, std::min(1.0f, w.nation_get_legitimacy(self) + 0.05f));
+            return done(false, fmt("The coup fails (odds %.2f): the plotters are purged", odds));
+        }
+        apply_coup(state, self);
+        w.nation_set_military_loyalty(self, 1.0f);
+        return done(true, "The military takes power");
+    }
+    case action_kind::demand_autonomy: {
+        if(kind_of(state, q.actor) != agent_kind::governor) return done(false, "Only governors can");
+        const auto r = region_of(state, q.actor);
+        const bool needs = w.nation_get_gov_seat_share(self) < 0.5f || w.nation_get_legitimacy(self) < 0.4f || (r && w.region_get_unrest(r) > 2.0f);
+        if(!needs) return done(false, "Refused: the government does not need your support");
+        w.nation_set_decentralisation(self, std::min(1.0f, w.nation_get_decentralisation(self) + 0.05f));
+        return done(true, fmt("Granted: decentralisation %.2f", w.nation_get_decentralisation(self)));
+    }
+    case action_kind::foreign_backing: {
+        const auto t = q.target;
+        if(!t || t == self) return done(false, "Choose a foreign government");
+        if(w.agent_get_strength(q.actor) <= 0.0f) return done(false, "The rebellion is over");
+        const bool hostile = w.nation_get_rivalry(t, ix(self)) >= 0.3f || w.nation_get_trust(t, ix(self)) < 0.2f || at_war(state, t, self);
+        if(!hostile || w.nation_get_alliance(t, ix(self)) > 0.0f) return done(false, "Refused: they are on good terms with your government");
+        const float gain = 0.1f * std::min(1.0f, 10.0f * w.nation_get_cinc(t));
+        w.agent_set_strength(q.actor, std::min(1.0f, w.agent_get_strength(q.actor) + gain));
+        w.nation_set_trust(self, ix(t), std::max(0.0f, w.nation_get_trust(self, ix(t)) - 0.1f));
+        return done(true, fmt("Backed: strength %.2f", w.agent_get_strength(q.actor)));
+    }
+    case action_kind::court_defectors: {
+        if(w.agent_get_strength(q.actor) <= 0.0f) return done(false, "The rebellion is over");
+        const float loyalty = w.nation_get_military_loyalty(self);
+        if(loyalty >= 0.5f) return done(false, "No takers: the army is loyal");
+        w.nation_set_military_loyalty(self, std::max(0.0f, loyalty - 0.1f));
+        w.agent_set_strength(q.actor, std::min(1.0f, w.agent_get_strength(q.actor) + 0.05f));
+        return done(true, fmt("Units defect: army loyalty %.2f", w.nation_get_military_loyalty(self)));
     }
     default: break;
     }

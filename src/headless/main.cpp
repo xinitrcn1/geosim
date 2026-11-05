@@ -3,6 +3,7 @@
 //   geosim_headless build    --assets DIR --scenario 2020 --out FILE.bin
 //   geosim_headless run      (--assets DIR --scenario 2020 | --load FILE.bin) [--days N]
 //                            [--daily OUT.csv] [--save FILE.bin] [--flows ISO3] [--set name=value,...]
+//                            [--politics ISO3] (party system every 28 days) [--profile 1] (time per system)
 //   geosim_headless backtest --assets DIR --scenario 2020 [--daily OUT.csv]
 //   geosim_headless params                     (prints every parameter as assets/defs/parameters.txt)
 //
@@ -23,6 +24,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <string>
@@ -33,7 +35,7 @@ int usage() {
     std::fputs("usage:\n"
                "  geosim_headless build    --assets DIR --scenario NAME --out FILE.bin\n"
                "  geosim_headless run      (--assets DIR --scenario NAME | --load FILE.bin) [--days N] [--daily OUT.csv] [--save FILE.bin]\n"
-               "                           [--flows ISO3] [--groups ISO3] [--logistics 1] [--set name=value,...]\n"
+               "                           [--flows ISO3] [--groups ISO3] [--logistics 1] [--politics ISO3] [--profile 1] [--threads N] [--set name=value,...]\n"
                "  geosim_headless backtest --assets DIR --scenario NAME [--daily OUT.csv] [--years 2]\n"
                "  geosim_headless params\n",
                stderr);
@@ -165,13 +167,31 @@ int main(int argc, char** argv) {
         traced = geosim::sim::find_nation(*state, opt["trace"]);
         if(traced) geosim::sim::write_trace_header(std::cout);
     }
+    // --politics ISO: the party system every 28 days (vote and seat shares, incumbent).
+    dcon::nation_id polled;
+    if(opt.count("politics")) polled = geosim::sim::find_nation(*state, opt["politics"]);
+    // --threads N: worker threads for the parallel systems (default 2).
+    int threads = 2;
+    if(opt.count("threads") && !parse_value(opt["threads"], threads)) {
+        return usage();
+    }
+    geosim::sim::set_thread_limit(threads);
+    // --profile 1: wall time per system, printed to stderr after the run.
+    const bool profile = opt.count("profile") && opt["profile"] != "0";
+    geosim::sim::set_profiling(profile);
     geosim::sim::begin_measurement(*state);
+    const auto run_start = std::chrono::steady_clock::now();
     for(int d = 0; d < days; ++d) {
         geosim::sim::advance_day(*state);
+        if(polled && d % 28 == 0) geosim::sim::write_politics_row(*state, polled, std::cout);
         if(daily) {
             geosim::sim::write_daily_rows(*state, daily);
         }
         if(traced) geosim::sim::write_trace_row(*state, traced, std::cout);
+    }
+    if(profile) {
+        std::fprintf(stderr, "%d days in %.2f s\n", days, std::chrono::duration<double>(std::chrono::steady_clock::now() - run_start).count());
+        geosim::sim::write_profile(stderr);
     }
     const auto summary = geosim::sim::summarize(*state);
     if(opt.count("flows")) {

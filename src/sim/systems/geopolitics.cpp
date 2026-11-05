@@ -221,17 +221,44 @@ static double pair_access(game_state const& state, dcon::nation_id n, dcon::nati
     const double fta = std::exp(P.fta_trade_gain * w.nation_get_fta(n, k) * depth);
     // Armington (1969): in m's market, n competes with m's other suppliers on relative
     // real exchange rates (its competitiveness against m's own producers is the
-    // export elasticity in economy.cpp).
-    double rival = 0.0, rival_w = 0.0;
-    for(auto o : w.in_nation) {
-        if(o.id == m) continue;
-        const double share = o.get_x0() * o.get_trade_share(k);
-        rival += share * std::log(std::max(0.05f, o.get_exchange_rate()));
-        rival_w += share;
-    }
-    const double rel = std::log(std::max(0.05f, w.nation_get_exchange_rate(n))) - (rival_w > 0.0 ? rival / rival_w : 0.0);
+    // export elasticity in economy.cpp). The suppliers' mean rate depends only on the
+    // market: update_trade_rivals computes it once per day for every market.
+    const double rel = std::log(std::max(0.05f, w.nation_get_exchange_rate(n))) - static_cast<double>(w.nation_get_trade_rival(m));
     const double armington = std::exp(-(P.armington - 1.0) * rel);
     return w.nation_get_trade_share(n, k) * demand * (1.0 - P.sanction_trade_cut * barrier) * (1.0 - war) * w.nation_get_pair_cost(n, k) * fta * armington;
+}
+
+// Export-weighted mean log exchange rate of each market's suppliers (Armington rivals).
+// Parallel over markets, vectorised over suppliers (trade_share is stored contiguous
+// over the supplier for a fixed market); each market's lanes are summed into a double
+// serially, so the result does not depend on the thread count. Was recomputed inside
+// every pair_access call: O(N^3) per day at world scale.
+void update_trade_rivals(game_state& state) {
+    auto& w = state.world;
+    w.execute_serial_over_nation([&](auto ids) {
+        w.nation_set_log_er(ids, ve::apply([](float e) { return std::log(std::max(0.05f, e)); }, w.nation_get_exchange_rate(ids)));
+    });
+    const uint32_t count = w.nation_size();
+    concurrency::parallel_for(uint32_t(0), count, [&](uint32_t mi) {
+        const dcon::nation_id m{static_cast<dcon::nation_id::value_base_t>(mi)};
+        const auto k = static_cast<uint16_t>(mi);
+        ve::fp_vector num(0.0f), den(0.0f);
+        w.execute_serial_over_nation([&](auto o) {
+            const auto share = w.nation_get_x0(o) * w.nation_get_trade_share(o, k);
+            num = num + share * w.nation_get_log_er(o);
+            den = den + share;
+        });
+        double rival = 0.0, rival_w = 0.0;
+        for(uint32_t i = 0; i < ve::vector_size; ++i) {
+            rival += num[i];
+            rival_w += den[i];
+        }
+        // The market's own producers are not its import rivals.
+        const double own = static_cast<double>(w.nation_get_x0(m)) * w.nation_get_trade_share(m, k);
+        rival -= own * w.nation_get_log_er(m);
+        rival_w -= own;
+        w.nation_set_trade_rival(m, rival_w > 0.0 ? static_cast<float>(rival / rival_w) : 0.0f);
+    }, concurrency::static_partitioner());
 }
 
 float trade_access(game_state const& state, dcon::nation_id n) {

@@ -199,6 +199,7 @@ uint32_t sim_runner::perform(action_order o) {
     q.actor = dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(o.agent)};
     if(o.nation != 0xFFFFFFFFu) q.target = dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(o.nation)};
     if(o.organisation != 0xFFFFFFFFu) q.organisation = dcon::organisation_id{static_cast<dcon::organisation_id::value_base_t>(o.organisation)};
+    if(o.target_agent != 0xFFFFFFFFu) q.target_agent = dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(o.target_agent)};
     q.treaty = o.treaty < static_cast<uint8_t>(sim::treaty_kind::count) ? static_cast<sim::treaty_kind>(o.treaty) : sim::treaty_kind::count;
     q.lever = o.lever;
     q.value = o.value;
@@ -301,6 +302,7 @@ void sim_runner::start(std::string assets_dir, std::string scenario, std::string
         if(!iso.empty() && std::find(iso3s_.begin(), iso3s_.end(), iso) == iso3s_.end()) iso3s_.push_back(std::move(iso));
         at = comma + 1;
     }
+    sim::set_thread_limit(2); // the sim's parallel systems share two cores with the renderer
     thread_ = std::jthread([this] { run(); });
 }
 

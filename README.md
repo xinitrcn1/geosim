@@ -38,6 +38,8 @@ $B run --assets assets --scenario 2020 --groups IND         # identity groups (c
 $B run --assets assets --scenario 2020 --logistics 1        # chokepoints, queues, container freight
 $B run --assets assets --scenario 2020 --no-events 1        # no-shock baseline (steady-state check)
 $B run --assets assets --scenario 2020 --set historical_anchors=0   # the AI alone
+$B run --assets assets --scenario 2020 --politics USA --days 1500   # vote and seat shares every 28 days
+$B run --assets assets --scenario world2020 --profile 1 --threads 2 # time per system
 $B build --assets assets --scenario 2020 --out s2020.bin    # assets -> DCON binary
 $B run --load s2020.bin --days 90 --save day90.bin
 ```

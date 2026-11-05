@@ -10,6 +10,7 @@
     /* ---- mode ---- */                                                                                    \
     X(historical_anchors, 1.0, "1 = dated real-world decisions are priors for the AI; 0 = AI alone")      \
     X(anchor_prior_weight, 10.0, "weight of the historical anchor vs pragmatic+ideological targets (=1)") \
+    X(anchor_fade_days, 45.0, "e-folding time of the anchors' weight after the last dated decision in the data (the AI takes over)") \
     X(advise_weight, 3.0, "weight of player advice relative to the agent's own choice")                  \
     /* ---- AI agents ---- */                                                                               \
     X(ai_horizon_days, 14.0, "epidemic projection horizon of executives (days)")                          \
@@ -105,6 +106,8 @@
     X(vote_retrospective, 1.0, "weight of the incumbent's performance in vote choice")                    \
     X(vote_health_weight, 0.1, "performance penalty per daily death per million")                         \
     X(vote_temperature, 0.3, "logit temperature of vote choice")                                          \
+    X(vote_retrospective_cap, 0.15, "most vote utility performance can cost or win the incumbent (saturating; partisans discount bad news, Bartels 2002)") \
+    X(vote_memory_years, 1.5, "years over which voters' reference for performance adapts (myopic retrospection; Healy & Lenz 2014)") \
     X(legitimacy_years, 1.0, "adjustment time of legitimacy (years)")                                     \
     X(force_legitimacy_cost, 0.1, "legitimacy lost per year per forced lever")                            \
     X(force_liberal_cost, 0.05, "liberal-index loss per year per forced lever")                           \
@@ -119,7 +122,8 @@
     X(overton_legitimacy, 0.3, "legitimacy target lost per unit of policy outside the window")          \
     X(overton_backlash, 0.5, "protest drive per unit of liberty-restricting policy outside the window")  \
     X(overton_rally, 0.6, "shift of the acceptable range toward restriction at full perceived threat (rally; Bol et al. 2021)") \
-    X(thermostat, 0.05, "annual opinion shift against the direction of economic policy (Wlezien 1995)") \
+    X(thermostat, 0.5, "weight of the government's economic policy, against its party's position, in where voters place the incumbent (thermostatic public; Wlezien 1995)") \
+    X(stimulus_memory_years, 2.0, "years over which a fiscal package stops shaping the government's economic position") \
     X(party_entry_distance, 0.5, "distance to the nearest party beyond which a voter is unrepresented")  \
     X(party_entry_share, 0.15, "unrepresented share of voters at which a challenger party forms")      \
     X(party_exit_months, 24.0, "months below 1% of the vote after which a party dissolves")            \
@@ -287,7 +291,7 @@
     /* ---- internet and cyber (systems/internet.cpp) ---- */                                               \
     X(net_control_scale, 0.8, "starting domestic information control per unit (1 - net freedom)")       \
     X(net_filter_threshold, 0.4, "lack of net freedom above which cross-border filtering starts")        \
-    X(net_diffusion, 0.3, "annual value convergence toward coupled foreign publics (Gleditsch & Ward 2006)") \
+    X(net_diffusion, 0.03, "annual value convergence toward coupled foreign publics (Gleditsch & Ward 2006; values move over generations, so a few % a year at most)") \
     X(net_contagion, 0.6, "protest drive per unit coupled foreign protest participation (share of x_max)") \
     X(net_tie_floor, 0.02, "minimum tie between two societies (language, diaspora, media) besides trade") \
     X(net_digital_trade, 0.3, "share of services exports and imports delivered online")                 \
@@ -467,7 +471,9 @@
     X(education_tertiary, 0.02, "tertiary-share rise per year per % GDP of extra education spending (lagged)") \
     X(health_beds, 0.5, "hospital beds per 1000 added per year per % GDP of extra health spending")      \
     X(capital_controls_trigger, 5.0, "portfolio outflow (% GDP/yr) at which controls become pragmatic")  \
-    X(cube_law, 3.0, "seat-vote exponent of single-member districts in a one-region nation (Taagepera 1986)") \
+    X(district_exponent, 1.5, "seat-vote exponent of single-member districts inside one region (geographic sorting flattens the cube law; US House 2012-20 ~1.5)") \
+    X(party_anchor, 0.7, "weight of a mainstream party's core position against its voters' centroid (activists, primaries; Aldrich 1983)") \
+    X(cube_law, 3.0, "seat-vote exponent of single-member districts within a region (Taagepera 1986)") \
     X(lobby_tariff, 0.05, "ideological tariff per unit lobby pressure (Grossman & Helpman 1994)")       \
     X(governor_alignment, 0.3, "regional NPI offset of a governor from the opposition per unit party distance") \
     X(rural_contact_rel, 0.6, "transmissible contacts in rural vs urban populations (Rader et al. 2020; crowding)") \
