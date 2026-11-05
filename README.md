@@ -1,5 +1,8 @@
 # geosim
 
+![scr1](./docs/scr1.png)
+![scr0](./docs/scr0.png)
+
 Modern geopolitical simulator focused on the socioeconomic consequences of your actions.
 
 ## Docs
