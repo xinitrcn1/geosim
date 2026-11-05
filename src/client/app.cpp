@@ -335,6 +335,7 @@ int run_app(app_options const& opt) {
                     break;
                 case SDL_EVENT_TEXT_INPUT:
                     if(phase == app_phase::game && hud.open == hud_action::control && hud.search.size() < 64) hud.search += ev.text.text;
+                    if(phase == app_phase::game && hud.open == hud_action::internet && hud.browser.focus != 0 && hud.browser.input.size() < 120) hud.browser.input += ev.text.text;
                     break;
                 case SDL_EVENT_KEY_DOWN: {
                     const SDL_Keycode k = ev.key.key;
@@ -345,6 +346,20 @@ int run_app(app_options const& opt) {
                             while(!hud.search.empty() && (static_cast<unsigned char>(hud.search.back()) & 0xC0) == 0x80); // whole UTF-8 characters
                         } else if(k == SDLK_ESCAPE) {
                             hud.open = hud_action::none;
+                        }
+                        break;
+                    }
+                    // Typing into the browser's address bar or search box (Enter goes, Esc leaves the field).
+                    if(phase == app_phase::game && hud.open == hud_action::internet && hud.browser.focus != 0 && !(ev.key.mod & SDL_KMOD_CTRL)) {
+                        auto& b = hud.browser;
+                        if(k == SDLK_BACKSPACE && !b.input.empty()) {
+                            do b.input.pop_back();
+                            while(!b.input.empty() && (static_cast<unsigned char>(b.input.back()) & 0xC0) == 0x80);
+                        } else if(k == SDLK_RETURN || k == SDLK_KP_ENTER) {
+                            b.submit = true;
+                        } else if(k == SDLK_ESCAPE) {
+                            b.focus = 0;
+                            b.input.clear();
                         }
                         break;
                     }
@@ -475,7 +490,7 @@ int run_app(app_options const& opt) {
                 music.set_mood(mm.m, mm.intensity);
             }
 
-            const bool want_text = phase == app_phase::game && hud.open == hud_action::control;
+            const bool want_text = phase == app_phase::game && (hud.open == hud_action::control || (hud.open == hud_action::internet && hud.browser.focus != 0));
             if(want_text != text_input) {
                 if(want_text) SDL_StartTextInput(window);
                 else SDL_StopTextInput(window);

@@ -80,7 +80,31 @@ private:
 };
 
 // Top-bar windows, in button order (control = the '+' picker).
-enum class hud_action : uint8_t { none, policy, budget, trade, diplomacy, military, politics, control };
+enum class hud_action : uint8_t { none, policy, budget, trade, diplomacy, military, politics, internet, control };
+
+// The Internet window (browser.cpp): simple tabs, each with its history; one text field
+// focused at a time (the address bar or the search box).
+struct browser_tab {
+    std::vector<std::string> history{"about:home"};
+    std::size_t at = 0;
+    float scroll = 0;
+    std::string title = "Start Page";
+};
+struct browser_state {
+    std::vector<browser_tab> tabs{browser_tab{}};
+    std::size_t active = 0;
+    uint8_t focus = 0;          // 0 none, 1 address bar, 2 search box
+    std::string input;          // the focused field's text
+    bool submit = false;        // Enter pressed this frame
+    std::string search_engine;  // the search box's engine (empty: the default)
+    web_view view;              // the active tab's page (when view.url == the tab's url)
+    bool have = false;
+    std::future<web_view> pending;
+    std::string pending_url;
+    std::chrono::steady_clock::time_point last{};
+    std::vector<web_bookmark> bookmarks;
+    std::string engine, engine_name; // the default engine
+};
 // Map views (top-bar filter buttons; docs/07-map-and-filters.md#views).
 enum class map_filter : uint8_t { political, climate, economy, trade, energy, epidemic, unrest, count };
 
@@ -153,11 +177,14 @@ struct hud_state {
     float control_scroll = 0;
     std::string search;          // typed into the Control window
     tabs_state tabs;             // the action tabs: acting agent, data, diplomacy picks
+    browser_state browser;       // the Internet window
 };
 
 // A window (Politics, Policies, Diplomacy...): flat white with a blue title strip and a
 // close button, filling `win`. Returns the body rect.
 rect window_frame(ui_context& ui, hud_state& st, rect win, std::string_view title, std::string_view subtitle);
+// The Internet window (browser.cpp).
+void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win);
 
 // `tab` (may be null): the map mode's legend (bottom right; the alert column
 // ends above it). `politics` (may be null): the Politics window's content. An

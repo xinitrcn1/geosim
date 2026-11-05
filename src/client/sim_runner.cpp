@@ -9,6 +9,7 @@
 #include "sim/save.hpp"
 #include "sim/scenario.hpp"
 #include "sim/simulation.hpp"
+#include "sim/web.hpp"
 
 #include <SDL3/SDL_log.h>
 
@@ -296,6 +297,47 @@ void sim_runner::set_answer_requests(uint32_t agent, bool on) {
 uint32_t sim_runner::answer(uint32_t request, uint32_t agent, bool accept) {
     return push_command(sim::make_answer(dcon::request_id{static_cast<dcon::request_id::value_base_t>(request)},
                                          dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, accept, 0, 0));
+}
+
+std::future<web_view> sim_runner::request_web(std::string url) {
+    auto promise = std::make_shared<std::promise<web_view>>();
+    auto future = promise->get_future();
+    std::vector<uint32_t> nations;
+    for(auto const& a : agents_) nations.push_back(a.nation);
+    post([this, promise, url = std::move(url), nations = std::move(nations)](game_state& s) {
+        if(!people_) {
+            people_ = std::make_unique<sim::web::name_pools>();
+            std::string error;
+            if(!sim::web::load_name_pools(assets_ + "/defs", *people_, error)) SDL_Log("names: %s (the internet's people stay anonymous)", error.c_str());
+        }
+        if(!domains_) {
+            domains_ = std::make_unique<sim::web::domain_table>();
+            std::string error;
+            if(!sim::web::load_domain_table(assets_ + "/defs", *domains_, error)) SDL_Log("tlds: %s (sites fall back to com.<iso3>)", error.c_str());
+        }
+        sim::web::names nm{&nation_names_, &region_names_, people_.get(), domains_.get()};
+        const auto dir = sim::web::build_directory(s, nm);
+        std::vector<dcon::nation_id> mine;
+        for(auto i : nations) {
+            if(i < s.world.nation_size()) mine.push_back(dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(i)});
+        }
+        web_view v;
+        v.engine = sim::web::default_engine(s, dir, mine);
+        if(auto const* e = dir.find(v.engine)) v.engine_name = e->name;
+        const auto pg = sim::web::render(s, nm, dir, url, v.engine, mine);
+        v.url = pg.url;
+        v.title = pg.title;
+        v.host = pg.host;
+        v.category = pg.category;
+        v.owner = pg.owner;
+        v.accent = pg.accent;
+        v.style = static_cast<uint8_t>(pg.style);
+        v.ads_blocked = pg.ads_blocked;
+        for(auto const& b : pg.blocks) v.blocks.push_back({static_cast<uint8_t>(b.k), b.text, b.sub, b.url, b.tone});
+        for(std::size_t i = 0; i < dir.sites.size() && v.bookmarks.size() < 5; ++i) v.bookmarks.push_back({dir.sites[i].name, dir.sites[i].domain});
+        promise->set_value(std::move(v));
+    });
+    return future;
 }
 
 std::future<std::vector<pending_request>> sim_runner::request_pending() {

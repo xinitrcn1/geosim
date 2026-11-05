@@ -140,6 +140,26 @@ struct tab_snapshot {
     military_snapshot military;
 };
 
+// The in-game internet (sim/web.hpp; the Internet window): one rendered page, copied at
+// the sync point, with the browser chrome's data.
+struct web_block {
+    uint8_t kind = 0; // sim::web::block::kind
+    std::string text, sub, url;
+    int8_t tone = 0;
+};
+struct web_bookmark {
+    std::string name, domain;
+};
+struct web_view {
+    std::string url, title, host, category, owner;
+    uint32_t accent = 0x3366CC;
+    uint8_t style = 0; // sim::web::page::layout
+    int ads_blocked = 0;
+    std::vector<web_block> blocks;
+    std::vector<web_bookmark> bookmarks; // the top 5 sites worldwide by active users
+    std::string engine, engine_name;     // the default search engine (domain, name)
+};
+
 // What a tab asks of the sim.
 struct tab_request {
     tab_kind tab = tab_kind::policies;

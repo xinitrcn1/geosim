@@ -15,6 +15,7 @@ add_library(geosim_sim STATIC
     sim/ledger.cpp
     sim/params.cpp
     sim/report.cpp
+    sim/web.cpp
     sim/save.cpp
     sim/world_io.cpp
     sim/scenario.cpp
@@ -126,6 +127,7 @@ if(GEOSIM_BUILD_CLIENT)
         client/text.cpp
         client/ui_context.cpp
         client/ui_layout.cpp
+        client/browser.cpp
         client/ui_renderer.cpp
         client/vk_context.cpp)
     add_dependencies(geosim geosim_client_shaders)

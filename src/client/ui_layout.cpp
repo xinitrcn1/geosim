@@ -50,6 +50,7 @@ struct icon_button {
 };
 const icon_button action_buttons[] = {
     {"🏛", "Policies"}, {"💰", "Fiscal policy"}, {"📦", "Trade"}, {"🤝", "Diplomacy"}, {"⚔", "Military"}, {"🗳", "Politics and elections"},
+    {"🌐", "Internet: the world's websites"},
 };
 const icon_button filter_buttons[] = {
     {"🗺", "Map: political"}, {"🌦", "Map: climate and hazards"}, {"📈", "Map: economy"}, {"🚢", "Map: trade"},
@@ -850,6 +851,8 @@ void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& s
             power_panel(ui, sim, st, st.politics_nation, politics->democracy, {win.x + half + rule, win.y + hh, win.w - half - rule, win.h - hh});
         } else if(st.open == hud_action::control) {
             control_window(ui, sim, agents, st, win);
+        } else if(st.open == hud_action::internet) {
+            browser_window(ui, sim, st, win);
         } else {
             action_tab(ui, sim, alerts, st, win);
         }

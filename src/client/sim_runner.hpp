@@ -36,6 +36,11 @@ namespace geosim::sim {
 struct command;
 }
 
+namespace geosim::sim::web {
+struct name_pools;
+struct domain_table;
+}
+
 namespace geosim::client {
 
 inline constexpr int max_speed = 5;
@@ -146,6 +151,10 @@ public:
     }
     // Requests waiting for the player, at the next sync point.
     std::future<std::vector<pending_request>> request_pending();
+    // The in-game internet: page `url` ("about:home", a domain, or an engine's
+    // ".../search?q=..."), rendered at the next sync point; the default engine follows the
+    // player's agents' nations (sim::web::default_engine).
+    std::future<web_view> request_web(std::string url);
     // Answers a request on the agent's behalf (a sim::command_tag::answer). Returns its seq.
     uint32_t answer(uint32_t request, uint32_t agent, bool accept);
     [[nodiscard]] bool controls_agent(uint32_t agent) const noexcept;
@@ -259,6 +268,8 @@ private:
     // scenario's regions.csv names by region index (empty without regions.csv).
     std::vector<std::string> nation_names_;
     std::vector<std::string> region_names_;
+    std::unique_ptr<sim::web::name_pools> people_;     // name pools for the in-game internet (sim thread)
+    std::unique_ptr<sim::web::domain_table> domains_;  // its domains per nation (tlds.csv)
 
 public:
     // "Louisiana, United States" / "Japan" (valid once running; ids out of range -> "").
