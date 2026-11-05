@@ -283,6 +283,7 @@ struct action_request {
     uint8_t lever = 0;
     float value = 0.0f;
     dcon::agent_id target_agent; // actions toward another agent
+    bool silent = false;         // not journalled as a player action (the effect of an answered request)
 };
 // The value an option takes beyond the built-in inputs (sanction level, aid, pledge, treaty).
 enum class action_value : uint8_t { none, amount, lever };
@@ -305,6 +306,39 @@ struct action_result {
                                                            dcon::organisation_id organisation, dcon::agent_id target_agent = {});
 // Performs it (call on the sim thread, between ticks).
 action_result perform_action(game_state& state, action_request const& request);
+// Pressure on `target`'s lever `lev` toward `value`, weighed at `weight`, for `days`
+// (the AI blends it in apply_pressure).
+void put_pressure(game_state& state, dcon::agent_id target, dcon::agent_id from, uint8_t lev, float value, float weight, int days = 182);
+// A power-sharing settlement with the nation's rebels (ends the insurgency).
+void settle_rebellion(game_state& state, dcon::nation_id n);
+
+// Requests (requests.cpp): AI agents ask other agents for something each month when
+// their situation calls for it; the target answers by its own rule at once, or - when
+// a player controls it and answers its requests - the request waits for the player
+// until it expires, and then the target's AI answers.
+enum class request_kind : uint8_t {
+    restrain_spending, // central bank -> its government: less public investment (pressure)
+    cut_rates,         // government -> its central bank: a lower policy rate (pressure)
+    raise_min_wage,    // union -> its government: a higher minimum wage (pressure)
+    rescue,            // board of a distressed firm -> its government: a rescue package
+    military_pay,      // military -> its government: a pay rise
+    regional_aid,      // governor of a restless region -> its government: a regional transfer
+    swap_line,         // central bank short of reserves -> a foreign central bank
+    settlement,        // stalemated rebels -> their government: power sharing
+    wage_restraint,    // board of a distressed firm -> its union: jobs for wage restraint
+    count
+};
+struct request_text {
+    std::string title;  // "The central bank asks the government to restrain spending"
+    std::string detail; // what accepting does
+};
+void update_requests(game_state& state);
+[[nodiscard]] request_text describe_request(game_state const& state, dcon::request_id r);
+// The target's own answer (its AI's rule).
+[[nodiscard]] bool request_ai_answer(game_state const& state, dcon::request_id r);
+// Answers request `r` (accepted or not) by `who` (0: the target's AI at once, 1: the
+// player, 2: the AI after the player's window), journals it and deletes it.
+action_result answer_request(game_state& state, dcon::request_id r, bool accept, uint8_t who);
 void update_mega_events(game_state& state);
 // Votes a draft by `sponsor` against `target` (shift: extra support); journals under
 // `code` (0 = silent). Returns 1 adopted, 0 vetoed or blocked, -1 too few votes.

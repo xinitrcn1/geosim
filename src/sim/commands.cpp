@@ -81,6 +81,29 @@ command_result apply_command(game_state& state, command const& c) {
         set_message(r, res.message);
         break;
     }
+    case command_tag::set_control: {
+        const auto a = id_of<dcon::agent_id>(c.u.set_control.agent);
+        if(!a || !w.agent_is_valid(a)) {
+            set_message(r, "No such agent");
+            break;
+        }
+        w.agent_set_player_controlled(a, c.u.set_control.controlled);
+        w.agent_set_answer_requests(a, c.u.set_control.controlled && c.u.set_control.answer_requests ? 1 : 0);
+        r.accepted = 1;
+        break;
+    }
+    case command_tag::answer: {
+        const auto q = id_of<dcon::request_id>(c.u.answer.request);
+        const auto a = id_of<dcon::agent_id>(c.u.answer.agent);
+        if(!q || !w.request_is_valid(q) || w.request_get_to(q) != a || !w.agent_get_player_controlled(a)) {
+            set_message(r, "The request was already answered");
+            break;
+        }
+        const auto res = answer_request(state, q, c.u.answer.accept != 0, 1);
+        r.accepted = res.accepted ? 1 : 0;
+        set_message(r, res.message);
+        break;
+    }
     default: set_message(r, "Unknown command"); break;
     }
     return r;
@@ -112,6 +135,22 @@ command make_set_ai(dcon::agent_id a, bool on, int32_t tick, uint32_t seq) {
     c.seq = seq;
     c.tick = tick;
     c.u.set_ai = {index_of(a), static_cast<uint8_t>(on ? 1 : 0)};
+    return c;
+}
+command make_set_control(dcon::agent_id a, bool controlled, bool answer_requests, int32_t tick, uint32_t seq) {
+    command c;
+    c.tag = command_tag::set_control;
+    c.seq = seq;
+    c.tick = tick;
+    c.u.set_control = {index_of(a), static_cast<uint8_t>(controlled ? 1 : 0), static_cast<uint8_t>(answer_requests ? 1 : 0)};
+    return c;
+}
+command make_answer(dcon::request_id q, dcon::agent_id to, bool accept, int32_t tick, uint32_t seq) {
+    command c;
+    c.tag = command_tag::answer;
+    c.seq = seq;
+    c.tick = tick;
+    c.u.answer = {index_of(q), index_of(to), static_cast<uint8_t>(accept ? 1 : 0)};
     return c;
 }
 command make_action(action_request const& q, int32_t tick, uint32_t seq) {

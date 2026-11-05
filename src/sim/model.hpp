@@ -215,6 +215,7 @@ inline constexpr uint8_t journal_mega_event = 0xDF;    // pragmatic = organisati
 inline constexpr uint8_t journal_cartel = 0xDE;        // before = quota, after = new quota (price war: -1)
 inline constexpr uint8_t journal_suspension = 0xDD;    // pragmatic = organisation index, after = 1 suspended / 0 readmitted
 inline constexpr uint8_t journal_player_action = 0xDB; // before = action_kind, after = 1 accepted / 0 refused
+inline constexpr uint8_t journal_request = 0xDA;       // target = the asked agent's nation, pragmatic = the asking agent's nation, before = request_kind, after = 1 accepted / 0 declined, prior = 0 AI at once / 1 player / 2 AI after the window
 inline constexpr uint8_t journal_summit = 0xDC;        // pragmatic = organisation index, after = 1 coordinated stimulus / 0 regular
 inline constexpr uint8_t journal_disaster = 0xEE;   // pragmatic = region index, after = capital lost (share)     // pragmatic = partner, before = kind (0 alliance, 1 FTA, 2 IMF)
 

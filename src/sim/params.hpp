@@ -107,6 +107,8 @@
     X(vote_health_weight, 0.1, "performance penalty per daily death per million")                         \
     X(vote_temperature, 0.3, "logit temperature of vote choice")                                          \
     X(vote_retrospective_cap, 0.15, "most vote utility performance can cost or win the incumbent (saturating; partisans discount bad news, Bartels 2002)") \
+    X(request_window_days, 21.0, "days a player-controlled agent has to answer a request before its AI answers") \
+    X(request_cooldown_days, 180.0, "days before an agent asks again after a request") \
     X(vote_memory_years, 1.5, "years over which voters' reference for performance adapts (myopic retrospection; Healy & Lenz 2014)") \
     X(legitimacy_years, 1.0, "adjustment time of legitimacy (years)")                                     \
     X(force_legitimacy_cost, 0.1, "legitimacy lost per year per forced lever")                            \

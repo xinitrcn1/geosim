@@ -52,6 +52,11 @@ public:
     [[nodiscard]] std::size_t unread() const noexcept { return unread_; }
     void mark_seen() noexcept { unread_ = 0; }
     [[nodiscard]] std::vector<alert> const& items() const noexcept { return items_; }
+    // Requests to the player's agents waiting for an answer (pinned on top, yellow),
+    // soonest to expire first; refreshed with the journal.
+    [[nodiscard]] std::vector<pending_request> const& requests() const noexcept { return requests_; }
+    // Answers one on the agent's behalf; the outcome arrives as a local alert.
+    void answer(sim_runner& sim, pending_request const& r, bool accept);
 
 private:
     void add(journal_entry const& e, sim_runner const& sim); // "mine" = involves any nation the player controls
@@ -63,6 +68,15 @@ private:
     std::chrono::steady_clock::time_point last_request_{};
     uint64_t local_serial_ = 0;
     std::size_t unread_ = 0;
+    std::vector<pending_request> requests_;
+    std::future<std::vector<pending_request>> pending_requests_;
+    std::chrono::steady_clock::time_point last_requests_{};
+    struct answering {
+        uint32_t seq;
+        std::string title;
+    };
+    std::vector<answering> answering_;     // answers sent, results not back yet
+    std::unordered_set<uint64_t> answered_; // (request index, created tick) answered here: hidden until the sim drops it
 };
 
 // Top-bar windows, in button order (control = the '+' picker).
@@ -132,6 +146,7 @@ struct hud_state {
     bool tooltip_tile = false; // the tooltip describes an electoral tile, not the main map
     // Agent bars and the Control window ('+').
     int64_t toggle_ai = -1;      // agent whose AI switch was clicked this frame
+    int64_t toggle_answer = -1;  // agent whose "answer requests" switch was clicked
     int64_t remove_agent = -1;   // agent whose ✖ was clicked
     int add_agent = -1;          // index into the Control window's list
     int control_kind = 0;        // sim::agent_kind shown

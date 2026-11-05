@@ -540,6 +540,31 @@ governor levers, which now pass through overrides too.
 
 Pairs without a modelled channel list no options.
 
+### Requests
+
+**Implemented** (`requests.cpp`, monthly per agent, 180-day cooldown). AI agents ask
+other agents for something when their situation calls for it; the asked agent answers
+by its own rule, and the effect is the matching action's:
+
+| Asker → asked | When | The asked agent's AI accepts if | Accepting | Refusing |
+|---|---|---|---|---|
+| central bank → government: restrain spending | independence ≥ 0.5 and inflation expectations 1.5 pp over trend or debt 15 pp over the start | fiscal hawk + ½ independence + debt rise > 0.8 | public investment pressed down 1 pp for a year | — |
+| government → central bank: cut rates | unemployment 2 pp over the start, rate above the floor | independence < 0.5 or inflation near trend | rate pressed 0.5 pp down for six months | — |
+| union → government: raise the minimum wage | real wages eroded 3 % | a left government, density > 0.3 or approval < 0.4 | minimum wage pressed 5 % up for a year | protest |
+| board of a firm short of cash → government: rescue | cash below 40 % of normal | fiscal space and a state-owned, large or favoured firm | a rescue of 0.2 % of GDP for equity | — |
+| board → union: jobs for wage restraint | as above, in a slack labour market | slack or coordinated bargaining | a year of wage moderation; the board keeps staff | — |
+| military → government: pay rise | loyalty < 0.5 or the budget cut 10 % | loyalty < 0.4, legitimacy < 0.5 or an order-minded ruler | a 0.1 % of GDP bonus | loyalty −0.05 |
+| governor → government: regional aid | regional unrest > 2 | fiscal space and a minority government or unrest > 2.5 | a regional transfer | unrest |
+| central bank → foreign central bank: swap line | under 3 months of reserves and the currency falling | the lender has reserves and trusts the asker (or allies) | 2 months of imports lent | trust |
+| rebels → government: settlement | a stalemate above 0.5 | a stalemate or rebels as strong as the state | power sharing | — |
+
+Requests to an agent the player controls wait for the player when its **answer
+requests** switch is on (the default): `request_window_days` (21) days, after which its
+AI answers. With the switch off (no lag) its AI answers at once; dropping control or the
+switch answers what is pending. The player's own agents ask nothing (the player acts).
+Answers are journalled (`journal_request`: who answered). Commands `set_control` and
+`answer` carry the switch and the player's answers.
+
 Lever metadata for the client (name, unit, range, owner, tab, whether it is a bill) is
 in `sim/levers.hpp`.
 

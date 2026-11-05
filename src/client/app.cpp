@@ -646,6 +646,10 @@ int run_app(app_options const& opt) {
                     const auto agent = static_cast<uint32_t>(hud.toggle_ai);
                     sim.set_ai(agent, !sim.ai_on(agent));
                 }
+                if(hud.toggle_answer >= 0) {
+                    const auto agent = static_cast<uint32_t>(hud.toggle_answer);
+                    sim.set_answer_requests(agent, !sim.answers_requests(agent));
+                }
                 if(hud.remove_agent >= 0) sim.remove_control(static_cast<uint32_t>(hud.remove_agent));
                 if(hud.add_agent >= 0 && static_cast<std::size_t>(hud.add_agent) < agent_list.size()) sim.add_control(agent_list[static_cast<std::size_t>(hud.add_agent)]);
                 if(sim.status() == sim_status::loading && sim.started()) draw_notice(ui, "Loading", "Building the world… (a few seconds)");

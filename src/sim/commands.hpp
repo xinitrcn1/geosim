@@ -23,6 +23,8 @@ enum class command_tag : uint8_t {
     set_override, // one lever of an agent: mode (override_mode) and value
     set_ai,       // the agent's AI on (player advises / forces) or off (player directs every lever)
     action,       // a diplomatic or political move (actions.cpp)
+    set_control,  // the player takes or drops an agent; whether requests to it wait for the player
+    answer,       // the player answers a request to one of their agents (requests.cpp)
     count
 };
 
@@ -45,6 +47,17 @@ struct cmd_action {
     float value;
 };
 
+struct cmd_set_control {
+    uint32_t agent;
+    uint8_t controlled;      // 1: the player's agent
+    uint8_t answer_requests; // 1: requests to it wait for the player (request_window_days)
+};
+struct cmd_answer {
+    uint32_t request; // dcon::request_id index
+    uint32_t agent;   // the asked agent (checked: the request must still be to it)
+    uint8_t accept;
+};
+
 struct command {
     command_tag tag = command_tag::count;
     uint8_t player = 0; // issuing player (multiplayer)
@@ -54,6 +67,8 @@ struct command {
         cmd_set_override set_override;
         cmd_set_ai set_ai;
         cmd_action action;
+        cmd_set_control set_control;
+        cmd_answer answer;
     } u{};
 };
 static_assert(std::is_trivially_copyable_v<command>, "commands travel between threads and peers");
@@ -80,5 +95,7 @@ int drain_commands(game_state& state, command_queue& in, result_queue& out);
 command make_set_override(dcon::agent_id a, uint8_t lever, override_mode mode, float value, int32_t tick, uint32_t seq);
 command make_set_ai(dcon::agent_id a, bool on, int32_t tick, uint32_t seq);
 command make_action(action_request const& r, int32_t tick, uint32_t seq);
+command make_set_control(dcon::agent_id a, bool controlled, bool answer_requests, int32_t tick, uint32_t seq);
+command make_answer(dcon::request_id r, dcon::agent_id to, bool accept, int32_t tick, uint32_t seq);
 
 } // namespace geosim::sim

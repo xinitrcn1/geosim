@@ -229,15 +229,6 @@ bool owns_lever(game_state const& state, agent_kind kind, uint8_t lev) {
 
 uint8_t lever_slot(game_state const& state, lever l) { return static_cast<uint8_t>(state.derived.lever_base + static_cast<uint8_t>(l)); }
 
-// Pressure on `target`'s lever for six months (or `days`).
-void put_pressure(game_state& state, dcon::agent_id target, dcon::agent_id from, uint8_t lev, float value, float weight, int days = 182) {
-    auto& w = state.world;
-    w.agent_set_pressure_lever(target, lev);
-    w.agent_set_pressure_value(target, value);
-    w.agent_set_pressure_weight(target, weight);
-    w.agent_set_pressure_until(target, state.current_tick + days);
-    w.agent_set_pressure_from(target, from);
-}
 
 double nominal_gdp(game_state const& state, dcon::nation_id n) {
     return state.world.nation_get_gdp0(n) * state.world.nation_get_core_price(n);
@@ -280,6 +271,17 @@ std::string fmt(char const* f, double x) {
 }
 
 } // namespace
+
+void put_pressure(game_state& state, dcon::agent_id target, dcon::agent_id from, uint8_t lev, float value, float weight, int days) {
+    auto& w = state.world;
+    w.agent_set_pressure_lever(target, lev);
+    w.agent_set_pressure_value(target, value);
+    w.agent_set_pressure_weight(target, weight);
+    w.agent_set_pressure_until(target, state.current_tick + days);
+    w.agent_set_pressure_from(target, from);
+}
+
+void settle_rebellion(game_state& state, dcon::nation_id n) { settle_rebels(state, n); }
 
 std::vector<action_option> available_actions(game_state const& state, dcon::agent_id actor, dcon::nation_id target, dcon::organisation_id organisation,
                                                dcon::agent_id target_agent) {
@@ -463,7 +465,7 @@ action_result perform_action(game_state& state, action_request const& q) {
     auto done = [&](bool ok, std::string msg) {
         res.accepted = ok;
         res.message = std::move(msg);
-        journal_action(state, q.actor, self, t, q.kind, ok ? 1.0f : 0.0f);
+        if(!q.silent) journal_action(state, q.actor, self, t, q.kind, ok ? 1.0f : 0.0f);
         return res;
     };
     switch(q.kind) {
@@ -682,7 +684,7 @@ action_result perform_action(game_state& state, action_request const& q) {
         // A dependent bank leans toward the government's rate; investors price the lost
         // anchor (Binder 2021 on political pressure and inflation expectations).
         w.nation_set_cb_independence(self, std::max(0.0f, cbi - 0.2f));
-        w.nation_set_inflation_expect(self, w.nation_get_inflation_expect(self) + 0.5f * std::min(cbi, 0.2f) * 5.0f);
+        w.nation_set_inflation_expect(self, w.nation_get_inflation_expect(self) + 0.025f * std::min(cbi, 0.2f)); // up to +0.5 pp (a fraction)
         lose_credibility(state, self, 0.05f);
         return done(true, fmt("A loyal governor takes over: independence %.2f", w.nation_get_cb_independence(self)));
     }

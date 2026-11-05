@@ -106,6 +106,7 @@ void advance_day(game_state& state) {
     GEOSIM_TIMED(update_reforms);
     GEOSIM_TIMED(update_politics_ext);
     GEOSIM_TIMED(update_agreements);
+    GEOSIM_TIMED(update_requests);
     GEOSIM_TIMED(update_variants);
     GEOSIM_TIMED(update_strata);
     GEOSIM_TIMED(update_indicators);

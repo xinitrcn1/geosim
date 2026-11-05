@@ -30,6 +30,8 @@ inline constexpr rgba text = hex(0xFFFFFF);
 inline constexpr rgba text_dim = hex(0xFFFFFF, 0.68f);
 inline constexpr rgba good = hex(0x7BE3A0); // green: good for the player
 inline constexpr rgba bad = hex(0xFF8080);  // red: bad for the player
+inline constexpr rgba request = hex(0xFFD54A);      // yellow: a request waiting for the player's answer
+inline constexpr rgba request_tint = hex(0xFFD54A, 0.16f);
 
 inline constexpr rgba scene_clear = hex(0x102035);
 

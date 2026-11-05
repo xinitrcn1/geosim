@@ -940,6 +940,24 @@ object{
 	property{ name{pressure_weight} type{float} }
 	property{ name{pressure_until} type{int32_t} }
 	property{ name{pressure_from} type{agent_id} }
+	property{ name{player_controlled} type{uint8_t} }
+	property{ name{answer_requests} type{uint8_t} }
+	property{ name{last_request} type{int32_t} }
+}
+
+object{
+	name{request}
+	storage_type{erasable}
+	size{1024}
+	tag{scenario}
+
+	property{ name{from} type{agent_id} }
+	property{ name{to} type{agent_id} }
+	property{ name{kind} type{uint8_t} }
+	property{ name{lever} type{uint8_t} }
+	property{ name{value} type{float} }
+	property{ name{created} type{int32_t} }
+	property{ name{expires} type{int32_t} }
 }
 
 object{

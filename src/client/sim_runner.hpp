@@ -65,6 +65,7 @@ struct agent_info {
 struct agent_panel {
     uint32_t agent = 0;  // the controlled agent (AI toggle, removal)
     bool ai = true;      // its AI keeps deciding (the player advises / forces)
+    bool answer = true;  // requests to it wait for the player (else its AI answers at once)
     std::string flag;  // the agent's nation (emoji flag): several nations may be controlled
     std::string icon;
     std::string title; // "United States Government", "United States Central Bank"
@@ -78,6 +79,18 @@ struct journal_entry {
     std::string nation;   // ISO3 of decision.target
     std::string partner;  // ISO3 of the partner (pragmatic field), if any
     float before = 0, after = 0;
+    float extra = 0;      // decision.prior (journal_request: who answered)
+};
+
+// A request to one of the player's agents, waiting for an answer (sim::request_kind;
+// requests.cpp), copied at the sync point.
+struct pending_request {
+    uint32_t request = 0;  // dcon::request_id index
+    uint32_t to = 0;       // the asked agent (one of the player's)
+    uint8_t kind = 0;      // sim::request_kind
+    std::string title, detail;
+    int32_t created = 0, expires = 0;
+    bool ai_accepts = false; // what the agent's AI answers when the window closes
 };
 
 // The regions of the scenario for the map (map_layer), copied at a sync point.
@@ -122,6 +135,19 @@ public:
     void add_control(agent_info const& a);
     void remove_control(uint32_t agent);
     void set_ai(uint32_t agent, bool on);
+    // Whether requests to the agent wait for the player's answer (default on); off,
+    // its AI answers them at once (no lag).
+    void set_answer_requests(uint32_t agent, bool on);
+    [[nodiscard]] bool answers_requests(uint32_t agent) const noexcept {
+        for(std::size_t i = 0; i < agents_.size(); ++i) {
+            if(agents_[i].agent == agent) return answer_[i] != 0;
+        }
+        return false;
+    }
+    // Requests waiting for the player, at the next sync point.
+    std::future<std::vector<pending_request>> request_pending();
+    // Answers a request on the agent's behalf (a sim::command_tag::answer). Returns its seq.
+    uint32_t answer(uint32_t request, uint32_t agent, bool accept);
     [[nodiscard]] bool controls_agent(uint32_t agent) const noexcept;
     [[nodiscard]] bool ai_on(uint32_t agent) const noexcept {
         for(std::size_t i = 0; i < agents_.size(); ++i) {
@@ -226,6 +252,7 @@ private:
     std::vector<controlled> controlled_; // per nation with a controlled agent
     std::vector<agent_info> agents_;      // the player's agents (see add_control)
     std::vector<uint8_t> ai_;             // per agents_ entry: AI on
+    std::vector<uint8_t> answer_;         // per agents_ entry: requests wait for the player
     std::string save_path_;
     // Display names, set on the sim thread before status() becomes running, then
     // read-only: nations.csv names (cut at a comma) by nation index, and the

@@ -51,6 +51,7 @@ add_library(geosim_sim STATIC
     sim/systems/megaevents.cpp
     sim/systems/disasters.cpp
     sim/systems/actions.cpp
+    sim/systems/requests.cpp
     sim/commands.cpp
     sim/systems/reforms.cpp
     sim/systems/politics_ext.cpp

@@ -268,7 +268,7 @@ void write_journal_counts(game_state const& state, std::ostream& out) {
                                      {journal_court_seat, "court_seat"}, {journal_agreement, "agreement"}, {journal_rebels, "rebels"},
                                      {journal_eu_fund, "eu_fund"}, {journal_plan, "plan"},
                                      {journal_org_join, "org_join"}, {journal_mega_event, "mega_event"}, {journal_cartel, "cartel"},
-                                     {journal_suspension, "suspension"}, {journal_summit, "summit"}, {journal_player_action, "player_action"}};
+                                     {journal_suspension, "suspension"}, {journal_summit, "summit"}, {journal_player_action, "player_action"}, {journal_request, "request"}};
     std::map<uint8_t, int> counts;
     for(auto d : w.in_decision) ++counts[d.get_lever()];
     out << "journal events (" << state.current_tick << " days)\n";

@@ -71,6 +71,7 @@ bool is_alert_code(uint8_t c) {
     case journal_default: case journal_chokepoint: case journal_cyber: case journal_insurgency: case journal_no_confidence:
     case journal_court: case journal_regime_change: case journal_disaster: case journal_dispute: case journal_concession:
     case journal_variant: case journal_term_limit: case journal_agreement: case journal_rebels: case journal_alliance_call:
+    case journal_request:
         return true;
     default:
         return false;
@@ -253,7 +254,10 @@ void sim_runner::add_control(agent_info const& a) {
     if(status() != sim_status::running || controls_agent(a.agent)) return;
     agents_.push_back(a);
     ai_.push_back(1);
+    answer_.push_back(1);
     refresh_nations();
+    // The sim learns the agent is the player's: requests to it wait for an answer.
+    push_command(sim::make_set_control(dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(a.agent)}, true, true, 0, 0));
     SDL_Log("control: %s", a.label.c_str());
 }
 
@@ -261,8 +265,11 @@ void sim_runner::remove_control(uint32_t agent) {
     for(std::size_t i = 0; i < agents_.size(); ++i) {
         if(agents_[i].agent != agent) continue;
         if(!ai_[i]) set_ai(agent, true); // hand the levers back to the AI
+        // pending requests to it are answered by its AI at the next tick
+        push_command(sim::make_set_control(dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, false, false, 0, 0));
         agents_.erase(agents_.begin() + static_cast<std::ptrdiff_t>(i));
         ai_.erase(ai_.begin() + static_cast<std::ptrdiff_t>(i));
+        answer_.erase(answer_.begin() + static_cast<std::ptrdiff_t>(i));
         break;
     }
     refresh_nations();
@@ -276,6 +283,45 @@ void sim_runner::set_ai(uint32_t agent, bool on) {
     // the overrides (sim/commands.cpp).
     push_command(sim::make_set_ai(dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, on, 0, 0));
     SDL_Log("agent %u: AI %s", agent, on ? "on" : "off (full control)");
+}
+
+void sim_runner::set_answer_requests(uint32_t agent, bool on) {
+    for(std::size_t i = 0; i < agents_.size(); ++i) {
+        if(agents_[i].agent == agent) answer_[i] = on ? 1 : 0;
+    }
+    push_command(sim::make_set_control(dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, true, on, 0, 0));
+    SDL_Log("agent %u: answer requests %s", agent, on ? "on (they wait for you)" : "off (its AI answers at once)");
+}
+
+uint32_t sim_runner::answer(uint32_t request, uint32_t agent, bool accept) {
+    return push_command(sim::make_answer(dcon::request_id{static_cast<dcon::request_id::value_base_t>(request)},
+                                         dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)}, accept, 0, 0));
+}
+
+std::future<std::vector<pending_request>> sim_runner::request_pending() {
+    auto promise = std::make_shared<std::promise<std::vector<pending_request>>>();
+    auto future = promise->get_future();
+    post([promise](game_state& s) {
+        std::vector<pending_request> out;
+        for(auto r : s.world.in_request) {
+            if(!r.get_to() || !r.get_to().get_player_controlled()) continue;
+            pending_request p;
+            p.request = static_cast<uint32_t>(r.id.index());
+            p.to = static_cast<uint32_t>(r.get_to().id.index());
+            p.kind = r.get_kind();
+            const auto text = sim::describe_request(s, r.id);
+            p.title = text.title;
+            p.detail = text.detail;
+            p.created = r.get_created();
+            p.expires = r.get_expires();
+            p.ai_accepts = sim::request_ai_answer(s, r.id);
+            out.push_back(std::move(p));
+        }
+        // the soonest to expire first
+        std::stable_sort(out.begin(), out.end(), [](auto const& a, auto const& b) { return a.expires < b.expires; });
+        promise->set_value(std::move(out));
+    });
+    return future;
 }
 
 std::future<std::string> sim_runner::request_save(std::string path) {
@@ -366,12 +412,13 @@ std::future<journal_batch> sim_runner::request_journal(int32_t since_tick) {
             const float p = d.get_pragmatic();
             const bool has_partner = code == sim::journal_war || code == sim::journal_peace || code == sim::journal_dispute
                                      || code == sim::journal_alliance_call || code == sim::journal_concession
-                                     || code == sim::journal_cyber || code == sim::journal_agreement;
+                                     || code == sim::journal_cyber || code == sim::journal_agreement || code == sim::journal_request;
             if(has_partner && std::isfinite(p) && p >= 0.0f && p < static_cast<float>(w.nation_size())) {
                 e.partner = core::unpack_key(w.nation_get_iso3(dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(p)}));
             }
             e.before = d.get_before();
             e.after = d.get_after();
+            e.extra = d.get_prior();
             batch.entries.push_back(std::move(e));
         }
         promise->set_value(std::move(batch));
@@ -487,6 +534,12 @@ void sim_runner::run() {
             }
         }
     }
+    // A loaded save may carry the last session's control flags: the session starts with
+    // the agents marked below only.
+    for(auto ag : state->world.in_agent) {
+        ag.set_player_controlled(0);
+        ag.set_answer_requests(0);
+    }
     // --nation: their executives and central banks start controlled.
     {
         const std::vector<std::string> wanted = iso3s_;
@@ -503,6 +556,10 @@ void sim_runner::run() {
                     if(a.kind == kind && a.nation == static_cast<uint32_t>(n.index())) {
                         agents_.push_back(a);
                         ai_.push_back(1);
+                        answer_.push_back(1);
+                        const dcon::agent_id id{static_cast<dcon::agent_id::value_base_t>(a.agent)};
+                        state->world.agent_set_player_controlled(id, 1);
+                        state->world.agent_set_answer_requests(id, 1);
                         break;
                     }
                 }
@@ -576,7 +633,9 @@ std::vector<agent_panel> sim_runner::read_agents() {
     if(status() != sim_status::running) return out;
     for(std::size_t i = 0; i < agents_.size(); ++i) {
         if(agents_[i].nation >= state_->world.nation_size()) continue;
+        const std::size_t before = out.size();
         read_agent(agents_[i], ai_[i] != 0, track(agents_[i].nation), out);
+        for(std::size_t k = before; k < out.size(); ++k) out[k].answer = answer_[i] != 0;
     }
     return out;
 }

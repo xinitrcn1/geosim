@@ -82,6 +82,16 @@ void alert_feed::push_local(std::string icon, std::string title, std::string det
     ++unread_;
 }
 
+namespace {
+uint64_t request_key(pending_request const& r) { return (static_cast<uint64_t>(r.request) << 32) | static_cast<uint32_t>(r.created); }
+} // namespace
+
+void alert_feed::answer(sim_runner& sim, pending_request const& r, bool accept) {
+    if(!answered_.insert(request_key(r)).second) return;
+    answering_.push_back({sim.answer(r.request, r.to, accept), (accept ? "Accepted: " : "Declined: ") + r.title});
+    std::erase_if(requests_, [&](pending_request const& x) { return request_key(x) == request_key(r); });
+}
+
 void alert_feed::upsert(alert a) {
     for(auto& existing : items_) {
         if(existing.key == a.key) {
@@ -114,6 +124,27 @@ void alert_feed::poll(sim_runner& sim) {
     if(sim.tick() > scanned_to_ && now - last_request_ > std::chrono::milliseconds(250)) {
         pending_ = sim.request_journal(scanned_to_);
         last_request_ = now;
+    }
+    // Requests waiting for the player (also while paused: they can be answered then).
+    if(pending_requests_.valid() && pending_requests_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        const std::size_t before = requests_.size();
+        requests_ = pending_requests_.get();
+        std::erase_if(requests_, [&](pending_request const& r) { return answered_.count(request_key(r)) != 0; });
+        if(requests_.size() > before) unread_ += requests_.size() - before;
+    }
+    if(!pending_requests_.valid() && now - last_requests_ > std::chrono::milliseconds(300)) {
+        pending_requests_ = sim.request_pending();
+        last_requests_ = now;
+    }
+    // Outcomes of the player's answers.
+    for(std::size_t i = 0; i < answering_.size();) {
+        action_outcome out;
+        if(sim.take_result(answering_[i].seq, out)) {
+            push_local("📨", answering_[i].title, out.message.substr(0, 90), out.accepted ? tone::good : tone::neutral);
+            answering_.erase(answering_.begin() + static_cast<std::ptrdiff_t>(i));
+        } else {
+            ++i;
+        }
     }
 }
 
@@ -175,6 +206,20 @@ void alert_feed::add(journal_entry const& e, sim_runner const& sim) {
     case journal_term_limit:
         if(!mine) return;
         a.icon = "⏳"; a.title = e.after > 0.5f ? "Term limit evaded" : "Term limit respected"; break;
+    case journal_request: {
+        // Requests answered without the player (by agents of their nations, or by their
+        // own agents' AI once the window closed); the player's own answers come as
+        // local alerts.
+        if(!mine || e.extra == 1.0f) return;
+        static constexpr char const* names[] = {"restrain spending", "cut rates", "raise the minimum wage", "a rescue", "a military pay rise",
+                                                "regional aid", "a swap line", "a settlement", "jobs for wage restraint"};
+        const auto k = static_cast<std::size_t>(std::max(0.0f, e.before));
+        a.icon = "📨";
+        a.title = std::string(e.extra == 2.0f ? "Answered for you: " : "Request answered: ") + (k < std::size(names) ? names[k] : "a request")
+                  + (e.after > 0.5f ? " (accepted)" : " (declined)");
+        a.detail = !e.partner.empty() && e.partner != e.nation ? e.partner + " → " + e.nation : std::string{};
+        break;
+    }
     default:
         return;
     }
@@ -185,6 +230,7 @@ void alert_feed::add(journal_entry const& e, sim_runner const& sim) {
         a.cat = alert_category::political; break;
     case journal_war: case journal_coup: case journal_cyber: case journal_rebels: a.cat = alert_category::security; break;
     case journal_peace: case journal_sanction: case journal_dispute: case journal_concession: case journal_alliance_call: case journal_agreement:
+    case journal_request:
         a.cat = alert_category::diplomacy; break;
     case journal_variant: a.cat = alert_category::health; break;
     case journal_insurgency: a.cat = alert_category::society; break;
@@ -345,12 +391,13 @@ float agent_bars(ui_context& ui, sim_runner& sim, hud_state& st, float y, float 
             w += ui.text_width(it.label, small) + ui.px(5) + ui.text_width(it.value, font, font_weight::semibold) + pad * 2;
         }
         const float ai_w = ui.text_width("AI ✓", small, font_weight::semibold) + pad * 2, bs = ui.px(24);
-        w += ai_w + ui.px(4) + bs + pad;
+        const float ans_w = ui.text_width("📨 ✓", small, font_weight::semibold) + pad * 2;
+        w += ans_w + ui.px(4) + ai_w + ui.px(4) + bs + pad;
         rect bar{0, y, std::round(w), std::round(h)};
         ui.panel(bar, panel_kind::glass_flush);
         ui.fill(layer::overlay, {0, y, std::min(above_w, bar.w), strip}, style::glass_separator);
         if(selected && panels.size() > 1) ui.fill(layer::overlay, {0, y, std::round(ui.px(3)), bar.h}, style::button_active); // the acting agent
-        const rect body{0, y, bar.w - pad - ui.px(28) - ai_w - ui.px(4), h};
+        const rect body{0, y, bar.w - pad - ui.px(28) - ai_w - ui.px(4) - ans_w - ui.px(4), h};
         if(ui.hovered(body) && ui.input().released) st.tabs.agent = panel.agent;
         if(ui.hovered(body) && panels.size() > 1 && !selected) ui.tooltip("Click to act as this agent in the tabs");
         above_w = bar.w;
@@ -379,6 +426,15 @@ float agent_bars(ui_context& ui, sim_runner& sim, hud_state& st, float y, float 
                               : "AI off: you have full control (levers held where they are). Click to hand back to the AI")) {
             st.toggle_ai = panel.agent;
         }
+        // Answer requests (default on): requests to the agent wait for the player for a
+        // while (pinned yellow alerts); off, its AI answers at once (no lag).
+        std::snprintf(id, sizeof(id), "agent.answer.%u", panel.agent);
+        const rect ans{ai.x - ui.px(4) - ans_w, ai.y, ans_w, bs};
+        if(ui.button(id, layer::overlay, ans, panel.answer ? "📨 ✓" : "📨 ✗", small, panel.answer,
+                     panel.answer ? "Answer requests: requests to this agent wait for you (pinned, yellow) until they expire; then its AI answers. Click to let its AI answer at once"
+                                  : "Its AI answers requests at once. Click to answer them yourself")) {
+            st.toggle_answer = panel.agent;
+        }
         std::snprintf(id, sizeof(id), "agent.remove.%u", panel.agent);
         if(ui.button(id, layer::overlay, {bar.right() - pad - bs, bar.y + (h - bs) * 0.5f, bs, bs}, "✖", ui.px(12), false, "Stop controlling")) {
             st.remove_agent = panel.agent;
@@ -401,7 +457,6 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
     for(auto const& a : alerts.items()) {
         if(shown(a, st)) items.push_back(&a);
     }
-    if(items.empty()) return;
     const float pad = ui.px(style::pad);
     const float w = ui.px(style::alert_width);
     const float h = ui.px(style::alert_height);
@@ -410,6 +465,49 @@ void alert_list(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& 
     const float small = ui.px(style::font_small);
     const float icon = ui.px(20);
     const float x = ui.width() - w - gap; // the right side of the window
+    // Requests waiting for the player: pinned on top (never filtered or scrolled away),
+    // yellow, with the days left before the agent's AI answers and what it would say.
+    {
+        const auto requests = alerts.requests(); // a copy: answering edits the list
+        const float rh = ui.px(style::alert_height + 30);
+        const int32_t now = sim.tick();
+        for(auto const& r : requests) {
+            if(y + rh > bottom) break;
+            const rect card{x, y, w, rh};
+            ui.panel(card, panel_kind::translucent);
+            ui.fill(layer::overlay, card, style::request_tint);
+            ui.fill(layer::overlay, {x, y, std::round(ui.px(4)), rh}, style::request);
+            ui.text_in(layer::overlay, {x + pad, y, icon, ui.px(30)}, "📨", icon, style::text, align::centre);
+            const float tx = x + pad + icon + pad, tw = card.right() - tx - pad;
+            const float asc = ui.px(14) * 0.75f;
+            std::string title = r.title;
+            while(title.size() > 4 && ui.text_width(title, font, font_weight::semibold) > tw) {
+                title.resize(title.size() - 4);
+                while(!title.empty() && (static_cast<unsigned char>(title.back()) & 0xC0) == 0x80) title.pop_back();
+                title += "…";
+            }
+            ui.text(layer::overlay, tx, y + ui.px(7) + asc, title, font, style::request, font_weight::semibold);
+            if(ui.hovered({tx, y, tw, ui.px(22)})) ui.tooltip(r.title);
+            ui.text(layer::overlay, tx, y + ui.px(37), r.detail, small, style::text_dim);
+            const int days = std::max(0, r.expires - now);
+            char left[96];
+            std::snprintf(left, sizeof(left), "%d day%s to answer; then its AI %s", days, days == 1 ? "" : "s", r.ai_accepts ? "accepts" : "declines");
+            ui.text(layer::overlay, tx, y + ui.px(53), left, small, style::text_dim);
+            const float bh = ui.px(22), bw = ui.text_width("Decline", small) + pad * 2;
+            const float by = card.bottom() - bh - ui.px(6);
+            char id[64];
+            std::snprintf(id, sizeof(id), "request.yes.%u.%d", r.request, r.created);
+            if(ui.button(id, layer::overlay, {card.right() - pad - bw * 2 - ui.px(4), by, bw, bh}, "Accept", small, false, "Answer yes on your agent's behalf")) {
+                alerts.answer(sim, r, true);
+            }
+            std::snprintf(id, sizeof(id), "request.no.%u.%d", r.request, r.created);
+            if(ui.button(id, layer::overlay, {card.right() - pad - bw, by, bw, bh}, "Decline", small, false, "Answer no on your agent's behalf")) {
+                alerts.answer(sim, r, false);
+            }
+            y += rh + gap;
+        }
+    }
+    if(items.empty()) return;
     const float foot = ui.px(20);         // "Dismiss all"
     const float h_impact = ui.px(style::alert_height + 16); // a card with a third (impact) line
     bottom -= foot + gap;
@@ -716,7 +814,7 @@ void build_hud(ui_context& ui, sim_runner& sim, alert_feed& alerts, hud_state& s
     const rect bar = top_bar(ui, sim, st, alerts);
     const float gap = ui.px(style::gap);
     const bool window_open = st.open != hud_action::none;
-    st.toggle_ai = st.remove_agent = -1;
+    st.toggle_ai = st.toggle_answer = st.remove_agent = -1;
     st.add_agent = -1;
     float bars_bottom = agent_bars(ui, sim, st, bar.bottom(), bar.w, window_open ? 1 : static_cast<std::size_t>(-1));
     // '+': control another agent (top left, under the top bar and the agent bars).
