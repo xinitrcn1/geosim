@@ -11,6 +11,7 @@ float default_intensity(mood m) noexcept {
     case mood::crisis: return 0.85f;
     case mood::triumph: return 0.72f;
     case mood::wartime: return 0.9f;
+    case mood::frustrated: return 0.8f;
     }
     return 0.5f;
 }

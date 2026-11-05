@@ -7,7 +7,7 @@
 //          [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]
 //          [--clouds 0|1] [--hazard-demo 0|1] [--view political|climate|economy|trade|energy|epidemic|unrest]
 //          [--politics ISO3|- [--politics-mode N]]
-//   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime]
+//   geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime|frustrated]
 //          [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 //            renders procedural music offline, no window or audio device
 //            (docs/14-audio.md)
@@ -35,7 +35,7 @@ int usage() {
                "              [--music 0|1] [--music-volume 0..1] [--music-seed N] [--map-view LON,LAT,DEG]\n"
                "              [--clouds 0|1] [--hazard-demo 0|1] [--view political|climate|economy|trade|energy|epidemic|unrest]\n"
                "              [--politics ISO3|- [--politics-mode N]] [--menu 0|1]\n"
-               "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime] [--intensity 0..1]\n"
+               "       geosim --render-music OUT.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime|frustrated] [--intensity 0..1]\n"
                "              [--songs N] [--switch SECONDS:MOOD] [--solo kick|snare|hats|bass|lead|arp|pad|fx|counter|choir]\n",
                stderr);
     return 2;

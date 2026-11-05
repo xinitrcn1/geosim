@@ -37,6 +37,7 @@ char const* mood_name(mood m) noexcept {
     case mood::crisis: return "crisis";
     case mood::triumph: return "triumph";
     case mood::wartime: return "wartime";
+    case mood::frustrated: return "frustrated";
     }
     return "?";
 }
@@ -212,8 +213,8 @@ using motif = std::vector<motif_note>;
 // A song's style family sets its tempo, grooves, bass patterns and sounds;
 // the mood picks the family (docs/14-audio.md#styles).
 
-enum style_id : uint8_t { st_techno, st_synthwave, st_punk, st_chip, st_breaks, st_eurodance, st_lofi, st_hardtrance, st_count };
-enum groove_id : uint8_t { g_four, g_broken, g_electro, g_breakbeat, g_amen, g_halftime, g_shuffle, g_synthwave, g_punk, g_dbeat, g_chip, g_hardtrance, g_trance, g_count };
+enum style_id : uint8_t { st_techno, st_synthwave, st_punk, st_chip, st_breaks, st_eurodance, st_lofi, st_hardtrance, st_hardstyle, st_count };
+enum groove_id : uint8_t { g_four, g_broken, g_electro, g_breakbeat, g_amen, g_halftime, g_shuffle, g_synthwave, g_punk, g_dbeat, g_chip, g_hardtrance, g_trance, g_hardstyle, g_count };
 enum bass_id : uint8_t { b_offbeat, b_rolling, b_gallop, b_octaves, b_house, b_walking, b_syncop, b_long, b_pedal16, b_bounce, b_pulse8, b_octave16, b_count };
 constexpr char const* bass_names[b_count] = {"offbeat", "rolling", "gallop", "octaves", "house", "walking", "syncopated", "long", "pedal", "bounce", "eighths", "octave 16ths"};
 enum class mstyle : uint8_t { riff, legato, syncop, anthem };
@@ -241,6 +242,10 @@ constexpr groove_def grooves[g_count] = {
     {"chip", 0x0181, 0x0581, 0x1010, 0x8000, 0x5555, 0x0000, 0xAAAA, -1},      // kick 1, 2e+, 3
     {"hardtrance", 0x1111, 0x9111, 0x1010, 0x0000, 0xBBBB, 0x4444, 0x0000, 0}, // 16th hats, open off-beats, last-16th kick
     {"trance", 0x1111, 0x5111, 0x1010, 0x0000, 0x0000, 0x4444, 0xBBBB, 0},     // open off-beats only
+    // hardstyle (the frustrated mood's reference mix): the kick on every beat carries
+    // the track, a 16th roll (rows 12, 14, 15) closes each phrase; open off-beat hats,
+    // clap backbeat, a 16th ride layer at high intensity
+    {"hardstyle", 0x1111, 0xD111, 0x1010, 0x0000, 0x0000, 0x4444, 0xAAAA, 0},
 };
 
 struct style_def {
@@ -260,6 +265,8 @@ constexpr style_def styles[st_count] = {
     {"eurodance", 124, 136, {g_four, g_chip, g_four}, {g_four, g_four, g_four}, {b_offbeat, b_octave16, b_rolling, b_octaves}, 0.0f},
     {"lo-fi", 82, 100, {g_halftime, g_shuffle, g_breakbeat}, {g_shuffle, g_halftime, g_breakbeat}, {b_long, b_walking, b_bounce, b_long}, 0.7f},
     {"hardtrance", 138, 148, {g_hardtrance, g_trance, g_hardtrance}, {g_hardtrance, g_hardtrance, g_hardtrance}, {b_offbeat, b_gallop, b_rolling, b_offbeat}, 0.0f},
+    // 148-152 BPM (the reference's hardstyle stretches; uptempo 160-175 in choose_basics)
+    {"hardstyle", 148, 152, {g_hardstyle, g_trance, g_hardstyle}, {g_hardstyle, g_hardstyle, g_hardstyle}, {b_offbeat, b_gallop, b_offbeat, b_rolling}, 0.0f},
 };
 
 // A bass rhythm over a bar: hits and the role of each hit.
@@ -270,12 +277,26 @@ struct bass_pat {
     bool legato = false; // notes last until the next hit
 };
 
+// Arpeggio orders over chord tones (0 root, 1 third, 2 fifth, 3 octave, 4 octave +
+// third, 5 octave + fifth; -1 ends a shorter order).
+constexpr int arp_order_count = 16;
+constexpr int arp_order_table[arp_order_count][8] = {
+    {0, 1, 2, 3, -1}, {3, 2, 1, 0, -1}, {0, 1, 2, 3, 2, 1, -1}, {0, 2, 1, 3, -1},
+    {0, 2, 3, 1, 2, 3, 0, 2}, {0, 3, 1, 3, 2, 3, -1}, {0, 2, 4, 2, -1}, {2, 0, 3, 0, 4, 0, -1},
+    {0, 1, 2, -1}, {0, 2, 3, 4, 3, -1}, {0, 2, 1, 3, 2, 4, 3, -1},
+    // added for variety: pendulums, a falling line, broken thirds, a pedal on the fifth
+    {0, 2, 4, 5, 4, 2, -1}, {5, 3, 2, 0, -1}, {0, 2, 1, 3, 2, 4, 3, 5}, {2, 0, 2, 1, 2, 3, 2, 4}, {1, 3, 2, 4, -1}};
+// Wide 4-note cells (degrees above the chord root, one cell per beat): the reference
+// track's first, then inversions and spreads of it.
+constexpr int wide_cell_count = 6;
+constexpr int wide_cell_table[wide_cell_count][4] = {{11, 2, 7, 4}, {7, 0, 4, 11}, {9, 4, 7, 2}, {11, 4, 7, 0}, {14, 7, 4, 9}, {4, 9, 7, 11}};
+
 // --- the composer -----------------------------------------------------------
 
 class composer {
 public:
     composer(uint64_t seed, mood m, bool force_solo = false)
-        : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), sr_(seed ^ 0x510E527FADE682D1ull), s_(), force_solo_(force_solo) {
+        : r_(seed), tr_(seed ^ 0xA54FF53A5F1D36F1ull), sr_(seed ^ 0x510E527FADE682D1ull), ar_(seed ^ 0x9B05688C2B3E6C1Full), s_(), force_solo_(force_solo) {
         s_.seed = seed;
         s_.m = m;
     }
@@ -285,6 +306,7 @@ public:
         choose_basics();
         choose_instruments();
         choose_groove();
+        choose_arp_variation();
         choose_form();
         choose_arrangement();
         insert_arp_solo();
@@ -336,9 +358,13 @@ private:
     // arp devices (the arp solo, the wide arp shapes): their own generator, so
     // a seed keeps every other choice it made before they existed
     rng sr_;
+    // arp variation (orders per section class, inversions, octave shifts, passing
+    // tones, wide cells): its own generator, so every other draw stays the same
+    rng ar_;
     rng* jit_ = &r_; // the generator of add()'s velocity jitter (the solo's own while it renders)
     song s_;
-    bool war_ = false;
+    bool war_ = false;      // the club arrangement (wartime hardtrance, frustrated hardstyle)
+    bool low_lead_ = false; // wartime: the low, bass-like lead
     bool force_solo_ = false; // the main menu: always an arp solo (the draws stay the same)
     style_id style_ = st_techno;
     int key_ = 57;
@@ -359,6 +385,15 @@ private:
     bool bass_octave_layer_ = true;
     std::vector<int> arp_order_;
     int arp_rate_ = 1, arp_len_ = 1;
+    // Arp variation (choose_arp_variation): an order per section class (0 intro /
+    // verse / outro, 1 chorus / drop, 2 bridge / breakdown), a chord-tone rotation
+    // per 2-bar block and an octave shift per 4-bar block (both cycling over 4),
+    // passing tones closing 2-bar blocks, and two wide cells alternating every 8 bars.
+    std::array<std::vector<int>, 3> arp_orders_;
+    std::array<int, 4> arp_inv_{};
+    std::array<int, 4> arp_oct_{};
+    bool arp_pass_ = false;
+    std::array<std::array<int, 4>, 2> wide_cells_{{{11, 2, 7, 4}, {11, 2, 7, 4}}};
     bool arp_cont_ = false;  // verses: a continuous evolving arp instead of 2-bar answers
     uint16_t stab_mask_ = 0;
     bool chip_chords_ = false;
@@ -569,16 +604,20 @@ private:
 
     // --- song-level choices -------------------------------------------------
     void choose_style() {
-        war_ = s_.m == mood::wartime;
-        // weights per style (techno, synthwave, punk, chip, breaks, eurodance, lo-fi, hardtrance)
+        // weights per style (techno, synthwave, punk, chip, breaks, eurodance, lo-fi, hardtrance, hardstyle)
         static constexpr float w[mood_count][st_count] = {
-            {1.0f, 1.2f, 0.0f, 0.15f, 0.0f, 0.0f, 2.0f, 0.0f}, // calm: mundane, relaxed (chip rare)
-            {1.2f, 1.4f, 0.6f, 0.15f, 1.0f, 0.0f, 0.0f, 0.0f}, // tense
-            {1.0f, 1.0f, 1.2f, 0.1f, 1.3f, 0.0f, 0.0f, 0.0f},  // crisis
-            {1.0f, 0.6f, 0.4f, 0.3f, 0.0f, 1.5f, 0.0f, 0.0f},  // triumph: the upbeat one
-            {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // wartime
+            {1.0f, 1.2f, 0.0f, 0.15f, 0.0f, 0.0f, 2.0f, 0.0f, 0.0f}, // calm: mundane, relaxed (chip rare)
+            {1.2f, 1.4f, 0.6f, 0.15f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}, // tense
+            {1.0f, 1.0f, 1.2f, 0.1f, 1.3f, 0.0f, 0.0f, 0.0f, 0.0f},  // crisis
+            {1.0f, 0.6f, 0.4f, 0.3f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f},  // triumph: the upbeat one
+            {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f}, // wartime
+            {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}, // frustrated
         };
         style_ = static_cast<style_id>(pick_w(r_, w[static_cast<int>(s_.m)], st_count));
+        // war_: the club arrangement (trance forms, kick rolls, gated supersaw, off-beat
+        // drops), shared by hardtrance and hardstyle; low_lead_: wartime's bass-like lead
+        low_lead_ = s_.m == mood::wartime;
+        war_ = low_lead_ || style_ == st_hardstyle;
         s_.style = styles[style_].name;
     }
 
@@ -590,6 +629,8 @@ private:
         if(m == mood::calm) hi = std::min(hi, 120.0f), lo = std::min(lo, hi - 6.0f);
         if(m == mood::triumph) lo = std::max(lo, 112.0f), hi = std::max(hi, lo + 6.0f);
         s_.bpm = std::min(hi, std::round(r_.range(lo, hi + 0.99f))); // (rounding could give hi + 1)
+        // hardstyle: a quarter of the songs are uptempo (the reference mix's 170 BPM stretch)
+        if(style_ == st_hardstyle && r_.chance(0.25f)) s_.bpm = std::round(r_.range(160.0f, 175.0f));
         key_ = 45 + r_.range(0, 11); // tonic between A2 and G#3
         s_.key = key_;
         static constexpr int calm_modes[] = {m_ionian, m_lydian, m_mixolydian, m_dorian, m_ionian};
@@ -597,6 +638,7 @@ private:
         static constexpr int crisis_modes[] = {m_aeolian, m_phrygian, m_harmonic, m_aeolian};
         static constexpr int triumph_modes[] = {m_ionian, m_mixolydian, m_ionian, m_lydian};
         static constexpr int wartime_modes[] = {m_aeolian, m_phrygian, m_harmonic, m_aeolian, m_dorian};
+        static constexpr int frustrated_modes[] = {m_aeolian, m_aeolian, m_phrygian, m_harmonic}; // the reference: A and C minor
         int mode = m_ionian;
         switch(m) {
         case mood::calm: mode = r_.pick(calm_modes); break;
@@ -604,6 +646,7 @@ private:
         case mood::crisis: mode = r_.pick(crisis_modes); break;
         case mood::triumph: mode = r_.pick(triumph_modes); break;
         case mood::wartime: mode = r_.pick(wartime_modes); break;
+        case mood::frustrated: mode = r_.pick(frustrated_modes); break;
         }
         s_.mode = mode;
         mode_ = &modes[mode];
@@ -614,21 +657,22 @@ private:
         if(style_ == st_chip) cls_w[2] += 0.15f;
         if(style_ == st_breaks || style_ == st_synthwave) cls_w[0] += 0.1f;
         if(style_ == st_punk) cls_w[1] += 0.2f;
-        lead_class_ = war_ ? 0 : pick_w(r_, cls_w, 3);
+        if(style_ == st_hardstyle) cls_w[0] = 0.0f, cls_w[1] = 0.6f, cls_w[2] = 0.4f; // the screech sits at 400-1500 Hz
+        lead_class_ = low_lead_ ? 0 : pick_w(r_, cls_w, 3);
         // wartime: almost a bass, an octave over the bass line; otherwise a
         // 19-semitone window from A#2 (low), G3 (mid) or D4 (high)
         static constexpr int class_lo[3] = {46, 55, 62};
-        lead_lo_ = (war_ ? 42 : class_lo[lead_class_]) + r_.range(0, 2);
+        lead_lo_ = (low_lead_ ? 42 : class_lo[lead_class_]) + r_.range(0, 2);
         lead_hi_ = lead_lo_ + 19;
         lead_base_ = key_ + 12;
         while(lead_base_ < lead_lo_ - 1) lead_base_ += 12;
         while(lead_base_ > lead_lo_ + 10) lead_base_ -= 12;
-        if(war_) pad_lo_ = 57; // the supersaw over the low lead
+        if(low_lead_) pad_lo_ = 57; // the supersaw over the low lead
         else if(lead_class_ == 0) pad_lo_ = 58 + (key_ % 3); // the chords over a low lead
         else pad_lo_ = key_ + 7 <= 61 ? key_ + 7 : key_ - 5; // D3-C#4, under the lead
         pad_hi_ = pad_lo_ + 17;
         arp_base_ = lead_class_ == 2 || war_ ? key_ + 12 : key_ + 24;
-        ctr_lo_ = war_ ? 60 : lead_class_ == 0 ? 62 : 50 + (key_ % 3);
+        ctr_lo_ = low_lead_ ? 60 : lead_class_ == 0 ? 62 : 50 + (key_ % 3);
         ctr_hi_ = ctr_lo_ + 15;
 
         switch(mode) {
@@ -682,6 +726,21 @@ private:
         case st_lofi: P[ch_kick].kick_pitch = r_.range(110.0f, 140.0f), P[ch_kick].kick_decay = r_.range(0.22f, 0.3f), P[ch_kick].kick_click = 0.2f; break;
         case st_punk: P[ch_kick].kick_pitch = r_.range(150.0f, 190.0f), P[ch_kick].kick_decay = r_.range(0.18f, 0.26f), P[ch_kick].kick_click = 0.7f; break;
         case st_chip: P[ch_kick].kick_decay = r_.range(0.2f, 0.3f); break;
+        case st_hardstyle: {
+            // the hardstyle kick (the reference: 46-75 % of the energy below 150 Hz in
+            // kick sections, sharp low-band transients): a punchy "tok" from ~380 Hz,
+            // a long pitched tail on the key's root, driven hard into distortion
+            auto& k = P[ch_kick];
+            int root = key_ - 24;
+            while(440.0f * std::exp2((static_cast<float>(root) - 69.0f) / 12.0f) < 44.0f) root += 12;
+            k.kick_end = 440.0f * std::exp2((static_cast<float>(root) - 69.0f) / 12.0f);
+            k.kick_pitch = r_.range(340.0f, 420.0f);
+            k.kick_sweep = r_.range(0.02f, 0.035f);
+            k.kick_decay = r_.range(0.55f, 0.7f);
+            k.kick_click = r_.range(0.8f, 1.0f);
+            k.kick_drive = r_.range(5.0f, 7.0f);
+            break;
+        }
         case st_hardtrance: {
             // the hardtrance kick: a hard, fast pitch drop from ~280 Hz onto
             // the key's root (45-60 Hz), long body, driven into distortion
@@ -720,6 +779,7 @@ private:
         case st_breaks: bass_kind = 4; break;
         case st_lofi: bass_kind = r_.chance(0.6f) ? 0 : 2; break;
         case st_hardtrance: bass_kind = r_.range(2, 3); break;
+        case st_hardstyle: bass_kind = r_.range(2, 3); break; // the off-beat "reverse bass": driven saws
         default: if(m == mood::calm) bass_kind = r_.range(0, 2); break;
         }
         // Sounds aim at late-90s / early-2000s analogue-modelling synths
@@ -756,7 +816,7 @@ private:
         // lead
         patch& l = P[ch_lead];
         l.poles4 = true;
-        if(war_) {
+        if(low_lead_) {
             // wartime: a low, almost bass-like lead instead of a high synth
             switch(r_.range(0, 2)) {
             case 0: // reese: saws a quarter-tone apart, driven
@@ -779,9 +839,9 @@ private:
             l.vib_depth = r_.range(0.0f, 0.06f), l.vib_rate = 5.0f, l.vib_delay = 0.3f;
             l.glide = r_.chance(0.7f) ? 0.05f : 0.0f;
         } else {
-            static constexpr int prefs[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 2}, {2, 0, 1, 3}, {0, 2, 3, 1}, {1, 0, 2, 1}, {1, 0, 2, 3}, {0, 2, 3, 0}, {1, 1, 1, 1}};
+            static constexpr int prefs[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 2}, {2, 0, 1, 3}, {0, 2, 3, 1}, {1, 0, 2, 1}, {1, 0, 2, 3}, {0, 2, 3, 0}, {1, 1, 1, 1}, {1, 2, 1, 2}};
             // 7aa4c09's table: its "chip sample" lead (kind 2) drew one more number
-            static constexpr int prefs_7aa[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 3}, {3, 0, 1, 3}, {2, 0, 2, 3}, {1, 0, 3, 1}, {3, 0, 2, 1}, {0, 2, 3, 0}, {1, 1, 1, 1}};
+            static constexpr int prefs_7aa[st_count][4] = {{0, 1, 2, 3}, {1, 0, 1, 3}, {3, 0, 1, 3}, {2, 0, 2, 3}, {1, 0, 3, 1}, {3, 0, 2, 1}, {0, 2, 3, 0}, {1, 1, 1, 1}, {1, 1, 1, 1}};
             const int pick = r_.range(0, 3);
             const int lead_kind = prefs[style_][pick];
             const bool old_draw = prefs_7aa[style_][pick] == 2;
@@ -812,6 +872,21 @@ private:
             l.attack = 0.015f, l.decay = 0.3f, l.sustain = 0.65f, l.release = 0.15f;
             l.vib_depth = r_.range(0.05f, 0.12f), l.vib_rate = r_.range(4.5f, 5.5f), l.vib_delay = 0.25f;
             l.glide = r_.chance(lead_kind == 2 ? 0.8f : 0.5f) ? 0.045f : 0.0f;
+            if(style_ == st_hardstyle) {
+                // hardstyle leads (the reference's lead stretches: ~46 % of the energy at
+                // 400-1500 Hz): a driven, resonant "screech" with slides, or a wide
+                // euphoric supersaw with a fast pitch envelope feel (glide)
+                if(lead_kind == 2) { // screech: saw + square an octave up, high resonance, hard drive
+                    l.w1 = wave::saw, l.w2 = wave::pulse, l.duty = 0.3f, l.mix2 = 0.45f, l.semi2 = 12;
+                    l.cutoff = 1500, l.fenv = 2.4f, l.fdecay = 0.22f, l.resonance = 0.62f, l.drive = 0.7f, l.key_track = 0.5f;
+                    l.gain = 1.5f;
+                } else { // euphoric supersaw
+                    l.unison = 3, l.spread = 26, l.detune = 9, l.cutoff = 2600, l.fenv = 1.4f, l.drive = 0.2f;
+                    l.gain = 1.9f;
+                }
+                l.glide = 0.06f;
+                l.attack = 0.004f, l.sustain = 0.8f, l.release = 0.1f;
+            }
         }
         l.fdecay = std::max(l.fdecay, 0.25f);
         staccato_ = r_.chance(war_ ? 0.2f : m == mood::crisis ? 0.2f : 0.1f);
@@ -928,7 +1003,7 @@ private:
         X.highpass[ch_pad] = 150.0f;
         X.highpass[ch_arp] = 180.0f;
         X.highpass[ch_counter] = 140.0f;
-        X.highpass[ch_lead] = war_ ? 70.0f : 110.0f;
+        X.highpass[ch_lead] = low_lead_ ? 70.0f : 110.0f;
         X.highpass[ch_choir] = 180.0f;
         X.chorus[ch_choir] = 0.6f;
         X.bright[ch_choir] = true;
@@ -1014,7 +1089,7 @@ private:
         static constexpr float first_twice[3] = {2.0f, 1.0f, 1.0f};
         groove_a_ = static_cast<groove_id>(S.groove_a[pick_w(r_, first_twice, 3)]);
         groove_b_ = r_.chance(0.35f) ? groove_a_ : static_cast<groove_id>(S.groove_b[pick_w(r_, first_twice, 3)]);
-        if(war_) groove_b_ = g_hardtrance;
+        if(war_) groove_b_ = style_ == st_hardstyle ? g_hardstyle : g_hardtrance;
         // a song's own extra kick (not in four-on-the-floor trance or punk)
         if(!war_ && style_ != st_punk && r_.chance(0.35f)) {
             static constexpr int rows[] = {3, 7, 11, 14};
@@ -1047,10 +1122,7 @@ private:
         bass_octave_layer_ = style_ == st_techno || style_ == st_eurodance || style_ == st_hardtrance || style_ == st_chip;
 
         // arpeggio order over chord tones (0 root, 1 third, 2 fifth, 3 octave, 4 octave+third)
-        static constexpr int orders[][8] = {{0, 1, 2, 3, -1}, {3, 2, 1, 0, -1}, {0, 1, 2, 3, 2, 1, -1}, {0, 2, 1, 3, -1},
-                                            {0, 2, 3, 1, 2, 3, 0, 2}, {0, 3, 1, 3, 2, 3, -1}, {0, 2, 4, 2, -1}, {2, 0, 3, 0, 4, 0, -1},
-                                            {0, 1, 2, -1}, {0, 2, 3, 4, 3, -1}, {0, 2, 1, 3, 2, 4, 3, -1}};
-        auto const& o = orders[r_.next() % 11];
+        auto const& o = arp_order_table[r_.next() % arp_order_count];
         for(int v : o) {
             if(v < 0) break;
             arp_order_.push_back(v);
@@ -1104,6 +1176,7 @@ private:
             {{0.4f, 0.25f, 0.35f, 0.0f}, {0.3f, 0.3f, 0.0f, 0.4f}}, // crisis
             {{0.35f, 0.3f, 0.35f, 0.0f}, {0.2f, 0.3f, 0.0f, 0.5f}}, // triumph
             {{0.4f, 0.2f, 0.4f, 0.0f}, {0.0f, 0.35f, 0.35f, 0.3f}}, // wartime
+            {{0.5f, 0.1f, 0.4f, 0.0f}, {0.1f, 0.2f, 0.2f, 0.5f}}, // frustrated: riffs, then an anthem lead in the drop
         };
         style_a_ = static_cast<mstyle>(pick_w(r_, mw[static_cast<int>(m)][0], 4));
         style_b_ = static_cast<mstyle>(pick_w(r_, mw[static_cast<int>(m)][1], 4));
@@ -1240,7 +1313,7 @@ private:
         // Length: 2-3.5 minutes, or (some songs, most often in wartime: trance
         // tracks run long) a long song of 5-10 minutes built from extra
         // verse / chorus or breakdown / drop cycles.
-        static constexpr float long_p[mood_count] = {0.1f, 0.15f, 0.15f, 0.1f, 0.35f};
+        static constexpr float long_p[mood_count] = {0.1f, 0.15f, 0.15f, 0.1f, 0.35f, 0.3f};
         const bool long_song = r_.chance(long_p[static_cast<int>(s_.m)]);
         const double target = long_song ? r_.range(300.0f, 580.0f) : r_.range(140.0f, 195.0f);
         const double max_s = long_song ? 600.0 : 210.0;
@@ -1768,7 +1841,7 @@ private:
     // before, so a seed keeps the rest of its song.
     void insert_arp_solo() {
         using K = section_kind;
-        static constexpr float p_solo[mood_count] = {0.2f, 0.4f, 0.35f, 0.45f, 0.45f};
+        static constexpr float p_solo[mood_count] = {0.2f, 0.4f, 0.35f, 0.45f, 0.45f, 0.3f};
         arp_wide_ = sr_.chance(0.45f);
         const bool want = sr_.chance(p_solo[static_cast<int>(s_.m)]) || force_solo_;
         const float pick = sr_.uniform();
@@ -1942,7 +2015,7 @@ private:
     // rest of the song is untouched. Not in calm songs.
     void insert_choir() {
         using K = section_kind;
-        static constexpr float p_choir[mood_count] = {0.0f, 0.25f, 0.3f, 0.3f, 0.4f};
+        static constexpr float p_choir[mood_count] = {0.0f, 0.25f, 0.3f, 0.3f, 0.4f, 0.2f};
         const bool want = sr_.chance(p_choir[static_cast<int>(s_.m)]);
         if(!want || s_.total_bars < 40) return;
         std::size_t j = 0;
@@ -2541,27 +2614,82 @@ private:
         phrase_.clear();
     }
 
+    // Arp variation per song (ar_): the verse keeps the song's order, the chorus and
+    // the bridge get their own; chord-tone rotations every 2 bars, octave shifts every
+    // 4, passing tones, two wide cells. Before, one order and one cell ran through
+    // every section of every song.
+    void choose_arp_variation() {
+        auto order_of = [](int i) {
+            std::vector<int> o;
+            for(int v : arp_order_table[i]) {
+                if(v < 0) break;
+                o.push_back(v);
+            }
+            return o;
+        };
+        arp_orders_[0] = arp_order_;
+        for(int c = 1; c < 3; ++c) {
+            for(int tries = 0; tries < 6; ++tries) {
+                arp_orders_[static_cast<std::size_t>(c)] = order_of(static_cast<int>(ar_.next() % arp_order_count));
+                if(arp_orders_[static_cast<std::size_t>(c)] != arp_orders_[0] && arp_orders_[static_cast<std::size_t>(c)] != arp_orders_[static_cast<std::size_t>(c - 1)]) break;
+            }
+        }
+        static constexpr int inversions[][4] = {{0, 0, 0, 0}, {0, 1, 0, 1}, {0, 1, 2, 1}, {0, 0, 1, 1}, {0, 2, 1, 0}, {1, 0, 2, 0}};
+        auto const& inv = inversions[ar_.next() % 6];
+        for(std::size_t i = 0; i < 4; ++i) arp_inv_[i] = inv[i];
+        // octave shifts: never below the song's arp register when it already sits low
+        static constexpr int octaves[][4] = {{0, 0, 0, 0}, {0, 0, 12, 0}, {0, 12, 0, 12}, {0, 0, -12, 0}, {0, -12, 0, 12}};
+        const bool low = arp_base_ < key_ + 24;
+        int oi = static_cast<int>(ar_.next() % 5);
+        if(low && (oi == 3 || oi == 4)) oi = 1;
+        for(std::size_t i = 0; i < 4; ++i) arp_oct_[i] = octaves[oi][i];
+        arp_pass_ = ar_.chance(0.5f);
+        const int c0 = static_cast<int>(ar_.next() % wide_cell_count);
+        int c1 = static_cast<int>(ar_.next() % wide_cell_count);
+        if(c1 == c0) c1 = (c0 + 1) % wide_cell_count;
+        for(std::size_t i = 0; i < 4; ++i) {
+            wide_cells_[0][i] = wide_cell_table[c0][i];
+            wide_cells_[1][i] = wide_cell_table[c1][i];
+        }
+    }
+
+    [[nodiscard]] static int arp_class(section_kind k) {
+        switch(k) {
+        case section_kind::chorus:
+        case section_kind::drop: return 1;
+        case section_kind::bridge:
+        case section_kind::breakdown: return 2;
+        default: return 0;
+        }
+    }
+
     // Arpeggio over the chord tones, `bars` bars from `bi`, starting from
     // `start_row`, every arp_rate_ rows (a 3-row rate drifts across the
     // bar). `evolve`: a long line in 4-bar arcs, the pattern rotating every
     // 2 bars and climbing a chord tone in the second half of each arc.
     void place_arp(plan_item const& p, int bi, int bars, int start_row, int vel, uint8_t lay, int base_shift = 0, bool evolve = false) {
         const int nb = static_cast<int>(p.sec.bars);
-        const int len = static_cast<int>(arp_order_.size());
+        auto const& order = arp_orders_[static_cast<std::size_t>(arp_class(p.sec.kind))].empty() ? arp_order_ : arp_orders_[static_cast<std::size_t>(arp_class(p.sec.kind))];
+        const int len = static_cast<int>(order.size());
+        const int rot = p.variant > 0 ? 1 : 0; // a repeated section starts the order elsewhere
         int idx = 0;
         for(int pos = start_row;; pos += arp_rate_) {
             const int b = bi + pos / 16, row = pos % 16;
             if(b >= bi + bars || b >= nb) break;
             const int k = b - bi;
             const int root = chord_at(p, b);
-            int tone = arp_order_[static_cast<std::size_t>((idx + (evolve ? k / 2 : 0)) % len)];
+            int tone = order[static_cast<std::size_t>((idx + rot + (evolve ? k / 2 : 0)) % len)];
             if(evolve && k % 4 >= 2) tone = std::min(4, tone + 1);
+            tone = std::min(5, tone + arp_inv_[static_cast<std::size_t>((k / 2) % 4)]); // chord-tone rotation per 2 bars
             const int step = idx;
             ++idx;
-            int deg = root + (tone == 3 ? 7 : tone == 4 ? 9 : tone * 2);
+            int deg = root + (tone % 3) * 2 + 7 * (tone / 3);
+            // a passing tone (the scale step above) closes each 2-bar block
+            if(arp_pass_ && k % 2 == 1 && row + arp_rate_ >= 16) deg += 1;
             if(arp_wide_ && p.sec.start_bar > solo_bar_) deg = wide_deg(p, b, step, b - bi); // after the solo, the arp keeps its new figure
-            int n = pitch(arp_base_ + base_shift, deg);
+            int n = pitch(arp_base_ + base_shift + arp_oct_[static_cast<std::size_t>((k / 4) % 4)], deg);
             while(n > 88) n -= 12;
+            while(n < 40) n += 12;
             const int accent = row % 4 == 0 ? 12 : row % 2 == 0 ? 4 : 0;
             const int arc = evolve ? 4 * (k % 4) : 0;
             add(p.sec.start_bar + static_cast<uint32_t>(b), row, ch_arp, {n}, arp_len_, vel + accent + arc, lay);
@@ -2579,8 +2707,8 @@ private:
         const bool held = b + 1 < static_cast<int>(p.sec.bars) && chord_id(p, b + 1) == chord_id(p, b) && chord_id(p, std::max(0, b - 1)) == chord_id(p, b);
         const bool major = pitch(key_, root + 2) - pitch(key_, root) == 4;
         const int s = step % 4;
-        static constexpr int cell[4] = {11, 2, 7, 4};
-        int deg = root + cell[s];
+        auto const& cell = wide_cells_[static_cast<std::size_t>((k / 8) % 2)]; // two cells, alternating every 8 bars
+        int deg = root + cell[static_cast<std::size_t>(s)];
         if(held && s % 2 == 0) deg = root + 11;                                     // the pedal
         if(held && s == 3) deg = root + ((step / 4) % 2 ? 9 : 4);                     // the moving voice under it
         if(major && s == 3 && (step / 4) % 4 == 3) deg = root + 8;                    // the ninth (an octave up)

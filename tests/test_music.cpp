@@ -61,6 +61,13 @@ int main() {
             check(no_chip, "no 8-bit / bit-crushed voices, 24 dB filters", seed, m);
             if(m == mood::wartime) check(a.style == "hardtrance", "wartime is hardtrance", seed, m);
             if(m == mood::wartime) check(a.duration_seconds() >= 120.0, "wartime songs are full length", seed, m);
+            // frustrated: hardstyle after the reference mix (148-152 BPM, uptempo up to 175, minor keys)
+            if(m == mood::frustrated) {
+                check(a.style == "hardstyle", "frustrated is hardstyle", seed, m);
+                check(a.bpm >= 148.0f && a.bpm <= 175.0f, "frustrated BPM 148-175", seed, m);
+                check(a.duration_seconds() >= 120.0, "frustrated songs are full length", seed, m);
+                check(a.patches[ch_kick].kick_drive >= 5.0f && a.patches[ch_kick].kick_decay >= 0.55f, "hardstyle kick: driven with a long tail", seed, m);
+            }
             bool sorted = true, in_range = true;
             for(std::size_t i = 0; i < a.events.size(); ++i) {
                 if(i && a.events[i].tick < a.events[i - 1].tick) sorted = false;

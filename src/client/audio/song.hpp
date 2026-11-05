@@ -12,8 +12,9 @@
 
 namespace geosim::client::audio {
 
-enum class mood : uint8_t { calm, tense, crisis, triumph, wartime };
-inline constexpr int mood_count = 5;
+// frustrated: things keep going wrong short of a catastrophe (hardstyle).
+enum class mood : uint8_t { calm, tense, crisis, triumph, wartime, frustrated };
+inline constexpr int mood_count = 6;
 [[nodiscard]] char const* mood_name(mood m) noexcept;
 [[nodiscard]] bool parse_mood(char const* text, mood& out) noexcept;
 

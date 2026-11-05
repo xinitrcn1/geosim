@@ -235,6 +235,7 @@ WAV.
    | eurodance | 124–136 | four, chip / four | off-beat, octave 16ths, rolling | stabs on the off-beats | triumph 1.5 |
    | lo-fi | 82–100 | half-time, shuffle, breakbeat | held, walking, bounce | soft kick, triangle bass, heavy swing | calm 2 |
    | hardtrance | 138–148 | hardtrance, trance / hardtrance | off-beat, gallop, rolling | see *Wartime* | wartime only |
+   | hardstyle | 148–152 (25 %: 160–175) | hardstyle, trance / hardstyle | off-beat, gallop, rolling | see *Frustrated* | frustrated only |
 
 2. **Basics.** The tonic is A2–G#3. The mode depends on the mood (calm:
    ionian / lydian / mixolydian / dorian; tense: dorian / aeolian /
@@ -476,6 +477,59 @@ of the recipe:
   are intro → drop → breakdown → drop, and intro 16 → verse 8 → chorus 8 →
   breakdown 16 → drop 32. A key change for the last drop is possible.
 
+### Frustrated (hardstyle)
+
+The sixth mood, for a player whose setbacks keep coming short of a crisis,
+is hardstyle. The reference is a 26:42 DJ mix (HE-AAC, 48 kb/s; not in the
+repository, used for analysis only). Measured on three one-minute excerpts
+(2:00, 10:00, 20:00; ffmpeg to 11 kHz mono, then plain-Python onset comb
+filtering, a 4096-point FFT and Krumhansl key profiles):
+
+- **Tempo:** 150.0, 170 and 199 BPM in the three excerpts (a mix that
+  speeds up); the hardstyle stretches sit at 150.
+- **Key:** A minor, C minor, A minor.
+- **Spectrum:** in kick-led stretches 46 % of the energy is below 60 Hz and
+  28 % at 60–150 Hz (the kick and its tail carry the track); in lead
+  stretches 31–46 % sits at 400–1500 Hz (screeches and supersaws). Low-band
+  onset crest 2.9–7.8: hard, distorted transients.
+
+The recipe:
+
+- 148–152 BPM, a quarter of the songs uptempo at 160–175; aeolian
+  (twice), phrygian or harmonic minor.
+- **The kick carries the track:** from 340–420 Hz down to the key's root
+  over 20–35 ms, a long pitched tail (0.55–0.7 s), a loud click and
+  `kick_drive` 5–7. Four on the floor with a 16th roll (rows 12, 14, 15)
+  closing each phrase (`hardstyle` groove), open off-beat hats, a clap
+  backbeat and a 16th ride layer at high intensity.
+- **Reverse bass:** driven saw basses (Virus-style or resonant) on the
+  off-beats, gallop or rolling.
+- **The lead in the mid range** (no low lead; mid or high window): a
+  screech (saw plus a square an octave up, resonance 0.62, drive 0.7, a
+  filter envelope) or a wide euphoric supersaw (3 unison saws ± 26 cents),
+  both gliding. Riff and syncopated motifs in verses, an anthem in the drops.
+- It shares the club arrangement with wartime (trance forms with 16–32-bar
+  breakdowns, kick rolls into drops, the gated supersaw, off-beat drops).
+
+Rendered seeds 1, 7 and 42 measure 152, 171 and 152 BPM from the audio (the
+score's tempo), with 47 / 22 / 15 / 13 / 3 % of the drop's energy in the
+bands above (the reference's kick stretch: 46 / 28 / 14 / 7 / 3 %), peaks
+at −0.9 dBFS and no clipping.
+
+### Arp variation
+
+Each song draws, from its own generator (every other choice of a seed is
+unchanged): an order over the chord tones for verses (the song's original
+order), another for choruses and drops and a third for bridges and
+breakdowns, from 16 orders (pendulums, falling lines, broken thirds and a
+pedal on the fifth among them); a chord-tone rotation per 2-bar block and an
+octave shift per 4-bar block, each cycling over four values; passing tones
+closing 2-bar blocks in half the songs; repeated sections start the order
+one step later; and two wide cells (from six inversions and spreads of the
+reference's cell) alternating every 8 bars. Over 197 songs (5 moods, seeds
+1–40), distinct one-bar arp figures went from 25 % to 50 % of arp bars
+(transpositions counted once; 35 % to 55 % counting them).
+
 ### Intensity layers
 
 Events carry a layer tag: always, ≥ 0.4, ≥ 0.7, < 0.4 or < 0.7. The
@@ -505,7 +559,9 @@ constant, which gives gentle cross-fades.
   simulation (`sim_runner::player_at_war`: the nation's `at_war` array in
   the DCON container, read directly like the indicators); it overrides
   every other mood, with intensity at least 0.75;
-- otherwise **crisis** if there is a war alert or stress ≥ 0.65; **tense** if ≥ 0.3;
+- otherwise **crisis** if there is a war alert or stress ≥ 0.65;
+  **frustrated** if stress ≥ 0.45 with at least two bad alerts in the last
+  120 days (intensity at least 0.7); **tense** if ≥ 0.3;
   **triumph** if at least 40 % of indicators are *good* and none is bad, or
   after a peace with low stress; otherwise **calm**;
 - intensity = 0.25 + 0.65 × stress (triumph: 0.55 + 0.3 × good share),
@@ -575,7 +631,7 @@ Keys and options:
   allocation), and starts the queue's next song after 0.3 s: the same seed
   chain the queue would have used.
 - **N** cycles the mood: auto → calm → tense → crisis → triumph → wartime →
-  auto. A chosen mood is a manual override with its default intensity. It
+  frustrated → auto. A chosen mood is a manual override with its default intensity. It
   holds until N reaches *auto* again, which hands the mood back to
   `derive_music_mood` (indicators, alerts, `sim_runner::player_at_war`).
   Every press also skips to a song of the new mood (the worker has
@@ -588,7 +644,7 @@ Keys and options:
 ## Offline rendering
 
 ```
-geosim --render-music out.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime]
+geosim --render-music out.wav [--seed N] [--mood calm|tense|crisis|triumph|wartime|frustrated]
        [--intensity 0..1] [--songs N] [--switch SECONDS:MOOD] [--solo CHANNEL]
 ```
 

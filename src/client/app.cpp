@@ -137,12 +137,16 @@ music_mood derive_music_mood(sim_runner& sim, alert_feed const& alerts) {
     const float stress = bad_share + 0.15f * static_cast<float>(std::min(bad_alerts, 4)) + (war ? 0.4f : 0.0f);
     if(sim.player_at_war()) out.m = audio::mood::wartime; // any controlled nation at war (the sim's at_war state) overrides
     else if(war || stress >= 0.65f) out.m = audio::mood::crisis;
+    // frustrated: setbacks keep coming (bad alerts) with many indicators bad, short of
+    // a crisis or a war
+    else if(stress >= 0.45f && bad_alerts >= 2) out.m = audio::mood::frustrated;
     else if(stress >= 0.3f) out.m = audio::mood::tense;
     else if((good_share >= 0.4f && bad == 0) || (peace > 0 && stress < 0.15f)) out.m = audio::mood::triumph;
     else out.m = audio::mood::calm;
     float intensity = 0.25f + 0.65f * stress;
     if(out.m == audio::mood::triumph) intensity = 0.55f + 0.3f * good_share;
     if(out.m == audio::mood::wartime) intensity = std::max(intensity, 0.75f);
+    if(out.m == audio::mood::frustrated) intensity = std::max(intensity, 0.7f);
     if(sim.speed() >= 4) intensity += 0.1f; // fast time feels busier
     out.intensity = std::clamp(intensity, 0.15f, 1.0f);
     return out;
