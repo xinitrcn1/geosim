@@ -355,7 +355,7 @@ std::future<web_view> sim_runner::request_web(std::string url) {
         v.ads_blocked = pg.ads_blocked;
         for(auto const& b : pg.blocks) {
             v.blocks.push_back({static_cast<uint8_t>(b.k), b.text, b.sub, b.url, b.tone, b.author,
-                                flags_ && !b.iso3.empty() ? flags_->token(b.iso3) : std::string{}});
+                                flags_ && !b.iso3.empty() ? flags_->token(b.iso3) : std::string{}, b.slang, b.gloss, b.replies, b.reply});
         }
         for(std::size_t i = 0; i < dir.sites.size() && v.bookmarks.size() < 5; ++i) v.bookmarks.push_back({dir.sites[i].name, dir.sites[i].domain});
         promise->set_value(std::move(v));

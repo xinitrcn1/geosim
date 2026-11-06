@@ -80,6 +80,46 @@ std::vector<std::string> wrap(ui_context& ui, std::string const& s, float size, 
     return lines;
 }
 
+// A post's text and its slang term wrapped together: lines of runs, the slang's words marked.
+struct run {
+    std::string s;
+    bool slang;
+};
+std::vector<std::vector<run>> wrap_post(ui_context& ui, std::string const& text, std::string const& slang, float size, float w) {
+    std::vector<std::pair<std::string, bool>> words;
+    auto split = [&](std::string const& s, bool sl) {
+        std::string word;
+        for(char c : s) {
+            if(c == ' ') {
+                if(!word.empty()) words.push_back({word, sl});
+                word.clear();
+            } else {
+                word += c;
+            }
+        }
+        if(!word.empty()) words.push_back({word, sl});
+    };
+    split(text, false);
+    split(slang, true);
+    std::vector<std::vector<run>> lines;
+    std::vector<run> line;
+    std::string plain; // the line so far, for measuring
+    for(auto const& [word, sl] : words) {
+        const std::string trial = plain.empty() ? word : plain + " " + word;
+        if(!plain.empty() && ui.text_width(trial, size) > w) {
+            lines.push_back(std::move(line));
+            line.clear();
+            plain = word;
+        } else {
+            plain = trial;
+        }
+        if(!line.empty() && line.back().slang == sl) line.back().s += " " + word;
+        else line.push_back({line.empty() ? word : " " + word, sl});
+    }
+    if(!line.empty()) lines.push_back(std::move(line));
+    return lines;
+}
+
 rgba rgb(uint32_t c) { return hex(c & 0xFFFFFF); }
 
 } // namespace
@@ -234,9 +274,14 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
             uint8_t kind;
             std::vector<std::string> lines;
             web_block const* b;
+            std::vector<std::vector<run>> runs = {}; // posts
+            float indent = 0;                        // posts: replies sit under their post
+            bool open = false;                       // posts: replies shown
         };
         std::vector<item> items;
         float total = 0;
+        auto thread_key = [](web_block const& bl) { return bl.author + '\x1f' + bl.text; };
+        bool thread_open = false; // the replies of the last post without `reply`
         // Masthead.
         const bool home = v.style == l_home, error = v.style == l_error;
         const float mast = home ? ui.px(70) : error ? ui.px(10) : ui.px(48);
@@ -260,8 +305,16 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
             case b_rule: it.h = ui.px(12); break;
             case b_search: it.h = ui.px(home ? 50 : 42); break;
             case b_post:
-                it.lines = wrap(ui, bl.text, body, cw - ui.px(44));
-                it.h = ui.px(22) + ui.px(17) * static_cast<float>(it.lines.size()) + ui.px(24);
+                if(bl.reply) {
+                    if(!thread_open) continue; // packed under its post
+                    it.indent = ui.px(36);
+                } else {
+                    const auto key = thread_key(bl);
+                    thread_open = std::find(b.open_threads.begin(), b.open_threads.end(), key) != b.open_threads.end();
+                    it.open = thread_open;
+                }
+                it.runs = wrap_post(ui, bl.text, bl.slang, body, cw - ui.px(44) - it.indent);
+                it.h = ui.px(22) + ui.px(17) * static_cast<float>(it.runs.size()) + ui.px(24) + (bl.replies > 0 ? ui.px(18) : 0.0f);
                 break;
             default: it.h = ui.px(18); break;
             }
@@ -384,24 +437,50 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
             }
             case b_post: {
                 // A post: the default profile picture (a grey disc with a silhouette), the
-                // poster's flag and name, the text, then likes and age.
-                const float av = ui.px(32), tx = cx + ui.px(42);
+                // poster's flag and name, the text (slang in blue; hovering gives its meaning),
+                // then likes and age, and its replies behind "View replies (N)".
+                const float pcx = cx + it.indent, pcw = cw - it.indent;
+                const float av = ui.px(32), tx = pcx + ui.px(42);
                 if(py >= content.y && py + av <= content.bottom()) {
-                    ui.fill(layer::overlay, {cx, py + ui.px(4), av, av}, hex(0xD6DBE1));
-                    ui.text_in(layer::overlay, {cx, py + ui.px(4), av, av}, "👤", ui.px(18), hex(0x8A939E), align::centre);
+                    ui.fill(layer::overlay, {pcx, py + ui.px(4), av, av}, hex(0xD6DBE1));
+                    ui.text_in(layer::overlay, {pcx, py + ui.px(4), av, av}, "👤", ui.px(18), hex(0x8A939E), align::centre);
                 }
                 if(py >= content.y && py + ui.px(20) <= content.bottom()) {
                     float nx = tx;
-                    if(!bl.flag.empty()) nx += ui.text_in(layer::overlay, {nx, py + ui.px(2), cw, ui.px(18)}, bl.flag, small, style::flat_text) + ui.px(5);
-                    ui.text_in(layer::overlay, {nx, py + ui.px(2), cw, ui.px(18)}, bl.author, small, accent, align::left, font_weight::semibold);
+                    if(!bl.flag.empty()) nx += ui.text_in(layer::overlay, {nx, py + ui.px(2), pcw, ui.px(18)}, bl.flag, small, style::flat_text) + ui.px(5);
+                    ui.text_in(layer::overlay, {nx, py + ui.px(2), pcw, ui.px(18)}, bl.author, small, accent, align::left, font_weight::semibold);
                 }
-                for(std::size_t k = 0; k < it.lines.size(); ++k) {
+                for(std::size_t k = 0; k < it.runs.size(); ++k) {
                     const float ly = py + ui.px(22) + ui.px(17) * static_cast<float>(k);
-                    if(ly >= content.y && ly + ui.px(17) <= content.bottom()) ui.text_in(layer::overlay, {tx, ly, cw - ui.px(44), ui.px(17)}, it.lines[k], body, style::flat_text);
+                    if(ly < content.y || ly + ui.px(17) > content.bottom()) continue;
+                    float rx = tx;
+                    for(auto const& r : it.runs[k]) {
+                        const float rw = ui.text_width(r.s, body);
+                        ui.text_in(layer::overlay, {rx, ly, rw + ui.px(2), ui.px(17)}, r.s, body, r.slang ? link_colour : style::flat_text);
+                        if(r.slang && !bl.gloss.empty() && ui.hovered({rx, ly, rw, ui.px(17)})) ui.tooltip("\u201C" + bl.slang + "\u201D: " + bl.gloss);
+                        rx += rw;
+                    }
                 }
-                const float sy = py + ui.px(22) + ui.px(17) * static_cast<float>(it.lines.size()) + ui.px(2);
-                if(sy >= content.y && sy + ui.px(16) <= content.bottom()) ui.text_in(layer::overlay, {tx, sy, cw, ui.px(16)}, "❤ " + bl.sub, ui.px(11), style::flat_dim);
-                if(inside) ui.fill(layer::overlay, {cx, py + it.h - std::max(1.0f, ui.px(1)), cw, std::max(1.0f, ui.px(1))}, style::flat_rule);
+                const float sy = py + ui.px(22) + ui.px(17) * static_cast<float>(it.runs.size()) + ui.px(2);
+                if(sy >= content.y && sy + ui.px(16) <= content.bottom()) ui.text_in(layer::overlay, {tx, sy, pcw, ui.px(16)}, "❤ " + bl.sub, ui.px(11), style::flat_dim);
+                if(bl.replies > 0) {
+                    const float ry = sy + ui.px(17);
+                    char label[48];
+                    std::snprintf(label, sizeof(label), it.open ? "Hide replies (%d)" : "View replies (%d)", bl.replies);
+                    const rect hit{tx, ry, ui.text_width(label, ui.px(11), font_weight::semibold), ui.px(16)};
+                    if(ry >= content.y && ry + ui.px(16) <= content.bottom()) {
+                        const bool hov = ui.hovered(hit);
+                        ui.text_in(layer::overlay, {tx, ry, pcw, ui.px(16)}, label, ui.px(11), link_colour, align::left, hov ? font_weight::semibold : font_weight::regular);
+                        if(hov && ui.input().released) {
+                            const auto key = thread_key(bl);
+                            auto& open = b.open_threads;
+                            if(auto f = std::find(open.begin(), open.end(), key); f != open.end()) open.erase(f);
+                            else open.push_back(key);
+                            if(open.size() > 64) open.erase(open.begin()); // the oldest first
+                        }
+                    }
+                }
+                if(inside) ui.fill(layer::overlay, {pcx, py + it.h - std::max(1.0f, ui.px(1)), pcw, std::max(1.0f, ui.px(1))}, style::flat_rule);
                 break;
             }
             default: break;

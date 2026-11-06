@@ -76,6 +76,24 @@ int main(int argc, char** argv) {
         }
     }
     CHECK(kinds.size() == 15); // every site_kind, companies to anti-piracy included
+    // Feeds: replies follow their post, which counts them ("View replies (N)").
+    for(auto const& x : dir.sites) {
+        if(x.kind != site_kind::social) continue;
+        const auto p = render(*s, nm, dir, x.domain, world);
+        int expected = -1, seen = 0, posts = 0;
+        for(auto const& b : p.blocks) {
+            if(b.k != block::kind::post) continue;
+            if(b.reply) {
+                ++seen;
+                continue;
+            }
+            CHECK(expected < 0 || seen == expected);
+            expected = b.replies, seen = 0, ++posts;
+        }
+        CHECK(posts > 0 && (expected < 0 || seen == expected));
+        CHECK(p.blocks.empty() || !p.blocks.front().reply);
+        break;
+    }
     const auto home = render(*s, nm, dir, "about:home", world, {usa});
     if(verbose) print(home);
     CHECK(home.style == page::layout::home);

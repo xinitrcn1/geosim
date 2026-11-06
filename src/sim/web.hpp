@@ -136,6 +136,9 @@ struct block {
     std::string text, sub, url; // headline: text + sub (dateline / tag); link and result: url
     int8_t tone = 0;            // -1 bad, 0 neutral, 1 good; banner: -1 error, 0 notice
     std::string author{}, iso3{}; // post: the poster's name and nation (its flag)
+    std::string slang{}, gloss{};  // post: a slang term kept through the translator, and its meaning
+    int16_t replies = 0;           // post: replies that follow it (blocks with `reply` set)
+    bool reply = false;            // post: a reply to the last post without `reply`
 };
 struct page {
     std::string url, title, host; // host: the site's name ("The Austrian Times")

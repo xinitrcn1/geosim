@@ -1771,13 +1771,17 @@ void social_feed(page& pg, game_state const& state, names const& nm, directory c
         return mix.empty() ? -1 : mix.back().first;
     };
     add(pg, block::kind::heading, "Feed");
+    // Threads: a post, then its replies (packed under it; the browser shows them on demand).
     std::string prev_author;
     int prev_culture = -1;
     dcon::nation_id prev_nation;
-    for(int k = 0; k < 14; ++k) {
+    std::size_t parent = 0; // the thread's opening post (a block index)
+    int left = 0;           // replies still to come in this thread
+    for(int k = 0, posts = 0; posts < 12 && k < 80; ++k) {
         const uint64_t ph = hash(text_hash(s.domain), day_key, static_cast<uint64_t>(k));
-        // A reply to the previous post? Then mostly someone sharing its language.
-        const bool reply = k > 0 && unit(hash(ph, 21)) < 0.3f;
+        // A reply to the thread's post? Then mostly someone sharing its language.
+        const bool reply = left > 0;
+        if(reply) --left;
         dcon::nation_id an = users.back().n;
         bool vpn = false;
         double draw = unit(ph) * total;
@@ -1902,32 +1906,43 @@ void social_feed(page& pg, game_state const& state, names const& nm, directory c
         }
         text = fill_tokens(text, {{"{T}", Tr}, {"{N}", N}, {"{A}", A}, {"{C}", C}, {"{U}", prev_author}});
         // Slang of the poster's culture, kept through the translator with a gloss.
+        std::string slang, gloss;
         if(informal && culture >= 0 && nm.people && nm.text && unit(hash(ph, 41)) < 0.35f) {
             const std::string lk = "lingo_" + nm.people->cultures[static_cast<std::size_t>(culture)];
             if(auto const* pool = nm.text->of(lk); pool && !pool->empty()) {
                 const std::string& entry = (*pool)[hash(ph, 43) % pool->size()];
                 const auto tab = entry.find('\t');
-                text += " " + entry.substr(0, tab) + (tab != std::string::npos ? " [" + entry.substr(tab + 1) + "]" : std::string{});
+                slang = entry.substr(0, tab);
+                if(tab != std::string::npos) gloss = entry.substr(tab + 1);
             }
         }
         block b;
+        b.slang = std::move(slang);
+        b.gloss = std::move(gloss);
         b.k = block::kind::post;
         b.author = author;
         b.iso3 = core::unpack_key(w.nation_get_iso3(an));
         b.text = text;
         const double likes = std::pow(10.0, 0.5 + 3.5 * unit(hash(ph, 9)));
         b.sub = fmt("%.0f likes", likes) + fmt(" · %.0fh ago", static_cast<double>(hash(ph, 11) % 23 + 1));
-        if(reply && !prev_author.empty()) {
-            b.sub += " · reply to @" + prev_author;
-            if(culture >= 0 && prev_culture >= 0 && culture != prev_culture && nm.people)
-                b.sub += " · translated from " + culture_label(nm.people->cultures[static_cast<std::size_t>(culture)]);
-        }
+        if(reply && culture >= 0 && prev_culture >= 0 && culture != prev_culture && nm.people)
+            b.sub += " · translated from " + culture_label(nm.people->cultures[static_cast<std::size_t>(culture)]);
         if(vpn) b.sub += " · via VPN";
         b.tone = topic ? topic->tone : 0;
+        b.reply = reply;
+        if(reply) {
+            ++pg.blocks[parent].replies;
+        } else {
+            // How many reply: most posts get none, a few draw a crowd (heavy-tailed).
+            const float r = unit(hash(ph, 21));
+            left = r < 0.5f ? 0 : r < 0.8f ? 1 + static_cast<int>(hash(ph, 22) % 2) : 2 + static_cast<int>(hash(ph, 22) % 5);
+            parent = pg.blocks.size();
+            ++posts;
+            prev_author = author;
+            prev_culture = culture;
+            prev_nation = an;
+        }
         pg.blocks.push_back(std::move(b));
-        prev_author = author;
-        prev_culture = culture;
-        prev_nation = an;
     }
 }
 

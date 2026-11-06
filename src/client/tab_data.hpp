@@ -147,6 +147,9 @@ struct web_block {
     std::string text, sub, url;
     int8_t tone = 0;
     std::string author, flag; // posts: the poster and its nation's flag (flag_set token)
+    std::string slang, gloss; // posts: a slang term (shown highlighted) and its meaning (tooltip)
+    int replies = 0;          // posts: replies packed under it ("View replies (N)")
+    bool reply = false;       // posts: a reply to the last post without `reply`
 };
 struct web_bookmark {
     std::string name, domain;

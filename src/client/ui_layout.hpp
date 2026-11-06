@@ -104,6 +104,7 @@ struct browser_state {
     std::chrono::steady_clock::time_point last{};
     std::vector<web_bookmark> bookmarks;
     std::string engine, engine_name; // the default engine
+    std::vector<std::string> open_threads; // posts whose replies are shown (author + text)
 };
 // Map views (top-bar filter buttons; docs/07-map-and-filters.md#views).
 enum class map_filter : uint8_t { political, climate, economy, trade, energy, epidemic, unrest, count };
