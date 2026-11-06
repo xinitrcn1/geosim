@@ -1114,7 +1114,13 @@ struct builder {
         const double unemployed = in.labor_force * in.unemployment;
         const std::array<float, 3> u_share = {0.5f, 0.35f, 0.15f};
         const std::array<float, 4> owner = {0.02f, 0.13f, 0.55f, 0.30f};
-        const std::array<float, 4> transfer = {0.20f, 0.05f, 0.0f, 0.75f};
+        // Transfers by kind: retirees' share follows the old-age share, at ~10 times the
+        // per-head transfer of everyone else - pensions dominate social spending in ageing
+        // nations (~0.68 of transfers at 18 % aged 65+, OECD SOCX) and much less where the
+        // old are few (0.29 at 4 %). A fixed 0.75 made a young nation's few retirees ten
+        // times richer per head than its workers and its Gini unreachable.
+        const float old_share = static_cast<float>(std::clamp(in.pop65 * 10.0 / (in.pop65 * 10.0 + (1.0 - in.pop65)), 0.1, 0.85));
+        const std::array<float, 4> transfer = {0.8f * (1.0f - old_share), 0.2f * (1.0f - old_share), 0.0f, old_share};
         std::vector<dcon::social_group_id> groups;
         for(auto g : w.in_social_group) {
             if(g.get_nation() == n) groups.push_back(g.id);

@@ -171,6 +171,18 @@ void update_demography(game_state& state) {
     const auto tick = static_cast<tick_t>(state.current_tick);
     const float years = static_cast<float>(monthly_cadence.period_days) / 365.0f;
     const auto retired_kind = static_cast<uint8_t>(pop_kind::retired);
+    // Reported deaths per million by nation, once (not per pop of each due region).
+    std::vector<float> deaths_pm(w.nation_size(), 0.0f);
+    {
+        std::vector<double> deaths(w.nation_size(), 0.0), people(w.nation_size(), 0.0);
+        for(auto r : w.in_region) {
+            if(!r.get_owner()) continue;
+            const auto i = static_cast<std::size_t>(r.get_owner().id.index());
+            deaths[i] += r.get_deaths7();
+            people[i] += r.get_population();
+        }
+        for(std::size_t i = 0; i < deaths_pm.size(); ++i) deaths_pm[i] = people[i] > 0.0 ? static_cast<float>(deaths[i] / people[i] * 1e6) : 0.0f;
+    }
     for(auto r : w.in_region) {
         if(!is_due(static_cast<uint32_t>(r.id.index()), tick, monthly_cadence)) {
             continue;
@@ -212,7 +224,7 @@ void update_demography(game_state& state) {
                 // Formative years: cohorts entering in insecure times hold survival values for life
                 // (Inglehart 1997); entrants pull their pop's values by their weight.
                 const float insecurity = std::clamp(5.0f * std::max(0.0f, n.get_unemployment() - n.get_unemployment0())
-                                                        + 0.05f * reported_deaths_per_million_daily(state, n.id), 0.0f, 1.0f);
+                                                        + 0.05f * deaths_pm[static_cast<std::size_t>(n.id.index())], 0.0f, 1.0f);
                 if(insecurity > 0.0f) {
                     const auto se = static_cast<uint8_t>(value_axis::self_expression);
                     w.pop_set_values(p, se, std::clamp(w.pop_get_values(p, se) - static_cast<float>(P.formative_values) * insecurity * added / (size + added), -1.0f, 1.0f));

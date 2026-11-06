@@ -236,9 +236,23 @@ std::vector<point> income_points(game_state const& state, dcon::nation_id n, flo
                 const double inactive = p.get_inactive();
                 const double people = employed + unemployed + inactive;
                 const double other_per_head = people > 0.0 ? p.get_inc_other() / people : 0.0;
-                add_group(employed, p.get_inc_work() + other_per_head * employed, sigma);
-                add_group(unemployed, p.get_inc_benefit() + other_per_head * unemployed, sigma);
-                add_group(inactive, other_per_head * inactive, sigma);
+                // Disposable-income Ginis are of household income per person (LIS, WIID): the
+                // inactive (children, carers, students) live in the households of the employed
+                // and the unemployed and share their income, in proportion. As separate people
+                // with almost no income they made the between-group gap alone exceed the
+                // national Gini in 56 nations.
+                const double labour = employed + unemployed;
+                if(labour > 0.0) {
+                    const double r = inactive / labour; // dependants per labour-force member
+                    // About half of the unemployed live with an earner and share that income
+                    // (Gregg & Wadsworth 2008 on jobless households; OECD); the rest live on benefits.
+                    constexpr double with_earner = 0.5;
+                    const double pooled = with_earner * unemployed;
+                    add_group((employed + pooled) * (1.0 + r), p.get_inc_work() + with_earner * p.get_inc_benefit() + other_per_head * (employed + pooled) * (1.0 + r), sigma);
+                    add_group((unemployed - pooled) * (1.0 + r), (1.0 - with_earner) * p.get_inc_benefit() + other_per_head * (unemployed - pooled) * (1.0 + r), sigma);
+                } else {
+                    add_group(people, p.get_inc_work() + p.get_inc_benefit() + p.get_inc_other(), sigma);
+                }
             } else {
                 add_group(p.get_size(), std::max(0.0f, p.get_income()), sigma);
             }

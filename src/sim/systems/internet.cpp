@@ -91,26 +91,42 @@ void update_internet(game_state& state) {
 
     // Monthly: value diffusion and cyber operations.
     constexpr uint8_t A = static_cast<uint8_t>(value_axis::count);
+    // Every public's size-weighted value means, once a day when any nation is due (not once
+    // per due nation and partner: that pass over all pops dominated the day).
+    std::vector<std::array<double, A>> means;
+    std::vector<uint8_t> has_mean;
+    auto ensure_means = [&] {
+        if(!means.empty()) return;
+        means.assign(w.nation_size(), {});
+        has_mean.assign(w.nation_size(), 0);
+        std::vector<double> sizes(w.nation_size(), 0.0);
+        for(auto r : w.in_region) { // by the region's owner (conquest moves publics)
+            const auto nat = r.get_owner();
+            if(!nat) continue;
+            const auto i = static_cast<std::size_t>(nat.id.index());
+            for(auto loc : r.get_pop_location()) {
+                auto p = loc.get_pop();
+                for(uint8_t a = 0; a < A; ++a) means[i][a] += p.get_size() * p.get_values(a);
+                sizes[i] += p.get_size();
+            }
+        }
+        for(std::size_t i = 0; i < means.size(); ++i) {
+            if(sizes[i] <= 0.0) continue;
+            for(auto& x : means[i]) x /= sizes[i];
+            has_mean[i] = 1;
+        }
+    };
     for(auto n : w.in_nation) {
         if(!is_due(static_cast<uint32_t>(n.id.index()), tick, monthly_cadence)) continue;
+        ensure_means();
         // Coupled foreign publics (size-weighted value means).
         std::vector<std::array<double, A>> pull;
         std::vector<double> weight;
         for(auto m : w.in_nation) {
             if(m.id == n.id) continue;
             const float c = n.get_coupling(static_cast<uint8_t>(m.id.index()));
-            if(c <= 0.0f) continue;
-            std::array<double, A> mean{};
-            double size = 0.0;
-            for(auto own : m.get_region_ownership()) {
-                for(auto loc : own.get_region().get_pop_location()) {
-                    for(uint8_t a = 0; a < A; ++a) mean[a] += loc.get_pop().get_size() * loc.get_pop().get_values(a);
-                    size += loc.get_pop().get_size();
-                }
-            }
-            if(size <= 0.0) continue;
-            for(auto& x : mean) x /= size;
-            pull.push_back(mean);
+            if(c <= 0.0f || !has_mean[static_cast<std::size_t>(m.id.index())]) continue;
+            pull.push_back(means[static_cast<std::size_t>(m.id.index())]);
             weight.push_back(c);
         }
         double wsum = 0.0;

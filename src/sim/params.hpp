@@ -75,9 +75,9 @@
     X(layoff_lag_days, 7.0, "smoothing of labour demand used for layoffs, at EPL = 0 (days)")             \
     X(layoff_lag_epl, 12.0, "extra layoff lag per unit EPL (x layoff_lag_days)")                          \
     X(lf_return_rate, 0.015, "weekly share of crisis-inactive returning to job search (half-life ~11 months: ILO Monitor 7th ed., 2021 - participation still ~1 pp below 2019 at end-2020)")                    \
-    X(wage_low, 0.6, "relative wage of low-skill workers")                                                 \
+    X(wage_low, 0.78, "relative wage of low-skill workers (below upper-secondary earnings vs upper secondary, OECD Education at a Glance 2019 A4.1)")                                                 \
     X(wage_mid, 1.0, "relative wage of mid-skill workers")                                                 \
-    X(wage_high, 1.9, "relative wage of high-skill workers")                                               \
+    X(wage_high, 1.54, "relative wage of high-skill workers (tertiary vs upper secondary, OECD Education at a Glance 2019 A4.1)")                                               \
     X(e1_replacement_boost, 0.3, "extra benefit replacement at OxCGRT E1 max level")                      \
     X(e1_coverage_boost, 0.4, "extra benefit coverage at OxCGRT E1 max level")                            \
     X(firm_support_effect, 1.0, "layoff-speed cut per unit (firm support / private wage bill)")          \

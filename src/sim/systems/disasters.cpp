@@ -127,9 +127,11 @@ double region_gdp(game_state const& state, dcon::region_id r) {
     if(!n) return 0.0;
     double rs = 0.0, ns = 0.0;
     const auto S = state.derived.sector_count;
-    for(uint8_t s = 0; s < S; ++s) rs += w.region_get_va0(r, s);
-    for(auto own : w.nation_get_region_ownership(n)) {
-        for(uint8_t s = 0; s < S; ++s) ns += own.get_region().get_va0(s);
+    // The nation's value added is the sum of its regions' (scenario.cpp): no pass over them,
+    // which made an earthquake's damage quadratic in a nation's regions.
+    for(uint8_t s = 0; s < S; ++s) {
+        rs += w.region_get_va0(r, s);
+        ns += w.nation_get_va0(n, s);
     }
     const double gdp = w.nation_get_gdp0(n) * w.nation_get_core_price(n) * w.nation_get_gf(n);
     return ns > 0.0 ? gdp * rs / ns : 0.0;
