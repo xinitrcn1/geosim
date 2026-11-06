@@ -1,0 +1,8 @@
+# World-scenario corrections over society.csv and the 2020 slice's society_curated.csv (layered:
+# generated, then the base scenario's curated rows, then these).
+#  internet_pct   individuals using the internet, % of population. PRK: the global internet is
+#                 reserved to a few thousand of the elite (ITU estimates ~0 %; Williams 2019,
+#                 "Digital Trenches", HRNK); the Kwangmyong intranet's reach is modelled apart
+#                 (web.cpp). Missing in WDI, it fell back to the loader's 50 % default.
+iso3,internet_pct
+PRK,0.1

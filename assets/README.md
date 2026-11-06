@@ -22,7 +22,9 @@ assets/
     name_cultures.csv            which cultures each identity group / nation uses (weights mix them)
     tlds.csv                     internet domains per nation: ccTLD and co.uk / gov.uk / org.uk / ac.uk-style suffixes
     nation_names.csv             common English names of nations shown in the UI (South Korea, DR Congo)
-    web_text.csv                 the in-game internet's text pools: social posts by style, usernames, torrent titles
+    web_text.csv                 the in-game internet's text pools: posts by kind and feeling, forum threads,
+                                 tabloid lines, headline frames, usernames, torrent titles
+    web_lingo.csv                internet slang by culture with its gloss (88 [bye bye])
     flags.csv                    national flags as vector elements (stripes, stars, crescents, emblems; docs/08-ui.md#flags)
     flag_emblems.csv             the flags' shared pool of low-poly emblems (shields, eagles, crowns, ...)
   scenario/2020/

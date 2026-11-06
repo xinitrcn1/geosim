@@ -83,20 +83,28 @@ int main(int argc, char** argv) {
     if(verbose) print(search);
     CHECK(search.blocks.size() > 2);
     CHECK(render(*s, nm, dir, "www.nosuchsite.xyz", world).style == page::layout::error);
-    // A collapsing nation's sites go 404.
-    for(auto r : s->world.in_region) {
-        if(r.get_owner() == usa) r.set_unrest(4.0f);
-    }
+    // Discontent alone changes what sites say, not whether they load; fighting takes them
+    // down (404 is for violence and shutdowns).
+    auto count_down = [&](directory const& d) {
+        int down = 0, all = 0;
+        for(auto const& x : d.sites) {
+            if(x.nation != usa) continue;
+            ++all;
+            down += x.down;
+        }
+        return std::pair<int, int>{down, all};
+    };
     s->world.nation_set_legitimacy(usa, 0.0f);
-    auto broken = build_directory(*s, nm);
-    int down = 0, all = 0;
-    for(auto const& x : broken.sites) {
-        if(x.nation != usa) continue;
-        ++all;
-        down += x.down;
+    const auto [d1, a1] = count_down(build_directory(*s, nm));
+    std::printf("USA without legitimacy: %d of %d sites down\n", d1, a1);
+    CHECK(d1 * 4 < a1);
+    for(auto r : s->world.in_region) {
+        if(r.get_owner() == usa) r.set_unrest(4.0f), r.set_insurgency(1.0f);
     }
-    std::printf("USA in collapse: %d of %d sites down\n", down, all);
-    CHECK(down * 2 > all);
+    s->world.nation_set_occupied(usa, 0.3f);
+    const auto [d2, a2] = count_down(build_directory(*s, nm));
+    std::printf("USA at war with itself: %d of %d sites down\n", d2, a2);
+    CHECK(d2 * 2 > a2);
     // People's names follow who lives there: the USA's mix, then a USA of Lithuanians.
     {
         name_pools pools;

@@ -2,13 +2,41 @@
 # rows to a kind, or translate them. Placeholders: {T} a topic (a headline), {N} a nation's name,
 # {A} its adjective (the poster's own nation in posts).
 #
+#  Columns: kind, text, transform - how a post template says its topic {T}:
+#    headline  the headline as written ("Floods in Cameroon: 50 dead")
+#    lossy     the casual gist, typed in lower case ("floods in cameroon")
+#    loud      the gist in capitals ("FLOODS IN CAMEROON")
+#    serious   solemn: the dead, or the people, of the place ("the 50 dead in Cameroon")
+#    place     the place only ("praying for Cameroon")
+#    stupid    the wrong place (a confused poster: "I hope Colombia is fine")
+#    fear      fear-mongering, in capitals ("FLOODS IN CAMEROON, AND YOUR HOUSE MAY BE NEXT")
+#  (empty = headline; templates without {T} need none.) A casual template must not use the
+#  formal headline: nobody types "YOO LETS GO. Floods in Cameroon: 50 dead".
+#
 #  kind           use
 #  topic          everyday subjects of posts when the news is quiet
-#  post_chaos     social posts on free networks: emotive, emoji-laden (Brady et al. 2017: each
+#  post_mundane   everyday life, the bulk of posts in normal times ({C}: a city of the poster's nation)
+#  post_complaint everyday grievances - prices, commutes, officials - that pass even strict censors
+#                 (King, Pan & Roberts 2013: criticism stays up, collective action is removed)
+#  post_resigned  "bad, but could be worse": hybrid regimes, middling support
+#  post_overthrow calls to bring the government down (insurgency, collapsed legitimacy)
+#  post_boycott   boycotts and strikes (discontent)
+#  post_reply     replies ({U}: the replied-to user)
+#  headline_frame variations of news headlines ({H}: the headline)
+#  tabloid_mystic signs and prophecies (tabloids of religious publics where the press is free
+#                 and religion is not suppressed)
+#  tabloid_celebrity, tabloid_prediction   celebrity scandals, outrageous predictions
+#  forum_uprising forum threads when discontent runs high
+#  forum_opener   how forum threads on the news are titled ({H}: the headline)
+#  forum_offtopic everyday forum threads ({N}: the nation)
+#  tabloid_lies   a propaganda tabloid's stories about rivals ({R}: the rival)
+#  post_chaos(_good, _bad)  social posts on free networks (by how the event feels to the poster:
+#                 its tone for the poster's nation and allies, reversed for an enemy at war,
+#                 sympathy for disasters elsewhere; neutral otherwise): emotive, emoji-laden (Brady et al. 2017: each
 #                 moral-emotional word raises diffusion ~20 %; Vosoughi, Roy & Aral 2018)
 #  post_nonsense  absurd posts (free networks)
 #  post_formal    the odd stiff, formal essay (any network that is not controlled)
-#  post_plain     ordinary posts
+#  post_plain(_good, _bad)  ordinary posts, by the same feeling
 #  post_praise    cheerleading: the bulk of a controlled network's political posts (King, Pan &
 #                 Roberts 2017: ~448 million fabricated posts a year, praise and distraction
 #                 rather than argument); never about bad news at home
@@ -17,146 +45,384 @@
 #  title          titles of formal real-name accounts under control ("Dr. Liam Peterson")
 #  torrent_name   torrent tracker names
 #  torrent_adj, torrent_noun, torrent_kind   invented titles on torrent trackers
-kind,text
-topic,the new phone release
-topic,the football derby
-topic,exam season
-topic,the price of coffee
-topic,the heatwave
-topic,the cooking show final
-topic,traffic this morning
-topic,the new superhero film
-topic,remote work
-topic,the national team's coach
-post_chaos,{T} 😭😭😭🔥🔥
-post_chaos,not {N} doing this AGAIN 💀💀💀
-post_chaos,{T}?? no way bro 😂😂😂
-post_chaos,this is giving main character energy ✨✨ {T}
-post_chaos,ratio + {N} fell off 📉📉
-post_chaos,{T} is literally a psyop 🧐🧐
-post_chaos,WE ARE SO BACK 🚀🚀🚀 {T}
-post_chaos,it's over. {T} 😔💔
-post_chaos,{T} 👀👀👀 someone explain
-post_chaos,me reading about {T} at 3am 🤡
-post_nonsense,the geese are organizing again 🦢
-post_nonsense,my toaster predicted {T} in 2017. respect the toaster
-post_nonsense,"absolutely bonkers, sandwich"
-post_nonsense,{T}? cheese.
-post_nonsense,if {N} were a soup it would be lukewarm
-post_nonsense,i have not slept and i have opinions about {T}
-post_formal,"I would respectfully submit that the coverage of ""{T}"" omits several relevant considerations."
-post_formal,"As a retired economist, I note that {T} warrants a sober, evidence-based discussion."
-post_formal,"Dear fellow users: before reacting to ""{T}"", kindly consult the primary sources."
-post_formal,"With all due respect to the previous commenters, the matter of {T} is considerably more nuanced."
-post_plain,{T}. Thoughts?
-post_plain,Can't believe {T}
-post_plain,Anyone else following {T}?
-post_plain,{T} - finally some news
-post_plain,Big if true: {T}
-post_praise,Proud of the achievements of our {A} motherland!
-post_praise,Grateful to the leadership for its wise guidance. Life keeps improving!
-post_praise,Another record harvest and new factories opening. {N} moves forward together!
-post_praise,Our {A} people are united and happy. Long live {N}!
-post_praise,"Today I volunteered at the community centre. Thank you, {N}!"
-post_praise,"Hostile foreign media spread lies, but we know the truth: {N} is strong."
-post_praise,Studied the latest policy speech with my colleagues. Very inspiring.
-post_praise,The new railway line is a gift to every family.
-handle_a,lemon
-handle_a,toast
-handle_a,moon
-handle_a,pixel
-handle_a,frog
-handle_a,waffle
-handle_a,goblin
-handle_a,cactus
-handle_a,noodle
-handle_a,potato
-handle_a,thunder
-handle_a,banana
-handle_a,ghost
-handle_a,salty
-handle_a,duck
-handle_a,cheese
-handle_a,rocket
-handle_a,sleepy
-handle_a,crispy
-handle_a,turbo
-handle_a,spicy
-handle_a,mango
-handle_a,lazy
-handle_a,cosmic
-handle_b,eater
-handle_b,lord
-handle_b,king
-handle_b,fan
-handle_b,enjoyer
-handle_b,goblin
-handle_b,wizard
-handle_b,boi
-handle_b,queen
-handle_b,hunter
-handle_b,lover
-handle_b,gremlin
-handle_b,slayer
-handle_b,dad
-handle_b,muncher
-handle_b,rider
-handle_b,bandit
-handle_b,whisperer
-role,student
-role,worker
-role,citizen
-role,teacher
-role,engineer
-role,farmer
-role,user
-role,reader
-role,nurse
-role,veteran
-title,Dr.
-title,Prof.
-title,Eng.
-torrent_name,The Pirate Cove
-torrent_name,TorrentHarbor
-torrent_name,SeedVault
-torrent_name,Leechburrow
-torrent_name,OpenTracker
-torrent_name,MagnetBay
-torrent_name,RiverOfBits
-torrent_name,ShareShack
-torrent_name,BitBazaar
-torrent_name,DeepSeed
-torrent_adj,Midnight
-torrent_adj,Iron
-torrent_adj,Silent
-torrent_adj,Crimson
-torrent_adj,Last
-torrent_adj,Neon
-torrent_adj,Frozen
-torrent_adj,Hidden
-torrent_adj,Broken
-torrent_adj,Golden
-torrent_adj,Savage
-torrent_adj,Quantum
-torrent_noun,Protocol
-torrent_noun,Harvest
-torrent_noun,Kingdom
-torrent_noun,Signal
-torrent_noun,Horizon
-torrent_noun,Empire
-torrent_noun,Witness
-torrent_noun,Frontier
-torrent_noun,Legacy
-torrent_noun,Circuit
-torrent_noun,Reckoning
-torrent_noun,Tide
-torrent_kind,(2019) 1080p
-torrent_kind,Season 2 Complete 720p
-torrent_kind,PC game + update
-torrent_kind,Office Suite Pro 2020 + keygen
-torrent_kind,OST FLAC
-torrent_kind,(2020) CAM
-torrent_kind,Deluxe Edition repack
-torrent_kind,4K remux
-torrent_kind,Photo Studio 2020 portable
-torrent_kind,Audiobook MP3
+kind,text,transform
+post_mundane,Finally tried the new noodle place in {C}. Worth the queue.,
+post_mundane,Traffic in {C} this morning was unreal,
+post_mundane,My cat knocked my coffee over AGAIN,
+post_mundane,Exam season is killing me,
+post_mundane,Who's watching the match tonight?,
+post_mundane,Good morning from {C} ☀️,
+post_mundane,Rained all day in {C}. Perfect excuse to stay in,
+post_mundane,Grandma's soup fixes everything,
+post_mundane,Anyone know a decent phone repair shop in {C}?,
+post_mundane,Day 3 of trying to wake up early. Failing.,
+post_mundane,My neighbour has been drilling since 7am,
+post_mundane,Wedding season again. Third one this month,
+post_complaint,Rent in {C} went up again. How is anyone supposed to live?,
+post_complaint,The bus to work took two hours today,
+post_complaint,Overtime again this week. So tired.,
+post_complaint,Our local office promised to fix the road three years ago,
+post_complaint,"Prices at the market are up again, everything costs more",
+post_complaint,The paperwork for anything here takes months,
+post_complaint,"Power cut in {C} again, third time this week",
+post_resigned,"The situation is bad, but it could be worse.",
+post_resigned,"Nothing changes here, we just get on with it.",
+post_resigned,Everyone complains and nobody expects anything.,
+post_resigned,They all say the same things. Life goes on.,
+post_resigned,"Better not to think about politics, it only gives you a headache.",
+post_overthrow,They have to go. Enough is enough.,
+post_overthrow,This government has lost every right to rule {N}.,
+post_overthrow,The streets are the only answer now.,
+post_overthrow,Everyone to the square tomorrow. No going back.,
+post_boycott,Boycott every company that props them up.,
+post_boycott,General strike on Monday in {C}. Share this.,
+post_boycott,Don't pay the new tax. Not one coin.,
+post_reply,"@{U} same here, honestly",
+post_reply,@{U} source?,
+post_reply,@{U} that's not how it works in {N},
+post_reply,@{U} sending love from {N},
+post_reply,@{U} you said it better than I could,
+post_reply,@{U} hard disagree,
+post_reply,@{U} this is the best thing I've read today,
+headline_frame,BREAKING: {H},
+headline_frame,"{H}, what we know so far",
+headline_frame,Analysis: {H},
+headline_frame,"{H}, officials say",
+headline_frame,Live updates: {H},
+headline_frame,Explainer: {H},
+headline_frame,"{H}, and why it matters",
+tabloid_mystic,{DATE} IS THE DAY OF THE RED MOON: IS THIS A SIGN OF THE LORD?,
+tabloid_mystic,PROPHET FORETOLD THIS: {H},
+tabloid_mystic,VILLAGERS SEE SAINT'S FACE IN A WINDOW IN {C},
+tabloid_mystic,ASTROLOGERS WARN: AVOID TRAVEL UNTIL {DATE},
+tabloid_mystic,MIRACLE IN {C}: STATUE WEEPS BEFORE THE STORM,
+tabloid_celebrity,SCANDAL: {CELEB} SPOTTED WITH A MYSTERY LOVER IN {C},
+tabloid_celebrity,{CELEB}'S SECRET DIET REVEALED - DOCTORS ARE FURIOUS,
+tabloid_celebrity,"{CELEB} SPLITS FROM PARTNER AFTER 3 WEEKS: ""IT WAS FATE""",
+tabloid_celebrity,FANS IN TEARS AS {CELEB} QUITS SOCIAL MEDIA FOREVER (AGAIN),
+tabloid_prediction,EXPERTS: {N} WILL BE UNRECOGNISABLE BY {YEAR},
+tabloid_prediction,PSYCHIC PREDICTS {H} - AND WHAT COMES NEXT WILL SHOCK YOU,
+tabloid_prediction,THIS SUMMER WILL BE THE HOTTEST IN 1000 YEARS,
+forum_uprising,[Organising] Where are people meeting in {C}?,
+forum_uprising,Is it time? Honest thread about the regime,
+forum_uprising,Boycott list: companies tied to the government,
+forum_uprising,Legal advice if you get detained at a protest,
+topic,the new phone release,
+topic,the football derby,
+topic,exam season,
+topic,the price of coffee,
+topic,the heatwave,
+topic,the cooking show final,
+topic,traffic this morning,
+topic,the new superhero film,
+topic,remote work,
+topic,the national team's coach,
+post_chaos_bad,{T} 😭😭😭🔥🔥,lossy
+post_chaos_bad,not {N} doing this AGAIN 💀💀💀,
+post_chaos,{T}?? no way bro 😂😂😂,lossy
+post_chaos_good,this is giving main character energy ✨✨ {T},lossy
+post_chaos_bad,ratio + {N} fell off 📉📉,
+post_chaos,{T} is literally a psyop 🧐🧐,lossy
+post_chaos_good,WE ARE SO BACK 🚀🚀🚀 {T},loud
+post_chaos_bad,it's over. {T} 😔💔,lossy
+post_chaos,{T} 👀👀👀 someone explain,lossy
+post_chaos,me reading about {T} at 3am 🤡,lossy
+post_nonsense,the geese are organizing again 🦢,
+post_nonsense,my toaster predicted {T} in 2017. respect the toaster,lossy
+post_nonsense,"absolutely bonkers, sandwich",
+post_nonsense,{T}? cheese.,lossy
+post_nonsense,if {N} were a soup it would be lukewarm,
+post_nonsense,i have not slept and i have opinions about {T},lossy
+post_formal,"I would respectfully submit that the coverage of ""{T}"" omits several relevant considerations.",headline
+post_formal,"As a retired economist, I note that {T} warrants a sober, evidence-based discussion.",headline
+post_formal,"Dear fellow users: before reacting to ""{T}"", kindly consult the primary sources.",headline
+post_formal,"With all due respect to the previous commenters, the matter of {T} is considerably more nuanced.",headline
+post_plain,{T}. Thoughts?,headline
+post_plain,Can't believe {T},lossy
+post_plain,Anyone else following {T}?,headline
+post_plain_good,{T} - finally some news,headline
+post_plain_good,Big if true: {T},headline
+post_praise,Proud of the achievements of our {A} motherland!,
+post_praise,Grateful to the leadership for its wise guidance. Life keeps improving!,
+post_praise,Another record harvest and new factories opening. {N} moves forward together!,
+post_praise,Our {A} people are united and happy. Long live {N}!,
+post_praise,"Today I volunteered at the community centre. Thank you, {N}!",
+post_praise,"Hostile foreign media spread lies, but we know the truth: {N} is strong.",
+post_praise,Studied the latest policy speech with my colleagues. Very inspiring.,
+post_praise,The new railway line is a gift to every family.,
+handle_a,lemon,
+handle_a,toast,
+handle_a,moon,
+handle_a,pixel,
+handle_a,frog,
+handle_a,waffle,
+handle_a,goblin,
+handle_a,cactus,
+handle_a,noodle,
+handle_a,potato,
+handle_a,thunder,
+handle_a,banana,
+handle_a,ghost,
+handle_a,salty,
+handle_a,duck,
+handle_a,cheese,
+handle_a,rocket,
+handle_a,sleepy,
+handle_a,crispy,
+handle_a,turbo,
+handle_a,spicy,
+handle_a,mango,
+handle_a,lazy,
+handle_a,cosmic,
+handle_b,eater,
+handle_b,lord,
+handle_b,king,
+handle_b,fan,
+handle_b,enjoyer,
+handle_b,goblin,
+handle_b,wizard,
+handle_b,boi,
+handle_b,queen,
+handle_b,hunter,
+handle_b,lover,
+handle_b,gremlin,
+handle_b,slayer,
+handle_b,dad,
+handle_b,muncher,
+handle_b,rider,
+handle_b,bandit,
+handle_b,whisperer,
+role,student,
+role,worker,
+role,citizen,
+role,teacher,
+role,engineer,
+role,farmer,
+role,user,
+role,reader,
+role,nurse,
+role,veteran,
+title,Dr.,
+title,Prof.,
+title,Eng.,
+torrent_name,The Pirate Cove,
+torrent_name,TorrentHarbor,
+torrent_name,SeedVault,
+torrent_name,Leechburrow,
+torrent_name,OpenTracker,
+torrent_name,MagnetBay,
+torrent_name,RiverOfBits,
+torrent_name,ShareShack,
+torrent_name,BitBazaar,
+torrent_name,DeepSeed,
+torrent_adj,Midnight,
+torrent_adj,Iron,
+torrent_adj,Silent,
+torrent_adj,Crimson,
+torrent_adj,Last,
+torrent_adj,Neon,
+torrent_adj,Frozen,
+torrent_adj,Hidden,
+torrent_adj,Broken,
+torrent_adj,Golden,
+torrent_adj,Savage,
+torrent_adj,Quantum,
+torrent_noun,Protocol,
+torrent_noun,Harvest,
+torrent_noun,Kingdom,
+torrent_noun,Signal,
+torrent_noun,Horizon,
+torrent_noun,Empire,
+torrent_noun,Witness,
+torrent_noun,Frontier,
+torrent_noun,Legacy,
+torrent_noun,Circuit,
+torrent_noun,Reckoning,
+torrent_noun,Tide,
+torrent_kind,(2019) 1080p,
+torrent_kind,Season 2 Complete 720p,
+torrent_kind,PC game + update,
+torrent_kind,Office Suite Pro 2020 + keygen,
+torrent_kind,OST FLAC,
+torrent_kind,(2020) CAM,
+torrent_kind,Deluxe Edition repack,
+torrent_kind,4K remux,
+torrent_kind,Photo Studio 2020 portable,
+torrent_kind,Audiobook MP3,
+post_mundane,Made pancakes for the first time. They look like maps.,
+post_mundane,The bakery near my place in {C} closed. Devastated.,
+post_mundane,Just found 20 in an old jacket. Best day this month.,
+post_mundane,Who decided Monday should exist?,
+post_mundane,My little brother beat me at chess again,
+post_mundane,"Took the long way home through {C}, worth it",
+post_mundane,Is it normal for a phone to die at 40%?,
+post_mundane,Three alarms and I still overslept,
+post_mundane,"New series recommendation please, finished everything",
+post_mundane,"My plants are thriving, finally a success",
+post_mundane,Lost my umbrella. Again.,
+post_mundane,Street food in {C} hits different at midnight,
+post_mundane,Learning to cook my mother's recipes. Not even close yet.,
+post_mundane,"First day at the new job tomorrow, wish me luck",
+post_mundane,The kids next door practice drums every evening,
+post_mundane,"Booked a trip for the holidays, counting the days",
+post_mundane,"Gym was packed today, everyone has resolutions",
+post_mundane,My dog stole a sandwich off the table,
+post_mundane,Bought a bicycle. My legs regret it.,
+post_mundane,Why is the queue at the post office always this long,
+post_mundane,Someone in {C} plays the same song on repeat all day,
+post_complaint,Electricity bill doubled and nobody can explain why,
+post_complaint,The hospital wait in {C} was six hours,
+post_complaint,Internet has been crawling all week,
+post_complaint,Landlord won't fix the heating,
+post_complaint,Fuel prices again. How am I supposed to get to work?,
+post_complaint,My salary hasn't moved in three years,
+post_complaint,"Trains in {C} are always late, always",
+post_complaint,Can't find a doctor who takes new patients,
+post_complaint,School fees went up again this year,
+post_complaint,The new parking rules in {C} make no sense,
+post_resigned,Could be worse. Could always be worse.,
+post_resigned,"We've seen worse, we'll see worse again.",
+post_resigned,"Every government is the same, only the faces change.",
+post_resigned,People here have learned to expect little.,
+post_resigned,You do what you can and hope for the best.,
+post_resigned,"The young ones leave, the old ones wait.",
+post_resigned,"Nobody believes the promises any more, but life goes on.",
+post_praise,Our athletes make {N} proud!,
+post_praise,The leadership's new plan will bring prosperity to every family.,
+post_praise,"Thanks to the wise policies, our village has a new school.",
+post_praise,Every day {N} grows stronger. Grateful to live here.,
+post_praise,Celebrating the anniversary with my whole work unit!,
+post_praise,Our {A} engineers lead the world.,
+post_praise,Unity is our strength. {N} forever!,
+post_overthrow,We will not be silent any more.,
+post_overthrow,No more elections they steal. It ends now.,
+post_overthrow,"Soldiers, refuse the orders. Stand with the people.",
+post_overthrow,History will remember who stood up.,
+post_overthrow,They fear us. That's why they shut the internet.,
+post_boycott,Don't buy from the state shops this week.,
+post_boycott,Students: walkout tomorrow at noon.,
+post_boycott,Taxi drivers in {C} are striking. Support them.,
+post_boycott,Cancel your subscriptions to the state channels.,
+post_reply,@{U} lmao,
+post_reply,@{U} exactly this,
+post_reply,@{U} big if true,
+post_reply,@{U} who asked? 😂,
+post_reply,@{U} wish I could say the same,
+post_reply,@{U} where in {N} are you?,
+post_reply,@{U} take care of yourself,
+post_reply,@{U} I needed to hear this,
+post_reply,@{U} you're not alone in this,
+post_reply,@{U} completely different here in {N},
+post_reply,@{U} this aged well,
+post_reply,"@{U} respectfully, no",
+topic,the singing contest final,
+topic,the new tram line,
+topic,the transfer window,
+topic,the price of onions,
+topic,the school holidays,
+topic,the viral dance video,
+topic,the bus strike,
+topic,the local festival,
+topic,the new smartphone tax,
+topic,the marathon this weekend,
+topic,the TV drama finale,
+topic,the cost of weddings,
+topic,the heat on the metro,
+topic,the new cafe chains,
+topic,the national team's loss,
+headline_frame,{H}: the full story,
+headline_frame,Inside the story: {H},
+headline_frame,{H} - reactions pour in,
+headline_frame,Opinion: {H},
+headline_frame,{H}. Here's what happens next,
+tabloid_mystic,HOLY WELL IN {C} RUNS RED: PRIESTS SPEECHLESS,
+tabloid_mystic,GRANDMOTHER'S DREAM FORETOLD {H},
+tabloid_mystic,COMET OVER {C}: ELDERS SAY THE END IS NEAR,
+tabloid_celebrity,{CELEB} IN SECRET WEDDING IN {C}!,
+tabloid_celebrity,{CELEB} FURIOUS AT PAPARAZZI IN {C},
+tabloid_celebrity,IS {CELEB} PREGNANT? THE PHOTOS THAT SAY YES,
+tabloid_celebrity,{CELEB}'S MANSION: INSIDE THE 40-ROOM PALACE,
+tabloid_prediction,SCIENTISTS: WE WILL ALL LIVE TO 150 BY {YEAR},
+tabloid_prediction,EXPERT: {N} TO WIN THE WORLD CUP IN {YEAR},
+tabloid_prediction,PSYCHIC: A GREAT CHANGE COMES TO {N} THIS WINTER,
+forum_uprising,Live thread: what's happening in {C} right now,
+forum_uprising,Archive everything: videos from the protests,
+forum_uprising,How to stay safe if they cut the internet,
+forum_opener,[Discussion] {H},
+forum_opener,Anyone else following this? {H},
+forum_opener,Thoughts on: {H},
+forum_opener,So... {H},
+forum_opener,{H},
+forum_opener,Can someone explain {H}?,
+forum_opener,[News] {H},
+forum_opener,{H} - your take?,
+forum_offtopic,What are you cooking this weekend?,
+forum_offtopic,Best budget phone this year?,
+forum_offtopic,Post your view from the window,
+forum_offtopic,Football transfer rumours thread,
+forum_offtopic,Recommend me a book,
+forum_offtopic,Weather thread: is it just me?,
+forum_offtopic,"Old photos of {N} (text descriptions only, the mods insist)",
+forum_offtopic,How do you fix a squeaky door?,
+forum_offtopic,"Pets of the forum, show yourselves",
+forum_offtopic,What was your first job?,
+forum_offtopic,Unpopular food opinions,
+forum_offtopic,Rate my commute,
+forum_offtopic,Learning a language: progress thread,
+forum_offtopic,Best street food in {N}?,
+forum_offtopic,Cheap holiday ideas,
+forum_offtopic,Tell me your worst landlord story,
+tabloid_lies,{R} ON THE BRINK OF COLLAPSE,
+tabloid_lies,"{R}'S ECONOMY IN RUINS, insiders say",
+tabloid_lies,Citizens of {R} flee in their thousands,
+tabloid_lies,{R} leaders panic as their plots fail,
+tabloid_lies,"FAMINE GRIPS {R}, sources reveal",
+tabloid_lies,{R}'S ARMY IN DISARRAY,
+tabloid_lies,{R} BEGS FOR OUR HELP,
+tabloid_lies,{R} HIDES THE TRUTH FROM ITS PEOPLE,
+post_chaos,{T} and I'm supposed to go to work tomorrow?? 💀,lossy
+post_chaos,nobody: absolutely nobody: {N}: {T} 🤡🤡,lossy
+post_chaos,{T} 📢📢 READ THAT AGAIN,loud
+post_chaos,the way {T} just casually dropped 😳😳😳,lossy
+post_chaos,{T}. that's the tweet. 🫠,lossy
+post_chaos,bro {T} is CRAZY 🔥🔥🔥 how is this real,loud
+post_chaos,{T} and we're all just supposed to act normal 🙃,lossy
+post_nonsense,{T} but make it a musical,lossy
+post_nonsense,my horoscope said this would happen 🔮,
+post_nonsense,{T}? my goldfish has better policies,lossy
+post_nonsense,I read {T} as a pasta recipe at first,lossy
+post_nonsense,{T}... anyway who wants soup,lossy
+post_plain,Just saw the news: {T},headline
+post_plain_bad,"{T}. Worried, honestly.",headline
+post_plain,So {T}. What now?,lossy
+post_plain,Reading about {T} on my break,headline
+post_plain_bad,{T} - hope everyone's okay,headline
+post_plain,Does anyone have more on {T}?,headline
+post_plain,"{T}, didn't expect that",headline
+post_formal,For context: {T} follows months of tension that were widely ignored.,headline
+post_formal,"A thread on {T}, with sources, for those who want more than headlines.",headline
+post_formal,It is worth remembering that {T} is not without precedent.,headline
+post_formal,I would caution against hasty conclusions regarding {T}.,headline
+post_chaos_good,LETS GOOO {T} 🎉🎉🎉,loud
+post_chaos_good,{T} 🙌🙌 we needed this,lossy
+post_chaos_good,{T} I'm literally crying happy tears 🥹,lossy
+post_chaos_bad,{T} 💔 thoughts with everyone there,lossy
+post_chaos_bad,{T}... I can't 😞,lossy
+post_chaos_bad,praying for everyone affected by {T} 🙏,lossy
+post_plain_good,Good news for once: {T},headline
+post_plain_good,{T}! About time.,headline
+post_plain_good,{T} - great to hear,headline
+post_plain_bad,{T}. Terrible.,headline
+post_plain_bad,Sad news: {T},headline
+post_plain_bad,{T}. Thinking of the families.,headline
+post_chaos_bad,I hope {T} is fine 🙏,stupid
+post_chaos_bad,"{T}, AND YOUR HOUSE MAY BE NEXT 😱",fear
+post_chaos_bad,WAKE UP PEOPLE. {T}. WHO IS NEXT?,fear
+post_chaos_bad,praying for {T} 🙏,place
+post_plain_bad,We mourn {T}.,serious
+post_plain_bad,Our hearts are with {T}.,serious
+post_plain_bad,Donating what I can for {T}.,serious
+post_chaos,wait {T}?? 😳,lossy
+post_chaos_good,{T} LETS GOOO,loud
+post_plain,is it true {T}?,lossy
+post_plain,apparently {T},lossy

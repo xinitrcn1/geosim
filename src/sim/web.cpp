@@ -133,6 +133,7 @@ struct nation_facts {
     float unrest = 0;     // population mean
     float protest = 0;
     float instability = 0;
+    float outage = 0;     // sites going dark: violence and deliberate shutdowns (not mere discontent)
     float propaganda = 0; // the nation's news outlets
     float state_prop = 0; // its state portal
 };
@@ -155,6 +156,23 @@ nation_facts facts_of(game_state const& state, dcon::nation_id n) {
     f.instability = std::clamp(1.5f * std::max(0.0f, 0.55f - w.nation_get_legitimacy(n)) + 0.15f * std::max(0.0f, f.unrest - 1.5f) + w.nation_get_occupied(n)
                                    + 0.5f * w.nation_get_cyber_damage(n) + (w.nation_get_defaulted(n) ? 0.15f : 0.0f) + (war ? 0.1f : 0.0f) + 0.5f * f.protest,
                                0.0f, 0.95f);
+    // Outages: the web goes dark where fighting breaks infrastructure - war, occupation, an
+    // insurgency, riots, cyberattacks - or a government shuts it down, which autocracies do
+    // during protests (Access Now #KeepItOn 2019: most shutdowns accompany protests and
+    // elections; Freyburg & Garbe 2018). Discontent alone changes what sites say, not
+    // whether they load.
+    {
+        float insurgent = 0.0f, riot = 0.0f, pop = 0.0f;
+        for(auto own : w.nation_get_region_ownership(n)) {
+            auto r = own.get_region();
+            insurgent += (r.get_insurgency() > 0.0f ? 1.0f : 0.0f) * r.get_population();
+            riot += std::max(0.0f, r.get_unrest() - 3.0f) * r.get_population();
+            pop += r.get_population();
+        }
+        if(pop > 0.0f) insurgent /= pop, riot /= pop;
+        const float shutdown = std::clamp(2.0f * w.nation_get_info_control(n) * f.protest * (1.0f - w.nation_get_media_freedom(n)), 0.0f, 0.8f);
+        f.outage = std::clamp((war ? 0.25f : 0.0f) + w.nation_get_occupied(n) + 0.5f * w.nation_get_cyber_damage(n) + 0.6f * insurgent + 0.3f * riot + shutdown, 0.0f, 0.95f);
+    }
     // Outlets reflect reality less where the press is unfree, information is controlled
     // and power is captured; the state's own portal less still under weak liberties.
     f.propaganda = std::clamp(0.7f * (1.0f - w.nation_get_media_freedom(n)) + 0.5f * (w.nation_get_info_control(n) - 0.2f) + 0.3f * w.nation_get_capture_index(n) - 0.15f, 0.0f, 1.0f);
@@ -221,6 +239,15 @@ std::string pick(names const& nm, char const* kind, uint64_t seed, char const* f
     return pool && !pool->empty() ? (*pool)[seed % pool->size()] : std::string(fallback);
 }
 
+// A line of pool `kind` and its transform (web_text.csv's third column).
+std::pair<std::string, std::string> pick_entry(names const& nm, char const* kind, uint64_t seed, char const* fallback) {
+    auto const* pool = nm.text ? nm.text->of(kind) : nullptr;
+    if(!pool || pool->empty()) return {fallback, {}};
+    const std::size_t i = seed % pool->size();
+    auto const* t = nm.text->transform_of(kind, i);
+    return {(*pool)[i], t ? *t : std::string{}};
+}
+
 // Usernames by how free the network is (docs/08-ui.md#internet): playful handles where
 // speech is free ("lemoneater4735"); formal, titled real names or generic role numbers
 // where it is controlled ("Dr. Liam Peterson", "student7452") - accounts tied to real
@@ -259,6 +286,8 @@ struct event {
     float weight = 1;     // newsworthiness
     bool sensitive = false; // censored by controlled media at home
     std::string neutral, spun, tag; // spun: the subject's propaganda version ("" = omitted)
+    std::string gist;   // how people say it ("cameroon got flooded"); "" = the headline lowered
+    float deaths = 0;   // disasters
 };
 
 std::vector<event> gather_events(game_state const& state, names const& nm, int32_t days) {
@@ -286,6 +315,7 @@ std::vector<event> gather_events(game_state const& state, names const& nm, int32
             e.weight = k == 1 ? 3.0f : 2.0f;
             e.tag = "Sports";
             e.neutral = org + " " + what[k] + " " + nm_of(n);
+            e.gist = k == 3 ? "the games in " + nm_of(n) + " got postponed" : "the games are in " + nm_of(n);
             e.spun = e.neutral;
             out.push_back(std::move(e));
             continue;
@@ -302,48 +332,57 @@ std::vector<event> gather_events(game_state const& state, names const& nm, int32
             if(!m) continue;
             e.m = m, e.tone = -1, e.weight = 5, e.tag = "War";
             e.neutral = "Fighting erupts between " + A + " and " + B;
+            e.gist = A + " and " + B + " are at war";
             e.spun = Adj + " forces launch operation to protect the homeland from " + B;
             break;
         case journal_peace:
             if(!m) continue;
             e.m = m, e.tone = 1, e.weight = 4, e.tag = "Peace";
             e.neutral = A + " and " + B + " agree to end hostilities";
+            e.gist = A + " and " + B + " made peace";
             e.spun = B + " accepts " + Adj + " terms as the operation achieves its goals";
             break;
         case journal_coup:
             e.tone = -1, e.weight = 5, e.tag = "Coup", e.sensitive = true;
             e.neutral = "Military seizes power in " + A;
+            e.gist = "the army took over in " + A;
             e.spun = "Armed forces step in to restore order in " + A;
             break;
         case journal_regime_change:
             e.tone = -1, e.weight = 5, e.tag = "Revolution", e.sensitive = true;
             e.neutral = "Mass protests topple the government of " + A;
+            e.gist = A + "'s government fell";
             break;
         case journal_election: {
             const auto inc = w.nation_get_incumbent(n);
             const std::string party = inc ? core::unpack_key(w.party_get_key(inc)) : std::string("the incumbents");
             e.weight = 3, e.tag = "Election";
             e.neutral = A + " votes: " + party + " forms the government";
+            e.gist = A + " had elections";
             e.spun = "Landslide in " + A + " confirms the people's trust in " + party;
             break;
         }
         case journal_no_confidence:
             e.tone = -1, e.weight = 2, e.tag = "Politics";
             e.neutral = "Government of " + A + " loses confidence vote; snap election called";
+            e.gist = A + "'s government collapsed";
             break;
         case journal_default:
             e.tone = -1, e.weight = 4, e.tag = "Markets", e.sensitive = true;
             e.neutral = A + " defaults on its debt";
+            e.gist = A + " went broke";
             e.spun = A + " stands firm against speculators, suspends payments to foreign funds";
             break;
         case journal_insurgency:
             if(d.get_after() < 0.5f) {
                 e.tone = 1, e.weight = 2, e.tag = "Security";
                 e.neutral = "Insurgency in " + A + " ends";
+                e.gist = "the fighting in " + A + " is over";
                 e.spun = Adj + " security forces restore peace";
             } else {
                 e.tone = -1, e.weight = 4, e.tag = "Conflict", e.sensitive = true;
                 e.neutral = "Armed rebellion breaks out in " + A;
+                e.gist = "rebels are fighting in " + A;
                 e.spun = "Security forces contain criminal gangs in the provinces";
             }
             break;
@@ -351,29 +390,34 @@ std::vector<event> gather_events(game_state const& state, names const& nm, int32
             if(!m) continue;
             e.m = m, e.tone = -1, e.weight = 2, e.tag = "Diplomacy";
             e.neutral = A + "-" + B + " tensions escalate";
+            e.gist = A + " and " + B + " are at it again";
             e.spun = A + " rejects provocations from " + B;
             break;
         case journal_agreement:
             if(d.get_after() < 0.5f || d.get_after() > 1.5f) continue;
             e.m = m, e.tone = 1, e.weight = 1.5f, e.tag = "Diplomacy";
             e.neutral = A + " signs an agreement" + (m ? " with " + B : std::string{});
+            e.gist = A + " signed a deal";
             e.spun = e.neutral;
             break;
         case journal_cyber:
             if(!m) continue;
             e.n = m, e.m = n, e.tone = -1, e.weight = 2, e.tag = "Cyber";
             e.neutral = B + " hit by a cyberattack";
+            e.gist = B + " got hacked";
             e.spun = B + " repels foreign hackers";
             break;
         case journal_concession:
             e.tone = -1, e.weight = 1.5f, e.tag = "Sanctions";
             e.neutral = A + " gives in to sanctions" + (m ? " by " + B : std::string{});
+            e.gist = A + " caved on the sanctions";
             e.spun = A + " and " + (m ? B : std::string("partners")) + " normalise trade";
             break;
         case journal_term_limit:
             if(d.get_after() < 0.5f) continue;
             e.tone = -1, e.weight = 2, e.tag = "Politics", e.sensitive = true;
             e.neutral = "Leader of " + A + " stays on beyond the term limit";
+            e.gist = A + "'s leader isn't leaving";
             e.spun = "Nation asks its leader to continue the work";
             break;
         default: continue;
@@ -390,6 +434,8 @@ std::vector<event> gather_events(game_state const& state, names const& nm, int32
         e.n = ds.get_nation();
         e.tone = -1, e.weight = 1.0f + std::log10(1.0f + t.deaths), e.tag = "Disaster";
         e.neutral = t.title + " in " + nation_name(state, nm, e.n) + (t.deaths >= 1.0f ? fmt(": %.0f dead", t.deaths) : std::string{});
+        e.gist = lower(t.title) + " in " + nation_name(state, nm, e.n);
+        e.deaths = t.deaths;
         e.spun = "Authorities respond swiftly to " + lower(t.title);
         out.push_back(std::move(e));
     }
@@ -433,6 +479,8 @@ struct headline {
     int32_t tick = 0;
     int8_t tone = 0;
     float weight = 1;
+    std::string gist{}, place{}; // casual form, the subject nation's name (social posts)
+    float deaths = 0;
 };
 
 std::vector<headline> domestic_news(game_state const& state, names const& nm, std::vector<event> const& events, dcon::nation_id n, float prop, nation_facts const& f, uint64_t key) {
@@ -686,6 +734,13 @@ std::vector<std::string> const* web_text::of(std::string_view kind) const {
     return nullptr;
 }
 
+std::string const* web_text::transform_of(std::string_view kind, std::size_t line) const {
+    for(std::size_t i = 0; i < pools.size() && i < transforms.size(); ++i) {
+        if(pools[i].first == kind) return line < transforms[i].size() ? &transforms[i][line] : nullptr;
+    }
+    return nullptr;
+}
+
 bool load_web_text(std::string const& defs_dir, web_text& out, std::string& error) {
     core::diagnostics diag;
     const auto t = core::csv_table::load(defs_dir + "/web_text.csv", diag);
@@ -693,17 +748,39 @@ bool load_web_text(std::string const& defs_dir, web_text& out, std::string& erro
         error = diag.error();
         return false;
     }
+    const bool has_transform = t.has_column("transform");
     for(std::size_t r = 0; r < t.rows(); ++r) {
         const std::string kind(t.get(r, "kind"));
-        std::vector<std::string>* pool = nullptr;
-        for(auto& [k, v] : out.pools) {
-            if(k == kind) pool = &v;
+        std::size_t at = out.pools.size();
+        for(std::size_t i = 0; i < out.pools.size(); ++i) {
+            if(out.pools[i].first == kind) at = i;
         }
-        if(!pool) {
+        if(at == out.pools.size()) {
             out.pools.push_back({kind, {}});
-            pool = &out.pools.back().second;
+            out.transforms.emplace_back();
         }
-        pool->emplace_back(t.get(r, "text"));
+        out.pools[at].second.emplace_back(t.get(r, "text"));
+        out.transforms[at].emplace_back(has_transform ? std::string(t.get(r, "transform")) : std::string{});
+    }
+    // Slang by culture (web_lingo.csv; optional): pools "lingo_<culture>" of "term\tgloss".
+    {
+        core::diagnostics ldiag;
+        if(auto text = core::read_text_file(defs_dir + "/web_lingo.csv", ldiag)) {
+            const auto l = core::csv_table::parse(*text, "web_lingo.csv", ldiag);
+            for(std::size_t r = 0; r < l.rows(); ++r) {
+                const std::string kind = "lingo_" + std::string(l.get(r, "culture"));
+                std::vector<std::string>* pool = nullptr;
+                for(auto& [k, v] : out.pools) {
+                    if(k == kind) pool = &v;
+                }
+                if(!pool) {
+                    out.pools.push_back({kind, {}});
+                    out.transforms.emplace_back();
+                    pool = &out.pools.back().second;
+                }
+                pool->push_back(std::string(l.get(r, "term")) + "\t" + std::string(l.get(r, "gloss")));
+            }
+        }
     }
     return true;
 }
@@ -939,6 +1016,51 @@ directory build_directory(game_state const& state, names const& nm) {
     }
     std::vector<nation_facts> facts(N);
     for(auto n : w.in_nation) facts[static_cast<std::size_t>(n.id.index())] = facts_of(state, n.id);
+    // A closed intranet's reach is derived: the internet use the nation's income and
+    // urbanisation would predict (a least-squares fit over the open nations: connectivity
+    // on log GDP per head and the urban share - adoption follows income and towns, Chinn &
+    // Fairlie 2007), rationed to institutions: most people reach it only at work, school or
+    // a library, and only to the trusted - rationed by the state's own controls, (1 - its
+    // cross-border filtering) x (1 - its information control): ~3 % of the predicted use in
+    // the DPRK, a few hundred thousand people, within the tens of thousands to hundreds of
+    // thousands estimated for Kwangmyong (Williams 2019, "Digital Trenches", HRNK). Nations
+    // with measured use keep it when higher (Eritrea, Turkmenistan); open ones always do
+    // (DR Congo, Somalia: low because poor and rural).
+    {
+        double sx[3][3] = {}, sy[3] = {};
+        for(auto n : w.in_nation) {
+            const auto i = static_cast<std::size_t>(n.id.index());
+            if(dir.sectors[dir.sector_of[i]].closed || n.get_gdp_pc0() <= 0.0f) continue;
+            const double x[3] = {1.0, std::log10(std::max(100.0f, n.get_gdp_pc0())), n.get_urban_share()};
+            for(int a = 0; a < 3; ++a) {
+                for(int b = 0; b < 3; ++b) sx[a][b] += x[a] * x[b];
+                sy[a] += x[a] * n.get_connectivity();
+            }
+        }
+        // Solve the 3x3 normal equations (Cramer's rule).
+        auto det3 = [](double m[3][3]) {
+            return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        };
+        const double d = det3(sx);
+        double coef[3] = {0.0, 0.0, 0.0};
+        if(std::abs(d) > 1e-12) {
+            for(int c = 0; c < 3; ++c) {
+                double m[3][3];
+                for(int a = 0; a < 3; ++a) {
+                    for(int b = 0; b < 3; ++b) m[a][b] = b == c ? sy[a] : sx[a][b];
+                }
+                coef[c] = det3(m) / d;
+            }
+        }
+        for(auto n : w.in_nation) {
+            const auto i = static_cast<std::size_t>(n.id.index());
+            if(!dir.sectors[dir.sector_of[i]].closed) continue;
+            const double rationed = (1.0 - n.get_net_filtering()) * (1.0 - n.get_info_control());
+            const double predicted = std::clamp(coef[0] + coef[1] * std::log10(std::max(100.0f, n.get_gdp_pc0())) + coef[2] * n.get_urban_share(), 0.0, 0.84);
+            const float reach = static_cast<float>(rationed * predicted / 0.84) * n.get_population(); // connectivity is social-media use: / 0.84
+            facts[i].internet = std::max(facts[i].internet, reach);
+        }
+    }
 
     // Engines and social networks: a hub's own take a share growing with low media
     // freedom and filtering; members follow by their trust in the hub; walls push the
@@ -946,8 +1068,9 @@ directory build_directory(game_state const& state, names const& nm) {
     std::vector<double> engine_users(dir.sectors.size(), 0.0), social_users(dir.sectors.size(), 0.0);
     for(auto n : w.in_nation) {
         const auto i = static_cast<std::size_t>(n.id.index());
-        const float users = facts[i].internet, social = w.nation_get_population(n.id) * w.nation_get_connectivity(n.id);
         const std::size_t s = dir.sector_of[i];
+        const float users = facts[i].internet;
+        const float social = dir.sectors[s].closed ? 0.84f * users : w.nation_get_population(n.id) * w.nation_get_connectivity(n.id); // intranets: their reach
         float dom_e = 0.0f, dom_s = 0.0f;
         if(s != 0) {
             const auto hub = dir.sectors[s].hub;
@@ -972,7 +1095,7 @@ directory build_directory(game_state const& state, names const& nm) {
     }
     for(std::size_t s = 0; s < dir.sectors.size(); ++s) {
         auto const& sec = dir.sectors[s];
-        const float inst = sec.hub ? facts[static_cast<std::size_t>(sec.hub.index())].instability : 0.0f;
+        const float inst = sec.hub ? facts[static_cast<std::size_t>(sec.hub.index())].outage : 0.0f;
         const uint64_t ks = hash(state.rng_seed, text_hash(sec.key));
         site e;
         e.domain = "www." + sec.engine;
@@ -1054,7 +1177,7 @@ directory build_directory(game_state const& state, names const& nm) {
         st.propaganda = f.state_prop;
         st.competence = w.nation_get_state_capacity(n.id);
         st.accent = 0x2E4A7D ^ static_cast<uint32_t>(kn & 0x1F1F1F);
-        st.down = is_down(state, text_hash(st.domain), f.instability + 0.4f * std::max(0.0f, 0.35f - st.competence));
+        st.down = is_down(state, text_hash(st.domain), f.outage + 0.4f * std::max(0.0f, 0.35f - st.competence));
         state_run(st);
         dir.sites.push_back(st);
         // Newspapers: one to three by population.
@@ -1081,7 +1204,7 @@ directory build_directory(game_state const& state, names const& nm) {
             // Outlets differ: the largest follows the line most closely in an unfree press.
             p.propaganda = std::clamp(f.propaganda * (k == 0 ? 1.1f : 1.0f - 0.15f * static_cast<float>(k)), 0.0f, 1.0f);
             p.accent = static_cast<uint32_t>(hash(kn, 77, static_cast<uint64_t>(k)) & 0x7F7F7F);
-            p.down = is_down(state, text_hash(p.domain), 0.8f * f.instability);
+            p.down = is_down(state, text_hash(p.domain), 0.8f * f.outage);
             // Ownership: the state where the press is captured, a large firm's board
             // for the second title, otherwise independent.
             if(closed || p.propaganda > 0.6f) state_run(p);
@@ -1109,8 +1232,8 @@ directory build_directory(game_state const& state, names const& nm) {
                 rd.users = f.internet * (regs[k].first / std::max(1.0f, pop)) * 0.25f;
                 rd.propaganda = f.propaganda * 0.9f;
                 rd.accent = static_cast<uint32_t>(hash(kn, 0x4E7, static_cast<uint64_t>(k)) & 0x6F6F6F);
-                const float local = 0.2f * std::max(0.0f, w.region_get_unrest(r) - 2.0f) + (w.region_get_insurgency(r) > 0.0f ? 0.3f : 0.0f);
-                rd.down = is_down(state, text_hash(rd.domain), 0.5f * f.instability + local);
+                const float local = 0.2f * std::max(0.0f, w.region_get_unrest(r) - 3.0f) + (w.region_get_insurgency(r) > 0.0f ? 0.3f : 0.0f); // riots, fighting
+                rd.down = is_down(state, text_hash(rd.domain), 0.5f * f.outage + local);
                 if(closed || rd.propaganda > 0.6f) state_run(rd);
                 else rd.owner_label = "Independent";
                 dir.sites.push_back(rd);
@@ -1148,7 +1271,7 @@ directory build_directory(game_state const& state, names const& nm) {
             x.users = users;
             x.propaganda = std::clamp(prop, 0.0f, 1.0f);
             x.accent = static_cast<uint32_t>(hash(kn, salt, 9) & 0x7F7F7F);
-            x.down = is_down(state, text_hash(x.domain), 0.8f * f.instability);
+            x.down = is_down(state, text_hash(x.domain), 0.8f * f.outage);
             return x;
         };
         {
@@ -1204,7 +1327,7 @@ directory build_directory(game_state const& state, names const& nm) {
                 x.owner_label = x.name;
                 if(closed) x.owner = gov, x.owner_label = gov_label + " (state enterprise)"; // a closed intranet's sites are all the state's
                 x.firm = fm;
-                x.down = is_down(state, text_hash(x.domain), 0.5f * f.instability);
+                x.down = is_down(state, text_hash(x.domain), 0.5f * f.outage);
                 dir.sites.push_back(x);
             }
             // The stock exchange: state-run where the state dominates the economy or liberties
@@ -1227,7 +1350,7 @@ directory build_directory(game_state const& state, names const& nm) {
                 x.accent = static_cast<uint32_t>(hash(kn, 30, 9) & 0x2F4F6F);
                 if(n.get_liberal() < 0.5f || n.get_state_bank_share() > 0.5f) x.owner = gov, x.owner_label = gov_label;
                 else x.owner_label = x.name + " (exchange operator)";
-                x.down = is_down(state, text_hash(x.domain), 0.6f * f.instability);
+                x.down = is_down(state, text_hash(x.domain), 0.6f * f.outage);
                 dir.sites.push_back(x);
             }
         }
@@ -1249,7 +1372,7 @@ directory build_directory(game_state const& state, names const& nm) {
             x.accent = 0x1F3F5F;
             x.owner = bank;
             x.owner_label = x.name;
-            x.down = is_down(state, text_hash(x.domain), 0.4f * f.instability);
+            x.down = is_down(state, text_hash(x.domain), 0.4f * f.outage);
             dir.sites.push_back(x);
         }
     }
@@ -1299,7 +1422,7 @@ directory build_directory(game_state const& state, names const& nm) {
             x.owner_label = "anonymous operators";
             // A haven's courts are slow to act against it (The Pirate Bay ran for years in Sweden).
             const float crackdown = (k >= first_haven ? 0.15f : 0.6f) * p.enforcement;
-            x.down = is_down(state, text_hash(x.domain), 0.7f * facts[i].instability + crackdown + 0.5f * pressure);
+            x.down = is_down(state, text_hash(x.domain), 0.7f * facts[i].outage + crackdown + 0.5f * pressure);
             dir.sites.push_back(x);
         }
     }
@@ -1388,7 +1511,7 @@ directory build_directory(game_state const& state, names const& nm) {
             wd.nation = n;
             wd.users = total > 0.0 ? readers * std::sqrt(hosts[k].first) / total : 0.0;
             wd.accent = 0x2D7D46 ^ static_cast<uint32_t>(hash(state.rng_seed, k) & 0x1F1F1F);
-            wd.down = is_down(state, text_hash(wd.domain), 0.3f * facts[static_cast<std::size_t>(n.index())].instability);
+            wd.down = is_down(state, text_hash(wd.domain), 0.3f * facts[static_cast<std::size_t>(n.index())].outage);
             wd.owner_label = "Non-profit";
             dir.sites.push_back(wd);
         }
@@ -1453,70 +1576,338 @@ namespace {
 //   cheerleading is posted at scale (King, Pan & Roberts 2013, 2017: ~448 million
 //   fabricated posts a year, distraction and praise rather than argument), and users
 //   self-censor under real-name registration (Roberts 2018).
+// How a nation's people feel and may speak online (social feeds, forums, tabloids).
+struct mood {
+    float freedom = 0.8f;  // press freedom x (1 - half the information control)
+    float control = 0.0f;  // information control x (1 - press freedom)
+    float hardship = 0.0f; // joblessness above normal, prices, deaths, unrest, fighting: 0..1
+    float support = 0.5f;  // legitimacy
+    float revolt = 0.0f;   // appetite for overthrow: insurgency and collapsed legitimacy
+    float religious = 0.5f;// traditional (religious) values 0..1 (the secular-traditional axis)
+    bool closed = false;   // a closed intranet
+};
+
+mood mood_of(game_state const& state, directory const& dir, dcon::nation_id n) {
+    auto const& w = state.world;
+    mood m;
+    if(!n) return m;
+    const float mf = w.nation_get_media_freedom(n), ic = w.nation_get_info_control(n);
+    m.freedom = std::clamp(mf * (1.0f - 0.5f * ic), 0.0f, 1.0f);
+    m.control = std::clamp(ic * (1.0f - mf), 0.0f, 1.0f);
+    m.closed = static_cast<std::size_t>(n.index()) < dir.sector_of.size() && dir.sectors[dir.sector_of[static_cast<std::size_t>(n.index())]].closed;
+    float unrest = 0.0f, insurgency = 0.0f, pop = 0.0f;
+    double values = 0.0, people = 0.0;
+    for(auto own : w.nation_get_region_ownership(n)) {
+        auto r = own.get_region();
+        unrest += r.get_unrest() * r.get_population();
+        insurgency += (r.get_insurgency() > 0.0f ? 1.0f : 0.0f) * r.get_population();
+        pop += r.get_population();
+        for(auto loc : r.get_pop_location()) {
+            values += loc.get_pop().get_size() * loc.get_pop().get_values(static_cast<uint8_t>(value_axis::secular));
+            people += loc.get_pop().get_size();
+        }
+    }
+    if(pop > 0.0f) unrest /= pop, insurgency /= pop;
+    // Secular-traditional axis: -1 traditional .. +1 secular (WVS).
+    m.religious = people > 0.0 ? std::clamp(0.5f - 0.5f * static_cast<float>(values / people), 0.0f, 1.0f) : 0.5f;
+    m.support = w.nation_get_legitimacy(n);
+    m.hardship = std::clamp(5.0f * std::max(0.0f, w.nation_get_unemployment(n) - w.nation_get_unemployment0(n))
+                                + 3.0f * std::max(0.0f, w.nation_get_inflation_expect(n) - w.nation_get_inflation_trend(n) - 0.02f)
+                                + 0.05f * reported_deaths_per_million_daily(state, n) + 0.25f * std::max(0.0f, unrest - 1.0f) + 0.6f * insurgency,
+                            0.0f, 1.0f);
+    m.revolt = std::clamp(1.5f * insurgency + 2.0f * std::max(0.0f, 0.3f - m.support) + 0.15f * std::max(0.0f, unrest - 2.0f), 0.0f, 1.0f);
+    return m;
+}
+
+std::string fill_tokens(std::string t, std::initializer_list<std::pair<char const*, std::string>> subs) {
+    for(auto const& [from, to] : subs) {
+        const std::string f(from);
+        for(auto q = t.find(f); q != std::string::npos; q = t.find(f, q + to.size())) t.replace(q, f.size(), to);
+    }
+    return t;
+}
+
+std::string culture_label(std::string key) {
+    for(auto& c : key) c = c == '_' ? ' ' : c;
+    bool up = true;
+    for(auto& c : key) {
+        if(up) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        up = c == ' ';
+    }
+    return key;
+}
+
+// What a post is about (docs/08-ui.md#internet). Most of social media is everyday life:
+// national politics was ~13 % of US adults' tweets (Hughes et al. 2019, Pew), and politics
+// takes over in hard times (attention follows crises: Jungherr 2016; Tufekci 2017).
+// Complaints about daily life and local officials pass even China's censors - what is
+// removed is collective action (King, Pan & Roberts 2013); open praise dominates only under
+// total control (a DPRK-like intranet); calls for an overthrow and boycotts appear where
+// legitimacy has collapsed or an insurgency runs, openly on free networks and, when
+// support is very low, even under control (Tunisia 2010-11: Howard & Hussain 2013).
+enum class post_kind : uint8_t { mundane, complaint, resigned, politics, praise, overthrow, boycott };
+
+post_kind draw_kind(mood const& m, float freedom, double u) {
+    std::array<double, 7> wt{};
+    const bool total_control = m.closed || (m.control > 0.85f && m.freedom < 0.1f);
+    wt[static_cast<int>(post_kind::praise)] = total_control ? 0.55 : 0.01 + 0.04 * m.control + 0.02 * m.support;
+    wt[static_cast<int>(post_kind::politics)] = (0.13 + 0.45 * m.hardship) * (freedom > 0.3f ? 1.0 : 0.4) * (total_control ? 0.2 : 1.0);
+    wt[static_cast<int>(post_kind::complaint)] = (0.12 + 0.25 * m.hardship) * (total_control ? 0.05 : 1.0);
+    const double hybrid = std::clamp(1.0 - 2.0 * std::abs(freedom - 0.4f), 0.0, 1.0); // between free and controlled
+    wt[static_cast<int>(post_kind::resigned)] = total_control ? 0.0 : (0.04 + 0.16 * hybrid) * (1.0 - m.support) + 0.1 * m.hardship * hybrid;
+    const double openly = freedom > 0.45f || m.support < 0.2f ? 1.0 : 0.15;
+    wt[static_cast<int>(post_kind::overthrow)] = total_control ? 0.0 : 0.35 * m.revolt * openly;
+    wt[static_cast<int>(post_kind::boycott)] = total_control ? 0.0 : std::clamp(0.3 * std::max(0.0f, 0.45f - m.support) + 0.1 * m.hardship, 0.0, 0.2) * openly;
+    double rest = 1.0;
+    for(int k = 1; k < 7; ++k) rest -= wt[static_cast<std::size_t>(k)];
+    wt[static_cast<int>(post_kind::mundane)] = std::max(0.08, rest);
+    double total = 0.0;
+    for(double x : wt) total += x;
+    double d = u * total;
+    for(int k = 0; k < 7; ++k) {
+        if((d -= wt[static_cast<std::size_t>(k)]) <= 0.0) return static_cast<post_kind>(k);
+    }
+    return post_kind::mundane;
+}
+
+// How much an event concerns the people of `p` (0..1): their own nation's events fully;
+// an ally's (the alliance tie the organisations use), a large trading partner's or a
+// rival's partly; otherwise by its global weight - the share of world output involved, for
+// wars and sanctions most (a war between great powers concerns everyone; an election in a
+// small nation, its neighbours and partners).
+float relevance(game_state const& state, dcon::nation_id p, dcon::nation_id n, dcon::nation_id m, std::string const& tag, double world_gdp) {
+    auto const& w = state.world;
+    if(!p) return 0.3f;
+    if(n == p || m == p) return 1.0f;
+    auto tie_to = [&](dcon::nation_id x) -> float {
+        if(!x) return 0.0f;
+        const auto k = static_cast<uint16_t>(x.index());
+        const float ally = w.nation_get_alliance(p, k) > 0.0f ? 0.6f : 0.0f;
+        const float trade = std::min(0.5f, 3.0f * (w.nation_get_trade_share(p, static_cast<uint8_t>(x.index())) + w.nation_get_trade_share(x, static_cast<uint8_t>(p.index()))));
+        const float rival = w.nation_get_hostility(p, k) >= 2.0f ? 0.5f : 0.0f;
+        return std::max({ally, trade, rival});
+    };
+    double gdp = (n ? w.nation_get_gdp0(n) : 0.0f) + (m ? w.nation_get_gdp0(m) : 0.0f);
+    const double scale = tag == "War" || tag == "Sanctions" ? 1.5 : tag == "Conflict" || tag == "Revolution" || tag == "Coup" ? 1.2 : 0.8;
+    const float global = static_cast<float>(std::min(1.0, scale * std::sqrt(world_gdp > 0.0 ? gdp / world_gdp : 0.0)));
+    return std::clamp(std::max(tie_to(n) + 0.3f * tie_to(m), global), 0.0f, 1.0f);
+}
+
+// A social network's feed: posts by its users - from the nations where it is used (the
+// global web also carries users of walled-off webs who climb the wall: ~30 % of China's
+// internet users had a VPN, GlobalWebIndex 2017; censorship is porous, Roberts 2018),
+// each with its flag, a culture (name, slang) and a username - about everyday life and
+// the news, by the poster's nation's mood. Replies stay mostly within a language (Hale
+// 2014: language homophily on Twitter); a reply across languages is marked translated.
 void social_feed(page& pg, game_state const& state, names const& nm, directory const& dir, site const& s, std::vector<event> const& events, uint64_t day_key) {
     auto const& w = state.world;
-    // The network's users by nation.
-    std::vector<std::pair<double, dcon::nation_id>> users;
+    struct user_nation {
+        double weight;
+        dcon::nation_id n;
+        bool vpn;
+    };
+    std::vector<user_nation> users;
     double total = 0.0;
     for(auto n : w.in_nation) {
         const auto i = static_cast<std::size_t>(n.id.index());
-        if(i >= dir.sector_of.size() || dir.sector_of[i] != s.sector) continue;
-        if(core::unpack_key(n.get_iso3()) == "ROW") continue;
+        if(i >= dir.sector_of.size() || core::unpack_key(n.get_iso3()) == "ROW") continue;
         const double u = n.get_population() * std::min(0.98f, n.get_connectivity() / 0.84f);
         if(u <= 0.0) continue;
-        users.push_back({u, n.id});
-        total += u;
+        if(dir.sector_of[i] == s.sector) {
+            users.push_back({u, n.id, false});
+            total += u;
+        } else if(s.sector == 0 && !dir.sectors[dir.sector_of[i]].closed) {
+            const float nf = n.get_net_filtering();
+            const double vpn = 0.3 * nf + 0.6 * (1.0f - nf); // the wall's height: who climbs it
+            users.push_back({u * vpn, n.id, nf > 0.3f});
+            total += u * vpn;
+        }
     }
     if(users.empty() || total <= 0.0) return;
-    // How free the network is: its host's (the global web: free).
     const float host_free = s.nation ? std::clamp(w.nation_get_media_freedom(s.nation) * (1.0f - 0.5f * w.nation_get_info_control(s.nation)), 0.0f, 1.0f) : 0.85f;
-    std::vector<headline> topics;
-    for(auto const& e : events) topics.push_back({e.neutral, e.tag, e.tick, e.tone, e.weight});
+    // Topics: the world's events and the host's own news, each drawn for a poster by its
+    // newsworthiness x how much it concerns the poster's nation (relevance).
+    struct topic_item {
+        headline h;
+        dcon::nation_id n, m;
+    };
+    std::vector<topic_item> topics;
+    for(auto const& e : events) topics.push_back({{e.neutral, e.tag, e.tick, e.tone, e.weight, e.gist, e.n ? nation_name(state, nm, e.n) : std::string{}, e.deaths}, e.n, e.m});
     if(s.nation) {
-        for(auto const& h : domestic_news(state, nm, events, s.nation, s.propaganda, facts_of(state, s.nation), text_hash(s.domain))) topics.push_back(h);
+        for(auto h : domestic_news(state, nm, events, s.nation, s.propaganda, facts_of(state, s.nation), text_hash(s.domain))) {
+            h.place = nation_name(state, nm, s.nation);
+            topics.push_back({h, s.nation, {}});
+        }
     }
+    double world_gdp = 0.0;
+    for(auto n : w.in_nation) world_gdp += n.get_gdp0();
+    std::vector<std::pair<dcon::nation_id, std::vector<float>>> topic_weights; // per poster nation
+    auto weights_for = [&](dcon::nation_id p) -> std::vector<float> const& {
+        for(auto const& tw : topic_weights) {
+            if(tw.first == p) return tw.second;
+        }
+        std::vector<float> wv(topics.size());
+        for(std::size_t i = 0; i < topics.size(); ++i) {
+            wv[i] = static_cast<float>(topics[i].h.weight) * relevance(state, p, topics[i].n, topics[i].m, topics[i].h.tag, world_gdp);
+        }
+        topic_weights.push_back({p, std::move(wv)});
+        return topic_weights.back().second;
+    };
+    std::vector<std::pair<dcon::nation_id, mood>> moods;
+    auto mood_for = [&](dcon::nation_id n) -> mood const& {
+        for(auto const& m : moods) {
+            if(m.first == n) return m.second;
+        }
+        moods.push_back({n, mood_of(state, dir, n)});
+        return moods.back().second;
+    };
+    auto pick_culture = [&](std::vector<std::pair<int, float>> const& mix, uint64_t seed) {
+        float t = 0.0f;
+        for(auto const& m : mix) t += m.second;
+        float d = unit(seed) * t;
+        for(auto const& m : mix) {
+            if((d -= m.second) <= 0.0f) return m.first;
+        }
+        return mix.empty() ? -1 : mix.back().first;
+    };
     add(pg, block::kind::heading, "Feed");
-    for(int k = 0; k < 12; ++k) {
+    std::string prev_author;
+    int prev_culture = -1;
+    dcon::nation_id prev_nation;
+    for(int k = 0; k < 14; ++k) {
         const uint64_t ph = hash(text_hash(s.domain), day_key, static_cast<uint64_t>(k));
-        // The author's nation, by users.
+        // A reply to the previous post? Then mostly someone sharing its language.
+        const bool reply = k > 0 && unit(hash(ph, 21)) < 0.3f;
+        dcon::nation_id an = users.back().n;
+        bool vpn = false;
         double draw = unit(ph) * total;
-        dcon::nation_id an = users.back().second;
-        for(auto const& [u, n] : users) {
-            if((draw -= u) <= 0.0) {
-                an = n;
+        for(auto const& u : users) {
+            if((draw -= u.weight) <= 0.0) {
+                an = u.n;
+                vpn = u.vpn;
                 break;
             }
         }
-        const float an_free = std::clamp(w.nation_get_media_freedom(an) * (1.0f - 0.5f * w.nation_get_info_control(an)), 0.0f, 1.0f);
-        const float freedom = std::min(host_free, an_free); // the stricter of host and home
+        if(reply && prev_nation && unit(hash(ph, 23)) < 0.6f) an = prev_nation, vpn = false;
+        mood m = mood_for(an);
+        // Attention: a war, revolution, coup or sanctions that concern the poster's nation
+        // pull its posts toward politics like hard times do.
+        auto const& tw = weights_for(an);
+        for(std::size_t i = 0; i < topics.size(); ++i) {
+            auto const& tg = topics[i].h.tag;
+            const float severity = tg == "War" ? 1.0f : tg == "Conflict" ? 0.8f : tg == "Revolution" ? 0.7f : tg == "Coup" ? 0.6f : tg == "Sanctions" ? 0.5f : 0.0f;
+            if(severity > 0.0f) m.hardship = std::max(m.hardship, severity * relevance(state, an, topics[i].n, topics[i].m, tg, world_gdp));
+        }
+        const float freedom = std::min(host_free, m.freedom); // the stricter of host and home
         std::vector<std::pair<int, float>> mix;
         if(nm.people && !nm.people->empty()) mix = culture_mix(state, *nm.people, an);
-        const std::string author = username(nm, mix, freedom, hash(ph, 0xA0));
-        const std::string N = nation_name(state, nm, an), A = adj_or_name(N);
-        headline const* topic = topics.empty() ? nullptr : &topics[hash(ph, 3) % topics.size()];
-        // Under control a poster avoids bad news about home (self-censorship and deletion).
-        if(topic && freedom < 0.45f && topic->tone < 0 && topic->text.find(N) != std::string::npos) topic = nullptr;
-        // Quiet news (or a topic avoided): everyday subjects.
-        std::string T = topic && unit(hash(ph, 17)) < 0.75f ? topic->text : pick(nm, "topic", hash(ph, 19), "the weather");
-        if(T.size() > 70) T = T.substr(0, 67) + "...";
-        std::string text;
-        const double r = unit(hash(ph, 5));
-        // Cheerleading: all of a closed network, a share of a controlled one (King, Pan &
-        // Roberts 2017), none of a free one.
-        const double cheer = std::clamp((0.45 - freedom) / 0.3, 0.0, 1.0);
-        if(unit(hash(ph, 13)) < cheer) {
-            text = pick(nm, "post_praise", hash(ph, 7), "Long live {N}!");
-            for(auto [from, to] : {std::pair<std::string, std::string>{"{N}", N}, {"{A}", A}}) {
-                for(auto q = text.find(from); q != std::string::npos; q = text.find(from)) text.replace(q, from.size(), to);
+        const int culture = pick_culture(mix, hash(ph, 0xC1));
+        const std::vector<std::pair<int, float>> one = culture >= 0 ? std::vector<std::pair<int, float>>{{culture, 1.0f}} : mix;
+        const std::string author = username(nm, one, freedom, hash(ph, 0xA0));
+        const std::string N = nation_name(state, nm, an), A = adj_or_name(N), C = place_of(state, nm, an, hash(ph, 31));
+        headline const* topic = nullptr;
+        {
+            double sum = 0.0;
+            for(float x : tw) sum += x;
+            double d = unit(hash(ph, 3)) * sum;
+            for(std::size_t i = 0; i < topics.size() && sum > 0.0; ++i) {
+                if((d -= tw[i]) <= 0.0) {
+                    topic = &topics[i].h;
+                    break;
+                }
             }
+        }
+        if(topic && freedom < 0.45f && topic->tone < 0 && topic->text.find(N) != std::string::npos) topic = nullptr; // self-censorship at home
+        int feel = 0;
+        if(topic) {
+            dcon::nation_id subj;
+            for(auto const& ti : topics) {
+                if(&ti.h == topic) subj = ti.n;
+            }
+            const auto k = subj ? static_cast<uint16_t>(subj.index()) : uint16_t{0};
+            const bool own = subj == an;
+            const bool friendly = subj && !own && (w.nation_get_alliance(an, k) > 0.0f || w.nation_get_trust(an, k) > 0.7f);
+            const bool enemy = subj && !own && (w.nation_get_at_war(an, k) > 0.0f || (w.nation_get_hostility(an, k) >= 3.0f && w.nation_get_trust(an, k) < 0.2f))
+                               && w.nation_get_legitimacy(an) > 0.5f;
+            if(own || friendly) feel = topic->tone;
+            else if(enemy) feel = -topic->tone;
+            else if(topic->tag == "Disaster" || topic->tag == "War" || topic->tag == "Conflict") feel = -1; // sympathy
+        }
+        std::string T = topic ? topic->text : pick(nm, "topic", hash(ph, 19), "the weather");
+        if(T.size() > 70) T = T.substr(0, 67) + "...";
+        std::string text, xf; // the template and how it renders the topic
+        bool informal = true;
+        auto choose = [&](char const* kind, char const* fallback) {
+            auto [t, x] = pick_entry(nm, kind, hash(ph, 7), fallback);
+            xf = x;
+            return t;
+        };
+        if(reply && !prev_author.empty()) {
+            text = choose("post_reply", "@{U} agreed");
         } else {
-            const double chaotic = 0.15 + 0.5 * freedom, absurd = 0.12 * freedom, essay = 0.12;
-            text = r < chaotic                    ? pick(nm, "post_chaos", hash(ph, 7), "{T}!!")
-                   : r < chaotic + absurd         ? pick(nm, "post_nonsense", hash(ph, 7), "{T}?")
-                   : r < chaotic + absurd + essay ? pick(nm, "post_formal", hash(ph, 7), "Regarding {T}: a measured view is needed.")
-                                                  : pick(nm, "post_plain", hash(ph, 7), "{T}");
-            for(auto [from, to] : {std::pair<std::string, std::string>{"{T}", T}, {"{N}", N}}) {
-                for(auto q = text.find(from); q != std::string::npos; q = text.find(from)) text.replace(q, from.size(), to);
+            switch(draw_kind(m, freedom, unit(hash(ph, 13)))) {
+            case post_kind::mundane: text = choose("post_mundane", "Good morning from {C}"); break;
+            case post_kind::complaint: text = choose("post_complaint", "Prices in {C} keep going up"); break;
+            case post_kind::resigned: text = choose("post_resigned", "It's bad, but it could be worse."); break;
+            case post_kind::praise: text = choose("post_praise", "Long live {N}!"), informal = false; break;
+            case post_kind::overthrow: text = choose("post_overthrow", "They have to go."), informal = false; break;
+            case post_kind::boycott: text = choose("post_boycott", "Boycott them all."); break;
+            case post_kind::politics: {
+                const double r = unit(hash(ph, 5));
+                const double chaotic = 0.15 + 0.5 * freedom, absurd = 0.12 * freedom, essay = 0.12;
+                // How the event feels to the poster: its tone for their own nation and its
+                // friends; reversed for an enemy they are at war with while the war has support
+                // at home (legitimacy as the rally); sympathy for a disaster elsewhere;
+                // otherwise neutral. A gloat that slips through is rarely liked.
+                const std::string suffix = feel > 0 ? "_good" : feel < 0 ? "_bad" : "";
+                auto pick_feel = [&](char const* base, char const* fallback) {
+                    const std::string k = std::string(base) + suffix;
+                    auto const* pool = nm.text ? nm.text->of(k) : nullptr;
+                    return pool && !pool->empty() ? choose(k.c_str(), fallback) : choose(base, fallback);
+                };
+                text = r < chaotic                    ? pick_feel("post_chaos", "{T}!!")
+                       : r < chaotic + absurd         ? choose("post_nonsense", "{T}?")
+                       : r < chaotic + absurd + essay ? choose("post_formal", "Regarding {T}: a measured view is needed.")
+                                                      : pick_feel("post_plain", "{T}");
+                informal = r < chaotic + absurd || r >= chaotic + absurd + essay;
+                break;
+            }
+            }
+        }
+        // The topic as this template says it: the headline, a casual gist ("cameroon got
+        // flooded"), shouted, solemn ("the 50 dead in Cameroon"), just the place, or the
+        // wrong place (a confused poster).
+        auto upper = [](std::string x) {
+            for(auto& c : x) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            return x;
+        };
+        std::string Tr = T;
+        if(topic) {
+            const std::string gist = lower(topic->gist.empty() ? topic->text : topic->gist);
+            const std::string place = topic->place.empty() ? gist : topic->place;
+            if(xf == "lossy") Tr = gist;
+            else if(xf == "loud" || xf == "fear") Tr = upper(gist);
+            else if(xf == "serious") Tr = topic->deaths >= 1.0f ? fmt("the %.0f dead in ", static_cast<double>(topic->deaths)) + place : "the people of " + place;
+            else if(xf == "place") Tr = place;
+            else if(xf == "stupid") {
+                std::string wrong = place;
+                for(int tries = 0; tries < 8 && wrong == place; ++tries) {
+                    const auto& u = users[hash(ph, 51, static_cast<uint64_t>(tries)) % users.size()];
+                    wrong = nation_name(state, nm, u.n);
+                }
+                Tr = wrong;
+            }
+        } else if(xf == "loud" || xf == "fear") {
+            Tr = upper(T);
+        }
+        text = fill_tokens(text, {{"{T}", Tr}, {"{N}", N}, {"{A}", A}, {"{C}", C}, {"{U}", prev_author}});
+        // Slang of the poster's culture, kept through the translator with a gloss.
+        if(informal && culture >= 0 && nm.people && nm.text && unit(hash(ph, 41)) < 0.35f) {
+            const std::string lk = "lingo_" + nm.people->cultures[static_cast<std::size_t>(culture)];
+            if(auto const* pool = nm.text->of(lk); pool && !pool->empty()) {
+                const std::string& entry = (*pool)[hash(ph, 43) % pool->size()];
+                const auto tab = entry.find('\t');
+                text += " " + entry.substr(0, tab) + (tab != std::string::npos ? " [" + entry.substr(tab + 1) + "]" : std::string{});
             }
         }
         block b;
@@ -1524,10 +1915,19 @@ void social_feed(page& pg, game_state const& state, names const& nm, directory c
         b.author = author;
         b.iso3 = core::unpack_key(w.nation_get_iso3(an));
         b.text = text;
-        const double likes = std::pow(10.0, 1.0 + 3.5 * unit(hash(ph, 9))) * (1.0 + 2.0 * cheer); // boosted praise
+        const double likes = std::pow(10.0, 0.5 + 3.5 * unit(hash(ph, 9)));
         b.sub = fmt("%.0f likes", likes) + fmt(" · %.0fh ago", static_cast<double>(hash(ph, 11) % 23 + 1));
-        b.tone = text.find("!") != std::string::npos && freedom < 0.45f ? 1 : topic ? topic->tone : 0;
+        if(reply && !prev_author.empty()) {
+            b.sub += " · reply to @" + prev_author;
+            if(culture >= 0 && prev_culture >= 0 && culture != prev_culture && nm.people)
+                b.sub += " · translated from " + culture_label(nm.people->cultures[static_cast<std::size_t>(culture)]);
+        }
+        if(vpn) b.sub += " · via VPN";
+        b.tone = topic ? topic->tone : 0;
         pg.blocks.push_back(std::move(b));
+        prev_author = author;
+        prev_culture = culture;
+        prev_nation = an;
     }
 }
 
@@ -1626,7 +2026,7 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
         add(pg, block::kind::banner, "404 Not Found", "", "", -1);
         add(pg, block::kind::text, "The requested URL was not found on this server.");
         add(pg, block::kind::text, "Server at " + s->domain + " Port 80");
-        if(s->nation) add(pg, block::kind::text, "(" + nation_name(state, nm, s->nation) + " is in turmoil: its sites come and go.)");
+        if(s->nation) add(pg, block::kind::text, "(The connection to " + nation_name(state, nm, s->nation) + " is down: fighting or a shutdown.)");
         pg.ads_blocked = 0;
         return pg;
     }
@@ -1890,26 +2290,41 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
         pg.style = page::layout::forum;
         const auto n = s->nation;
         add(pg, block::kind::text, s->propaganda > 0.5f ? "Discuss the achievements of our nation. Posts are reviewed before publication." : "Community discussion. Be civil.");
-        add(pg, block::kind::heading, "Latest threads");
-        static constexpr char const* openers[] = {"[Discussion] ", "Anyone else following this? ", "Thoughts on: ", "Megathread: ", "So... "};
-        std::size_t shown = 0;
         auto const hs = n ? domestic_news(state, nm, events, n, s->propaganda, facts_of(state, n), text_hash(s->domain)) : world_news(state, events, {}, 0.0f);
+        // One megathread, pinned, on the biggest story, with by far the most replies.
+        if(!hs.empty()) {
+            auto top = std::max_element(hs.begin(), hs.end(), [](headline const& a, headline const& b) { return a.weight < b.weight; });
+            const uint64_t k = hash(text_hash(top->text), text_hash(s->domain));
+            add(pg, block::kind::headline, "📌 Megathread: " + top->text, fmt("%.0f replies · pinned", 800.0 + static_cast<double>(k % 9000) * top->weight), {}, top->tone);
+        }
+        // Discontent: where people may say it (or have stopped fearing to), threads organise.
+        if(n) {
+            const mood m = mood_of(state, dir, n);
+            if(!m.closed && (m.revolt > 0.15f || m.support < 0.3f) && (m.freedom > 0.45f || m.support < 0.2f)) {
+                add(pg, block::kind::heading, "Hot right now");
+                const std::string C = place_of(state, nm, n, day_key);
+                for(int q = 0; q < 3; ++q) {
+                    const uint64_t k = hash(text_hash(s->domain), day_key / 7) + static_cast<uint64_t>(q);
+                    add(pg, block::kind::headline, fill_tokens(pick(nm, "forum_uprising", k, "Is it time?"), {{"{C}", C}}),
+                        fmt("%.0f replies", 200.0 + static_cast<double>(k % 3000) * (0.5f + m.revolt)), {}, -1);
+                }
+            }
+        }
+        add(pg, block::kind::heading, "Latest threads");
+        std::size_t shown = 0;
         for(auto const& h : hs) {
             if(shown >= 8) break;
             const uint64_t k = hash(text_hash(h.text), text_hash(s->domain));
             const double replies = 5.0 + static_cast<double>(k % 400) * h.weight;
-            const std::string author = byp ? " · posted by " + handle(by.by(k), k) : std::string{};
-            add(pg, block::kind::headline, std::string(openers[k % std::size(openers)]) + h.text, fmt("%.0f replies", replies) + author, {}, h.tone);
+            const std::string author = byp ? " · posted by " + username(nm, by.mix, mood_of(state, dir, n).freedom, k) : std::string{};
+            add(pg, block::kind::headline, fill_tokens(pick(nm, "forum_opener", k, "{H}"), {{"{H}", h.text}}), fmt("%.0f replies", replies) + author, {}, h.tone);
             ++shown;
         }
         add(pg, block::kind::heading, "Off-topic");
-        static constexpr char const* offtopic[] = {"What are you cooking this weekend?", "Best budget phone this year?", "Post your view from the window",
-                                                   "Football transfer rumours thread", "Recommend me a book", "Weather thread: is it just me?",
-                                                   "Old photos of {N} (text descriptions only, the mods insist)", "How do you fix a squeaky door?"};
+
         const std::string N = n ? nation_name(state, nm, n) : std::string("the world");
         for(int k = 0; k < 4; ++k) {
-            std::string t = offtopic[hash(text_hash(s->domain), day_key / 7, static_cast<uint64_t>(k)) % std::size(offtopic)];
-            if(const auto p = t.find("{N}"); p != std::string::npos) t.replace(p, 3, N);
+            const std::string t = fill_tokens(pick(nm, "forum_offtopic", hash(text_hash(s->domain), day_key / 7) + static_cast<uint64_t>(k), "Recommend me a book"), {{"{N}", N}}); // distinct
             add(pg, block::kind::headline, t, fmt("%.0f replies", static_cast<double>(hash(text_hash(t), day_key) % 200)), {}, 0);
         }
         break;
@@ -2043,12 +2458,20 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
         const auto host = piracy_of(state, s->nation);
         add(pg, block::kind::banner, host.enforcement > 0.3f ? "Use a VPN. Your provider can see what you download." : "Welcome back, pirate. No logs, no rules.", "", "", 0);
         add(pg, block::kind::heading, "Top 20 this week");
-        const double base = s->users * 0.002;
+        // Swarms: a week's downloads of the top torrent are ~1 % of the tracker's users,
+        // falling with rank (popularity is Zipf-like across torrents: Zhang et al. 2011,
+        // "Unraveling the BitTorrent ecosystem"); about one downloader in a thousand is
+        // seeding at any time - most leave once done (Pouwelse et al. 2005: ~17 % stay an
+        // hour, few for days) - and leechers outnumber seeders on fresh releases (Guo et al.
+        // 2005).
+        const double top_downloads = s->users * 0.01;
         for(int k = 0; k < 20; ++k) {
             const uint64_t h = hash(text_hash(s->domain), day_key / 7, static_cast<uint64_t>(k));
             const std::string title = pick(nm, "torrent_adj", h, "Midnight") + " " + pick(nm, "torrent_noun", h >> 8, "Signal") + " " + pick(nm, "torrent_kind", h >> 16, "1080p");
-            const double seeders = base * std::pow(0.82, k) * (0.7 + 0.6 * unit(hash(h, 1)));
-            add(pg, block::kind::stat, title, fmt("%.0f seeders", seeders) + fmt(" · %.0f leechers", seeders * (0.3 + unit(hash(h, 2)))));
+            const double downloads = top_downloads / std::pow(static_cast<double>(k + 1), 0.9) * (0.7 + 0.6 * unit(hash(h, 1)));
+            const double seeders = std::max(1.0, downloads / 1000.0);
+            add(pg, block::kind::stat, title, fmt("%.0f seeders", seeders) + fmt(" · %.0f leechers", seeders * (1.0 + 4.0 * unit(hash(h, 2))))
+                                                  + fmt(" · %.0fk downloads this week", downloads / 1e3));
         }
         add(pg, block::kind::text, fmt("Hosted where %.0f%% of software is unlicensed", 100.0 * host.rate) + fmt(" and copyright enforcement scores %.2f.", host.enforcement));
         break;
@@ -2098,13 +2521,13 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
                     }
                 }
                 if(t.empty()) {
-                    static constexpr char const* lies[] = {"{R} ON THE BRINK OF COLLAPSE", "{R}'S ECONOMY IN RUINS, insiders say", "Citizens of {R} flee in their thousands",
-                                                           "{R} leaders panic as their plots fail"};
-                    t = lies[hash(text_hash(s->domain), r.index(), day_key / 7) % std::size(lies)];
-                    t.replace(t.find("{R}"), 3, R);
+                    t = fill_tokens(pick(nm, "tabloid_lies", hash(text_hash(s->domain), r.index(), day_key / 7), "{R} IN CRISIS"), {{"{R}", R}});
                 }
                 add(pg, block::kind::headline, t, "Exclusive · " + date_of(state, state.current_tick), {}, -1);
             }
+            // A state press of a devout nation calls on faith; an atheist party-state never does.
+            if(const mood m = mood_of(state, dir, n); m.religious > 0.7f && w.nation_get_liberal(n) > 0.1f)
+                add(pg, block::kind::headline, "Blessed is " + A + ": a year of grace and plenty", "Faith · " + date_of(state, state.current_tick), {}, 1);
             add(pg, block::kind::heading, "GLORY");
             auto hs = domestic_news(state, nm, events, n, 1.0f, facts_of(state, n), text_hash(s->domain));
             std::erase_if(hs, [](headline const& h) { return h.tone < 0; });
@@ -2123,11 +2546,45 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
                 ++shown;
             }
             add(pg, block::kind::headline, fmt("Leader's popularity at %.0f%%: what it means for YOU", 100.0 * w.nation_get_approval(n)), "Politics · " + date_of(state, state.current_tick), {}, 0);
+            // Celebrities, predictions and - for a religious readership where faith is free to
+            // speak - signs and prophecies (tabloids sell to their readers' worldview; religious
+            // and paranormal belief track the traditional pole of the values map: Inglehart &
+            // Welzel 2005; Norris & Inglehart 2011, Sacred and Secular).
+            const mood m = mood_of(state, dir, n);
+            const std::string C = place_of(state, nm, n, day_key), Y = std::to_string(core::date_from_tick(state.current_tick, state.epoch_days).year + 10);
+            const std::string D = date_of(state, state.current_tick + static_cast<int32_t>(10 + hash(text_hash(s->domain), day_key) % 60));
+            const std::string H = hs.empty() ? std::string("THE WORLD CHANGES FOREVER") : hs.front().text;
+            const std::string celeb = byp ? by.by(hash(day_key / 7, 0xCE1)) : std::string("A STAR");
+            auto upper = [](std::string x) {
+                for(auto& c : x) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                return x;
+            };
+            const std::string celeb_up = upper(celeb), C_up = upper(C), A_up = upper(A), H_up = upper(H);
+            add(pg, block::kind::heading, "CELEBS & STARS");
+            for(int q = 0; q < 2; ++q) {
+                add(pg, block::kind::headline, fill_tokens(pick(nm, "tabloid_celebrity", hash(text_hash(s->domain), day_key / 7) + static_cast<uint64_t>(q), "SCANDAL!"), {{"{CELEB}", celeb_up}, {"{C}", C_up}}),
+                    "Showbiz · " + date_of(state, state.current_tick), {}, 0);
+            }
+            add(pg, block::kind::headline, fill_tokens(pick(nm, "tabloid_prediction", hash(text_hash(s->domain), day_key / 7, 7), "WHAT'S NEXT?"), {{"{N}", A_up}, {"{YEAR}", Y}, {"{H}", H_up}}),
+                "Predictions · " + date_of(state, state.current_tick), {}, 0);
+            if(m.religious > 0.55f && w.nation_get_liberal(n) > 0.3f) {
+                add(pg, block::kind::heading, "SIGNS & WONDERS");
+                add(pg, block::kind::headline, fill_tokens(pick(nm, "tabloid_mystic", hash(text_hash(s->domain), day_key / 7, 9), "A SIGN!"), {{"{DATE}", upper(D)}, {"{C}", C_up}, {"{H}", H_up}}),
+                    "Faith · " + date_of(state, state.current_tick), {}, 0);
+            }
             add(pg, block::kind::heading, "Around the world");
             add_headlines(pg, state, world_news(state, events, n, 0.0f), 4);
         }
         break;
     }
+    }
+    // Headline variety: news sites frame some stories ("BREAKING: ...", "Analysis: ...").
+    if(s->kind == site_kind::paper || s->kind == site_kind::regional || s->kind == site_kind::business || s->kind == site_kind::watchdog) {
+        for(auto& b : pg.blocks) {
+            if(b.k != block::kind::headline) continue;
+            const uint64_t k = hash(text_hash(b.text), text_hash(s->domain));
+            if(unit(k) < 0.3f) b.text = fill_tokens(pick(nm, "headline_frame", k >> 8, "{H}"), {{"{H}", b.text}});
+        }
     }
     // Footer: more from the same nation or sector.
     add(pg, block::kind::rule, "");

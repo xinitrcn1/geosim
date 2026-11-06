@@ -109,7 +109,11 @@ bool load_domain_table(std::string const& defs_dir, domain_table& out, std::stri
 // torrent names and titles. Moddable; missing kinds fall back to a built-in line.
 struct web_text {
     std::vector<std::pair<std::string, std::vector<std::string>>> pools;
+    // Per pool, per line: how a post renders its topic {T} (the optional transform column:
+    // headline, lossy, loud, serious, stupid, fear, place; "" = headline).
+    std::vector<std::vector<std::string>> transforms;
     [[nodiscard]] std::vector<std::string> const* of(std::string_view kind) const;
+    [[nodiscard]] std::string const* transform_of(std::string_view kind, std::size_t line) const;
 };
 bool load_web_text(std::string const& defs_dir, web_text& out, std::string& error);
 

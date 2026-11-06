@@ -1,0 +1,77 @@
+# Internet slang by culture (the culture keys of names.csv / name_cultures.csv), for the in-game
+# social networks and forums (src/sim/web.cpp). Posts are read through a translator, so slang is
+# kept as written with a gloss: "88 [bye bye]". Moddable: add rows, add cultures.
+# Sources: numeric homophones and netspeak in Chinese (Gao 2006, World Englishes 25; Yang 2009,
+# The Power of the Internet in China), Japanese BBS style (Nishimura 2003), Thai "555" (five,
+# "ha"), Brazilian "kkkk" and Spanish "jajaja" laughter (Tagliamonte 2016, Teen Talk), Russian
+# and Ukrainian internet slang (Gorham, Lunde & Paulsen 2014, Digital Russia), Nigerian Pidgin
+# online (Mensah 2012), Hebrew and Arabic loans in everyday chat.
+culture,term,gloss
+chinese,88,bye bye
+chinese,666,awesome
+chinese,yyds,the greatest of all time
+chinese,tang ping,lying flat
+chinese,520,I love you
+chinese,hhhh,haha
+chinese,996,"working 9 to 9, 6 days a week"
+russian,zhest',harsh
+russian,kek,lol
+russian,nu vsyo,well that's it
+russian,akhakh,haha
+russian,kapets,disaster
+ukrainian,zhest',harsh
+ukrainian,kapets,disaster
+ukrainian,akhakh,haha
+japanese,www,lol
+japanese,kusa,lol
+japanese,yabai,crazy
+korean,kekeke,lol
+korean,daebak,amazing
+korean,aigoo,oh dear
+thai,555,hahaha
+thai,jing jing,seriously
+vietnamese,hihi,hehe
+malay_indonesian,wkwkwk,lol
+malay_indonesian,anjay,wow
+filipino,charot,just kidding
+filipino,lodi,idol
+hispanic,jajaja,hahaha
+hispanic,xd,lol
+hispanic,chévere,cool
+portuguese,kkkk,hahaha
+portuguese,rsrs,lol
+french,mdr,lol
+french,bof,meh
+french,ptdr,rolling on the floor
+german,krass,intense
+german,na ja,oh well
+dutch,gezellig,cosy
+italian,boh,who knows
+italian,mannaggia,damn
+greek,ela,come on
+polish,masakra,massacre
+anglo,lol,laughing out loud
+anglo,ngl,not gonna lie
+anglo,fr,for real
+anglo,bruh,bro
+arabic,wallah,I swear
+arabic,yalla,let's go
+arabic,khalas,enough
+persian,dige,come on
+persian,khob,well
+turkish,valla,I swear
+turkish,yani,I mean
+hebrew,sababa,cool
+hebrew,yalla,let's go
+indian,yaar,friend
+indian,arre,hey
+pakistani,yaar,friend
+bengali,bhai,brother
+west_african,wahala,trouble
+west_african,abeg,please
+west_african,japa,to emigrate
+east_african,sawa,okay
+east_african,pole,sorry
+southern_african,eish,ugh
+southern_african,lekker,nice
+nordic,lagom,just enough
