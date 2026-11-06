@@ -15,6 +15,7 @@
 #include "ui_layout.hpp"
 #include "ui_renderer.hpp"
 #include "flags.hpp"
+#include "sim/systems.hpp"
 #include "vk_context.hpp"
 
 #include <SDL3/SDL.h>
@@ -307,6 +308,11 @@ int run_app(app_options const& opt) {
         std::string pending_save_path;
         ui_context ui(text);
         alert_feed alerts;
+        // Redrawing state borders from the map tooltip: the options being fetched (for the map
+        // region in redraw_for) and the order sent (its seq, for the result alert).
+        std::future<redraw_view> pending_redraw;
+        int redraw_for = -1;
+        uint32_t redraw_agent = 0xFFFFFFFFu, redraw_seq = 0;
         hud_state hud;
         if(!opt.politics.empty()) {
             hud.open = hud_action::politics;
@@ -589,7 +595,7 @@ int run_app(app_options const& opt) {
                     // The inset map is drawn from the polygons on the GPU: its geometry and the
                     // colour per raster region for the current mode; the hovered region comes back.
                     if(auto geo = political.electoral_geometry_of(hud.politics_nation)) {
-                        std::vector<uint32_t> colours(political.table().size() / 2, 0u);
+                        std::vector<uint32_t> colours(political.table().size() / 3, 0u);
                         for(std::size_t li = 0; li < geo->regions.size() && li < politics_info.colours.size(); ++li) {
                             const auto r = static_cast<std::size_t>(geo->regions[li]) + 1;
                             if(r < colours.size()) colours[r] = pack(politics_info.colours[li]);
@@ -682,6 +688,43 @@ int run_app(app_options const& opt) {
                     } else {
                         hud.tooltip_region = -1;
                         hud.tooltip_expanded = false;
+                    }
+                    // State borders: options when the expanded tooltip shows a region of a
+                    // nation whose government the player controls.
+                    if(hud.tooltip_expanded && !hud.tooltip_tile && hud.tooltip_region >= 0) {
+                        const int owner = political.owner_of(hud.tooltip_region);
+                        const int sr = political.sim_region(hud.tooltip_region);
+                        uint32_t exec = 0xFFFFFFFFu;
+                        for(auto const& a : sim.controlled_agents()) {
+                            if(a.kind == static_cast<uint8_t>(sim::agent_kind::executive) && owner >= 0 && a.nation == static_cast<uint32_t>(owner)) exec = a.agent;
+                        }
+                        if(exec != 0xFFFFFFFFu && sr >= 0 && redraw_for != hud.tooltip_region && !pending_redraw.valid()) {
+                            pending_redraw = sim.request_redraw(static_cast<uint32_t>(sr), exec);
+                            redraw_for = hud.tooltip_region;
+                            redraw_agent = exec;
+                        }
+                    }
+                    if(pending_redraw.valid() && pending_redraw.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                        hud.redraw = pending_redraw.get();
+                        hud.redraw.region = static_cast<uint32_t>(redraw_for); // the map's region index (the tooltip's)
+                    }
+                    if(hud.redraw_pick >= 0 && static_cast<std::size_t>(hud.redraw_pick) < hud.redraw.options.size()) {
+                        action_order o;
+                        o.kind = static_cast<uint8_t>(sim::action_kind::redraw_state);
+                        o.agent = redraw_agent;
+                        o.region = static_cast<uint32_t>(political.sim_region(static_cast<int>(hud.redraw.region)));
+                        o.state_to = hud.redraw.options[static_cast<std::size_t>(hud.redraw_pick)].state;
+                        redraw_seq = sim.perform(o);
+                        redraw_for = -1; // refresh the options
+                        hud.redraw = {};
+                    }
+                    hud.redraw_pick = -1;
+                    if(redraw_seq != 0) {
+                        action_outcome res;
+                        if(sim.take_result(redraw_seq, res)) {
+                            alerts.push_local("\U0001F5FA", res.accepted ? "State borders redrawn" : "Redrawing refused", res.message, res.accepted ? tone::good : tone::bad);
+                            redraw_seq = 0;
+                        }
                     }
                     if(hud.tooltip_region >= 0) {
                         draw_map_tooltip(ui, hud.tooltip_tile ? political.describe_tile(hud.tooltip_region, hud.politics_mode, sim)

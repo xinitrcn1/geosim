@@ -88,9 +88,15 @@ std::future<hazard_snapshot> sim_runner::request_hazards() {
 std::future<region_snapshot> sim_runner::request_regions(bool with_faults) {
     auto promise = std::make_shared<std::promise<region_snapshot>>();
     auto future = promise->get_future();
-    post([promise, with_faults](game_state& s) {
+    post([this, promise, with_faults](game_state& s) {
         region_snapshot out;
         out.tick = s.current_tick;
+        // State names (sim thread): states created by redrawing get a name of their own.
+        if(state_names_.size() < s.world.state_size()) state_names_.resize(s.world.state_size());
+        for(std::size_t i = 0; i < state_names_.size(); ++i) {
+            if(state_names_[i].empty()) state_names_[i] = "New state " + std::to_string(i);
+        }
+        out.state_names = state_names_;
         auto const& w = s.world;
         const core::civil_date today = core::date_from_tick(s.current_tick, s.epoch_days);
         out.month = static_cast<int>(today.month);
@@ -115,6 +121,7 @@ std::future<region_snapshot> sim_runner::request_regions(bool with_faults) {
             row.grievance = r.get_grievance();
             row.protest = r.get_protest();
             row.population = r.get_population();
+            row.state = r.get_state() ? static_cast<uint32_t>(r.get_state().id.index()) : 0xFFFFFFFFu;
             row.infections_100k = row.population > 0.0f ? r.get_new_infections() / row.population * 1e5f : 0.0f;
         }
         const auto count = static_cast<uint16_t>(w.nation_size());

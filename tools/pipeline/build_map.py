@@ -2,8 +2,9 @@
 """Build the world map asset assets/map/world.gsmap (docs/07-map-and-filters.md).
 
 Inputs (python3 tools/pipeline/fetch.py --map-only downloads the ones in data/raw/map/):
-  data/raw/geoboundaries/*.geojson     ADM1 polygons, matched to assets/scenario/world2020/regions.csv
-                                       with the same rules as build_world.py (jurisdictions, claims)
+  data/raw/geoboundaries_adm2/*.geojson  counties (ADM2), the drawn units of assets/scenario/world2020/adm2.csv
+  data/raw/geoboundaries/*.geojson     ADM1 polygons: states without ADM2 data are one unit (matched with
+                                       the rules of build_world.py: jurisdictions, claims)
   data/raw/map/ne_10m_admin_0_countries.geojson
                                        territories without ADM1 data (Hong Kong, Puerto Rico, ...)
   data/raw/map/ne_50m_lakes.geojson    large lakes (cut out of the regions: drawn as water)
@@ -13,21 +14,26 @@ Inputs (python3 tools/pipeline/fetch.py --map-only downloads the ones in data/ra
 Output layers, all equirectangular (lon -180..180 left to right, lat 90..-90 top to bottom,
 cell-centred):
   IDS0  uint16 [ID_H][ID_W]   0 = water, 0xFFFF = land of no region (Antarctica, small islands
-                              missing from the polygons), else 1 + the region's row in regions.csv
+                              missing from the polygons), else 1 + the unit's row in adm2.csv
   ELEV  uint8  [T_H][T_W]     relief code: 0..127 sea (depth = 11000 m x ((127 - c) / 127)^2),
                               128..255 land (height = 8800 m x ((c - 128) / 127)^2); stored with a
                               per-row "sub" filter (each byte minus its left neighbour, mod 256)
   CLIM  uint8  [T_H][T_W]     Koppen-Geiger class 1..30 (0 = none), spread a few cells into the sea
                               so coastal land texels always have a climate
-  POLY  int32 stream          the regions as simplified rings (shared borders simplified once per
-                              nation, polygons.simplify_group; layout in build_vector), then lakes
+  POLY  int32 stream          the units as simplified rings (shared borders simplified once per
+                              nation, polygons.simplify_group; layout in build_vector), then lakes;
+                              units are grouped by state (the client culls per state when zoomed in)
+  POL1  int32 stream          the same, much coarser (--coarse-tolerance): the zoomed-out level
+  UNIT  u32 count, then per unit { u16 region (row of regions.csv: its cluster); u16 0 }
+  STAT  u32 count, per state { char code[12]; u16 nation; u16 0; f32 lat, lon }, then per region
+                              u16 state (row of states.csv)
   ATLS  u32 size, u32 layers, then layers x size x size bytes: procedural tileable grayscale
                               terrain detail (polygons.terrain_atlas: sand, grass, forest, tundra,
                               rock, snow, wetland, water; periodic value-noise fbm, no images)
 The client colours the terrain from ELEV + CLIM + latitude at load time (map_data.cpp).
 
 File layout (little-endian):
-  char magic[8] "GSMAP01\\0"; u32 id_w, id_h, terrain_w, terrain_h, nation_count, region_count, section_count
+  char magic[8] "GSMAP02\\0"; u32 id_w, id_h, terrain_w, terrain_h, nation_count, region_count, section_count
   nations: nation_count x { char iso3[4]; u8 r, g, b, 0; f32 lat, lon }   (fill colour, label point)
   regions: region_count x { char code[12]; u16 nation; u16 flags; f32 lat, lon }   (regions.csv order)
   sections: section_count x { char tag[4]; u32 raw_bytes; u32 packed_bytes; zlib data }
@@ -58,6 +64,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import build_world as bw  # noqa: E402
 import geo  # noqa: E402
 import polygons as pg  # noqa: E402
+import adm2  # noqa: E402
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -283,46 +290,40 @@ def main() -> int:
     ap.add_argument("--assets", default="assets")
     ap.add_argument("--width", type=int, default=8192, help="region-ID raster width (height = width / 2)")
     ap.add_argument("--tolerance", type=float, default=0.01, help="polygon simplification tolerance (degrees)")
+    ap.add_argument("--coarse-tolerance", type=float, default=0.06, help="the zoomed-out level's tolerance (degrees)")
     args = ap.parse_args()
     raw, assets = pathlib.Path(args.raw), pathlib.Path(args.assets)
     scen = assets / "scenario" / "world2020"
     id_w, id_h = args.width, args.width // 2
 
-    regions = read_csv(scen / "regions.csv")
+    regions = read_csv(scen / "regions.csv")   # the simulation's regions: clusters of counties
+    states = read_csv(scen / "states.csv")
+    units = read_csv(scen / "adm2.csv")        # the drawn units (counties), each in a cluster
     row_of = {r["region"]: i for i, r in enumerate(regions)}
+    state_row = {s["state"]: i for i, s in enumerate(states)}
     isos = sorted({r["iso3"] for r in regions})
-    print(f"{len(regions)} regions, {len(isos)} nations")
+    print(f"{len(units)} units, {len(regions)} clusters, {len(states)} states, {len(isos)} nations")
+    if len(units) >= UNCLAIMED - 1:
+        sys.exit(f"{len(units)} units: the 16-bit unit IDs hold at most {UNCLAIMED - 2}")
 
-    # --- regions -> polygons (the assignment of build_world.build_regions) ------------------
+    # --- units -> polygons ---------------------------------------------------------------------
+    # Counties from their geoBoundaries ADM2 files; a state without ADM2 data is one unit: its
+    # ADM1 polygon (the assignment of build_world.build_regions) or, for territories without
+    # ADM1 data, its Natural Earth admin-0 shape.
     dependencies = bw.read_pairs(scen / "jurisdictions_curated.csv", "sovereign", "iso3")
     claimed = bw.read_pairs(scen / "claims_curated.csv", "claimant", "holder")
     allowed = defaultdict(set)
     for a, b in dependencies | claimed:
         allowed[a].add(b)
     bounds, total = bw.load_boundaries(raw, isos)
-    raster = Raster(id_w, id_h)
-    mismatched, painted = [], set()
-    region_polys = defaultdict(list)  # row -> polygons (lists of rings) for the vector map
+    state_polys = defaultdict(list)
     for iso in isos:
         k = 0
         for f, rp, box in bounds[iso]:
             if bw.territory_of(iso, f.get("properties") or {}, allowed) or bw.owned_by_smaller(iso, rp, box, bounds, total, allowed):
                 continue
-            rid = f"{iso}-{k:03d}"
+            state_polys[f"{iso}-{k:03d}"].extend(rp)
             k += 1
-            row = row_of.get(rid)
-            name = (f.get("properties") or {}).get("shapeName") or ""
-            if row is None or (name and regions[row]["name"] != name):
-                mismatched.append((rid, name))
-                continue
-            raster.paint(rp, row + 1)
-            painted.add(row)
-            region_polys[row].extend(rp)
-    if mismatched:
-        print(f"warning: {len(mismatched)} polygons do not match regions.csv, e.g. {mismatched[:5]}")
-
-    # Territories without ADM1 polygons: Natural Earth admin-0 shapes, painted over the
-    # sovereign's duplicate (Hong Kong over China's Hong Kong SAR region, ...).
     ne = json.loads((raw / "map" / "ne_10m_admin_0_countries.geojson").read_text(encoding="utf-8"))["features"]
     ne_by = defaultdict(list)
     for f in ne:
@@ -332,30 +333,35 @@ def main() -> int:
                 ne_by[p[key]].append(f)
                 break
     aliases = {"CHI": ["JEY", "GGY"], "XKX": ["KOS"]}
-    missing = []
-    before = Counter(array.array("H", raster.img.convert("I;16").tobytes()))
+    adm2_feats = {}
     for iso in isos:
-        if bounds[iso]:
-            continue
-        row = row_of.get(f"{iso}-000")
-        feats = [f for code in aliases.get(iso, [iso]) for f in ne_by.get(code, [])]
-        if row is None or not feats:
-            missing.append(iso)
-            continue
-        for f in feats:
-            raster.paint(geo.rings_of(f["geometry"]), row + 1)
-            region_polys[row].extend(geo.rings_of(f["geometry"]))
-        painted.add(row)
+        for u in adm2.load_adm2(raw, iso):
+            adm2_feats[u["key"]] = u["polys"]
+    unit_polys = {}
+    territory_units = []
+    unit_iso = []
+    for i, u in enumerate(units):
+        iso = regions[row_of[u["region"]]]["iso3"]
+        unit_iso.append(iso)
+        if u["adm2"] in adm2_feats:
+            unit_polys[i] = adm2_feats[u["adm2"]]
+        elif state_polys.get(u["adm2"]):
+            unit_polys[i] = state_polys[u["adm2"]]
+        else:
+            unit_polys[i] = [poly for code in aliases.get(iso, [iso]) for f in ne_by.get(code, []) for poly in geo.rings_of(f["geometry"])]
+            territory_units.append(i)
+    missing = [units[i]["adm2"] for i, p in unit_polys.items() if not p]
     if missing:
-        print("warning: no geometry for", ", ".join(missing))
-    # A sovereign's duplicate of a territory (China's Hong Kong SAR region) is overpainted:
-    # it gets no polygons in the vector map either (overlapping polygons would clash).
-    after = Counter(array.array("H", raster.img.convert("I;16").tobytes()))
-    overpainted = [row for row in list(region_polys) if before.get(row + 1, 0) > 0 and after.get(row + 1, 0) < 0.3 * before[row + 1]]
-    for row in overpainted:
-        del region_polys[row]
-    print(f"{len(overpainted)} duplicate regions overpainted by territories: "
-          + ", ".join(regions[r]["region"] for r in overpainted[:12]))
+        print("warning: no geometry for", ", ".join(missing[:20]))
+    raster = Raster(id_w, id_h)
+    tset = set(territory_units)
+    for i in range(len(units)):   # territories last: they override a sovereign's duplicate
+        if i not in tset and unit_polys[i]:
+            raster.paint(unit_polys[i], i + 1)
+    for i in territory_units:
+        raster.paint(unit_polys[i], i + 1)
+    painted = {i for i, p in unit_polys.items() if p}
+    region_polys = {i: p for i, p in unit_polys.items() if p}   # per unit, for the vector map
 
     # Lakes are water.
     lakes = Raster(id_w, id_h)
@@ -366,15 +372,20 @@ def main() -> int:
         lakes.paint(rp, 1)
         lake_rings.extend(ring for poly in rp for ring in poly)
 
-    # Regions too small for a cell (or overdrawn by a neighbour) get a dot at their centroid.
+    # Units too small for a cell (or overdrawn by a neighbour) get a dot at their centroid.
     ids = raster.img
     counts = Counter(array.array("H", ids.convert("I;16").tobytes()))
     dots = 0
-    for i, r in enumerate(regions):
+    for i in range(len(units)):
         if counts.get(i + 1, 0) == 0:
-            raster.dot(float(r["lon"]), float(r["lat"]), i + 1)
+            if unit_polys.get(i):
+                _, (lon, lat) = geo.area_and_centroid(unit_polys[i])
+            else:
+                r = regions[row_of[units[i]["region"]]]
+                lon, lat = float(r["lon"]), float(r["lat"])
+            raster.dot(lon, lat, i + 1)
             dots += 1
-    print(f"{dots} regions drawn as dots")
+    print(f"{dots} units drawn as dots")
 
     # --- relief -------------------------------------------------------------------------------
     etopo, ncols, nrows = load_etopo(raw / "map" / "etopo1_5min.asc")
@@ -418,7 +429,7 @@ def main() -> int:
     small = ids.resize((id_w // 4, id_h // 4), Image.NEAREST).convert("I;16")
     sw, sh = small.size
     cells = array.array("H", small.tobytes())
-    nation_of_row = [r["iso3"] for r in regions]
+    nation_of_row = unit_iso   # raster IDs are units
     nat = [nation_of_row[v - 1] if 0 < v < UNCLAIMED else None for v in cells]
     adjacency = defaultdict(set)
     for y in range(sh):
@@ -439,7 +450,16 @@ def main() -> int:
         label[iso] = circular_mean(pts)
 
     # --- vector regions ---------------------------------------------------------------------------
-    poly_bytes = build_vector(regions, region_polys, lake_rings, args.tolerance)
+    # Two levels of detail: POLY at the tolerance (drawn when zoomed in to a state, culled per
+    # state), POL1 much coarser (the whole world at once, ~ the old ADM1 vertex budget).
+    unit_rows = [{"iso3": iso} for iso in unit_iso]
+    poly_bytes = build_vector(unit_rows, region_polys, lake_rings, args.tolerance)
+    coarse_bytes = build_vector(unit_rows, region_polys, lake_rings, args.coarse_tolerance)
+    # Units -> clusters; states and clusters -> states (border hierarchy, redrawable states).
+    unit_bytes = struct.pack("<I", len(units)) + b"".join(struct.pack("<HH", row_of[u["region"]], 0) for u in units)
+    stat_bytes = struct.pack("<I", len(states)) + b"".join(
+        struct.pack("<12sHH2f", s["state"].encode()[:12], nation_index[s["iso3"]], 0, float(s["lat"]), float(s["lon"])) for s in states) \
+        + b"".join(struct.pack("<H", state_row[r["state"]]) for r in regions)
 
     # --- write ------------------------------------------------------------------------------------
     out = assets / "map" / "world.gsmap"
@@ -447,9 +467,9 @@ def main() -> int:
     atlas = pg.terrain_atlas(256)
     atlas_bytes = struct.pack("<II", 256, len(atlas)) + b"".join(atlas)
     sections = [(b"IDS0", id_bytes), (b"ELEV", bytes(sub_filter(elev_codes, T_W, T_H))), (b"CLIM", clim), (b"POLY", poly_bytes),
-                (b"ATLS", atlas_bytes)]
+                (b"ATLS", atlas_bytes), (b"UNIT", unit_bytes), (b"STAT", stat_bytes), (b"POL1", coarse_bytes)]
     with out.open("wb") as f:
-        f.write(b"GSMAP01\0")
+        f.write(b"GSMAP02\0")
         f.write(struct.pack("<7I", id_w, id_h, T_W, T_H, len(isos), len(regions), len(sections)))
         for iso in isos:
             r, g, b = PALETTE[colour[iso]]
@@ -463,7 +483,7 @@ def main() -> int:
             f.write(struct.pack("<4sII", tag, len(data), len(packed)))
             f.write(packed)
             print(f"  {tag.decode()}: {len(data) / 1e6:.1f} MB -> {len(packed) / 1e6:.2f} MB")
-    print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB); {len(painted)} regions with polygons")
+    print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB); {len(painted)} units with polygons")
     return 0
 
 

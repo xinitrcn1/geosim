@@ -48,9 +48,13 @@ assets/
     scenario.txt                 base{2020}: curated tables missing here are inherited from scenario/2020,
                                  and layered tables read generated -> 2020 curated -> own curated
     nations.csv, sectors.csv     218 nations (WDI; Fiscal Space debt/balance; WHO beds; income-group imputation)
-    regions.csv, adjacency.csv   3,240 ADM1 regions (geoBoundaries + Natural Earth for the French overseas
-                                 regions) and their adjacency; region sector mixes and GDP shares are
-                                 derived at load (scenario.cpp derive_region_sectors)
+    states.csv                   3,240 states: geoBoundaries ADM1 (+ Natural Earth for the French overseas
+                                 regions); the legal level (governors, district seats, redrawable)
+    regions.csv, adjacency.csv   3,850 regions: clusters of counties inside each state, sized by population
+                                 (GHS-POP 2020; tools/pipeline/adm2.py), and their adjacency; sector mixes
+                                 and GDP shares are derived at load (scenario.cpp derive_region_sectors)
+    adm2.csv                     49,570 counties (geoBoundaries ADM2; a state without ADM2 data is one) and
+                                 their cluster: drawn by the map (world.gsmap polygons), simulated as clusters
     society.csv, finance.csv, nations_ext.csv, logistics.csv   generated from WDI, WGI, GFDD, Fiscal Space,
                                  ILOSTAT, TI CPI, UN DESA, Nunn-Puga, CLDR (tools/pipeline/world_extra.py)
     nations_curated.csv, nations_extra_curated.csv   hand-written values; non-WB nations (Taiwan)

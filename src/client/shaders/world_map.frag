@@ -28,9 +28,10 @@ layout(set = 0, binding = 0) uniform sampler2D u_terrain;
 layout(set = 0, binding = 1) uniform usampler2D u_ids;
 layout(set = 0, binding = 4) uniform usampler2D u_resolved; // vector mode: one region per pixel (map_resolve.frag)
 layout(set = 0, binding = 5) uniform sampler2DArray u_atlas; // terrain detail: sand, grass, forest, tundra, rock, snow, wetland, water
-// Indexed by raster ID (0 = water): x = nation key (borders), y = fill RGBA8 (a = strength).
+// Indexed by unit ID (a county; 0 = water): x = nation key, y = fill RGBA8 (a = strength),
+// z = state key, w = region (cluster) key - the border hierarchy.
 layout(std430, set = 0, binding = 2) readonly buffer region_table {
-    uvec2 info[];
+    uvec4 info[];
 } rt;
 
 // Hazards (map_renderer::set_hazards).
@@ -66,6 +67,8 @@ uint nation_key(uint id) {
     if(id == unclaimed || id >= uint(rt.info.length())) return key_unclaimed;
     return rt.info[id].x;
 }
+uint state_key(uint id) { return id == 0u || id == unclaimed || id >= uint(rt.info.length()) ? 0u : rt.info[id].z; }
+uint cluster_key(uint id) { return id == 0u || id == unclaimed || id >= uint(rt.info.length()) ? 0u : rt.info[id].w; }
 
 // Ocean colour from the relief code (build_map.py: 0..127 sea, depth = 11000 m x ((127 - c) / 127)^2).
 vec3 ocean(float code) {
@@ -257,7 +260,12 @@ void main() {
         uint my_key = nation_key(me);
         uint right = texelFetch(u_resolved, min(px + ivec2(1, 0), rsz), 0).r;
         uint down = texelFetch(u_resolved, min(px + ivec2(0, 1), rsz), 0).r;
-        thin = (right != me || down != me) ? 0.55 : 0.0;
+        // Border hierarchy below the nations: states, clusters (fading out at world
+        // scale), counties (only once zoomed in to about a state).
+        float px_per_km = pc.p.w / 6371.0;
+        if(state_key(right) != state_key(me) || state_key(down) != state_key(me)) thin = 0.6;
+        else if(cluster_key(right) != cluster_key(me) || cluster_key(down) != cluster_key(me)) thin = 0.32 * smoothstep(0.08, 0.2, px_per_km);
+        else if(right != me || down != me) thin = 0.14 * smoothstep(0.25, 0.6, px_per_km);
         int rad = max(1, int(round(line_scale)));
         const ivec2 dirs[4] = ivec2[](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
         for(int k = 1; k <= rad && thick == 0.0; ++k) {
@@ -301,13 +309,18 @@ void main() {
             if(s > best) { best = s; me_r = id[k]; }
             if(sk > best_key) { best_key = sk; my_key = key[k]; }
         }
-        vec4 in_region = vec4(id[0] == me_r, id[1] == me_r, id[2] == me_r, id[3] == me_r);
+        // Raster mode (zoomed out): states and clusters; counties are never drawn here.
+        uint ms = state_key(me_r), mc = cluster_key(me_r);
+        vec4 in_state = vec4(state_key(id[0]) == ms, state_key(id[1]) == ms, state_key(id[2]) == ms, state_key(id[3]) == ms);
+        vec4 in_cluster = vec4(cluster_key(id[0]) == mc, cluster_key(id[1]) == mc, cluster_key(id[2]) == mc, cluster_key(id[3]) == mc);
         vec4 in_nation = vec4(key[0] == my_key, key[1] == my_key, key[2] == my_key, key[3] == my_key);
         vec2 dx = gx * sz, dy = gy * sz;
-        float d_region = contour_distance(in_region, w, f, dx, dy);
+        float d_state = contour_distance(in_state, w, f, dx, dy);
+        float d_cluster = contour_distance(in_cluster, w, f, dx, dy);
         float d_nation = contour_distance(in_nation, w, f, dx, dy);
         thick = clamp(1.0 * line_scale + 0.5 - d_nation, 0.0, 1.0);
-        thin = clamp(0.5 * line_scale + 0.5 - d_region, 0.0, 1.0) * 0.55 * pow(0.6, float(level));
+        thin = max(clamp(0.5 * line_scale + 0.5 - d_state, 0.0, 1.0) * 0.6,
+                   clamp(0.5 * line_scale + 0.5 - d_cluster, 0.0, 1.0) * 0.3) * pow(0.6, float(level));
         me = me_r;
     }
 

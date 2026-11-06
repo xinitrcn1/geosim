@@ -13,6 +13,7 @@
 #include <SDL3/SDL_log.h>
 
 #include <algorithm>
+#include <cmath>
 
 #include <cstring>
 
@@ -488,8 +489,9 @@ bool map_renderer::upload(map_data const& data, core::diagnostics& diag) {
     id_h_ = data.ids[0].height;
     id_levels_ = static_cast<uint32_t>(data.ids.size());
 
-    const VkDeviceSize table_bytes = VkDeviceSize{data.regions.size() + 1} * 2 * sizeof(uint32_t);
-    table_.assign((data.regions.size() + 1) * 2, 0u);
+    unit_region_ = data.unit_region;
+    const VkDeviceSize table_bytes = VkDeviceSize{unit_region_.size() + 1} * 4 * sizeof(uint32_t);
+    table_.assign((unit_region_.size() + 1) * 4, 0u);
     VkDescriptorSetLayout layouts[frames_in_flight];
     for(auto& l : layouts) l = set_layout_;
     VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
@@ -534,7 +536,31 @@ bool map_renderer::upload(map_data const& data, core::diagnostics& diag) {
         std::memcpy(poly_verts_.mapped, data.poly_vertices.data(), vb);
         std::memcpy(poly_idx_.mapped, data.poly_indices.data(), ib);
         poly_index_count_ = static_cast<uint32_t>(data.poly_indices.size());
+        fine_index_count_ = data.fine_index_count ? data.fine_index_count : poly_index_count_;
         tol_km_ = data.poly_tolerance_deg * 111.2f;
+        coarse_tol_km_ = data.coarse_tolerance_deg > 0.0f ? data.coarse_tolerance_deg * 111.2f : tol_km_;
+        chunks_.clear();
+        for(auto const& c : data.chunks) {
+            if(c.index_count == 0) continue;
+            chunk_cull k;
+            k.first = c.first_index;
+            k.count = c.index_count;
+            const double deg = 3.14159265358979 / 180.0;
+            const double lon = 0.5 * (c.lon0 + c.lon1) * deg, lat = 0.5 * (c.lat0 + c.lat1) * deg;
+            k.x = static_cast<float>(std::cos(lat) * std::cos(lon));
+            k.y = static_cast<float>(std::cos(lat) * std::sin(lon));
+            k.z = static_cast<float>(std::sin(lat));
+            // Angular radius: the farthest bounding-box corner from the centre.
+            double r = 0;
+            for(double clon : {c.lon0, c.lon1}) {
+                for(double clat : {c.lat0, c.lat1}) {
+                    const double cx = std::cos(clat * deg) * std::cos(clon * deg), cy = std::cos(clat * deg) * std::sin(clon * deg), cz = std::sin(clat * deg);
+                    r = std::max(r, std::acos(std::clamp(cx * k.x + cy * k.y + cz * k.z, -1.0, 1.0)));
+                }
+            }
+            k.radius = static_cast<float>(c.lon1 - c.lon0 >= 359.0f ? 4.0 : r);
+            chunks_.push_back(k);
+        }
         VkDescriptorSetLayout layouts2[2] = {ids_set_layout_, resolve_set_layout_};
         VkDescriptorSet sets2[2];
         VkDescriptorSetAllocateInfo ai2{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
@@ -574,7 +600,7 @@ bool map_renderer::upload(map_data const& data, core::diagnostics& diag) {
             elect_ids_set_ = es[0];
             for(uint32_t f = 0; f < frames_in_flight; ++f) {
                 elect_draw_sets_[f] = es[1 + f];
-                const VkDeviceSize cb = VkDeviceSize{data.regions.size() + 1} * sizeof(uint32_t);
+                const VkDeviceSize cb = VkDeviceSize{data.unit_region.size() + 1} * sizeof(uint32_t);
                 if(!vk_->create_buffer(cb, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, elect_col_[f], diag)) return false;
                 std::memset(elect_col_[f].mapped, 0, cb);
             }
@@ -585,8 +611,9 @@ bool map_renderer::upload(map_data const& data, core::diagnostics& diag) {
             }
         }
         vector_ = true;
-        SDL_Log("map: vector regions, %zu vertices, %u indices, tolerance %.1f km", data.poly_vertices.size() / 4, poly_index_count_,
-                static_cast<double>(tol_km_));
+        SDL_Log("map: vector units, %zu vertices, %u indices (%u fine in %zu state chunks, tolerance %.1f km; coarse %.1f km)",
+                data.poly_vertices.size() / 4, poly_index_count_, fine_index_count_, chunks_.size(), static_cast<double>(tol_km_),
+                static_cast<double>(coarse_tol_km_));
     }
     ready_ = true;
     if(!resize(diag)) return false;
@@ -673,9 +700,27 @@ void map_renderer::write_electoral_sets() {
     }
 }
 
+void map_renderer::set_table(std::vector<uint32_t> const& region_table) {
+    table_.assign((unit_region_.size() + 1) * 4, 0u);
+    for(std::size_t u = 0; u < unit_region_.size(); ++u) {
+        const std::size_t r = unit_region_[u];
+        if(3 * (r + 1) + 2 >= region_table.size()) continue;
+        uint32_t* t = &table_[4 * (u + 1)];
+        t[0] = region_table[3 * (r + 1)];
+        t[1] = region_table[3 * (r + 1) + 1];
+        t[2] = region_table[3 * (r + 1) + 2];
+        t[3] = static_cast<uint32_t>(r + 1);
+    }
+}
+
 void map_renderer::set_electoral(std::shared_ptr<electoral_geometry const> geo, std::vector<uint32_t> colours) {
     if(!vector_) return;
-    elect_colours_ = std::move(colours);
+    // Colours per region + 1 -> per unit + 1 (the inset's IDs are units).
+    elect_colours_.assign(unit_region_.size() + 1, 0u);
+    for(std::size_t u = 0; u < unit_region_.size(); ++u) {
+        const std::size_t r = std::size_t{unit_region_[u]} + 1;
+        if(r < colours.size()) elect_colours_[u + 1] = (colours[r] & 0x00FFFFFFu) | (static_cast<uint32_t>(r & 0xFFu) << 24);
+    }
     if(geo == elect_geo_) return;
     elect_geo_ = std::move(geo);
     elect_index_count_ = 0;
@@ -724,8 +769,8 @@ int map_renderer::picked_electoral() const noexcept {
     uint32_t code = 0;
     std::memcpy(&code, static_cast<uint8_t const*>(pick_[vk_->frame_index()].mapped) + 4, 4);
     const uint32_t id = code & 0xFFFFu;
-    if((code & 0x80000000u) || id == 0 || code != map_region_code(id) || id > table_.size() / 2) return -1;
-    return static_cast<int>(id) - 1;
+    if((code & 0x80000000u) || id == 0 || code != map_region_code(id) || id > unit_region_.size()) return -1;
+    return static_cast<int>(unit_region_[id - 1]);
 }
 
 namespace {
@@ -751,7 +796,23 @@ void map_renderer::prepass(VkCommandBuffer cmd, map_view const& view, float widt
     const VkExtent2D e = vk_->swap_extent;
     pass_push push{};
     fill_pass_push(push, view, width, height);
-    push.e[3] = tol_km_;
+    // Level of detail: zoomed in to about a state, the fine units of the states in view;
+    // otherwise the coarse level of the whole world.
+    const bool fine = view.scale / 6371.0 >= fine_px_per_km || fine_index_count_ == poly_index_count_;
+    std::vector<std::pair<uint32_t, uint32_t>> ranges;
+    if(fine) {
+        const map_view::frame b = view.basis();
+        const double reach = 0.5 * std::hypot(width, height) / view.scale * 1.25 + 0.02;
+        for(auto const& c : chunks_) {
+            const double d = std::acos(std::clamp(b.p.x * c.x + b.p.y * c.y + b.p.z * c.z, -1.0, 1.0));
+            if(d - c.radius > reach) continue;
+            if(!ranges.empty() && ranges.back().first + ranges.back().second == c.first) ranges.back().second += c.count;
+            else ranges.emplace_back(c.first, c.count);
+        }
+    } else {
+        ranges.emplace_back(fine_index_count_, poly_index_count_ - fine_index_count_);
+    }
+    push.e[3] = fine ? tol_km_ : coarse_tol_km_;
     push.raster[0] = id_w_;
     push.raster[1] = id_h_;
     VkViewport viewport{0, 0, static_cast<float>(e.width), static_cast<float>(e.height), 0, 1};
@@ -785,7 +846,7 @@ void map_renderer::prepass(VkCommandBuffer cmd, map_view const& view, float widt
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ids_pipeline_);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ids_layout_, 0, 1, &ids_set_, 0, nullptr);
         vkCmdPushConstants(cmd, ids_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
-        vkCmdDraw(cmd, poly_index_count_, 2, 0, 0);
+        for(auto const& [first, count] : ranges) vkCmdDraw(cmd, count, 2, first, 0);
     });
     // 2. One region per pixel.
     pass(resolved_img_, false, [&] {
@@ -854,8 +915,8 @@ int map_renderer::picked_region() const noexcept {
     if(!vector_) return -1;
     uint32_t v = 0;
     std::memcpy(&v, pick_[vk_->frame_index()].mapped, 4);
-    if(v == 0 || v == 0xFFFFu || v > table_.size() / 2) return -1;
-    return static_cast<int>(v) - 1;
+    if(v == 0 || v == 0xFFFFu || v > unit_region_.size()) return -1;
+    return static_cast<int>(unit_region_[v - 1]);
 }
 
 void map_renderer::draw(VkCommandBuffer cmd, map_view const& view, float width, float height, float line_scale, bool political,

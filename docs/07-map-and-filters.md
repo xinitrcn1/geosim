@@ -55,8 +55,9 @@ from inputs that `python3 tools/pipeline/fetch.py --map-only` downloads into
 Layers (equirectangular, cell-centred, zlib streams; format in the script's
 docstring):
 
-- `IDS0` — uint16 region raster, 8192 × 4096 (~4.9 km at the equator):
-  0 = water, 1 + row of `regions.csv` = region, 0xFFFF = land of no region.
+- `IDS0` — uint16 unit raster, 8192 × 4096 (~4.9 km at the equator):
+  0 = water, 1 + row of `adm2.csv` = unit (a county, see [States, clusters and
+  counties](#states-clusters-and-counties)), 0xFFFF = land of no region.
   Polygons are painted with holes (masks, so enclaves survive) and wrapped at
   the antimeridian (Fiji). Regions smaller than a cell get a dot at their
   centroid (87). Coastal land outside the simplified polygons (ETOPO above
@@ -83,6 +84,59 @@ snowline falling from ~5000 m at 28° to ~1600 m at 70° (+600 m in deserts,
 +300 m on tundra, so the Himalaya and Karakoram are white and the Tibetan
 plateau mostly brown). The alpha channel keeps the relief code. Mips: box
 filter for the terrain, point sampling for the IDs.
+
+## States, clusters and counties
+
+Three levels below the nation, all in `assets/scenario/world2020` (built by
+`build_world.py` + `tools/pipeline/adm2.py`):
+
+- **Counties (units)** — `adm2.csv`: the geoBoundaries gbOpen ADM2 units
+  (49,308 counties, districts, prefectures in 180 nations), plus, for a state
+  without ADM2 data, the state itself as one unit (49,570 in all, within the
+  16-bit IDs). Only drawn: the map's polygons and raster are units.
+- **Clusters (the simulation's regions)** — `regions.csv`: counties grouped
+  inside their state by population. A state gets round(population /
+  threshold) clusters, at least one and at most its county count; the
+  threshold starts at 3 M people and rises until the totals fit the
+  simulation (≤ 5000 regions and ≤ 26,000 pops, 4 pops per identity group per
+  region; the containers hold 32,767): 5.9 M, so 3,850 clusters — Texas 5,
+  California 7, a Saharan wilaya or a Slovene region 1, China and India
+  hundreds. Clustering is a population-balanced recursive bisection of the
+  counties' centroids along the wider axis, then a contiguity repair (a
+  detached piece joins the cluster it borders most). Every simulated
+  quantity (population, epidemics, unrest, output...) lives on clusters.
+- **States** — `states.csv`: the ADM1 units, the legal level: one governor per
+  state (shared by its clusters), district seats apportioned per state, and
+  the units a government may redraw (`redraw_state`, docs/05).
+
+Population comes from **GHS-POP R2023A** (2020, 30″; JRC, CC BY 4.0), summed to
+a 2.5′ grid and over each county's cells (counties smaller than a cell take
+their centroid cell, scaled by area; 7.84 bn on the grid). A county belongs to
+the state it overlaps most; counties a sovereign's file shares with a
+dependent or held territory (Taiwan's in China's) are left to it. Urban
+share: the population in 30″ cells of ≥ 1500 people/km² (the Degree of
+Urbanisation's urban centres), rescaled to the national urbanisation rate.
+
+**Drawing.** The map file maps units → clusters (`UNIT`) and lists the
+states with clusters → states (`STAT`); the client expands the per-region
+table to a `uvec4` per unit (nation key, fill, state key, cluster key), so the
+map pass draws the hierarchy from the resolved unit per pixel: nations thick,
+states 1 px at 60 %, clusters 1 px at 32 % (fading out below ~0.1 px/km),
+counties as hairlines only once zoomed in to about a state (≥ 0.25 px/km).
+The raster mode (zoomed out, `--vector-map 0`) draws states and clusters.
+
+**Levels of detail.** Two vector levels: `POLY` at 0.01° (fine) and `POL1`
+at 0.06° (coarse), both simplified per nation on shared arcs (crack-free).
+Zoomed out (< 0.25 px/km) the ID pass draws the coarse level of the whole
+world; zoomed in, the fine level of the **visible states only**: units are
+stored grouped by state, so each state is one contiguous index range with a
+bounding cap (centre, angular radius) culled against the view (focus angle −
+radius < half-diagonal / scale), and neighbouring visible states merge into
+one draw.
+
+**Electoral map.** The Politics inset draws the nation's counties coloured by
+their cluster's result: white lines between clusters, faint ones between the
+counties of a cluster.
 
 ## Vector regions
 

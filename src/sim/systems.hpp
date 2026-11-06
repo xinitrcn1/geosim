@@ -272,6 +272,7 @@ enum class action_kind : uint8_t {
     demand_autonomy,    // governor -> its government: more decentralisation
     foreign_backing,    // rebel -> a foreign government: arms from the government's rivals
     court_defectors,    // rebel -> its military: loyalty falls
+    redraw_state,       // executive: move cluster `region` to state `state_to` (none: a new state), by its procedure
     count
 };
 struct action_request {
@@ -283,6 +284,8 @@ struct action_request {
     uint8_t lever = 0;
     float value = 0.0f;
     dcon::agent_id target_agent; // actions toward another agent
+    dcon::region_id region;      // redraw_state: the cluster that moves
+    dcon::state_id state_to;     // redraw_state: its new state (none: a new state)
     bool silent = false;         // not journalled as a player action (the effect of an answered request)
 };
 // The value an option takes beyond the built-in inputs (sanction level, aid, pledge, treaty).
@@ -300,6 +303,22 @@ struct action_result {
     bool accepted = false;
     std::string message;
 };
+// Redrawing state borders (actions.cpp): whether `actor` (an executive) may move cluster `r`
+// to state `to` (none: make it a new state) under its nation's procedure, and why not.
+// Autocracies redraw at will (DPRK); hybrid regimes need a legislative majority; liberal
+// democracies a supermajority and, when decentralised, the consent of the states concerned
+// (US Constitution Art. IV s.3: no state formed from parts of others without the consent of
+// their legislatures and of Congress; Basic Law Art. 29: federal law and regional referendums;
+// India's Art. 3 lets Parliament redraw alone - low decentralisation here), and strong courts
+// strike down large changes (taking over a quarter of a state, or dissolving one).
+struct redraw_verdict {
+    bool ok = false;
+    std::string reason;
+};
+[[nodiscard]] redraw_verdict check_redraw(game_state const& state, dcon::agent_id actor, dcon::region_id r, dcon::state_id to);
+// The states a cluster could join (adjacent states of its nation), for the UI.
+[[nodiscard]] std::vector<dcon::state_id> redraw_targets(game_state const& state, dcon::region_id r);
+
 // What `actor` can do toward `target` / `organisation` / `target_agent` (any may be empty;
 // with a target agent only the options toward it are listed).
 [[nodiscard]] std::vector<action_option> available_actions(game_state const& state, dcon::agent_id actor, dcon::nation_id target,

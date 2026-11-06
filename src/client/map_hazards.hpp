@@ -56,6 +56,7 @@ struct region_row {
     float insurgency = 0, unrest = 0, grievance = 0, protest = 0;
     float infections_100k = 0; // new infections per 100k per day
     float population = 0;
+    uint32_t state = 0xFFFFFFFFu; // sim state index (index into region_snapshot::state_names)
 };
 
 // Per sim nation (national values; regions inherit them).
@@ -95,6 +96,7 @@ struct region_snapshot {
     int32_t tick = 0;
     int month = 1; // 1..12
     std::vector<region_row> regions;
+    std::vector<std::string> state_names; // by sim state index
     std::vector<nation_row> nations;
     std::vector<fault_row> faults;
 };

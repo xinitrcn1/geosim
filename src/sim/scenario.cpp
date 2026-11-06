@@ -75,6 +75,7 @@ struct nation_input {
 struct region_input {
     std::string id;
     std::string iso;
+    std::string state; // states.csv id ("" = the region is its own state)
     double lat = 0, lon = 0, area = 0, pop_share = 1, urban = 0.5;
     std::array<double, max_sectors> va_share{};  // share of the nation's sector VA
     std::array<double, max_sectors> emp_share{}; // share of the nation's sector employment
@@ -94,6 +95,8 @@ struct builder {
     std::map<std::string, std::vector<region_input>> regions_of; // optional regions.csv
     std::array<double, max_sectors> region_tilt{};                 // sectors.txt region_tilt
     std::map<std::string, dcon::region_id> region_by_id;
+    std::map<std::string, dcon::state_id> state_by_id; // states.csv ids (and regions that are their own state)
+    std::map<std::string, int32_t> state_row;          // states.csv row of each state id
     // The input row of each created region (by region index). Relationship iteration
     // order is not the input order, so regions must be matched by identity (docs/13).
     std::map<uint32_t, region_input> input_of_region;
@@ -566,9 +569,16 @@ struct builder {
             r.area = t.number_or(row, "area_km2", 0.0);
             r.pop_share = t.number_or(row, "pop_share", 0.0);
             r.urban = t.number_or(row, "urban_share", 0.5);
+            if(t.has_column("state")) r.state = std::string(t.get(row, "state"));
             auto& list = regions_of[r.iso];
             index[r.id] = {r.iso, list.size()};
             list.push_back(r);
+        }
+        // States (ADM1): the legal units regions (clusters of counties) belong to. Without
+        // states.csv every region is its own state (the calibration slices).
+        if(exists(dir + "/states.csv")) {
+            const auto st = core::csv_table::load(dir + "/states.csv", diag);
+            for(std::size_t row = 0; row < st.rows(); ++row) state_row[std::string(st.get(row, "state"))] = static_cast<int32_t>(row);
         }
         for(auto& [iso, list] : regions_of) { // normalise shares within each nation
             double sum = 0.0;
@@ -879,6 +889,20 @@ struct builder {
         input_of_region[static_cast<uint32_t>(r.index())] = ri;
         w.force_create_region_ownership(r, n);
         w.region_set_owner(r, n);
+        {
+            const std::string key = ri.state.empty() ? ri.id : ri.state;
+            auto it = state_by_id.find(key);
+            if(it == state_by_id.end()) {
+                const auto st = w.create_state();
+                w.state_set_nation(st, n);
+                auto row = state_row.find(key);
+                w.state_set_row(st, row != state_row.end() ? row->second : -1);
+                w.state_set_last_redrawn(st, -1);
+                it = state_by_id.emplace(key, st).first;
+            }
+            w.region_set_state(r, it->second);
+            w.state_set_population(it->second, w.state_get_population(it->second) + static_cast<float>(pop));
+        }
         w.region_set_shard(r, static_cast<int32_t>(static_cast<uint32_t>(n.index()) % weekly.shards));
         w.region_set_population(r, static_cast<float>(pop));
         w.region_set_lat(r, static_cast<float>(ri.lat));
@@ -1616,7 +1640,7 @@ struct builder {
         w.nation_set_top1_share0(n, static_cast<float>(in.top1 * 0.7));
         if(in.top1 > 0.0 && compute_gini(state, n, 0.02f) > in.gini) {
             double tlo = 0.0, thi = in.top1 * 0.7;
-            for(int it = 0; it < 30; ++it) {
+            for(int it = 0; it < 18; ++it) { // ~4e-6 of the share: far below the data's precision
                 const double mid = 0.5 * (tlo + thi);
                 w.nation_set_top1_share0(n, static_cast<float>(mid));
                 if(compute_gini(state, n, 0.05f) < in.gini) tlo = mid; else thi = mid;
@@ -1624,7 +1648,7 @@ struct builder {
             w.nation_set_top1_share0(n, static_cast<float>(tlo));
         }
         double lo = 0.02, hi = 2.0;
-        for(int it = 0; it < 40; ++it) {
+        for(int it = 0; it < 22; ++it) { // sigma to ~5e-7 (each step sorts every income point)
             const double mid = 0.5 * (lo + hi);
             if(compute_gini(state, n, static_cast<float>(mid)) < in.gini) lo = mid; else hi = mid;
         }

@@ -48,7 +48,7 @@ planned. Consequences:
 | Cabinet / ministries (finance, interior, foreign, health) | budget proposals, regulation, NPIs | the executive's utility + portfolio priorities | implemented as portfolios (`policy.cpp`): ministers' parties set the ideology of their levers; the executive agent still pulls them |
 | Parliament parties | vote on bills, budgets and treaties; no-confidence | seats, voters' welfare weighted by electorate, ideology | implemented as `party` objects voting by rule, not as agents |
 | Central bank | policy rate, QE, FX intervention, countercyclical buffer | mandate (π, gap), independence | implemented (`agent_kind::central_bank`; FX and macroprudential tools in `reforms.cpp`) |
-| Regional governors (multi-region nations) | local NPIs | regional incidence, party line | implemented (`agent_kind::governor`, the region's plurality party); regional budgets and police planned |
+| Regional governors (multi-state nations) | local NPIs | regional incidence, party line | implemented (`agent_kind::governor`, one per state, the state's plurality party, shared by its clusters); regional budgets and police planned |
 | Courts | strike down forced levers (scales with judicial independence) | legal consistency | implemented as a rule with appointed seats ([Courts](#courts)), not an agent |
 | Union federation | wage demands, strikes | members' real income | implemented (`agent_kind::union_federation`) |
 | Firm boards | labour hoarding, investment | profit, varieties of capitalism, state ownership | implemented (`agent_kind::board`, one per large-firm cohort; [03](03-economy.md#firms)) |
@@ -197,6 +197,26 @@ what was decided (sanction escalations need ratification,
   snap election follows (about 60 days later).
 
 Every bill, confidence vote and court ruling is journalled as a `decision`.
+
+### Redrawing state borders
+
+States (ADM1) are made of clusters of counties (docs/07#states-clusters-and-counties).
+A government may move a cluster to a neighbouring state of its own, or make it a new
+state (`redraw_state`; from the map tooltip of a region it owns). Seats are apportioned
+per state (the cluster votes summed, then the district seat-vote curve), so moving
+clusters moves votes between seat pools — gerrymandering at the state level — and
+governors are per state. Whether it passes follows the nation's procedure
+(`sim::check_redraw`):
+
+| Regime | Procedure | Model |
+|---|---|---|
+| Autocracy (liberal < 0.3) | decree (the DPRK) | always |
+| Hybrid (< 0.6) | ordinary law | the government's seat share > 50 % |
+| Liberal democracy | constitutional amendment; in federations the consent of the states concerned (US Constitution Art. IV §3; Basic Law Art. 29 with regional referendums); India's Art. 3 lets Parliament act alone | seats ≥ 50 % + 17 % × judicial independence; with decentralisation > 0.4, both governors close to the government (order ideal within 0.15); strong courts (> 0.6) strike down transfers of over a quarter of a state or its dissolution |
+
+A redraw in a democracy costs 1 % × liberal of legitimacy and unrest in the moved
+cluster (gerrymandering is unpopular: Norris 2017). The AI never redraws: it is a
+player tool (and a hook for future autocratic consolidation).
 
 ## Courts
 

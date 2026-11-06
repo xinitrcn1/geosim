@@ -11,7 +11,7 @@ namespace geosim::client {
 
 namespace {
 
-constexpr char magic[8] = {'G', 'S', 'M', 'A', 'P', '0', '1', '\0'};
+constexpr char magic[8] = {'G', 'S', 'M', 'A', 'P', '0', '2', '\0'};
 
 struct reader {
     std::vector<uint8_t> const& bytes;
@@ -171,7 +171,7 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
     char m[8] = {};
     rd.take(m, 8);
     if(!rd.ok || std::memcmp(m, magic, 8) != 0) {
-        diag.fail(path + ": not a GSMAP01 file");
+        diag.fail(path + ": not a GSMAP02 file (rebuild with tools/pipeline/build_map.py)");
         return false;
     }
     const uint32_t id_w = rd.u32(), id_h = rd.u32(), t_w = rd.u32(), t_h = rd.u32();
@@ -207,7 +207,7 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         return false;
     }
 
-    std::vector<uint8_t> ids_raw, elev, clim, poly, atls;
+    std::vector<uint8_t> ids_raw, elev, clim, poly, atls, unit, stat, poly1;
     for(uint32_t s = 0; s < section_count; ++s) {
         char tag[5] = {};
         rd.take(tag, 4);
@@ -233,6 +233,15 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         } else if(std::strcmp(tag, "ATLS") == 0) {
             dst = &atls;
             want = raw;
+        } else if(std::strcmp(tag, "UNIT") == 0) {
+            dst = &unit;
+            want = raw;
+        } else if(std::strcmp(tag, "STAT") == 0) {
+            dst = &stat;
+            want = raw;
+        } else if(std::strcmp(tag, "POL1") == 0) {
+            dst = &poly1;
+            want = raw;
         }
         if(dst) {
             if(raw != want || !inflate_section(file, rd.at, packed, raw, *dst)) {
@@ -242,10 +251,54 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         }
         rd.at += packed;
     }
-    if(ids_raw.empty() || elev.empty() || clim.empty()) {
-        diag.fail(path + ": missing IDS0 / ELEV / CLIM");
+    if(ids_raw.empty() || elev.empty() || clim.empty() || unit.size() < 4 || stat.size() < 4) {
+        diag.fail(path + ": missing IDS0 / ELEV / CLIM / UNIT / STAT");
         return false;
     }
+    // Units -> regions; states; regions -> states.
+    {
+        uint32_t units = 0, states = 0;
+        std::memcpy(&units, unit.data(), 4);
+        if(units >= map_unclaimed || unit.size() < 4 + std::size_t{units} * 4) {
+            diag.fail(path + ": bad UNIT section");
+            return false;
+        }
+        out.unit_region.resize(units);
+        for(uint32_t i = 0; i < units; ++i) {
+            uint16_t r = 0;
+            std::memcpy(&r, unit.data() + 4 + std::size_t{i} * 4, 2);
+            if(r >= region_count) {
+                diag.fail(path + ": unit of an unknown region");
+                return false;
+            }
+            out.unit_region[i] = r;
+        }
+        std::memcpy(&states, stat.data(), 4);
+        const std::size_t need = 4 + std::size_t{states} * 24 + std::size_t{region_count} * 2;
+        if(stat.size() < need) {
+            diag.fail(path + ": bad STAT section");
+            return false;
+        }
+        out.states.resize(states);
+        std::size_t at = 4;
+        for(auto& st : out.states) {
+            std::memcpy(st.code.data(), stat.data() + at, 12);
+            st.code[12] = '\0';
+            std::memcpy(&st.nation, stat.data() + at + 12, 2);
+            std::memcpy(&st.lat, stat.data() + at + 16, 4);
+            std::memcpy(&st.lon, stat.data() + at + 20, 4);
+            at += 24;
+        }
+        for(auto& r : out.regions) {
+            std::memcpy(&r.state, stat.data() + at, 2);
+            at += 2;
+            if(r.state >= states) {
+                diag.fail(path + ": region of an unknown state");
+                return false;
+            }
+        }
+    }
+    const auto unit_count = static_cast<uint32_t>(out.unit_region.size());
     file.clear();
     file.shrink_to_fit();
 
@@ -282,46 +335,83 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
         }
     }
 
-    // Vector regions: rings of 1e-5 degree deltas -> vertices and triangle fans.
-    if(poly.size() >= 8) {
+    // Vector units: rings of 1e-5 degree deltas -> vertices and triangle fans, the fine
+    // level (with per-state chunks) then the coarse one.
+    auto decode_level = [&](std::vector<uint8_t> const& src, bool fine) {
         std::size_t at = 0;
         auto next = [&]() -> int32_t {
-            if(at + 4 > poly.size()) return 0;
+            if(at + 4 > src.size()) return 0;
             int32_t v = 0;
-            std::memcpy(&v, poly.data() + at, 4);
+            std::memcpy(&v, src.data() + at, 4);
             at += 4;
             return v;
         };
-        out.poly_tolerance_deg = static_cast<float>(next()) / 1e6f;
+        const float tol = static_cast<float>(next()) / 1e6f;
+        if(fine) out.poly_tolerance_deg = tol;
+        else out.coarse_tolerance_deg = tol;
         const int32_t count = next();
-        auto ring = [&](uint32_t code) {
+        int32_t chunk_state = -1;
+        auto ring = [&](uint32_t code, int32_t u) {
             const int32_t n = next();
-            if(n < 3 || at + static_cast<std::size_t>(n) * 8 > poly.size()) {
+            if(n < 3 || at + static_cast<std::size_t>(n) * 8 > src.size()) {
                 at += static_cast<std::size_t>(std::max(0, n)) * 8;
                 return;
             }
             const auto first = static_cast<uint32_t>(out.poly_vertices.size() / 4);
-            out.rings.push_back({first, static_cast<uint32_t>(n), code == map_lake_code ? -1 : static_cast<int32_t>((code & 0xFFFFu) - 1)});
+            const int32_t region = u >= 0 ? static_cast<int32_t>(out.unit_region[static_cast<std::size_t>(u)]) : -1;
+            if(fine) out.rings.push_back({first, static_cast<uint32_t>(n), region, u});
+            map_chunk* ch = fine && !out.chunks.empty() ? &out.chunks.back() : nullptr;
             int32_t x = 0, y = 0;
+            float ref = 1e9f;
             for(int32_t k = 0; k < n; ++k) {
                 x += next();
                 y += next();
-                const float lon = static_cast<float>(x) / 1e5f, lat = static_cast<float>(y) / 1e5f;
+                float lon = static_cast<float>(x) / 1e5f;
+                const float lat = static_cast<float>(y) / 1e5f;
                 uint32_t bits[2];
                 std::memcpy(&bits[0], &lon, 4);
                 std::memcpy(&bits[1], &lat, 4);
                 out.poly_vertices.insert(out.poly_vertices.end(), {bits[0], bits[1], first, code});
+                if(ch) {
+                    if(ref > 1e8f) ref = ch->lon1 >= ch->lon0 ? 0.5f * (ch->lon0 + ch->lon1) : lon;
+                    lon = ref + std::remainder(lon - ref, 360.0f);
+                    if(ch->lon1 < ch->lon0) *ch = {ch->first_index, ch->index_count, lon, lon, lat, lat};
+                    ch->lon0 = std::min(ch->lon0, lon);
+                    ch->lon1 = std::max(ch->lon1, lon);
+                    ch->lat0 = std::min(ch->lat0, lat);
+                    ch->lat1 = std::max(ch->lat1, lat);
+                }
             }
             for(int32_t k = 1; k + 1 < n; ++k) {
                 out.poly_indices.insert(out.poly_indices.end(), {first, first + static_cast<uint32_t>(k), first + static_cast<uint32_t>(k) + 1});
             }
+            if(ch) ch->index_count = static_cast<uint32_t>(out.poly_indices.size()) - ch->first_index;
         };
-        for(int32_t r = 0; r < count && r < static_cast<int32_t>(region_count); ++r) {
+        for(int32_t u = 0; u < count && u < static_cast<int32_t>(unit_count); ++u) {
             const int32_t rings = next();
-            for(int32_t k = 0; k < rings; ++k) ring(map_region_code(static_cast<uint32_t>(r + 1)));
+            if(fine) {
+                const int32_t st = out.regions[out.unit_region[static_cast<std::size_t>(u)]].state;
+                if(st != chunk_state) { // units are grouped by state (adm2.csv order)
+                    out.chunks.push_back({static_cast<uint32_t>(out.poly_indices.size()), 0, 1.0f, 0.0f, 0.0f, 0.0f});
+                    chunk_state = st;
+                }
+            }
+            for(int32_t k = 0; k < rings; ++k) ring(map_region_code(static_cast<uint32_t>(u + 1)), u);
         }
+        if(fine) out.chunks.push_back({static_cast<uint32_t>(out.poly_indices.size()), 0, 1.0f, 0.0f, 0.0f, 0.0f});
         const int32_t lakes = next();
-        for(int32_t k = 0; k < lakes; ++k) ring(map_lake_code);
+        for(int32_t k = 0; k < lakes; ++k) ring(map_lake_code, -1);
+        if(fine && out.chunks.back().index_count > 0) { // the lakes: always drawn
+            out.chunks.back().lon0 = -180.0f;
+            out.chunks.back().lon1 = 540.0f;
+            out.chunks.back().lat0 = -90.0f;
+            out.chunks.back().lat1 = 90.0f;
+        }
+    };
+    if(poly.size() >= 8) {
+        decode_level(poly, true);
+        out.fine_index_count = static_cast<uint32_t>(out.poly_indices.size());
+        if(poly1.size() >= 8) decode_level(poly1, false);
     }
 
     // Region IDs, coarse: the GPU keeps them only for the resolve pass's fallback
@@ -337,7 +427,7 @@ bool load_map_data(std::string const& path, map_data& out, core::diagnostics& di
             for(uint32_t x = 0; x < l0.width; ++x) {
                 const std::size_t i = std::size_t{y * step + step / 2} * id_w + x * step + step / 2;
                 uint16_t v = static_cast<uint16_t>(ids_raw[2 * i] | (ids_raw[2 * i + 1] << 8));
-                if(v != map_unclaimed && v > region_count) v = map_water;
+                if(v != map_unclaimed && v > unit_count) v = map_water;
                 l0.texels[std::size_t{y} * l0.width + x] = v;
             }
         }

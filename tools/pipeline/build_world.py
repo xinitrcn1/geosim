@@ -40,6 +40,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import build_assets as ba  # noqa: E402
 import geo  # noqa: E402
 import world_extra  # noqa: E402
+import adm2  # noqa: E402
 from countries import EURO_AREA_2020  # noqa: E402
 
 SCENARIO = "world2020"
@@ -365,7 +366,7 @@ def build_regions(raw, nations, countries, places, allowed):
         for i, r in enumerate(info):
             regions.append({"id": f"{iso}-{i:03d}", "iso3": iso, "name": r["name"], "code": r["code"],
                             "lat": r["lat"], "lon": r["lon"], "area_km2": r["area"], "pop_share": pop_share[i],
-                            "gdp_share": gdp_share[i], "urban_share": urban[i]})
+                            "gdp_share": gdp_share[i], "urban_share": urban[i], "polys": polys[i]})
         if len(info) > 1:
             pairs = geo.shared_vertex_adjacency(polys)
             linked = set()
@@ -619,19 +620,56 @@ def main() -> int:
                      f"{GEN}. Territory duplicated in a claimant's ADM1 file (claims_curated.csv is read as well).")
     elif (scen / "claims.csv").exists():
         (scen / "claims.csv").unlink()
+    # States are the ADM1 units; the simulation's regions are clusters of their counties (ADM2)
+    # sized by population (adm2.py). Territories without ADM1 data take their Natural Earth shape.
+    ne_path = raw / "map" / "ne_10m_admin_0_countries.geojson"
+    if ne_path.exists():
+        ne_by = defaultdict(list)
+        for f in json.loads(ne_path.read_text(encoding="utf-8"))["features"]:
+            p = f["properties"]
+            for key in ("ADM0_A3", "ISO_A3", "SOV_A3"):
+                if p.get(key) and p[key] != "-99":
+                    ne_by[p[key]].append(f)
+                    break
+        for r in regions:
+            if not r["polys"] or r["polys"] == []:
+                r["polys"] = [poly for code in {"CHI": ["JEY", "GGY"], "XKX": ["KOS"]}.get(r["iso3"], [r["iso3"]])
+                              for f in ne_by.get(code, []) for poly in geo.rings_of(f["geometry"])]
+    urban_n = {iso: (nations[iso]["urban_pct"] or 50.0) / 100.0 for iso in nations}
+    # Pops per region: 4 per identity group (groups_curated.csv here or in the base scenario;
+    # one group elsewhere), for the clusters' pop budget.
+    groups = defaultdict(int)
+    for gpath in (scen / "groups_curated.csv", assets / "scenario" / "2020" / "groups_curated.csv"):
+        if gpath.exists():
+            seen = defaultdict(int)
+            for r in csv.DictReader(line for line in gpath.open() if not line.startswith("#")):
+                seen[r["iso3"]] += 1
+            for iso, k in seen.items():
+                groups[iso] = groups[iso] or k
+            break
+    ppr = {iso: 4 * max(1, groups.get(iso, 1)) for iso in nations}
+    clusters, adm2_rows, adjacency, states, _units = adm2.build(raw, regions, allowed, urban_n, ppr)
+    ba.write_csv(scen / "states.csv", ["state", "iso3", "name", "code", "lat", "lon"],
+                 [[s["state"], s["iso3"], s["name"], s["code"], s["lat"], s["lon"]] for s in states],
+                 f"{GEN}. The states: geoBoundaries ADM1 (+ Natural Earth map units for France's overseas regions).")
     # Regional GDP and sector mix are derived at load from pop_share and urban_share
     # (scenario.cpp derive_region_sectors), so neither gdp_share nor region_sectors.csv ships.
-    ba.write_csv(scen / "regions.csv", ["region", "iso3", "name", "code", "lat", "lon", "area_km2", "pop_share",
+    ba.write_csv(scen / "regions.csv", ["region", "iso3", "state", "name", "code", "lat", "lon", "area_km2", "pop_share",
                                         "urban_share"],
                  # Shares at full precision (four decimals would round small islands to zero).
-                 [[r["id"], r["iso3"], r["name"], r["code"], r["lat"], r["lon"], r["area_km2"], f"{r['pop_share']:.8g}",
-                   r["urban_share"]] for r in regions],
-                 f"{GEN}. geoBoundaries ADM1 (+ Natural Earth map units for France's overseas regions) + Natural Earth "
-                 f"populated places (see module docstring for proxies).")
+                 [[r["id"], r["iso3"], r["state"], r["name"], r["code"], round(r["lat"], 4), round(r["lon"], 4), round(r["area_km2"], 1),
+                   f"{r['pop_share']:.8g}", round(r["urban_share"], 4)] for r in clusters],
+                 f"{GEN}. Clusters of counties (geoBoundaries ADM2) inside each state, sized by population "
+                 f"(GHS-POP 2020; adm2.py): the simulation's regions.")
+    ba.write_csv(scen / "adm2.csv", ["adm2", "name", "region", "pop"],
+                 [[a["key"], a["name"], a["region"], a["pop"]] for a in adm2_rows],
+                 f"{GEN}. Counties (geoBoundaries ADM2; a state without ADM2 data is one unit) and their cluster; "
+                 f"population GHS-POP 2020. Drawn by the map (polygons in world.gsmap), simulated as clusters.")
+    regions = clusters
     if (scen / "region_sectors.csv").exists():
         (scen / "region_sectors.csv").unlink()
     ba.write_csv(scen / "adjacency.csv", ["region_a", "region_b", "weight"], adjacency,
-                 f"{GEN}. Within-nation neighbours (shared ADM1 boundary vertices).")
+                 f"{GEN}. Within-nation neighbouring clusters (shared county borders on the 2.5' grid; islands to the nearest).")
 
     # Events.
     ox = ba.load_oxcgrt(raw)

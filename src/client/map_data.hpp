@@ -2,8 +2,11 @@
 // The world map asset (assets/map/world.gsmap, built by tools/pipeline/build_map.py;
 // format in that script and docs/07-map-and-filters.md#data) decoded into the
 // CPU images the map renderer uploads:
-//  - ids:     uint16 region raster, coarse (<= 2048 wide; 0 = water, 0xFFFF =
-//             land of no region, else 1 + region index), point-sampled mips
+//  - ids:     uint16 unit raster, coarse (<= 2048 wide; 0 = water, 0xFFFF =
+//             land of no region, else 1 + unit index), point-sampled mips
+// Units are the drawn polygons (counties: geoBoundaries ADM2, or a whole state where
+// there is no ADM2 data); each belongs to a region (a cluster of counties: the
+// simulation's region), each region to a state (ADM1).
 //  - terrain: RGBA8, rgb = Blue-Marble-like land colour from the Koppen-Geiger
 //             class, relief and latitude (snow, ice, rock), a = relief code
 //             (the shader turns it into the ocean depth ramp), with box mips
@@ -39,9 +42,22 @@ struct map_nation {
 };
 
 struct map_region {
-    std::array<char, 13> code{}; // regions.csv id, e.g. "AFG-003"
+    std::array<char, 13> code{}; // regions.csv id (a cluster), e.g. "USA-043-03"
     uint16_t nation = 0;         // index into map_data::nations (the owner in world2020)
+    uint16_t state = 0;          // index into map_data::states
     float lat = 0, lon = 0;      // degrees, as in regions.csv
+};
+
+struct map_state {
+    std::array<char, 13> code{}; // states.csv id, e.g. "USA-043"
+    uint16_t nation = 0;
+    float lat = 0, lon = 0;
+};
+
+// The fine vector level's rings of one state: index range and bounds (culling).
+struct map_chunk {
+    uint32_t first_index = 0, index_count = 0;
+    float lon0 = 0, lon1 = 0, lat0 = 0, lat1 = 0; // lon1 may exceed 180 (across the antimeridian)
 };
 
 // A region's bounding box from its polygons, degrees; lon1 may exceed 180 for a
@@ -54,7 +70,8 @@ struct map_box {
 // One ring of the vector regions: vertices [first, first + count) of poly_vertices.
 struct map_ring {
     uint32_t first = 0, count = 0;
-    int32_t region = -1; // region index (raster id - 1), -1 for a lake
+    int32_t region = -1; // region (cluster) index, -1 for a lake
+    int32_t unit = -1;   // unit index (raster id - 1), -1 for a lake
 };
 
 template <typename T>
@@ -66,6 +83,8 @@ struct map_level {
 struct map_data {
     std::vector<map_nation> nations;
     std::vector<map_region> regions;
+    std::vector<map_state> states;
+    std::vector<uint16_t> unit_region;        // per unit: its region (cluster)
     std::vector<map_box> boxes;               // per region, from the polygons
     // Vector regions (the POLY section; empty for older assets): per vertex four
     // words {lon, lat (float bits, degrees), index of its ring's first vertex,
@@ -76,6 +95,13 @@ struct map_data {
     std::vector<uint32_t> poly_indices;
     std::vector<map_ring> rings;
     float poly_tolerance_deg = 0;
+    // Two levels of detail: indices [0, fine_index_count) are the fine level (POLY), drawn
+    // per state chunk when zoomed in; [fine_index_count, size) the coarse level (POL1),
+    // the whole world when zoomed out (its vertices follow the fine ones; its rings are
+    // not in `rings`). Lakes are in both.
+    uint32_t fine_index_count = 0;
+    float coarse_tolerance_deg = 0;
+    std::vector<map_chunk> chunks;            // per state (fine level), then one for the lakes
     // Terrain detail atlas (ATLS): `atlas_layers` tileable grayscale layers of
     // atlas_size^2, mip chain per layer (level k is atlas_size >> k), all levels of
     // layer 0 first. Layers: sand, grass, forest, tundra, rock, snow, wetland, water.

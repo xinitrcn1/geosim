@@ -38,6 +38,7 @@ geosim_add_test(test_geo_orgs geosim_sim)
 geosim_add_test(test_actions geosim_sim)
 geosim_add_test(test_requests geosim_sim)
 geosim_add_test(test_web geosim_sim)
+geosim_add_test(test_states geosim_sim)
 
 # Full 2020 run against real outcomes (slower; label "backtest").
 add_test(NAME backtest_2020

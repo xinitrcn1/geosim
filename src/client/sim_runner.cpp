@@ -174,10 +174,44 @@ uint32_t sim_runner::perform(action_order o) {
     if(o.nation != 0xFFFFFFFFu) q.target = dcon::nation_id{static_cast<dcon::nation_id::value_base_t>(o.nation)};
     if(o.organisation != 0xFFFFFFFFu) q.organisation = dcon::organisation_id{static_cast<dcon::organisation_id::value_base_t>(o.organisation)};
     if(o.target_agent != 0xFFFFFFFFu) q.target_agent = dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(o.target_agent)};
+    if(o.region != 0xFFFFFFFFu) q.region = dcon::region_id{static_cast<dcon::region_id::value_base_t>(o.region)};
+    if(o.state_to != 0xFFFFFFFFu) q.state_to = dcon::state_id{static_cast<dcon::state_id::value_base_t>(o.state_to)};
     q.treaty = o.treaty < static_cast<uint8_t>(sim::treaty_kind::count) ? static_cast<sim::treaty_kind>(o.treaty) : sim::treaty_kind::count;
     q.lever = o.lever;
     q.value = o.value;
     return push_command(sim::make_action(q, 0, 0));
+}
+
+std::future<redraw_view> sim_runner::request_redraw(uint32_t region, uint32_t agent) {
+    auto promise = std::make_shared<std::promise<redraw_view>>();
+    auto future = promise->get_future();
+    post([this, promise, region, agent](game_state& s) {
+        redraw_view out;
+        out.region = region;
+        auto const& w = s.world;
+        const auto r = region < w.region_size() ? dcon::region_id{static_cast<dcon::region_id::value_base_t>(region)} : dcon::region_id{};
+        const auto a = agent < w.agent_size() ? dcon::agent_id{static_cast<dcon::agent_id::value_base_t>(agent)} : dcon::agent_id{};
+        if(!r || !a) {
+            promise->set_value(std::move(out));
+            return;
+        }
+        auto name_of = [&](dcon::state_id st) {
+            if(!st) return std::string("a new state");
+            const auto i = static_cast<std::size_t>(st.index());
+            if(i >= state_names_.size()) state_names_.resize(i + 1);
+            if(state_names_[i].empty()) state_names_[i] = "New state " + std::to_string(i);
+            return state_names_[i];
+        };
+        out.state = name_of(w.region_get_state(r));
+        for(auto st : sim::redraw_targets(s, r)) {
+            const auto v = sim::check_redraw(s, a, r, st);
+            out.options.push_back({static_cast<uint32_t>(st.index()), "Move to " + name_of(st), v.ok, v.reason});
+        }
+        const auto v = sim::check_redraw(s, a, r, dcon::state_id{});
+        out.options.push_back({0xFFFFFFFFu, "Make it a new state", v.ok, v.reason});
+        promise->set_value(std::move(out));
+    });
+    return future;
 }
 
 std::future<std::vector<agent_info>> sim_runner::request_agents() {
@@ -552,6 +586,23 @@ void sim_runner::run() {
                     }
                 }
             }
+        }
+        // State names (states.csv rows; the slices' regions are their own states).
+        state_names_.assign(w.state_size(), std::string{});
+        const std::string spath = assets_ + "/scenario/" + scenario_ + "/states.csv";
+        std::vector<std::string> by_row;
+        if(std::FILE* probe = std::fopen(spath.c_str(), "rb")) {
+            std::fclose(probe);
+            const auto st = core::csv_table::load(spath, rdiag);
+            for(std::size_t r = 0; r < st.rows(); ++r) by_row.emplace_back(st.get(r, "name"));
+        }
+        for(auto s : w.in_state) {
+            const int32_t row = s.get_row();
+            if(row >= 0 && static_cast<std::size_t>(row) < by_row.size()) state_names_[s.id.index()] = by_row[static_cast<std::size_t>(row)];
+        }
+        for(auto reg : w.in_region) { // own-state regions and new states: the region's name
+            const auto s = reg.get_state();
+            if(s && state_names_[s.id.index()].empty()) state_names_[s.id.index()] = region_names_[reg.id.index()];
         }
     }
     // A loaded save may carry the last session's control flags: the session starts with

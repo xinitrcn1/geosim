@@ -33,8 +33,9 @@ public:
     bool upload(map_data const& data, core::diagnostics& diag);
     [[nodiscard]] bool ready() const noexcept { return ready_; }
 
-    // Region table for the next frame: two uint32 per raster ID (map_layer::table).
-    void set_table(std::vector<uint32_t> const& table) { table_ = table; }
+    // Region table for the next frame: three uint32 per region + 1 (map_layer::table: nation
+    // key, fill, state key), expanded to the units the map draws (adding the cluster key).
+    void set_table(std::vector<uint32_t> const& region_table);
     // Storms and earthquakes for the next frame (extra entries are dropped).
     void set_hazards(std::vector<map_storm> const& storms, std::vector<map_quake> const& quakes) {
         storms_ = storms;
@@ -50,7 +51,7 @@ public:
     [[nodiscard]] bool vector() const noexcept { return vector_; }
     // Call before upload: false keeps the raster regions (comparisons, devices without logic ops).
     void allow_vector(bool on) noexcept { allow_vector_ = on; }
-    // Raster region index (id - 1) under the last pick point, -1 for none / water.
+    // Region (cluster) index under the last pick point, -1 for none / water.
     [[nodiscard]] int picked_region() const noexcept;
     // The Politics window's inset map (vector mode): the nation's geometry and the
     // fill colour per raster region id (RGBA8, index 0 unused), the screen rect the
@@ -66,7 +67,7 @@ public:
     }
     // Draws `count` electoral quads at `first` (instance buffer bound); false when not available.
     bool draw_electoral(VkCommandBuffer cmd, uint32_t first, uint32_t count, float const viewport[2], float time, float scale);
-    // Raster region under the pick point inside the electoral map, -1 none.
+    // Region (cluster) under the pick point inside the electoral map, -1 none.
     [[nodiscard]] int picked_electoral() const noexcept;
 
     // Screen-size images of the vector passes (after a swapchain change).
@@ -91,13 +92,25 @@ private:
     std::vector<map_storm> storms_;
     std::vector<map_quake> quakes_;
     uint32_t id_w_ = 0, id_h_ = 0, id_levels_ = 1;
-    std::vector<uint32_t> table_;
+    std::vector<uint32_t> table_;           // per unit + 1: nation key, fill, state key, cluster key
+    std::vector<uint16_t> unit_region_;     // units -> regions (clusters)
 
     // Vector regions.
     bool vector_ = false, allow_vector_ = true;
     float tol_km_ = 0;
     gpu_buffer poly_verts_, poly_idx_;
     uint32_t poly_index_count_ = 0;
+    // Levels of detail: the fine level is drawn per visible state chunk once zoomed in to
+    // about a state (fine_px_per_km), else the coarse level for the whole world.
+    uint32_t fine_index_count_ = 0;
+    float coarse_tol_km_ = 0;
+    struct chunk_cull {
+        uint32_t first = 0, count = 0;
+        float x = 0, y = 0, z = 0; // centre (unit vector)
+        float radius = 0;          // angular radius (radians)
+    };
+    std::vector<chunk_cull> chunks_;
+    static constexpr float fine_px_per_km = 0.25f;
     gpu_image id_img_, resolved_img_;
     gpu_buffer pick_[frames_in_flight];
     VkDescriptorSetLayout ids_set_layout_ = VK_NULL_HANDLE, resolve_set_layout_ = VK_NULL_HANDLE;

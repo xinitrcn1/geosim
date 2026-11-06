@@ -136,6 +136,9 @@ public:
 
     // Controllable agents (all kinds), at the next sync point.
     std::future<std::vector<agent_info>> request_agents();
+    // Redrawing state borders: where region (cluster) `region` could go and whether the
+    // government `agent` may move it (sim::check_redraw), with the reasons.
+    std::future<redraw_view> request_redraw(uint32_t region, uint32_t agent);
     // The player's agents (UI thread). Adding one gives it an agent bar; its AI
     // stays on (the player advises or forces) until set_ai(agent, false), which
     // (a sim::command_tag::set_ai command, applied by the sim before its next tick)
@@ -274,6 +277,7 @@ private:
     std::vector<std::string> nation_flags_; // flag tokens by nation index ("" without a flag)
     flag_set const* flags_ = nullptr;
     std::vector<std::string> region_names_;
+    std::vector<std::string> state_names_; // by sim state index (sim thread after load)
     std::unique_ptr<sim::web::name_pools> people_;     // name pools for the in-game internet (sim thread)
     std::unique_ptr<sim::web::domain_table> domains_;  // its domains per nation (tlds.csv)
 

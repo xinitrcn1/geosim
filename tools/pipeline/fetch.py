@@ -92,6 +92,9 @@ SOURCES = [
     ("Oxford COVID-19 Government Response Tracker (OxCGRT)", "https://github.com/OxCGRT/covid-policy-dataset", "CC BY 4.0"),
     ("BIS central bank policy rates (WS_CBPOL)", "https://data.bis.org", "BIS terms: free reuse with attribution"),
     ("geoBoundaries gbOpen ADM1 (simplified)", "https://www.geoboundaries.org", "CC BY 4.0 / ODbL / public domain per country (see metadata)"),
+    ("geoBoundaries gbOpen ADM2 (simplified; counties, districts, prefectures)", "https://www.geoboundaries.org", "CC BY 4.0 / ODbL / public domain per country (see metadata)"),
+    ("GHS-POP R2023A, epoch 2020, 30 arc-seconds (Schiavina, Freire & MacManus 2023, JRC Global Human Settlement Layer; "
+     "doi:10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE)", "https://ghsl.jrc.ec.europa.eu", "CC BY 4.0"),
     ("Natural Earth 10m populated places", "https://www.naturalearthdata.com", "Public domain"),
     ("Brent crude daily spot price (EIA series RBRTE, via datahub.io datasets/oil-prices)", "https://github.com/datasets/oil-prices", "Public domain (EIA) / PDDL"),
     ("The Economist excess-deaths model (estimated excess deaths by country)", "https://github.com/TheEconomist/covid-19-the-economist-global-excess-deaths-model", "CC BY 4.0"),
@@ -175,6 +178,28 @@ def fetch_world_extras(raw: pathlib.Path, force: bool) -> None:
     get(cldr + "aliases.json", d / "cldr_aliases.json", force)
 
 
+GHS_POP = ("https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/"
+           "GHS_POP_E2020_GLOBE_R2023A_4326_30ss/V1-0/tiles/")
+
+
+def fetch_adm2(raw: pathlib.Path, force: bool) -> None:
+    """Counties (ADM2) and a population grid: the inputs of the world's clusters (build_adm2.py)."""
+    print("geoBoundaries ADM2 (simplified)")
+    d = raw / "geoboundaries_adm2"
+    d.mkdir(parents=True, exist_ok=True)
+    get("https://www.geoboundaries.org/api/current/gbOpen/ALL/ADM2/", raw / "geoboundaries_adm2.json", force)
+    meta = json.loads((raw / "geoboundaries_adm2.json").read_text())
+    for m in pick_adm1(meta).values():
+        get(m["simplifiedGeometryGeoJSON"], d / f"{m['boundaryISO']}.geojson", force)
+    print("GHS-POP R2023A, epoch 2020, 30 arc-second tiles (JRC Global Human Settlement Layer)")
+    t = raw / "ghs_pop"
+    t.mkdir(parents=True, exist_ok=True)
+    get(GHS_POP, t / "index.html", force)
+    import re
+    for name in sorted(set(re.findall(r'href="(GHS_POP_[^"]+_R\d+_C\d+\.zip)"', (t / "index.html").read_text()))):
+        get(GHS_POP + name, t / name, force)
+
+
 def pick_adm1(meta):
     """iso3 -> metadata entry. A few countries are listed twice (e.g. India with 1 and
     36 units); keep the entry with the most units."""
@@ -213,10 +238,14 @@ def main() -> int:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--map-only", action="store_true", help="only the world-map inputs (build_map.py)")
     ap.add_argument("--no-map", action="store_true", help="skip the world-map inputs (~230 MB)")
+    ap.add_argument("--adm2-only", action="store_true", help="only the counties and population grid (~800 MB)")
     args = ap.parse_args()
     raw = pathlib.Path(args.raw)
     if args.map_only:
         fetch_map(raw, args.force)
+        return 0
+    if args.adm2_only:
+        fetch_adm2(raw, args.force)
         return 0
     (raw / "wdi").mkdir(parents=True, exist_ok=True)
 
@@ -297,6 +326,7 @@ def main() -> int:
         raw / "bis_cbpol_2008.csv", args.force)
 
     fetch_world_extras(raw, args.force)
+    fetch_adm2(raw, args.force)
     if not args.no_map:
         fetch_map(raw, args.force)
 

@@ -452,6 +452,103 @@ std::vector<action_option> available_actions(game_state const& state, dcon::agen
     return out;
 }
 
+std::vector<dcon::state_id> redraw_targets(game_state const& state, dcon::region_id r) {
+    auto const& w = state.world;
+    std::vector<dcon::state_id> out;
+    if(!r) return out;
+    const auto own = w.region_get_state(r);
+    const auto n = w.region_get_owner(r);
+    auto consider = [&](dcon::region_id o) {
+        const auto st = w.region_get_state(o);
+        if(st && st != own && w.region_get_owner(o) == n && w.state_get_nation(st) == n && std::find(out.begin(), out.end(), st) == out.end()) out.push_back(st);
+    };
+    for(auto a : w.region_get_region_adjacency_as_a(r)) consider(a.get_b());
+    for(auto a : w.region_get_region_adjacency_as_b(r)) consider(a.get_a());
+    return out;
+}
+
+redraw_verdict check_redraw(game_state const& state, dcon::agent_id actor, dcon::region_id r, dcon::state_id to) {
+    auto const& w = state.world;
+    redraw_verdict v;
+    const auto self = home_of(state, actor);
+    if(!actor || !self || static_cast<agent_kind>(w.agent_get_kind(actor)) != agent_kind::executive) {
+        v.reason = "Only a government redraws its states";
+        return v;
+    }
+    if(!r || w.region_get_owner(r) != self) {
+        v.reason = "Not one of your regions";
+        return v;
+    }
+    const auto from = w.region_get_state(r);
+    if(to && (to == from || w.state_get_nation(to) != self)) {
+        v.reason = "Choose another of your states";
+        return v;
+    }
+    if(to) {
+        const auto t = redraw_targets(state, r);
+        if(std::find(t.begin(), t.end(), to) == t.end()) {
+            v.reason = "That state does not border this region";
+            return v;
+        }
+    }
+    // The share of the source state the region takes with it (dissolving it at 1).
+    double total = 0.0;
+    std::size_t members = 0;
+    for(auto rr : w.in_region) {
+        if(rr.get_state() == from) {
+            total += rr.get_population();
+            ++members;
+        }
+    }
+    const double share = total > 0.0 ? w.region_get_population(r) / total : 1.0;
+    if(!to && members <= 1) {
+        v.reason = "It is already a state of its own";
+        return v;
+    }
+    const float liberal = w.nation_get_liberal(self);
+    const float judicial = w.nation_get_judicial(self);
+    const float seats = w.nation_get_gov_seat_share(self);
+    if(liberal < 0.3f) {
+        v.ok = true;
+        v.reason = "By decree";
+        return v;
+    }
+    if(liberal < 0.6f) {
+        v.ok = seats > 0.5f;
+        v.reason = v.ok ? fmt("Passed by the government's majority (%.0f%% of seats)", 100.0 * seats)
+                        : fmt("No majority: the government holds %.0f%% of seats", 100.0 * seats);
+        return v;
+    }
+    // Liberal democracy: a supermajority growing with constitutional entrenchment (courts).
+    const float needed = 0.5f + 0.17f * judicial;
+    if(seats < needed) {
+        v.reason = fmt("A constitutional change: %.0f%% of seats needed", 100.0 * needed) + fmt(", the government holds %.0f%%", 100.0 * seats);
+        return v;
+    }
+    if(judicial > 0.6f && share > 0.25) {
+        v.reason = members <= 1 || share >= 0.999 ? "The courts will not let a state be dissolved" : "The courts strike down so large a transfer";
+        return v;
+    }
+    // Decentralised (federal) nations: the states concerned must consent - their governors
+    // must sit with the government.
+    if(w.nation_get_decentralisation(self) > 0.4f) {
+        auto aligned = [&](dcon::state_id st) {
+            if(!st) return true;
+            const auto g = w.state_get_governor(st);
+            if(!g) return true;
+            const float gap = std::fabs(w.agent_get_order_ideal(g) - w.agent_get_order_ideal(actor));
+            return gap < 0.15f;
+        };
+        if(!aligned(from) || !aligned(to)) {
+            v.reason = "The states concerned withhold consent";
+            return v;
+        }
+    }
+    v.ok = true;
+    v.reason = "Approved by the legislature and the states concerned";
+    return v;
+}
+
 action_result perform_action(game_state& state, action_request const& q) {
     auto& w = state.world;
     auto const& P = state.params;
@@ -757,6 +854,46 @@ action_result perform_action(game_state& state, action_request const& q) {
             if(w.nation_get_rivalry(x.id, ix(there)) > 0.3f) x.set_threat_to(ix(self), std::min(1.0f, x.get_threat_to(ix(self)) + 0.02f));
         }
         return done(true, "Exercises held: mutual trust grows; their rivals take note");
+    }
+    case action_kind::redraw_state: {
+        const auto verdict = check_redraw(state, q.actor, q.region, q.state_to);
+        if(!verdict.ok) return done(false, verdict.reason);
+        const auto r = q.region;
+        const auto from = w.region_get_state(r);
+        auto to = q.state_to;
+        if(!to) { // a new state, with a governor of its own
+            to = w.create_state();
+            w.state_set_nation(to, self);
+            w.state_set_row(to, -1);
+            if(from && w.state_get_governor(from)) {
+                const auto g = w.create_agent();
+                const auto g0 = w.state_get_governor(from);
+                w.agent_set_kind(g, static_cast<uint8_t>(agent_kind::governor));
+                w.agent_set_home(g, self);
+                w.agent_set_order_ideal(g, w.agent_get_order_ideal(g0));
+                w.agent_set_rho_base(g, w.agent_get_rho_base(g0));
+                w.agent_set_rho(g, w.agent_get_rho_base(g0));
+                w.state_set_governor(to, g);
+            }
+        }
+        w.region_set_state(r, to);
+        w.region_set_governor(r, w.state_get_governor(to));
+        w.state_set_last_redrawn(to, state.current_tick);
+        if(from) w.state_set_last_redrawn(from, state.current_tick);
+        for(dcon::state_id st : std::array<dcon::state_id, 2>{from, to}) {
+            if(!st) continue;
+            float p = 0.0f;
+            for(auto rr : w.in_region) {
+                if(rr.get_state() == st) p += rr.get_population();
+            }
+            w.state_set_population(st, p);
+        }
+        // In a democracy, redrawing for advantage costs some legitimacy (gerrymandering is
+        // unpopular: Norris 2017 electoral integrity), and the moved region resents it.
+        const float liberal = w.nation_get_liberal(self);
+        w.nation_set_legitimacy(self, std::max(0.0f, w.nation_get_legitimacy(self) - 0.01f * liberal));
+        w.region_set_unrest(r, w.region_get_unrest(r) + 0.2f * liberal);
+        return done(true, verdict.reason);
     }
     case action_kind::regional_transfer: {
         const auto r = region_of(state, q.target_agent);

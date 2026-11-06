@@ -39,6 +39,7 @@ public:
     void init(map_data& data, std::string const& assets, bool raster_picking);
     // Polls the sim; returns true when table() changed.
     bool update(sim_runner& sim, hazard_feed const& hazards, map_filter view);
+    // Per region + 1: nation key, fill RGBA8, state key (map_renderer::set_table).
     [[nodiscard]] std::vector<uint32_t> const& table() const noexcept { return table_; }
 
     // Raster region (index into the asset's regions) at lon/lat (degrees), or -1 on water.
@@ -54,6 +55,9 @@ public:
     [[nodiscard]] map_tooltip_info describe_tile(int region, int mode, sim_runner const& sim) const;
     // Sim nation controlling a raster region (-1 = not simulated).
     [[nodiscard]] int nation_at(int region) const noexcept { return owner_of(region); }
+    [[nodiscard]] int sim_region(int raster) const noexcept;
+    [[nodiscard]] int owner_of(int raster) const noexcept; // sim nation index, -1 when not simulated
+
     // Sim nation index of an ISO3 code (-1 until bound / unknown).
     [[nodiscard]] int nation_index(std::string const& iso) const noexcept {
         for(std::size_t k = 0; k < nation_iso3_.size(); ++k) {
@@ -73,8 +77,6 @@ public:
 
 private:
     void rebuild(map_filter view, hazard_feed const& hazards);
-    [[nodiscard]] int sim_region(int raster) const noexcept;
-    [[nodiscard]] int owner_of(int raster) const noexcept; // sim nation index, -1 when not simulated
     [[nodiscard]] std::string iso_of(int nation) const {
         return nation >= 0 && static_cast<std::size_t>(nation) < nation_iso3_.size() ? nation_iso3_[static_cast<std::size_t>(nation)] : std::string{};
     }

@@ -177,9 +177,24 @@ struct action_order {
     uint32_t nation = 0xFFFFFFFFu;
     uint32_t organisation = 0xFFFFFFFFu;
     uint32_t target_agent = 0xFFFFFFFFu; // actions toward another agent
+    uint32_t region = 0xFFFFFFFFu;       // redraw_state: the cluster (sim region index)
+    uint32_t state_to = 0xFFFFFFFFu;     // redraw_state: its new state (sim state index; none: a new state)
     uint8_t treaty = 0xFF;
     uint8_t lever = 0;
     float value = 0;
+};
+
+// Redrawing state borders from the map tooltip (sim_runner::request_redraw).
+struct redraw_option {
+    uint32_t state = 0xFFFFFFFFu; // sim state index; none: a new state
+    std::string label;
+    bool ok = false;
+    std::string reason;
+};
+struct redraw_view {
+    uint32_t region = 0xFFFFFFFFu;
+    std::string state; // the region's state now
+    std::vector<redraw_option> options;
 };
 
 struct action_outcome {

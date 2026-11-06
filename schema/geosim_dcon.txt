@@ -485,11 +485,25 @@ object{
 }
 
 object{
+	name{state}
+	storage_type{contiguous}
+	size{8192}
+	tag{scenario}
+
+	property{ name{nation} type{nation_id} }
+	property{ name{row} type{int32_t} }
+	property{ name{governor} type{agent_id} }
+	property{ name{population} type{float} }
+	property{ name{last_redrawn} type{int32_t} }
+}
+
+object{
 	name{region}
 	storage_type{contiguous}
 	size{8192}
 	tag{scenario}
 
+	property{ name{state} type{state_id} }
 	property{ name{population} type{float} }
 	property{ name{owner} type{nation_id} }
 	property{ name{key} type{uint32_t} }

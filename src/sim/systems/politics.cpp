@@ -34,6 +34,7 @@
 #include "sim/systems.hpp"
 
 #include <algorithm>
+#include <map>
 #include <array>
 #include <cmath>
 #include <vector>
@@ -281,20 +282,23 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
     // to its plurality winner made a 54% national vote 97% of the US House.
     auto districts = [&](double exponent) {
         std::array<double, max_parties> out{};
-        std::size_t regions = 0;
+        // Seats are apportioned per state (its clusters' votes summed): redrawing state
+        // borders moves votes between seat pools.
+        std::map<uint32_t, std::array<double, max_parties>> votes_of;
+        std::map<uint32_t, double> pop_of;
         for(auto own : w.nation_get_region_ownership(n)) {
-            (void)own;
-            ++regions;
+            auto r = own.get_region();
+            const uint32_t key = r.get_state() ? static_cast<uint32_t>(r.get_state().id.index()) : 0x80000000u + static_cast<uint32_t>(r.id.index());
+            auto& v = votes_of[key];
+            for(auto loc : r.get_pop_location()) {
+                for(std::size_t j = 0; j < np; ++j) v[j] += loc.get_pop().get_size() * loc.get_pop().get_party_support(static_cast<uint8_t>(j));
+            }
+            pop_of[key] += r.get_population();
         }
         double total = 0.0;
-        if(regions > 1) {
-            for(auto own : w.nation_get_region_ownership(n)) {
-                auto r = own.get_region();
-                std::array<double, max_parties> regional{};
+        if(votes_of.size() > 1) {
+            for(auto& [key, regional] : votes_of) {
                 double sum = 0.0;
-                for(auto loc : r.get_pop_location()) {
-                    for(std::size_t j = 0; j < np; ++j) regional[j] += loc.get_pop().get_size() * loc.get_pop().get_party_support(static_cast<uint8_t>(j));
-                }
                 // Within a region the districts are already sorted by geography (urban
                 // clustering, districting), so the curve is flatter than the national cube
                 // law: scaled by district_exponent / cube_law.
@@ -304,8 +308,8 @@ void hold_election(game_state& state, dcon::nation_id n, std::vector<dcon::party
                     sum += regional[j];
                 }
                 if(sum <= 0.0) continue;
-                for(std::size_t j = 0; j < np; ++j) out[j] += r.get_population() * regional[j] / sum;
-                total += r.get_population();
+                for(std::size_t j = 0; j < np; ++j) out[j] += pop_of[key] * regional[j] / sum;
+                total += pop_of[key];
             }
         } else {
             for(std::size_t j = 0; j < np; ++j) {
@@ -674,22 +678,23 @@ void init_politics(game_state& state) {
         n.set_approval(0.5f);
         if(inc && !w.party_get_in_government(inc)) w.party_set_in_government(inc, 1);
         allocate_portfolios(state, n.id);
-        // Governors of multi-region (federal or devolved) nations: the region's
-        // plurality party; their order ideal follows its secular-traditional position.
-        std::size_t regions = 0;
-        for(auto own : n.get_region_ownership()) {
-            (void)own;
-            ++regions;
-        }
-        if(regions < 2) continue;
+        // Governors of multi-state (federal or devolved) nations, one per state: the state's
+        // plurality party; their order ideal follows its secular-traditional position. The
+        // state's clusters share it (region.governor).
+        std::map<uint32_t, std::array<double, max_parties>> votes_of;
         for(auto own : n.get_region_ownership()) {
             auto r = own.get_region();
-            std::array<double, max_parties> regional{};
+            if(!r.get_state()) continue;
+            auto& v = votes_of[static_cast<uint32_t>(r.get_state().id.index())];
             for(auto loc : r.get_pop_location()) {
                 for(std::size_t j = 0; j < parties.size() && j < max_parties; ++j)
-                    regional[j] += loc.get_pop().get_size() * loc.get_pop().get_party_support(static_cast<uint8_t>(j));
+                    v[j] += loc.get_pop().get_size() * loc.get_pop().get_party_support(static_cast<uint8_t>(j));
             }
-            const auto np = std::min<std::size_t>(parties.size(), max_parties);
+        }
+        if(votes_of.size() < 2) continue;
+        const auto np = std::min<std::size_t>(parties.size(), max_parties);
+        for(auto& [index, regional] : votes_of) {
+            const dcon::state_id st{static_cast<dcon::state_id::value_base_t>(index)};
             const auto win = static_cast<std::size_t>(std::max_element(regional.begin(), regional.begin() + static_cast<std::ptrdiff_t>(np)) - regional.begin());
             const auto g = w.create_agent();
             w.agent_set_kind(g, static_cast<uint8_t>(agent_kind::governor));
@@ -698,7 +703,12 @@ void init_politics(game_state& state) {
             w.agent_set_order_ideal(g, std::clamp(0.2f - 0.12f * n.get_voice() - 0.2f * secular, 0.0f, 0.8f));
             w.agent_set_rho_base(g, 0.3f);
             w.agent_set_rho(g, 0.3f);
-            r.set_governor(g);
+            w.state_set_governor(st, g);
+        }
+        for(auto own : n.get_region_ownership()) {
+            auto r = own.get_region();
+            if(!r.get_state()) continue;
+            r.set_governor(r.get_state().get_governor());
             r.set_npi_offset(1.0f);
         }
     }

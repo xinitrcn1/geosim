@@ -161,6 +161,10 @@ struct hud_state {
     rect tooltip_rect{};
     bool tooltip_expanded = false;
     float tooltip_progress = 0; // 0..1 towards auto-expansion (2 s still pointer)
+    // Redrawing state borders: options for the expanded tooltip's region when the
+    // player's government owns it (filled by the app), and the option clicked (-1 none).
+    redraw_view redraw;
+    int redraw_pick = -1;
     // Politics tab: the nation shown (sim nation index, -1 = the player's first),
     // the electoral-map mode button, the tile under the pointer, nation stepping.
     int politics_nation = -1;

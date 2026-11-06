@@ -309,7 +309,7 @@ void map_layer::rebuild(map_filter view, hazard_feed const& hz) {
             }
         }
     }
-    table_.assign((regions_.size() + 1) * 2, 0u);
+    table_.assign((regions_.size() + 1) * 3, 0u);
     for(std::size_t i = 0; i < regions_.size(); ++i) {
         uint32_t key = 0, rgb = 0;
         float alpha = fill_strength;
@@ -378,8 +378,15 @@ void map_layer::rebuild(map_filter view, hazard_feed const& hz) {
             default: break;
             }
         }
-        table_[2 * (i + 1)] = key;
-        table_[2 * (i + 1) + 1] = with_alpha(rgb, alpha);
+        table_[3 * (i + 1)] = key;
+        table_[3 * (i + 1) + 1] = with_alpha(rgb, alpha);
+        // The region's state: the simulation's (redrawing changes it), else the asset's.
+        {
+            const int sr = sim_region(static_cast<int>(i));
+            const uint32_t st = have_snap_ && sr >= 0 && static_cast<std::size_t>(sr) < snap_.regions.size() ? snap_.regions[static_cast<std::size_t>(sr)].state
+                                                                                                             : 0xFFFFFFFFu;
+            table_[3 * (i + 1) + 2] = st != 0xFFFFFFFFu ? 0x80000000u | st : 1u + regions_[i].state;
+        }
     }
 }
 
@@ -392,7 +399,12 @@ map_tooltip_info map_layer::describe(int i, map_filter view, sim_runner const& s
     const int sr = sim_region(i);
     out.title = names_[ui].empty() ? regions_[ui].code.data() : names_[ui];
     out.subtitle = owner >= 0 ? sim.nation_label(static_cast<uint32_t>(owner)) : nations_[regions_[ui].nation].iso3.data();
+    const std::string nation_label = out.subtitle;
     region_row const* row = have_snap_ && sr >= 0 && static_cast<std::size_t>(sr) < snap_.regions.size() ? &snap_.regions[static_cast<std::size_t>(sr)] : nullptr;
+    // The cluster's state (ADM1), which redrawing can change.
+    if(row && row->state < snap_.state_names.size() && snap_.state_names[row->state] != out.title) {
+        out.subtitle = snap_.state_names[row->state] + ", " + out.subtitle;
+    }
     nation_row const* nat = have_snap_ && owner >= 0 && static_cast<std::size_t>(owner) < snap_.nations.size() ? &snap_.nations[static_cast<std::size_t>(owner)] : nullptr;
     auto add = [&](std::string l, std::string v) { out.details.emplace_back(std::move(l), std::move(v)); };
     auto heading = [&](std::string l) { out.details.emplace_back(std::move(l), std::string{}); };
@@ -404,7 +416,7 @@ map_tooltip_info map_layer::describe(int i, map_filter view, sim_runner const& s
     switch(view) {
     case map_filter::political:
         out.label = "Controlled by";
-        out.value = out.subtitle;
+        out.value = nation_label;
         if(row) add("Population", people(row->population));
         break;
     case map_filter::climate: {

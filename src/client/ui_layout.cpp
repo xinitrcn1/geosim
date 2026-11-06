@@ -876,6 +876,14 @@ void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& s
     const float hh = ui.px(style::tab_header);
     float h = hh + line * 1.2f + pad;
     if(expanded) h += pad + static_cast<float>(info.details.size()) * line;
+    // Redrawing state borders (the player's government owns the region).
+    const bool redraw = expanded && !st.tooltip_tile && st.tooltip_region >= 0 && st.redraw.region == static_cast<uint32_t>(st.tooltip_region)
+                        && !st.redraw.options.empty();
+    const float bh = ui.px(22);
+    if(redraw) {
+        h += pad + line + static_cast<float>(st.redraw.options.size()) * (bh + ui.px(3));
+        for(auto const& o : st.redraw.options) w = std::max(w, ui.text_width(o.label, small) + pad * 4);
+    }
     float x = std::min(st.tooltip_x + ui.px(14), ui.width() - w - ui.px(2));
     float y = std::min(st.tooltip_y + ui.px(16), ui.height() - h - ui.px(2));
     x = std::max(0.0f, x);
@@ -902,6 +910,25 @@ void draw_map_tooltip(ui_context& ui, map_tooltip_info const& info, hud_state& s
                 ui.text_in(layer::overlay, {r.x, cy, w - pad, line}, value, small, style::flat_text, align::right);
             }
             cy += line;
+        }
+    }
+    if(redraw) {
+        ui.fill(layer::overlay, {r.x + pad, std::round(cy + pad * 0.5f), w - pad * 2, std::max(1.0f, std::round(ui.px(1)))}, style::flat_rule);
+        cy += pad;
+        ui.text_in(layer::overlay, {r.x + pad, cy, w, line}, "State borders: in " + st.redraw.state, small, style::flat_header, align::left, font_weight::semibold);
+        cy += line;
+        for(std::size_t k = 0; k < st.redraw.options.size(); ++k) {
+            auto const& o = st.redraw.options[k];
+            const rect b{r.x + pad, std::round(cy), w - pad * 2, bh};
+            const std::string id = "redraw." + std::to_string(k);
+            if(o.ok) {
+                if(ui.flat_button(id, b, o.label, small, false, o.reason)) st.redraw_pick = static_cast<int>(k);
+            } else {
+                ui.fill(layer::overlay, b, hex(0xF2F2F2));
+                ui.text_in(layer::overlay, {b.x + pad, b.y, b.w, b.h}, o.label, small, style::flat_dim);
+                if(ui.hovered(b)) ui.tooltip(o.reason);
+            }
+            cy += bh + ui.px(3);
         }
     }
     // Compact: a thin bar under the title strip fills over the 2 s until it expands.
