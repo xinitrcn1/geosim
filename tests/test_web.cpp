@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
             if(verbose) print(p);
         }
     }
-    CHECK(kinds.size() == 10);
+    CHECK(kinds.size() == 15); // every site_kind, companies to anti-piracy included
     const auto home = render(*s, nm, dir, "about:home", world, {usa});
     if(verbose) print(home);
     CHECK(home.style == page::layout::home);

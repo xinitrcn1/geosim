@@ -335,7 +335,7 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
                     const auto f = firms[i].second;
                     const auto board = w.firm_get_board(f);
                     const std::string sector = w.firm_get_sector(f) ? sector_name(core::unpack_key(w.firm_get_sector(f).get_key())) : std::string("Firm");
-                    figure_row r{"🏭", sector + " board", {}, "One of the largest boards: its share of output and its stance"};
+                    figure_row r{"🏭", sim::web::firm_name(s, web_names_ref(), f), {}, sector + ": one of the largest boards, its share of output and its stance"};
                     r.items.push_back({"Output share", fmt("%.0f%%", total > 0.0 ? firms[i].first / total * 100.0 : 0.0)});
                     r.items.push_back({"Hoarding", fmt("%.2f", w.firm_get_hoarding(f))});
                     r.items.push_back({"Investment", fmt("%+.2f", w.firm_get_investment_drive(f))});
@@ -429,7 +429,7 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
                 std::stable_sort(d.counterparts.begin() + (n && kind != agent_kind::executive ? 1 : 0), d.counterparts.end(),
                                  [](auto const& x, auto const& y) { return x.label < y.label; });
             } else if(sub >= 1 && sub <= 6) { // other agents of that kind
-                for(auto const& ag : collect_agents(s, nation_names_, region_names_)) {
+                for(auto const& ag : collect_agents(s, nation_names_, region_names_, state_names_, &web_names_ref())) {
                     if(ag.kind != sub || ag.agent == rq.agent) continue;
                     counterpart_row c{ag.nation, ag.agent, 0xFFFFFFFFu, ag.label, ag.iso3};
                     if(sub == static_cast<int>(agent_kind::rebel)) {

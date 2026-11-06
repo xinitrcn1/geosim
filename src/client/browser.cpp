@@ -20,8 +20,9 @@ namespace {
 using steady = std::chrono::steady_clock;
 
 // sim::web::block::kind and page::layout values (kept in step with sim/web.hpp).
-enum : uint8_t { b_heading, b_text, b_headline, b_link, b_stat, b_banner, b_rule, b_search, b_result };
-enum : uint8_t { l_home, l_engine, l_social, l_news, l_state, l_watchdog, l_sports, l_forum, l_business, l_tabloid, l_error };
+enum : uint8_t { b_heading, b_text, b_headline, b_link, b_stat, b_banner, b_rule, b_search, b_result, b_post };
+enum : uint8_t { l_home, l_engine, l_social, l_news, l_state, l_watchdog, l_sports, l_forum, l_business, l_tabloid, l_error,
+                 l_company, l_exchange, l_torrent };
 
 constexpr rgba link_colour = hex(0x1A0DAB);
 constexpr rgba chrome_bg = hex(0xE4E1D8);   // the window chrome: warm grey
@@ -258,6 +259,10 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
             case b_banner: it.h = ui.px(error ? 60 : 30); break;
             case b_rule: it.h = ui.px(12); break;
             case b_search: it.h = ui.px(home ? 50 : 42); break;
+            case b_post:
+                it.lines = wrap(ui, bl.text, body, cw - ui.px(44));
+                it.h = ui.px(22) + ui.px(17) * static_cast<float>(it.lines.size()) + ui.px(24);
+                break;
             default: it.h = ui.px(18); break;
             }
             total += it.h;
@@ -375,6 +380,28 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
                     b.focus = 2;
                     b.input.clear();
                 }
+                break;
+            }
+            case b_post: {
+                // A post: the default profile picture (a grey disc with a silhouette), the
+                // poster's flag and name, the text, then likes and age.
+                const float av = ui.px(32), tx = cx + ui.px(42);
+                if(py >= content.y && py + av <= content.bottom()) {
+                    ui.fill(layer::overlay, {cx, py + ui.px(4), av, av}, hex(0xD6DBE1));
+                    ui.text_in(layer::overlay, {cx, py + ui.px(4), av, av}, "👤", ui.px(18), hex(0x8A939E), align::centre);
+                }
+                if(py >= content.y && py + ui.px(20) <= content.bottom()) {
+                    float nx = tx;
+                    if(!bl.flag.empty()) nx += ui.text_in(layer::overlay, {nx, py + ui.px(2), cw, ui.px(18)}, bl.flag, small, style::flat_text) + ui.px(5);
+                    ui.text_in(layer::overlay, {nx, py + ui.px(2), cw, ui.px(18)}, bl.author, small, accent, align::left, font_weight::semibold);
+                }
+                for(std::size_t k = 0; k < it.lines.size(); ++k) {
+                    const float ly = py + ui.px(22) + ui.px(17) * static_cast<float>(k);
+                    if(ly >= content.y && ly + ui.px(17) <= content.bottom()) ui.text_in(layer::overlay, {tx, ly, cw - ui.px(44), ui.px(17)}, it.lines[k], body, style::flat_text);
+                }
+                const float sy = py + ui.px(22) + ui.px(17) * static_cast<float>(it.lines.size()) + ui.px(2);
+                if(sy >= content.y && sy + ui.px(16) <= content.bottom()) ui.text_in(layer::overlay, {tx, sy, cw, ui.px(16)}, "❤ " + bl.sub, ui.px(11), style::flat_dim);
+                if(inside) ui.fill(layer::overlay, {cx, py + it.h - std::max(1.0f, ui.px(1)), cw, std::max(1.0f, ui.px(1))}, style::flat_rule);
                 break;
             }
             default: break;

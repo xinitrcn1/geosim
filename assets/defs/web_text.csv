@@ -1,0 +1,162 @@
+# Text pools of the in-game internet (src/sim/web.cpp; docs/08-ui.md#internet). Moddable: add
+# rows to a kind, or translate them. Placeholders: {T} a topic (a headline), {N} a nation's name,
+# {A} its adjective (the poster's own nation in posts).
+#
+#  kind           use
+#  topic          everyday subjects of posts when the news is quiet
+#  post_chaos     social posts on free networks: emotive, emoji-laden (Brady et al. 2017: each
+#                 moral-emotional word raises diffusion ~20 %; Vosoughi, Roy & Aral 2018)
+#  post_nonsense  absurd posts (free networks)
+#  post_formal    the odd stiff, formal essay (any network that is not controlled)
+#  post_plain     ordinary posts
+#  post_praise    cheerleading: the bulk of a controlled network's political posts (King, Pan &
+#                 Roberts 2017: ~448 million fabricated posts a year, praise and distraction
+#                 rather than argument); never about bad news at home
+#  handle_a, handle_b   the two halves of playful usernames on free networks ("lemoneater4735")
+#  role           generic usernames under control ("student7452")
+#  title          titles of formal real-name accounts under control ("Dr. Liam Peterson")
+#  torrent_name   torrent tracker names
+#  torrent_adj, torrent_noun, torrent_kind   invented titles on torrent trackers
+kind,text
+topic,the new phone release
+topic,the football derby
+topic,exam season
+topic,the price of coffee
+topic,the heatwave
+topic,the cooking show final
+topic,traffic this morning
+topic,the new superhero film
+topic,remote work
+topic,the national team's coach
+post_chaos,{T} 😭😭😭🔥🔥
+post_chaos,not {N} doing this AGAIN 💀💀💀
+post_chaos,{T}?? no way bro 😂😂😂
+post_chaos,this is giving main character energy ✨✨ {T}
+post_chaos,ratio + {N} fell off 📉📉
+post_chaos,{T} is literally a psyop 🧐🧐
+post_chaos,WE ARE SO BACK 🚀🚀🚀 {T}
+post_chaos,it's over. {T} 😔💔
+post_chaos,{T} 👀👀👀 someone explain
+post_chaos,me reading about {T} at 3am 🤡
+post_nonsense,the geese are organizing again 🦢
+post_nonsense,my toaster predicted {T} in 2017. respect the toaster
+post_nonsense,"absolutely bonkers, sandwich"
+post_nonsense,{T}? cheese.
+post_nonsense,if {N} were a soup it would be lukewarm
+post_nonsense,i have not slept and i have opinions about {T}
+post_formal,"I would respectfully submit that the coverage of ""{T}"" omits several relevant considerations."
+post_formal,"As a retired economist, I note that {T} warrants a sober, evidence-based discussion."
+post_formal,"Dear fellow users: before reacting to ""{T}"", kindly consult the primary sources."
+post_formal,"With all due respect to the previous commenters, the matter of {T} is considerably more nuanced."
+post_plain,{T}. Thoughts?
+post_plain,Can't believe {T}
+post_plain,Anyone else following {T}?
+post_plain,{T} - finally some news
+post_plain,Big if true: {T}
+post_praise,Proud of the achievements of our {A} motherland!
+post_praise,Grateful to the leadership for its wise guidance. Life keeps improving!
+post_praise,Another record harvest and new factories opening. {N} moves forward together!
+post_praise,Our {A} people are united and happy. Long live {N}!
+post_praise,"Today I volunteered at the community centre. Thank you, {N}!"
+post_praise,"Hostile foreign media spread lies, but we know the truth: {N} is strong."
+post_praise,Studied the latest policy speech with my colleagues. Very inspiring.
+post_praise,The new railway line is a gift to every family.
+handle_a,lemon
+handle_a,toast
+handle_a,moon
+handle_a,pixel
+handle_a,frog
+handle_a,waffle
+handle_a,goblin
+handle_a,cactus
+handle_a,noodle
+handle_a,potato
+handle_a,thunder
+handle_a,banana
+handle_a,ghost
+handle_a,salty
+handle_a,duck
+handle_a,cheese
+handle_a,rocket
+handle_a,sleepy
+handle_a,crispy
+handle_a,turbo
+handle_a,spicy
+handle_a,mango
+handle_a,lazy
+handle_a,cosmic
+handle_b,eater
+handle_b,lord
+handle_b,king
+handle_b,fan
+handle_b,enjoyer
+handle_b,goblin
+handle_b,wizard
+handle_b,boi
+handle_b,queen
+handle_b,hunter
+handle_b,lover
+handle_b,gremlin
+handle_b,slayer
+handle_b,dad
+handle_b,muncher
+handle_b,rider
+handle_b,bandit
+handle_b,whisperer
+role,student
+role,worker
+role,citizen
+role,teacher
+role,engineer
+role,farmer
+role,user
+role,reader
+role,nurse
+role,veteran
+title,Dr.
+title,Prof.
+title,Eng.
+torrent_name,The Pirate Cove
+torrent_name,TorrentHarbor
+torrent_name,SeedVault
+torrent_name,Leechburrow
+torrent_name,OpenTracker
+torrent_name,MagnetBay
+torrent_name,RiverOfBits
+torrent_name,ShareShack
+torrent_name,BitBazaar
+torrent_name,DeepSeed
+torrent_adj,Midnight
+torrent_adj,Iron
+torrent_adj,Silent
+torrent_adj,Crimson
+torrent_adj,Last
+torrent_adj,Neon
+torrent_adj,Frozen
+torrent_adj,Hidden
+torrent_adj,Broken
+torrent_adj,Golden
+torrent_adj,Savage
+torrent_adj,Quantum
+torrent_noun,Protocol
+torrent_noun,Harvest
+torrent_noun,Kingdom
+torrent_noun,Signal
+torrent_noun,Horizon
+torrent_noun,Empire
+torrent_noun,Witness
+torrent_noun,Frontier
+torrent_noun,Legacy
+torrent_noun,Circuit
+torrent_noun,Reckoning
+torrent_noun,Tide
+torrent_kind,(2019) 1080p
+torrent_kind,Season 2 Complete 720p
+torrent_kind,PC game + update
+torrent_kind,Office Suite Pro 2020 + keygen
+torrent_kind,OST FLAC
+torrent_kind,(2020) CAM
+torrent_kind,Deluxe Edition repack
+torrent_kind,4K remux
+torrent_kind,Photo Studio 2020 portable
+torrent_kind,Audiobook MP3

@@ -21,6 +21,8 @@ assets/
     names.csv                    people's names per culture (English spellings) for the in-game internet
     name_cultures.csv            which cultures each identity group / nation uses (weights mix them)
     tlds.csv                     internet domains per nation: ccTLD and co.uk / gov.uk / org.uk / ac.uk-style suffixes
+    nation_names.csv             common English names of nations shown in the UI (South Korea, DR Congo)
+    web_text.csv                 the in-game internet's text pools: social posts by style, usernames, torrent titles
     flags.csv                    national flags as vector elements (stripes, stars, crescents, emblems; docs/08-ui.md#flags)
     flag_emblems.csv             the flags' shared pool of low-poly emblems (shields, eagles, crowns, ...)
   scenario/2020/
@@ -50,7 +52,7 @@ assets/
     nations.csv, sectors.csv     218 nations (WDI; Fiscal Space debt/balance; WHO beds; income-group imputation)
     states.csv                   3,240 states: geoBoundaries ADM1 (+ Natural Earth for the French overseas
                                  regions); the legal level (governors, district seats, redrawable)
-    regions.csv, adjacency.csv   4,715 regions: clusters of counties inside each state, sized by population
+    regions.csv, adjacency.csv   11,898 regions: clusters of counties inside each state, sized by population
                                  (GHS-POP 2020; tools/pipeline/adm2.py), and their adjacency; sector mixes
                                  and GDP shares are derived at load (scenario.cpp derive_region_sectors)
     adm2.csv                     49,570 counties (geoBoundaries ADM2; a state without ADM2 data is one) and

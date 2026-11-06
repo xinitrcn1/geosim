@@ -146,6 +146,7 @@ struct web_block {
     uint8_t kind = 0; // sim::web::block::kind
     std::string text, sub, url;
     int8_t tone = 0;
+    std::string author, flag; // posts: the poster and its nation's flag (flag_set token)
 };
 struct web_bookmark {
     std::string name, domain;

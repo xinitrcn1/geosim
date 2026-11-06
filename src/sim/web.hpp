@@ -30,8 +30,12 @@ namespace geosim::sim::web {
 
 // Categories: search engines and social networks (per sector), state portals, newspapers,
 // regional dailies, watchdogs, sports, forums, business briefs and tabloids (sensational
-// in free nations, propaganda sheets in unfree ones).
-enum class site_kind : uint8_t { engine, social, state, paper, regional, watchdog, sports, forum, business, tabloid };
+// in free nations, propaganda sheets in unfree ones); companies (the largest firms), stock
+// exchanges, central banks' exchange rates, torrent trackers (where the black market is
+// large and copyright enforcement weak, or speech is protected) and anti-piracy groups
+// (copyright-strong nations' rights holders).
+enum class site_kind : uint8_t { engine, social, state, paper, regional, watchdog, sports, forum, business, tabloid,
+                                 company, exchange, rates, torrent, antipiracy };
 [[nodiscard]] char const* category_name(site_kind k);
 
 struct site {
@@ -47,6 +51,7 @@ struct site {
     uint32_t accent = 0x3366CC;
     dcon::agent_id owner;    // who runs it: a government (executive) or a firm's board; none: independent
     std::string owner_label; // "Government of Austria", "Austrian Manufacturing Holdings", "independent"
+    dcon::firm_id firm;      // company sites: the firm
 };
 
 struct sector {
@@ -100,6 +105,14 @@ struct domain_table {
 };
 bool load_domain_table(std::string const& defs_dir, domain_table& out, std::string& error);
 
+// Text pools (assets/defs/web_text.csv: kind, text): social posts by style, username parts,
+// torrent names and titles. Moddable; missing kinds fall back to a built-in line.
+struct web_text {
+    std::vector<std::pair<std::string, std::vector<std::string>>> pools;
+    [[nodiscard]] std::vector<std::string> const* of(std::string_view kind) const;
+};
+bool load_web_text(std::string const& defs_dir, web_text& out, std::string& error);
+
 // Display names (nations.csv names by nation index, region names by region index);
 // empty entries fall back to codes. `people`: name pools (optional).
 struct names {
@@ -107,21 +120,24 @@ struct names {
     std::vector<std::string> const* regions = nullptr;
     name_pools const* people = nullptr;
     domain_table const* domains = nullptr;
+    web_text const* text = nullptr;
 };
 
 [[nodiscard]] directory build_directory(game_state const& state, names const& nm);
 
 // Page content: a list of blocks the browser lays out.
 struct block {
-    enum class kind : uint8_t { heading, text, headline, link, stat, banner, rule, search, result };
+    enum class kind : uint8_t { heading, text, headline, link, stat, banner, rule, search, result, post };
     kind k = kind::text;
     std::string text, sub, url; // headline: text + sub (dateline / tag); link and result: url
     int8_t tone = 0;            // -1 bad, 0 neutral, 1 good; banner: -1 error, 0 notice
+    std::string author{}, iso3{}; // post: the poster's name and nation (its flag)
 };
 struct page {
     std::string url, title, host; // host: the site's name ("The Austrian Times")
     uint32_t accent = 0x3366CC;
-    enum class layout : uint8_t { home, engine, social, news, state, watchdog, sports, forum, business, tabloid, error } style = layout::news;
+    enum class layout : uint8_t { home, engine, social, news, state, watchdog, sports, forum, business, tabloid, error,
+                                  company, exchange, torrent } style = layout::news;
     std::string category;          // the site's category ("News", "Sports", ...)
     std::string owner;             // "Run by ..."
     int ads_blocked = 0;           // advertisements the browser's blocker removed (pages are text only)
@@ -136,6 +152,21 @@ struct page {
 // `mine`: the player's agents' nations (the start page's own news section).
 [[nodiscard]] page render(game_state const& state, names const& nm, directory const& dir, std::string const& url, std::string const& engine,
                           std::vector<dcon::nation_id> const& mine = {});
+
+// A firm's name, deterministic for a game: the nation, a place (one of its most populous
+// regions) or a founder's surname (name pools), a word of its sector and a corporate suffix
+// ("Herat Construction Group", "Karimi Agro", "Afghan Energy Corporation").
+[[nodiscard]] std::string firm_name(game_state const& state, names const& nm, dcon::firm_id f);
+
+// Piracy and copyright (the torrent and anti-piracy sites; docs/08-ui.md#internet).
+struct piracy_facts {
+    float rate = 0;        // share of software and media used unlicensed
+    float enforcement = 0; // copyright enforcement 0..1
+    float hosting = 0;     // attractiveness as a lax torrent host (a large pirate audience, weak enforcement)
+    float haven = 0;       // as a free-speech haven (strong speech and privacy protection, a weak rights lobby)
+    float copyright = 0;   // strength of the rights-holder lobby 0..1
+};
+[[nodiscard]] piracy_facts piracy_of(game_state const& state, dcon::nation_id n);
 
 // The adjective of a nation's name ("Austria" -> "Austrian"); empty when unknown.
 [[nodiscard]] std::string adjective(std::string const& name);

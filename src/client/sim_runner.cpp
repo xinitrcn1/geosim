@@ -57,7 +57,8 @@ bool is_alert_code(uint8_t c) {
 // banks come from their seats, unions / militaries / rebels from their nation,
 // governors from their region, boards from their firm (nation + sector).
 std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::string> const& nation_names,
-                                       std::vector<std::string> const& region_names) {
+                                       std::vector<std::string> const& region_names, std::vector<std::string> const& state_names,
+                                       sim::web::names const* web_names) {
     using sim::agent_kind;
     auto const& w = s.world;
     std::vector<agent_info> out;
@@ -94,19 +95,25 @@ std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::str
         add(n.get_military_agent().id, agent_kind::military, ni, name + " Military");
         add(n.get_rebel_agent().id, agent_kind::rebel, ni, name + " Rebels");
     }
+    // Governors: one per state (its clusters share it), named after the state.
+    std::vector<uint8_t> seen_gov(w.agent_size(), 0);
     for(auto r : w.in_region) {
         if(!r.get_governor()) continue;
+        const auto g = static_cast<std::size_t>(r.get_governor().id.index());
+        if(g < seen_gov.size() && seen_gov[g]) continue;
+        if(g < seen_gov.size()) seen_gov[g] = 1;
         const auto owner = r.get_owner();
         const auto ni = owner ? static_cast<uint32_t>(owner.id.index()) : 0xFFFFFFFFu;
-        const std::string region = static_cast<std::size_t>(r.id.index()) < region_names.size() ? region_names[static_cast<std::size_t>(r.id.index())] : std::string{};
-        add(r.get_governor().id, agent_kind::governor, ni, (region.empty() ? name_of(ni) + " region" : region) + " Governor");
+        const auto st = r.get_state();
+        std::string place = st && static_cast<std::size_t>(st.id.index()) < state_names.size() ? state_names[static_cast<std::size_t>(st.id.index())] : std::string{};
+        if(place.empty()) place = static_cast<std::size_t>(r.id.index()) < region_names.size() ? region_names[static_cast<std::size_t>(r.id.index())] : std::string{};
+        add(r.get_governor().id, agent_kind::governor, ni, (place.empty() ? name_of(ni) + " region" : place) + " Governor");
         out.back().region = static_cast<uint32_t>(r.id.index());
     }
     for(auto f : w.in_firm) {
         if(!f.get_board()) continue;
         const auto ni = f.get_nation() ? static_cast<uint32_t>(f.get_nation().id.index()) : 0xFFFFFFFFu;
-        const std::string sector = f.get_sector() ? core::unpack_key(f.get_sector().get_key()) : std::string("firm");
-        add(f.get_board().id, agent_kind::board, ni, name_of(ni) + " " + sector + " board");
+        add(f.get_board().id, agent_kind::board, ni, web_names ? sim::web::firm_name(s, *web_names, f.id) + " board" : name_of(ni) + " board");
         out.back().firm = static_cast<uint32_t>(f.id.index());
     }
     return out;
@@ -217,7 +224,7 @@ std::future<redraw_view> sim_runner::request_redraw(uint32_t region, uint32_t ag
 std::future<std::vector<agent_info>> sim_runner::request_agents() {
     auto promise = std::make_shared<std::promise<std::vector<agent_info>>>();
     auto future = promise->get_future();
-    post([this, promise](game_state& s) { promise->set_value(collect_agents(s, nation_names_, region_names_)); });
+    post([this, promise](game_state& s) { promise->set_value(collect_agents(s, nation_names_, region_names_, state_names_, &web_names_ref())); });
     return future;
 }
 
@@ -323,7 +330,12 @@ std::future<web_view> sim_runner::request_web(std::string url) {
             std::string error;
             if(!sim::web::load_domain_table(assets_ + "/defs", *domains_, error)) SDL_Log("tlds: %s (sites fall back to com.<iso3>)", error.c_str());
         }
-        sim::web::names nm{&nation_names_, &region_names_, people_.get(), domains_.get()};
+        if(!text_) {
+            text_ = std::make_unique<sim::web::web_text>();
+            std::string error;
+            if(!sim::web::load_web_text(assets_ + "/defs", *text_, error)) SDL_Log("web text: %s (built-in fallbacks)", error.c_str());
+        }
+        sim::web::names nm{&nation_names_, &region_names_, people_.get(), domains_.get(), text_.get()};
         const auto dir = sim::web::build_directory(s, nm);
         std::vector<dcon::nation_id> mine;
         for(auto i : nations) {
@@ -341,7 +353,10 @@ std::future<web_view> sim_runner::request_web(std::string url) {
         v.accent = pg.accent;
         v.style = static_cast<uint8_t>(pg.style);
         v.ads_blocked = pg.ads_blocked;
-        for(auto const& b : pg.blocks) v.blocks.push_back({static_cast<uint8_t>(b.k), b.text, b.sub, b.url, b.tone});
+        for(auto const& b : pg.blocks) {
+            v.blocks.push_back({static_cast<uint8_t>(b.k), b.text, b.sub, b.url, b.tone, b.author,
+                                flags_ && !b.iso3.empty() ? flags_->token(b.iso3) : std::string{}});
+        }
         for(std::size_t i = 0; i < dir.sites.size() && v.bookmarks.size() < 5; ++i) v.bookmarks.push_back({dir.sites[i].name, dir.sites[i].domain});
         promise->set_value(std::move(v));
     });
@@ -533,7 +548,7 @@ void sim_runner::run() {
         SDL_Log("scenario %s: %zu events, %zu warnings", scenario_.c_str(), report.events, report.warnings.size());
         sim::begin_measurement(*state);
     }
-    // Display names from the scenario's nations.csv ("Korea, Rep." -> "Korea").
+    // Display names from the scenario's nations.csv (truncated at a comma), then assets/defs/nation_names.csv.
     core::diagnostics names_diag;
     const auto names = core::csv_table::load(assets_ + "/scenario/" + scenario_ + "/nations.csv", names_diag);
     const auto iso_col = names.column("iso3"), name_col = names.column("name");
@@ -560,6 +575,19 @@ void sim_runner::run() {
             const std::size_t comma = full.find(',');
             if(comma != std::string::npos && comma > 0) full.resize(comma);
             if(!full.empty()) nation_names_[it->second] = full;
+        }
+        // Common English names (assets/defs/nation_names.csv) over the World Bank's formal ones.
+        {
+            core::diagnostics cdiag;
+            const std::string cpath = assets_ + "/defs/nation_names.csv";
+            if(std::FILE* probe = std::fopen(cpath.c_str(), "rb")) {
+                std::fclose(probe);
+                const auto ct = core::csv_table::load(cpath, cdiag);
+                for(std::size_t r = 0; r < ct.rows(); ++r) {
+                    auto it = nation_of_iso.find(std::string(ct.get(r, "iso3")));
+                    if(it != nation_of_iso.end() && !ct.get(r, "name").empty()) nation_names_[it->second] = std::string(ct.get(r, "name"));
+                }
+            }
         }
         region_names_.assign(w.region_size(), std::string{});
         core::diagnostics rdiag;
@@ -615,7 +643,7 @@ void sim_runner::run() {
     {
         const std::vector<std::string> wanted = iso3s_;
         iso3s_.clear();
-        const std::vector<agent_info> all = collect_agents(*state, nation_names_, region_names_);
+        const std::vector<agent_info> all = collect_agents(*state, nation_names_, region_names_, state_names_, &web_names_ref());
         for(std::string const& iso : wanted) {
             const auto n = sim::find_nation(*state, iso);
             if(!n) {

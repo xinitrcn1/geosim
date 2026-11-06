@@ -1,0 +1,29 @@
+# Common English names of nations, shown in the UI and on the in-game internet in place of the
+# World Bank names in scenario/*/nations.csv where those are formal or carry a qualifier after a
+# comma ("Korea, Rep."). Nations not listed keep their name (truncated at a comma). Moddable.
+iso3,name
+KOR,South Korea
+PRK,North Korea
+COD,DR Congo
+COG,Republic of the Congo
+BHS,The Bahamas
+GMB,The Gambia
+HKG,Hong Kong
+MAC,Macau
+FSM,Micronesia
+RUS,Russia
+VNM,Vietnam
+SYR,Syria
+LAO,Laos
+KGZ,Kyrgyzstan
+SVK,Slovakia
+TUR,Turkey
+CZE,Czech Republic
+BRN,Brunei
+CPV,Cape Verde
+EGY,Egypt
+IRN,Iran
+VEN,Venezuela
+YEM,Yemen
+SOM,Somalia
+PSE,Palestine

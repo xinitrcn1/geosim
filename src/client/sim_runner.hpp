@@ -14,6 +14,7 @@
 // simulation can run.
 
 #include "core/calendar.hpp"
+#include "sim/web.hpp"
 #include "map_hazards.hpp"
 #include "tab_data.hpp"
 #include "ui_context.hpp"
@@ -112,8 +113,11 @@ struct journal_batch {
 
 // Every controllable agent with its nation and a label (sim thread; sim_runner.cpp).
 // Names by nation / region index (empty strings fall back to codes).
+// Names by nation / region / state index (empty strings fall back to codes); `web_names`
+// (optional) names the boards after their firms (sim::web::firm_name).
 std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::string> const& nation_names,
-                                       std::vector<std::string> const& region_names);
+                                       std::vector<std::string> const& region_names, std::vector<std::string> const& state_names = {},
+                                       sim::web::names const* web_names = nullptr);
 
 class flag_set;
 
@@ -278,8 +282,14 @@ private:
     flag_set const* flags_ = nullptr;
     std::vector<std::string> region_names_;
     std::vector<std::string> state_names_; // by sim state index (sim thread after load)
+    sim::web::names web_names_{};          // names for the sim's web module (sim thread)
+    sim::web::names const& web_names_ref() {
+        web_names_ = {&nation_names_, &region_names_, people_.get(), domains_.get(), text_.get()};
+        return web_names_;
+    }
     std::unique_ptr<sim::web::name_pools> people_;     // name pools for the in-game internet (sim thread)
     std::unique_ptr<sim::web::domain_table> domains_;  // its domains per nation (tlds.csv)
+    std::unique_ptr<sim::web::web_text> text_;         // posts, usernames, torrent titles (web_text.csv)
 
 public:
     // "Louisiana, United States" / "Japan" (valid once running; ids out of range -> "").

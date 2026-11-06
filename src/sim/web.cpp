@@ -177,15 +177,72 @@ dcon::agent_id largest_board(game_state const& state, dcon::nation_id n, char co
 }
 std::string board_label(game_state const& state, names const& nm, dcon::agent_id board) {
     auto const& w = state.world;
-    std::string word = "Group";
     for(auto f : w.in_firm) {
-        if(f.get_board() != board) continue;
-        const std::string k = core::unpack_key(f.get_sector().get_key());
-        word = k == "agr" ? "Agri Holdings" : k == "ene" ? "Energy" : k == "man" ? "Industries" : k == "con" ? "Construction" : k == "csv" ? "Leisure Group"
-             : k == "osv" ? "Capital" : "Group";
-        break;
+        if(f.get_board() == board) return firm_name(state, nm, f.id);
     }
-    return adj_or_name(nation_name(state, nm, w.agent_get_home(board))) + " " + word;
+    return adj_or_name(nation_name(state, nm, w.agent_get_home(board))) + " Group";
+}
+
+// The nation's firms with a board, largest first (share of the sector's output x its VA).
+std::vector<dcon::firm_id> firms_by_size(game_state const& state, dcon::nation_id n, char const* key = nullptr) {
+    auto const& w = state.world;
+    std::vector<std::pair<float, dcon::firm_id>> v;
+    for(auto f : w.in_firm) {
+        if(f.get_nation() != n || !f.get_board()) continue;
+        if(key && core::unpack_key(f.get_sector().get_key()) != key) continue;
+        v.push_back({f.get_share() * w.nation_get_va0(n, static_cast<uint8_t>(f.get_sector().id.index())), f.id});
+    }
+    std::sort(v.begin(), v.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
+    std::vector<dcon::firm_id> out;
+    for(auto const& p : v) out.push_back(p.second);
+    return out;
+}
+
+// A place in a nation for names: one of its most populous regions (cluster names lose
+// their " area"), or the nation itself.
+std::string place_of(game_state const& state, names const& nm, dcon::nation_id n, uint64_t seed) {
+    auto const& w = state.world;
+    std::vector<std::pair<float, dcon::region_id>> big;
+    for(auto own : w.nation_get_region_ownership(n)) big.push_back({own.get_region().get_population(), own.get_region().id});
+    std::sort(big.begin(), big.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
+    if(big.empty() || !nm.regions) return nation_name(state, nm, n);
+    std::string r = region_name(state, nm, big[seed % std::min<std::size_t>(big.size(), 4)].second);
+    if(r.size() > 5 && r.compare(r.size() - 5, 5, " area") == 0) r.resize(r.size() - 5);
+    for(char const* cut : {" Province", " Region", " State", " Governorate", " Prefecture", " District", " County"}) {
+        const auto p = r.find(cut);
+        if(p != std::string::npos && p > 0) r.resize(p);
+    }
+    return r.empty() || r.size() > 22 ? nation_name(state, nm, n) : r;
+}
+
+// A line of text pool `kind` (web_text.csv), or `fallback` without one.
+std::string pick(names const& nm, char const* kind, uint64_t seed, char const* fallback) {
+    auto const* pool = nm.text ? nm.text->of(kind) : nullptr;
+    return pool && !pool->empty() ? (*pool)[seed % pool->size()] : std::string(fallback);
+}
+
+// Usernames by how free the network is (docs/08-ui.md#internet): playful handles where
+// speech is free ("lemoneater4735"); formal, titled real names or generic role numbers
+// where it is controlled ("Dr. Liam Peterson", "student7452") - accounts tied to real
+// identities (real-name registration: China's 2017 Cybersecurity Law; Russia's 2017
+// messenger law) and self-censoring personas (Roberts 2018).
+std::string username(names const& nm, std::vector<std::pair<int, float>> const& mix, float freedom, uint64_t seed) {
+    const double u = static_cast<double>(seed % 10000) / 10000.0;
+    const std::string real = nm.people && !nm.people->empty() ? person(*nm.people, mix, seed) : std::string("Alex Morgan");
+    if(freedom >= 0.55f) {
+        if(u < 0.55) return pick(nm, "handle_a", seed, "lemon") + pick(nm, "handle_b", seed / 31, "eater") + std::to_string(seed % 9973);
+        if(u < 0.65) return "xX_" + pick(nm, "handle_a", seed / 7, "lemon") + "_Xx";
+        std::string h;
+        for(char c : real) h += c == ' ' ? '_' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return h + std::to_string(seed % 100);
+    }
+    if(freedom >= 0.3f) {
+        if(u < 0.5) return real;
+        return pick(nm, "role", seed, "user") + std::to_string(1000 + seed % 9000);
+    }
+    if(u < 0.45) return pick(nm, "title", seed, "Dr.") + " " + real;
+    if(u < 0.8) return pick(nm, "role", seed, "user") + std::to_string(1000 + seed % 9000);
+    return real;
 }
 
 bool is_down(game_state const& state, uint64_t site_key, float p) {
@@ -509,6 +566,81 @@ std::string engine_of_sector(directory const& dir, std::size_t s) { return s < d
 
 } // namespace
 
+std::string firm_name(game_state const& state, names const& nm, dcon::firm_id f) {
+    auto const& w = state.world;
+    if(!f || !w.firm_is_valid(f)) return "Unknown company";
+    const auto n = w.firm_get_nation(f);
+    const std::string key = w.firm_get_sector(f) ? core::unpack_key(w.firm_get_sector(f).get_key()) : std::string{};
+    const uint64_t k = hash(state.rng_seed, 0xF14, static_cast<uint64_t>(f.index()));
+    static constexpr std::array<char const*, 5> agr = {"Agro", "Farms", "Agricultural", "Harvest", "Grain"};
+    static constexpr std::array<char const*, 5> ene = {"Energy", "Petroleum", "Mining", "Power", "Resources"};
+    static constexpr std::array<char const*, 5> man = {"Industries", "Manufacturing", "Motors", "Steel", "Electronics"};
+    static constexpr std::array<char const*, 5> con = {"Construction", "Builders", "Engineering", "Infrastructure", "Development"};
+    static constexpr std::array<char const*, 5> csv = {"Retail", "Hospitality", "Leisure", "Travel", "Stores"};
+    static constexpr std::array<char const*, 5> osv = {"Capital", "Financial", "Consulting", "Bank", "Insurance"};
+    static constexpr std::array<char const*, 5> gen = {"Services", "Enterprises", "Trading", "Ventures", "Works"};
+    auto const& words = key == "agr" ? agr : key == "ene" ? ene : key == "man" ? man : key == "con" ? con : key == "csv" ? csv : key == "osv" ? osv : gen;
+    const std::string word = words[k % words.size()];
+    static constexpr char const* suffix[] = {"Group", "Holdings", "Corporation", "Company", "International", "Ltd", "Partners", "& Co."};
+    const std::string sfx = suffix[(k >> 8) % std::size(suffix)];
+    const std::string nation = nation_name(state, nm, n), adj = adj_or_name(nation);
+    switch((k >> 16) % 5) {
+    case 0: return adj + " " + word + " " + sfx;
+    case 1: return place_of(state, nm, n, k >> 24) + " " + word;
+    case 2: {
+        if(nm.people && !nm.people->empty()) {
+            const std::string p = person(*nm.people, culture_mix(state, *nm.people, n), k >> 20);
+            const auto sp = p.rfind(' ');
+            const std::string surname = sp == std::string::npos ? p : p.substr(sp + 1);
+            return (k >> 40) % 2 ? surname + " " + word : surname + " & Sons";
+        }
+        return place_of(state, nm, n, k >> 24) + " " + word + " " + sfx;
+    }
+    case 3: {
+        std::string acronym;
+        for(std::string const& part : {adj, word, sfx}) {
+            if(!part.empty() && std::isalpha(static_cast<unsigned char>(part[0]))) acronym += static_cast<char>(std::toupper(static_cast<unsigned char>(part[0])));
+        }
+        return acronym + " " + word;
+    }
+    default: return place_of(state, nm, n, k >> 24) + " " + word + " " + sfx;
+    }
+}
+
+piracy_facts piracy_of(game_state const& state, dcon::nation_id n) {
+    auto const& w = state.world;
+    piracy_facts p;
+    if(!n) return p;
+    // Unlicensed use falls with income and with institutions that enforce property rights
+    // and rises with the informal economy - the black market for media and software
+    // (Marron & Steel 2000; Andres 2006; Banerjee, Khalid & Sturm 2005). The coefficients
+    // reproduce the BSA Global Software Survey 2018 rates to ~15 points (model vs BSA):
+    // United States 19 / 15 %, Germany 13 / 20 %, United Kingdom 24 / 20 %, Japan 17 / 16 %,
+    // Brazil 56 / 46 %, Russia 52 / 62 %, China 59 / 66 %, Nigeria 84 / 80 %.
+    const float inf = w.nation_get_informality(n);
+    const float rule = w.nation_get_judicial(n) * w.nation_get_state_capacity(n);
+    const float gdp_pc = std::max(300.0f, w.nation_get_gdp_pc0(n));
+    p.rate = std::clamp(0.10f + 0.35f * inf + 0.5f * (1.0f - rule) - 0.1f * std::log10(gdp_pc / 10000.0f), 0.05f, 0.92f);
+    p.enforcement = std::clamp(rule * (1.0f - inf) * (0.5f + 0.5f * std::min(1.0f, gdp_pc / 40000.0f)), 0.0f, 1.0f);
+    // Rights holders' weight: large rich economies with creative industries (the US, Japan,
+    // Germany, the UK, France) press for enforcement at home and abroad (Sell 2003).
+    const float gdp = gdp_pc * w.nation_get_population(n);
+    p.copyright = std::clamp(p.enforcement * std::sqrt(std::min(1.0f, gdp / 2.0e12f)), 0.0f, 1.0f);
+    // Hosts need bandwidth and data centres (connectivity, income), and come in two kinds:
+    // lax ones, where a large domestic audience pirates and enforcement is weak (RuTracker
+    // in Russia), and free-speech havens - strong speech and privacy protection in an
+    // economy with little rights-holder weight (The Pirate Bay in Sweden until the 2009
+    // verdict; Dutch and Swiss hosting).
+    const float infra = std::clamp(w.nation_get_connectivity(n) * std::log10(gdp_pc / 1000.0f) / 1.5f, 0.0f, 1.0f);
+    const float internet = w.nation_get_population(n) * std::min(0.98f, w.nation_get_connectivity(n) / 0.84f);
+    const float audience = std::pow(std::min(1.0f, internet / 50.0e6f), 0.3f);
+    const float lobby = std::sqrt(std::min(1.0f, gdp / 2.0e12f));
+    const float mf = w.nation_get_media_freedom(n);
+    p.hosting = audience * infra * p.rate * (1.0f - p.enforcement);
+    p.haven = mf * mf * infra * (1.0f - lobby);
+    return p;
+}
+
 std::string adjective(std::string const& name) {
     static constexpr std::pair<char const*, char const*> known[] = {
         {"United States", "American"}, {"United Kingdom", "British"}, {"France", "French"}, {"Germany", "German"}, {"China", "Chinese"},
@@ -545,6 +677,35 @@ domain_table::entry domain_table::of(std::string const& iso3) const {
     }
     const std::string l = lower(iso3);
     return {iso3, {}, "com." + l, "gov." + l, "org." + l, "edu." + l};
+}
+
+std::vector<std::string> const* web_text::of(std::string_view kind) const {
+    for(auto const& [k, v] : pools) {
+        if(k == kind) return &v;
+    }
+    return nullptr;
+}
+
+bool load_web_text(std::string const& defs_dir, web_text& out, std::string& error) {
+    core::diagnostics diag;
+    const auto t = core::csv_table::load(defs_dir + "/web_text.csv", diag);
+    if(diag.failed()) {
+        error = diag.error();
+        return false;
+    }
+    for(std::size_t r = 0; r < t.rows(); ++r) {
+        const std::string kind(t.get(r, "kind"));
+        std::vector<std::string>* pool = nullptr;
+        for(auto& [k, v] : out.pools) {
+            if(k == kind) pool = &v;
+        }
+        if(!pool) {
+            out.pools.push_back({kind, {}});
+            pool = &out.pools.back().second;
+        }
+        pool->emplace_back(t.get(r, "text"));
+    }
+    return true;
 }
 
 bool load_domain_table(std::string const& defs_dir, domain_table& out, std::string& error) {
@@ -702,6 +863,11 @@ char const* category_name(site_kind k) {
     case site_kind::forum: return "Forum";
     case site_kind::business: return "Business";
     case site_kind::tabloid: return "Tabloid";
+    case site_kind::company: return "Company";
+    case site_kind::exchange: return "Stock exchange";
+    case site_kind::rates: return "Exchange rates";
+    case site_kind::torrent: return "Torrents";
+    case site_kind::antipiracy: return "Anti-piracy";
     }
     return "Site";
 }
@@ -1018,6 +1184,156 @@ directory build_directory(game_state const& state, names const& nm) {
             else x.owner_label = "Independent";
             dir.sites.push_back(x);
         }
+        // Companies: the largest firms' own sites (one to three by size of the nation).
+        {
+            const auto firms = firms_by_size(state, n.id);
+            const std::size_t count = std::min<std::size_t>(firms.size(), 1 + (pop >= 20e6f) + (pop >= 80e6f));
+            for(std::size_t k = 0; k < count; ++k) {
+                const auto fm = firms[k];
+                site x;
+                x.name = firm_name(state, nm, fm);
+                x.domain = "www." + slug(x.name) + "." + t;
+                if(std::any_of(dir.sites.begin(), dir.sites.end(), [&](site const& y) { return y.domain == x.domain; })) continue;
+                x.kind = site_kind::company;
+                x.nation = n.id;
+                x.sector = dir.sector_of[i];
+                x.users = f.internet * 0.004;
+                x.propaganda = closed ? f.state_prop : 0.0f;
+                x.accent = static_cast<uint32_t>(hash(kn, 20 + k, 9) & 0x5F5F7F);
+                x.owner = w.firm_get_board(fm);
+                x.owner_label = x.name;
+                if(closed) x.owner = gov, x.owner_label = gov_label + " (state enterprise)"; // a closed intranet's sites are all the state's
+                x.firm = fm;
+                x.down = is_down(state, text_hash(x.domain), 0.5f * f.instability);
+                dir.sites.push_back(x);
+            }
+            // The stock exchange: state-run where the state dominates the economy or liberties
+            // are weak (Shanghai, Moscow, Riyadh's Tadawul), else an exchange operator.
+            if(firms.size() >= 2 && !closed) {
+                site x;
+                x.name = place_of(state, nm, n.id, 0) + " Stock Exchange"; // the largest city's
+                if(std::any_of(dir.sites.begin(), dir.sites.end(), [&](site const& y) { return y.name == x.name; })) x.name = adj_or_name(name) + " Stock Exchange";
+                std::string ab;
+                for(char c : x.name) {
+                    if(std::isupper(static_cast<unsigned char>(c))) ab += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                }
+                x.domain = "www." + ab + "." + t;
+                if(std::any_of(dir.sites.begin(), dir.sites.end(), [&](site const& y) { return y.domain == x.domain; })) x.domain = "www." + slug(x.name) + "." + t;
+                x.kind = site_kind::exchange;
+                x.nation = n.id;
+                x.sector = dir.sector_of[i];
+                x.users = f.internet * 0.006 * std::clamp(n.get_gdp_pc0() / 20000.0f, 0.1f, 1.0f);
+                x.propaganda = f.propaganda * 0.5f;
+                x.accent = static_cast<uint32_t>(hash(kn, 30, 9) & 0x2F4F6F);
+                if(n.get_liberal() < 0.5f || n.get_state_bank_share() > 0.5f) x.owner = gov, x.owner_label = gov_label;
+                else x.owner_label = x.name + " (exchange operator)";
+                x.down = is_down(state, text_hash(x.domain), 0.6f * f.instability);
+                dir.sites.push_back(x);
+            }
+        }
+        // Exchange rates: the central bank's (one per currency: a union's bank once).
+        if(const auto bank = w.nation_get_bank_from_monetary_authority(n.id); bank && w.agent_get_home(bank) == n.id && !closed) {
+            site x;
+            const bool union_bank = [&] {
+                int members = 0;
+                for(auto m : w.agent_get_monetary_authority(bank)) (void)m, ++members;
+                return members > 1;
+            }();
+            x.name = union_bank ? "Central Bank of the " + adj_or_name(name) + " Currency Union" : "Central Bank of " + name;
+            x.domain = "www.centralbank." + suffixes.government;
+            x.kind = site_kind::rates;
+            x.nation = n.id;
+            x.sector = dir.sector_of[i];
+            x.users = f.internet * 0.003;
+            x.propaganda = f.propaganda * 0.3f;
+            x.accent = 0x1F3F5F;
+            x.owner = bank;
+            x.owner_label = x.name;
+            x.down = is_down(state, text_hash(x.domain), 0.4f * f.instability);
+            dir.sites.push_back(x);
+        }
+    }
+    // Torrent trackers: the most attractive hosts (piracy_of: a large black market and lax
+    // enforcement, or protected speech), read worldwide in proportion to piracy; they go
+    // dark when their host cracks down (enforcement), turns unstable, or rights holders'
+    // governments sanction it.
+    {
+        std::vector<std::pair<float, dcon::nation_id>> lax, havens;
+        double pirates = 0.0;
+        for(auto n : w.in_nation) {
+            const auto i = static_cast<std::size_t>(n.id.index());
+            const auto p = piracy_of(state, n.id);
+            pirates += facts[i].internet * p.rate;
+            if(facts[i].internet < 2e6f || dir.sectors[dir.sector_of[i]].closed) continue;
+            lax.push_back({p.hosting, n.id});
+            havens.push_back({p.haven, n.id});
+        }
+        std::sort(lax.begin(), lax.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
+        std::sort(havens.begin(), havens.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
+        // The four laxest hosts and the two strongest havens.
+        std::vector<std::pair<float, dcon::nation_id>> hosts;
+        for(std::size_t k = 0; k < lax.size() && hosts.size() < 4; ++k) hosts.push_back({lax[k].first + 0.05f, lax[k].second});
+        const std::size_t first_haven = hosts.size();
+        for(std::size_t k = 0; k < havens.size() && hosts.size() < 6; ++k) {
+            if(std::none_of(hosts.begin(), hosts.end(), [&](auto const& h) { return h.second == havens[k].second; })) hosts.push_back({havens[k].first * 0.5f + 0.05f, havens[k].second});
+        }
+
+        float total = 0.0f;
+        for(auto const& h : hosts) total += h.first;
+        for(std::size_t k = 0; k < hosts.size(); ++k) {
+            const auto n = hosts[k].second;
+            const auto i = static_cast<std::size_t>(n.index());
+            const auto p = piracy_of(state, n);
+            float pressure = 0.0f; // sanctions from rights holders' governments
+            for(auto m : w.in_nation) {
+                if(m.id != n && piracy_of(state, m.id).copyright > 0.25f) pressure = std::max(pressure, w.nation_get_sanction(m.id, static_cast<uint16_t>(n.index())));
+            }
+            site x;
+            x.name = pick(nm, "torrent_name", hash(state.rng_seed, 0x7022) + k, "OpenTracker"); // consecutive: distinct names
+            x.domain = "www." + slug(x.name) + "." + dom(n).commercial;
+            x.kind = site_kind::torrent;
+            x.nation = n;
+            x.sector = dir.sector_of[i];
+            x.users = pirates * 0.3 * hosts[k].first / std::max(1e-6f, total);
+            x.accent = 0x2A2A2A;
+            x.owner_label = "anonymous operators";
+            // A haven's courts are slow to act against it (The Pirate Bay ran for years in Sweden).
+            const float crackdown = (k >= first_haven ? 0.15f : 0.6f) * p.enforcement;
+            x.down = is_down(state, text_hash(x.domain), 0.7f * facts[i].instability + crackdown + 0.5f * pressure);
+            dir.sites.push_back(x);
+        }
+    }
+    // Anti-piracy groups: rights holders in the six most copyright-strong nations, run by
+    // their largest business-services firm (law, licensing).
+    std::vector<std::pair<float, dcon::nation_id>> holders;
+    for(auto n : w.in_nation) {
+        const auto i = static_cast<std::size_t>(n.id.index());
+        const float c = piracy_of(state, n.id).copyright;
+        if(c >= 0.25f && !dir.sectors[dir.sector_of[i]].closed) holders.push_back({c, n.id});
+    }
+    std::sort(holders.begin(), holders.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
+    if(holders.size() > 6) holders.resize(6);
+    for(auto const& [strength, nid] : holders) {
+        (void)strength;
+        const auto i = static_cast<std::size_t>(nid.index());
+        const std::string name = nation_name(state, nm, nid), adj = adj_or_name(name);
+        static constexpr char const* names_a[] = {"{Adj} Copyright Alliance", "{Adj} Anti-Piracy Federation", "Rights Protection Bureau of {N}",
+                                                  "{Adj} Creative Rights Coalition"};
+        std::string t0 = names_a[hash(state.rng_seed, 0xA9, i) % std::size(names_a)];
+        for(auto [from, to] : {std::pair<std::string, std::string>{"{Adj}", adj}, {"{N}", name}}) {
+            for(auto q = t0.find(from); q != std::string::npos; q = t0.find(from)) t0.replace(q, from.size(), to);
+        }
+        site x;
+        x.name = t0;
+        x.domain = "www." + slug(x.name) + "." + dom(nid).organisation;
+        x.kind = site_kind::antipiracy;
+        x.nation = nid;
+        x.sector = dir.sector_of[i];
+        x.users = facts[i].internet * 0.001;
+        x.accent = 0x7A1F1F;
+        if((x.owner = largest_board(state, nid, "osv"))) x.owner_label = board_label(state, nm, x.owner) + " (legal services)";
+        else x.owner_label = "Rights holders' association";
+        dir.sites.push_back(x);
     }
     // Global sport, business and forum sites (the global web's users).
     {
@@ -1125,6 +1441,98 @@ std::string default_engine(game_state const& state, directory const& dir, std::v
     return "www." + dir.sectors[best].engine;
 }
 
+namespace {
+
+// A social network's feed (docs/08-ui.md#internet): posts by its users - drawn from the
+// nations where it is used, by their internet users, each shown with its flag - on the
+// day's topics. How they write follows how free the network is:
+// - free networks are noisy: moral-emotional, emoji-laden posts travel furthest (Brady et
+//   al. 2017: each moral-emotional word raises diffusion ~20 %; Vosoughi, Roy & Aral 2018
+//   on false news outrunning the truth), with nonsense, irony and the odd formal essay;
+// - controlled ones are cheerful: critical posts about the state are deleted while
+//   cheerleading is posted at scale (King, Pan & Roberts 2013, 2017: ~448 million
+//   fabricated posts a year, distraction and praise rather than argument), and users
+//   self-censor under real-name registration (Roberts 2018).
+void social_feed(page& pg, game_state const& state, names const& nm, directory const& dir, site const& s, std::vector<event> const& events, uint64_t day_key) {
+    auto const& w = state.world;
+    // The network's users by nation.
+    std::vector<std::pair<double, dcon::nation_id>> users;
+    double total = 0.0;
+    for(auto n : w.in_nation) {
+        const auto i = static_cast<std::size_t>(n.id.index());
+        if(i >= dir.sector_of.size() || dir.sector_of[i] != s.sector) continue;
+        if(core::unpack_key(n.get_iso3()) == "ROW") continue;
+        const double u = n.get_population() * std::min(0.98f, n.get_connectivity() / 0.84f);
+        if(u <= 0.0) continue;
+        users.push_back({u, n.id});
+        total += u;
+    }
+    if(users.empty() || total <= 0.0) return;
+    // How free the network is: its host's (the global web: free).
+    const float host_free = s.nation ? std::clamp(w.nation_get_media_freedom(s.nation) * (1.0f - 0.5f * w.nation_get_info_control(s.nation)), 0.0f, 1.0f) : 0.85f;
+    std::vector<headline> topics;
+    for(auto const& e : events) topics.push_back({e.neutral, e.tag, e.tick, e.tone, e.weight});
+    if(s.nation) {
+        for(auto const& h : domestic_news(state, nm, events, s.nation, s.propaganda, facts_of(state, s.nation), text_hash(s.domain))) topics.push_back(h);
+    }
+    add(pg, block::kind::heading, "Feed");
+    for(int k = 0; k < 12; ++k) {
+        const uint64_t ph = hash(text_hash(s.domain), day_key, static_cast<uint64_t>(k));
+        // The author's nation, by users.
+        double draw = unit(ph) * total;
+        dcon::nation_id an = users.back().second;
+        for(auto const& [u, n] : users) {
+            if((draw -= u) <= 0.0) {
+                an = n;
+                break;
+            }
+        }
+        const float an_free = std::clamp(w.nation_get_media_freedom(an) * (1.0f - 0.5f * w.nation_get_info_control(an)), 0.0f, 1.0f);
+        const float freedom = std::min(host_free, an_free); // the stricter of host and home
+        std::vector<std::pair<int, float>> mix;
+        if(nm.people && !nm.people->empty()) mix = culture_mix(state, *nm.people, an);
+        const std::string author = username(nm, mix, freedom, hash(ph, 0xA0));
+        const std::string N = nation_name(state, nm, an), A = adj_or_name(N);
+        headline const* topic = topics.empty() ? nullptr : &topics[hash(ph, 3) % topics.size()];
+        // Under control a poster avoids bad news about home (self-censorship and deletion).
+        if(topic && freedom < 0.45f && topic->tone < 0 && topic->text.find(N) != std::string::npos) topic = nullptr;
+        // Quiet news (or a topic avoided): everyday subjects.
+        std::string T = topic && unit(hash(ph, 17)) < 0.75f ? topic->text : pick(nm, "topic", hash(ph, 19), "the weather");
+        if(T.size() > 70) T = T.substr(0, 67) + "...";
+        std::string text;
+        const double r = unit(hash(ph, 5));
+        // Cheerleading: all of a closed network, a share of a controlled one (King, Pan &
+        // Roberts 2017), none of a free one.
+        const double cheer = std::clamp((0.45 - freedom) / 0.3, 0.0, 1.0);
+        if(unit(hash(ph, 13)) < cheer) {
+            text = pick(nm, "post_praise", hash(ph, 7), "Long live {N}!");
+            for(auto [from, to] : {std::pair<std::string, std::string>{"{N}", N}, {"{A}", A}}) {
+                for(auto q = text.find(from); q != std::string::npos; q = text.find(from)) text.replace(q, from.size(), to);
+            }
+        } else {
+            const double chaotic = 0.15 + 0.5 * freedom, absurd = 0.12 * freedom, essay = 0.12;
+            text = r < chaotic                    ? pick(nm, "post_chaos", hash(ph, 7), "{T}!!")
+                   : r < chaotic + absurd         ? pick(nm, "post_nonsense", hash(ph, 7), "{T}?")
+                   : r < chaotic + absurd + essay ? pick(nm, "post_formal", hash(ph, 7), "Regarding {T}: a measured view is needed.")
+                                                  : pick(nm, "post_plain", hash(ph, 7), "{T}");
+            for(auto [from, to] : {std::pair<std::string, std::string>{"{T}", T}, {"{N}", N}}) {
+                for(auto q = text.find(from); q != std::string::npos; q = text.find(from)) text.replace(q, from.size(), to);
+            }
+        }
+        block b;
+        b.k = block::kind::post;
+        b.author = author;
+        b.iso3 = core::unpack_key(w.nation_get_iso3(an));
+        b.text = text;
+        const double likes = std::pow(10.0, 1.0 + 3.5 * unit(hash(ph, 9))) * (1.0 + 2.0 * cheer); // boosted praise
+        b.sub = fmt("%.0f likes", likes) + fmt(" · %.0fh ago", static_cast<double>(hash(ph, 11) % 23 + 1));
+        b.tone = text.find("!") != std::string::npos && freedom < 0.45f ? 1 : topic ? topic->tone : 0;
+        pg.blocks.push_back(std::move(b));
+    }
+}
+
+} // namespace
+
 page render(game_state const& state, names const& nm, directory const& dir, std::string const& url_in, std::string const& engine,
             std::vector<dcon::nation_id> const& mine) {
     auto const& w = state.world;
@@ -1205,6 +1613,8 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
         case site_kind::business: lo = 2, hi = 4; break;
         case site_kind::social: lo = 2, hi = 4; break;
         case site_kind::engine: lo = 1, hi = 2; break;
+        case site_kind::company: lo = 0, hi = 1; break;
+        case site_kind::torrent: lo = 9, hi = 16; break; // pirate sites live on aggressive advertising
         default: break;
         }
         if(s->owner && w.agent_get_kind(s->owner) == static_cast<uint8_t>(agent_kind::executive)) lo = hi = 0;
@@ -1347,6 +1757,7 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
         }
         if(hidden) add(pg, block::kind::banner, "Some topics are unavailable in your region.", "", "", 0);
         if(shown == 0) add(pg, block::kind::text, "Nothing is trending right now.");
+        social_feed(pg, state, nm, dir, *s, events, day_key);
         break;
     }
     case site_kind::state: {
@@ -1550,6 +1961,116 @@ page render(game_state const& state, names const& nm, directory const& dir, std:
         auto hs = domestic_news(state, nm, events, n, prop, facts_of(state, n), text_hash(s->domain));
         std::erase_if(hs, [](headline const& h) { return h.tag != "Economy" && h.tag != "Markets" && h.tag != "Sanctions"; });
         add_headlines(pg, state, hs, 6);
+        break;
+    }
+    case site_kind::company: {
+        pg.style = page::layout::company;
+        const auto fm = s->firm;
+        if(!fm || !w.firm_is_valid(fm)) break;
+        const auto n = s->nation;
+        const std::string sector = w.firm_get_sector(fm) ? core::unpack_key(w.firm_get_sector(fm).get_key()) : std::string{};
+        static constexpr std::pair<char const*, char const*> what[] = {{"agr", "agriculture and food"}, {"ene", "energy, mining and utilities"},
+                                                                       {"man", "manufacturing"}, {"con", "construction and engineering"},
+                                                                       {"csv", "retail, travel and hospitality"}, {"osv", "financial and business services"},
+                                                                       {"gov", "public services"}};
+        std::string field = "business";
+        for(auto const& [k, v] : what) {
+            if(sector == k) field = v;
+        }
+        add(pg, block::kind::text, s->name + " is one of " + nation_name(state, nm, n) + "'s largest companies in " + field + ".");
+        add(pg, block::kind::heading, "Investor relations");
+        const float share = w.firm_get_share(fm);
+        add(pg, block::kind::stat, "Share of its sector's output", fmt("%.0f%%", 100.0 * share));
+        add(pg, block::kind::stat, "Cash on hand", fmt("%.0f days of costs", 30.0 * (w.firm_get_cash_days0(fm) > 0.0f ? w.firm_get_cash_days(fm) / w.firm_get_cash_days0(fm) : 1.0f)));
+        add(pg, block::kind::stat, "Leverage", fmt("%.2f", w.firm_get_leverage(fm)));
+        add(pg, block::kind::stat, "Market (" + nation_name(state, nm, n) + " index vs start)", fmt("%+.1f%%", 100.0 * (w.nation_get_equity_price(n) - 1.0f)));
+        add(pg, block::kind::heading, "News");
+        const float cash = w.firm_get_cash_days0(fm) > 0.0f ? w.firm_get_cash_days(fm) / w.firm_get_cash_days0(fm) : 1.0f;
+        if(w.firm_get_investment_drive(fm) > 0.1f) add(pg, block::kind::headline, s->name + " announces new investment", "Press release · " + date_of(state, state.current_tick), {}, 1);
+        if(cash < 0.5f) add(pg, block::kind::headline, s->name + " secures bridge financing", "Press release · " + date_of(state, state.current_tick), {}, -1);
+        if(w.firm_get_hoarding(fm) < 0.3f && w.nation_get_unemployment(n) > w.nation_get_unemployment0(n) + 0.01f)
+            add(pg, block::kind::headline, s->name + " adjusts its workforce to market conditions", "Press release · " + date_of(state, state.current_tick), {}, -1);
+        else add(pg, block::kind::headline, "Careers at " + s->name + ": we are hiring", "Careers", {}, 1);
+        if(s->propaganda > 0.5f) add(pg, block::kind::headline, s->name + " thanks the government for its support", "Press release", {}, 1);
+        break;
+    }
+    case site_kind::exchange: {
+        pg.style = page::layout::exchange;
+        const auto n = s->nation;
+        const float prop = s->propaganda;
+        std::string index;
+        for(char c : s->name) {
+            if(std::isupper(static_cast<unsigned char>(c))) index += c;
+        }
+        const double level = 1000.0 * w.nation_get_equity_price(n) * (1.0 + 0.1 * prop);
+        add(pg, block::kind::heading, index + " index");
+        add(pg, block::kind::stat, index + " Composite", fmt("%.1f", level) + fmt(" (%+.1f%% since 1 January)", 100.0 * (w.nation_get_equity_price(n) * (1.0 + 0.1 * prop) - 1.0)));
+        add(pg, block::kind::stat, "Policy rate", fmt("%.2f%%", w.nation_get_policy_rate(n)));
+        add(pg, block::kind::stat, "10-year government bond", fmt("%.2f%%", w.nation_get_yield10(n)));
+        add(pg, block::kind::heading, "Listed companies (index weight)");
+        const auto firms = firms_by_size(state, n);
+        double tw = 0.0;
+        for(auto f2 : firms) tw += w.firm_get_share(f2) * w.nation_get_va0(n, static_cast<uint8_t>(w.firm_get_sector(f2).id.index()));
+        for(std::size_t k = 0; k < firms.size() && k < 12; ++k) {
+            const auto f2 = firms[k];
+            const double wt = w.firm_get_share(f2) * w.nation_get_va0(n, static_cast<uint8_t>(w.firm_get_sector(f2).id.index()));
+            add(pg, block::kind::stat, firm_name(state, nm, f2), fmt("%.1f%%", tw > 0.0 ? 100.0 * wt / tw : 0.0));
+        }
+        if(prop > 0.5f) add(pg, block::kind::banner, "Trading in some securities is temporarily suspended to protect investors.", "", "", 0);
+        break;
+    }
+    case site_kind::rates: {
+        pg.style = page::layout::exchange;
+        const auto n = s->nation;
+        add(pg, block::kind::text, "Reference rates of the national currency against the major currencies, as % change since 1 January (the bank publishes no levels here).");
+        add(pg, block::kind::heading, "Reference rates");
+        const float mine = w.nation_get_exchange_rate(n);
+        for(char const* iso : {"USA", "DEU", "JPN", "GBR", "CHN", "CHE"}) {
+            const auto m = find_nation(state, iso);
+            if(!m || m == n) continue;
+            const char* cur = std::string(iso) == "USA" ? "US dollar" : std::string(iso) == "DEU" ? "euro" : std::string(iso) == "JPN" ? "yen"
+                            : std::string(iso) == "GBR" ? "pound sterling" : std::string(iso) == "CHN" ? "renminbi" : "Swiss franc";
+            const float rel = mine / std::max(1e-6f, w.nation_get_exchange_rate(m));
+            add(pg, block::kind::stat, std::string("Against the ") + cur, fmt("%+.2f%%", 100.0 * (rel - 1.0f)));
+        }
+        add(pg, block::kind::heading, "Monetary policy");
+        add(pg, block::kind::stat, "Policy rate", fmt("%.2f%%", w.nation_get_policy_rate(n)));
+        add(pg, block::kind::stat, "Inflation expected", fmt("%.1f%%", 100.0 * w.nation_get_inflation_expect(n)));
+        break;
+    }
+    case site_kind::torrent: {
+        pg.style = page::layout::torrent;
+        const auto host = piracy_of(state, s->nation);
+        add(pg, block::kind::banner, host.enforcement > 0.3f ? "Use a VPN. Your provider can see what you download." : "Welcome back, pirate. No logs, no rules.", "", "", 0);
+        add(pg, block::kind::heading, "Top 20 this week");
+        const double base = s->users * 0.002;
+        for(int k = 0; k < 20; ++k) {
+            const uint64_t h = hash(text_hash(s->domain), day_key / 7, static_cast<uint64_t>(k));
+            const std::string title = pick(nm, "torrent_adj", h, "Midnight") + " " + pick(nm, "torrent_noun", h >> 8, "Signal") + " " + pick(nm, "torrent_kind", h >> 16, "1080p");
+            const double seeders = base * std::pow(0.82, k) * (0.7 + 0.6 * unit(hash(h, 1)));
+            add(pg, block::kind::stat, title, fmt("%.0f seeders", seeders) + fmt(" · %.0f leechers", seeders * (0.3 + unit(hash(h, 2)))));
+        }
+        add(pg, block::kind::text, fmt("Hosted where %.0f%% of software is unlicensed", 100.0 * host.rate) + fmt(" and copyright enforcement scores %.2f.", host.enforcement));
+        break;
+    }
+    case site_kind::antipiracy: {
+        pg.style = page::layout::business;
+        add(pg, block::kind::text, "We protect the work of creators: films, music, games, software and books. Report infringement to us.");
+        add(pg, block::kind::heading, "Trackers we pursue");
+        for(auto const& x : dir.sites) {
+            if(x.kind != site_kind::torrent) continue;
+            const std::string where = nation_name(state, nm, x.nation);
+            add(pg, block::kind::headline, x.name + (x.down ? " taken offline" : " still operating from " + where),
+                x.down ? "Enforcement · " + date_of(state, state.current_tick) : fmt("Complaint filed · %.1fM users", x.users / 1e6), x.domain, x.down ? 1 : -1);
+        }
+        add(pg, block::kind::heading, "Piracy rates (share of software unlicensed)");
+        std::vector<std::pair<float, dcon::nation_id>> rates;
+        for(auto x : w.in_nation) {
+            if(x.get_population() >= 20e6f && core::unpack_key(x.get_iso3()) != "ROW") rates.push_back({piracy_of(state, x.id).rate, x.id});
+        }
+        std::sort(rates.begin(), rates.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
+        for(std::size_t k = 0; k < rates.size() && k < 10; ++k) add(pg, block::kind::stat, nation_name(state, nm, rates[k].second), fmt("%.0f%%", 100.0 * rates[k].first));
+        add(pg, block::kind::stat, nation_name(state, nm, s->nation) + " (here)", fmt("%.0f%%", 100.0 * piracy_of(state, s->nation).rate));
         break;
     }
     case site_kind::tabloid: {
