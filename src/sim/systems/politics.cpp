@@ -218,6 +218,20 @@ void vote_intention(game_state& state, dcon::nation_id n, std::vector<dcon::part
     std::array<double, max_parties> votes{};
     double total = 0.0;
     constexpr std::array<float, 4> turnout = {0.5f, 0.6f, 0.75f, 0.7f};
+    // Per party, once (not per pop): its perceived position and the pop-independent utility.
+    const std::size_t np = std::min<std::size_t>(parties.size(), max_parties);
+    std::array<std::array<float, axes>, max_parties> at{};
+    std::array<float, max_parties> base{};
+    for(std::size_t j = 0; j < np; ++j) {
+        for(uint8_t a = 0; a < axes; ++a) {
+            at[j][a] = w.party_get_position(parties[j], a);
+            // The thermostatic public judges the incumbent by what it does as well
+            // as by its label (Wlezien 1995; Soroka & Wlezien 2010).
+            if(parties[j] == incumbent && a == static_cast<uint8_t>(value_axis::economic_right)) at[j][a] += static_cast<float>(P.thermostat) * (w.nation_get_policy_position(n, a) - at[j][a]);
+        }
+        const float out = outside_window(state, n, party_pos(state, parties[j]));
+        base[j] = w.party_get_valence(parties[j]) - static_cast<float>(P.window_stigma) * out * out; // valence: identification, leaders, organisation
+    }
     for(auto own : w.nation_get_region_ownership(n)) {
         for(auto loc : own.get_region().get_pop_location()) {
             auto p = loc.get_pop();
@@ -231,19 +245,15 @@ void vote_intention(game_state& state, dcon::nation_id n, std::vector<dcon::part
             if(years > 0.0f) p.set_perf_ref(p.get_perf_ref() + (felt - p.get_perf_ref()) * std::min(1.0f, years / static_cast<float>(P.vote_memory_years)));
             std::array<float, max_parties> u{};
             float umax = -1e30f;
-            for(std::size_t j = 0; j < parties.size() && j < max_parties; ++j) {
+            std::array<float, axes> values{};
+            for(uint8_t a = 0; a < axes; ++a) values[a] = p.get_values(a);
+            for(std::size_t j = 0; j < np; ++j) {
                 float d2 = 0.0f;
-                for(uint8_t a = 0; a < static_cast<uint8_t>(value_axis::count); ++a) {
-                    float at = w.party_get_position(parties[j], a);
-                    // The thermostatic public judges the incumbent by what it does as well
-                    // as by its label (Wlezien 1995; Soroka & Wlezien 2010).
-                    if(parties[j] == incumbent && a == static_cast<uint8_t>(value_axis::economic_right)) at += static_cast<float>(P.thermostat) * (w.nation_get_policy_position(n, a) - at);
-                    const float d = p.get_values(a) - at;
+                for(uint8_t a = 0; a < axes; ++a) {
+                    const float d = values[a] - at[j][a];
                     d2 += (a == static_cast<uint8_t>(value_axis::economic_right) ? econ_w : values_w) * d * d;
                 }
-                const float out = outside_window(state, n, party_pos(state, parties[j]));
-                u[j] = w.party_get_valence(parties[j]) // non-policy appeal: identification, leaders, organisation
-                       - static_cast<float>(P.vote_distance_weight) * d2 - static_cast<float>(P.window_stigma) * out * out
+                u[j] = base[j] - static_cast<float>(P.vote_distance_weight) * d2
                        + (parties[j] == incumbent ? static_cast<float>(P.vote_retrospective) * performance : 0.0f);
                 umax = std::max(umax, u[j]);
             }

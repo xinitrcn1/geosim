@@ -12,6 +12,7 @@
 #include "sim/scenario.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cctype>
 #include <filesystem>
@@ -506,12 +507,25 @@ void load_trade_tables(game_state& state, std::string const& dir, core::diagnost
         float lat, lon, weight;
     };
     std::vector<std::vector<site>> sites(w.nation_size());
+    // Sites: the population-weighted centres of each nation's states (ADM1), not its
+    // clusters - the pairwise sum is quadratic, and states keep the Head-Mayer distance's
+    // resolution (Head & Mayer 2010) at a fraction of the cost.
     for(auto n : w.in_nation) {
         float pop = 0.0f;
         for(auto own : n.get_region_ownership()) pop += own.get_region().get_population();
+        std::map<uint32_t, std::array<double, 3>> by_state; // lat x pop, lon x pop, pop
         for(auto own : n.get_region_ownership()) {
             auto r = own.get_region();
-            if(pop > 0.0f && (r.get_lat() != 0.0f || r.get_lon() != 0.0f)) sites[n.id.index()].push_back({r.get_lat(), r.get_lon(), r.get_population() / pop});
+            if(pop <= 0.0f || (r.get_lat() == 0.0f && r.get_lon() == 0.0f)) continue;
+            const uint32_t key = r.get_state() ? static_cast<uint32_t>(r.get_state().id.index()) : 0x80000000u + static_cast<uint32_t>(r.id.index());
+            auto& acc = by_state[key];
+            acc[0] += static_cast<double>(r.get_lat()) * r.get_population();
+            acc[1] += static_cast<double>(r.get_lon()) * r.get_population();
+            acc[2] += r.get_population();
+        }
+        for(auto const& [key, acc] : by_state) {
+            if(acc[2] <= 0.0) continue;
+            sites[n.id.index()].push_back({static_cast<float>(acc[0] / acc[2]), static_cast<float>(acc[1] / acc[2]), static_cast<float>(acc[2] / pop)});
         }
         if(sites[n.id.index()].empty()) sites[n.id.index()].push_back({n.get_lat(), n.get_lon(), 1.0f});
     }

@@ -500,7 +500,7 @@ object{
 object{
 	name{region}
 	storage_type{contiguous}
-	size{8192}
+	size{30000}
 	tag{scenario}
 
 	property{ name{state} type{state_id} }
@@ -592,7 +592,7 @@ object{
 object{
 	name{pop}
 	storage_type{erasable}
-	size{250000}
+	size{500000}
 	tag{scenario}
 
 	property{ name{kind} type{uint8_t} }
@@ -1185,7 +1185,7 @@ object{
 relationship{
 	name{region_ownership}
 	storage_type{contiguous}
-	size{8192}
+	size{30000}
 	tag{scenario}
 
 	link{
@@ -1205,7 +1205,7 @@ relationship{
 relationship{
 	name{pop_location}
 	storage_type{erasable}
-	size{250000}
+	size{500000}
 	tag{scenario}
 
 	link{
@@ -1305,7 +1305,7 @@ relationship{
 relationship{
 	name{region_claim}
 	storage_type{erasable}
-	size{4096}
+	size{16384}
 	tag{scenario}
 
 	link{
@@ -1351,7 +1351,7 @@ relationship{
 relationship{
 	name{region_adjacency}
 	storage_type{erasable}
-	size{32768}
+	size{131072}
 	tag{scenario}
 
 	link{

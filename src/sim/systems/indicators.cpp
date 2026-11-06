@@ -5,6 +5,7 @@
 #include "sim/systems.hpp"
 
 #include <algorithm>
+#include <unordered_map>
 #include <array>
 #include <cmath>
 #include <vector>
@@ -196,14 +197,29 @@ std::vector<point> income_points(game_state const& state, dcon::nation_id n, flo
     }
     const double floor = total_people > 0.0 ? 0.1 * total_income / total_people : 1.0;
 
+    // Groups are binned (0.5 % of mean income, 0.005 of sigma) before the quantiles are
+    // expanded: thousands of regions' pops collapse into a few hundred groups per nation,
+    // which keeps the sort (and the calibration's bisection) cheap; the Gini moves < 1e-4.
+    std::unordered_map<uint64_t, std::array<double, 3>> bins; // people, income, sigma x people
     auto add_group = [&](double people, double income, double sigma) {
         if(people <= 0.0) {
             return;
         }
         const double mean = std::max(floor, income / people);
-        const double mu = std::log(mean) - 0.5 * sigma * sigma;
-        for(int j = 0; j < quantiles; ++j) {
-            pts.push_back({std::exp(mu + sigma * z[static_cast<std::size_t>(j)]), people / quantiles});
+        const auto lb = static_cast<int64_t>(std::floor(std::log(mean) / 0.005));
+        const auto sb = static_cast<int64_t>(std::floor(sigma / 0.005));
+        auto& b = bins[(static_cast<uint64_t>(lb) << 20) ^ static_cast<uint64_t>(sb)];
+        b[0] += people;
+        b[1] += mean * people;
+        b[2] += sigma * people;
+    };
+    auto expand = [&] {
+        pts.reserve(bins.size() * quantiles);
+        for(auto const& [key, b] : bins) {
+            (void)key;
+            const double mean = b[1] / b[0], sigma = b[2] / b[0];
+            const double mu = std::log(mean) - 0.5 * sigma * sigma;
+            for(int j = 0; j < quantiles; ++j) pts.push_back({std::exp(mu + sigma * z[static_cast<std::size_t>(j)]), b[0] / quantiles});
         }
     };
 
@@ -228,6 +244,7 @@ std::vector<point> income_points(game_state const& state, dcon::nation_id n, flo
             }
         }
     }
+    expand();
     // Pareto top tail (Piketty & Saez 2003; WID): the top 1% hold the data share,
     // moving with the capital-income share of income. The lognormal body gets the rest.
     const float top0 = w.nation_get_top1_share0(n);

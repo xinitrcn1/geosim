@@ -24,8 +24,8 @@ events; [11](11-data-calibration.md#world-2020-dataset)).
 |--------|------|-----------------------------|
 | `nation` | 256 | everything national: population, 2019 macro state, regime indices (electoral, liberal, judicial, capture, state capacity), legitimacy (incl. identity), willingness to serve, PSI, demand and prices, ledger flows (`flows[kind]`) and cause tags (`tag_code`, `tag_amount`, `tag_rest`), bilateral arrays indexed by partner (trust, threat, trade share, sanctions, alliance, war, FTA and its depth, trade distance, debt holdings, UN alignment, WTO disputes), FX and reserves, spreads, credit, bonds, assets, fiscal and the reform levers (VAT, corporate and wealth taxes, R&D, police, subsidies, EPL, mandates, FX intervention, macroprudential buffer), internet controls, Overton window, term limits, language and religion, climate pledge, LOD state |
 | `state` | 8,192 | an ADM1 unit (the legal level): nation, `states.csv` row, governor, population, last redrawn (docs/07#states-clusters-and-counties); a region's `state` property links it |
-| `region` | 8,192 | a cluster of counties (ADM2) inside a state, sized by population: state, owner, location, area, urban share, capacity and output, epidemic compartments per pathogen × age group, age bands, hospital beds, house price, fiscal capacity, ruggedness, grievance, regional PSI and trust, unrest, protest participation, drive, sparks, fatigue, insurgency, governor |
-| `pop` | 250,000 | kind (low / mid / high skill, retired) × identity group × stratum (base / precarious) per region: size, employment, wages, incomes by source, consumption, deposits, values, salience, party support, grievance, income σ, informality, network, tax factor, pop CPI |
+| `region` | 30,000 | a cluster of counties (ADM2) inside a state, sized by population: state, owner, location, area, urban share, capacity and output, epidemic compartments per pathogen × age group, age bands, hospital beds, house price, fiscal capacity, ruggedness, grievance, regional PSI and trust, unrest, protest participation, drive, sparks, fatigue, insurgency, governor |
+| `pop` | 500,000 | kind (low / mid / high skill, retired) × identity group × stratum (base / precarious) per region: size, employment, wages, incomes by source, consumption, deposits, values, salience, party support, grievance, income σ, informality, network, tax factor, pop CPI |
 | `sector` | 32 | role, labour share, oil and import intensity, final-demand shares, skill mix, NPI capacity loss, input-output coefficients, value-added share, critical-input flag, input inventory days, cyber exposure |
 | `npi_indicator` | 32 | one OxCGRT indicator: role, maximum level, transmission effect |
 | `pathogen` | 8 | SEIR parameters, severity, cross-immunity, vaccine timing and efficacy, emergent-template flag |
@@ -54,9 +54,9 @@ nation arrays rather than treaties; cause tags are nation arrays rather than a
 
 | Relationship | Links | Purpose |
 |--------------|-------|---------|
-| `region_ownership` | region (unique) → nation (many), 8,192 | sovereign control of a region |
-| `pop_location` | pop (unique) → region (many), 250,000 | where a pop lives |
-| `region_adjacency` | region ↔ region, weight, 32,768 | migration and commuting graph |
+| `region_ownership` | region (unique) → nation (many), 30,000 | sovereign control of a region |
+| `pop_location` | pop (unique) → region (many), 500,000 | where a pop lives |
+| `region_adjacency` | region ↔ region, weight, 131,072 | migration and commuting graph |
 | `region_claim` | region × nation, strength | territorial claims (war issue) |
 | `executive_seat` | agent (unique) ↔ nation (unique) | the executive agent of a nation |
 | `monetary_authority` | nation (unique) → agent (many) | central-bank agent of a nation (shared in currency unions) |

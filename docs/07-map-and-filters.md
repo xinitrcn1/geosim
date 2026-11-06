@@ -97,11 +97,12 @@ Three levels below the nation, all in `assets/scenario/world2020` (built by
 - **Clusters (the simulation's regions)** — `regions.csv`: counties grouped
   inside their state by population. A state gets round(population /
   threshold) clusters, at least one and at most its county count; the
-  threshold is 3 M people, raised only if the totals outgrow the simulation
-  (≤ 5000 regions — the region container holds 8192 — and ≤ 200,000 pops, 4
-  per identity group per region, of a 250,000 container): 4,715 clusters —
-  Texas 10, California 13, a Saharan wilaya or a Slovene region 1, China 470,
-  India 443. Clustering is a population-balanced recursive bisection of the
+  threshold is 500,000 people, raised only if the totals outgrow the
+  simulation (≤ 28,000 regions — the region container holds 30,000 — and
+  ≤ 450,000 pops, 4 per identity group per region, of a 500,000 container):
+  11,898 clusters, about 100,000 pops. Niger 44 (its desert north apart from the
+  populous south), Texas 61, California 58, the United States 649, China 2,066,
+  India 678 (capped by its 736 districts), Slovenia 4. Clustering is a population-balanced recursive bisection of the
   counties' centroids along the wider axis, then a contiguity repair (a
   detached piece joins the cluster it borders most). Every simulated
   quantity (population, epidemics, unrest, output...) lives on clusters.

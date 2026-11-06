@@ -12,6 +12,7 @@
 #include "sim/systems.hpp"
 
 #include <algorithm>
+#include <unordered_map>
 #include <array>
 #include <cmath>
 #include <numbers>
@@ -596,29 +597,56 @@ void update_opinion(game_state& state) {
         // Bounded confidence: move toward the size-weighted mean of pops within eps.
         const float eps = static_cast<float>(P.opinion_eps_base + P.opinion_eps_media * n.get_media_freedom());
         const float mu = std::min(1.0f, static_cast<float>(P.opinion_speed) * years);
-        std::vector<std::array<float, A>> next(pops.size());
-        for(std::size_t i = 0; i < pops.size(); ++i) {
+        // Pops sharing a group and kind start alike and drift slowly, so they are pooled into
+        // cells of eps / 8 (size-weighted centroids): each cell moves toward the mean of the
+        // cells within eps, and its pops with it - O(cells^2) instead of O(pops^2) (a nation's
+        // thousands of regions made the pairwise form the simulation's main cost), at an error
+        // well below the confidence bound.
+        const float h = std::max(eps / 8.0f, 1e-3f);
+        struct cell {
             std::array<double, A> sum{};
             double weight = 0.0;
-            for(std::size_t j = 0; j < pops.size(); ++j) {
+            std::array<float, A> centre{}, target{};
+        };
+        std::vector<cell> cells;
+        std::unordered_map<uint64_t, uint32_t> cell_of_key;
+        std::vector<uint32_t> cell_of(pops.size());
+        for(std::size_t i = 0; i < pops.size(); ++i) {
+            uint64_t key = 0;
+            for(uint8_t a = 0; a < A; ++a) key = key * 4099u + static_cast<uint64_t>(static_cast<int64_t>(std::floor(w.pop_get_values(pops[i], a) / h)) + 2048);
+            auto [it, fresh] = cell_of_key.try_emplace(key, static_cast<uint32_t>(cells.size()));
+            if(fresh) cells.emplace_back();
+            cell& c = cells[it->second];
+            const double wt = std::max(1.0f, w.pop_get_size(pops[i]));
+            for(uint8_t a = 0; a < A; ++a) c.sum[a] += wt * w.pop_get_values(pops[i], a);
+            c.weight += wt;
+            cell_of[i] = it->second;
+        }
+        for(auto& c : cells) {
+            for(uint8_t a = 0; a < A; ++a) c.centre[a] = static_cast<float>(c.sum[a] / c.weight);
+        }
+        for(auto& c : cells) {
+            std::array<double, A> sum{};
+            double weight = 0.0;
+            for(auto const& o : cells) {
                 float d2 = 0.0f;
                 for(uint8_t a = 0; a < A; ++a) {
-                    const float d = w.pop_get_values(pops[i], a) - w.pop_get_values(pops[j], a);
+                    const float d = c.centre[a] - o.centre[a];
                     d2 += d * d;
                 }
                 if(d2 <= eps * eps) {
-                    const double wt = w.pop_get_size(pops[j]);
-                    for(uint8_t a = 0; a < A; ++a) sum[a] += wt * w.pop_get_values(pops[j], a);
-                    weight += wt;
+                    for(uint8_t a = 0; a < A; ++a) sum[a] += o.sum[a];
+                    weight += o.weight;
                 }
             }
-            for(uint8_t a = 0; a < A; ++a) {
-                const float x = w.pop_get_values(pops[i], a);
-                next[i][a] = weight > 0.0 ? x + mu * (static_cast<float>(sum[a] / weight) - x) : x;
-            }
+            for(uint8_t a = 0; a < A; ++a) c.target[a] = weight > 0.0 ? static_cast<float>(sum[a] / weight) : c.centre[a];
         }
         for(std::size_t i = 0; i < pops.size(); ++i) {
-            for(uint8_t a = 0; a < A; ++a) w.pop_set_values(pops[i], a, next[i][a]);
+            cell const& c = cells[cell_of[i]];
+            for(uint8_t a = 0; a < A; ++a) {
+                const float x = w.pop_get_values(pops[i], a);
+                w.pop_set_values(pops[i], a, x + mu * (c.target[a] - x));
+            }
         }
     }
 }
