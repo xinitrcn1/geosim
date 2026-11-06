@@ -6,8 +6,9 @@
 // Both fonts are variable fonts with a `wght` axis: one file per family is
 // loaded into memory and one FT_Face per (family, weight) is instantiated on
 // demand via FT_Set_Var_Design_Coordinates, so any weight 200..900 can be
-// used (static fonts also work; their weight is then fixed). Emoji flags (regional
-// indicator pairs) are resolved through the emoji font's GSUB ligatures.
+// used (static fonts also work; their weight is then fixed). National flags are not
+// emoji: a flag_set token (U+F0000 + index) becomes a flag quad (client/flags.hpp);
+// regional indicator pairs still resolve through the emoji font's GSUB ligatures.
 // No kerning, no complex scripts, no bidi: enough for the Latin UI. HarfBuzz
 // can replace shape() later without touching callers.
 //
@@ -35,8 +36,11 @@ enum class font_weight : uint16_t { light = 300, regular = 400, medium = 500, se
 
 struct glyph_quad {
     float x0, y0, x1, y1; // pixels
-    float u0, v0, u1, v1; // atlas
+    float u0, v0, u1, v1; // atlas; a flag: u0 = first primitive, v0 = primitive count
+    bool flag = false;    // a flag (flag_set token): drawn with material::flag
 };
+
+class flag_set;
 
 class text_system {
 public:
@@ -58,6 +62,13 @@ public:
     float measure(std::string_view utf8, float px, font_weight w = font_weight::regular) { return shape(utf8, px, w, 0, 0, nullptr); }
     [[nodiscard]] float ascender(float px) const noexcept;  // pixels above the baseline
     [[nodiscard]] float descender(float px) const noexcept; // pixels below the baseline (positive)
+
+    // Flags in text (flag_set tokens); without a set they take no space.
+    void set_flags(flag_set const* flags) noexcept { flags_ = flags; }
+    [[nodiscard]] flag_set const* flags() const noexcept { return flags_; }
+    // The universal flag cell at font size px: width, height (pixels).
+    [[nodiscard]] static float flag_cell_w(float px) noexcept;
+    [[nodiscard]] static float flag_cell_h(float px) noexcept;
 
     // Drops every cached glyph (e.g. after a display scale change).
     void clear_cache();
@@ -98,6 +109,7 @@ private:
     std::vector<uint8_t> atlas_;
     uint32_t shelf_x_ = 1, shelf_y_ = 1, shelf_h_ = 0;
     bool dirty_ = true;
+    flag_set const* flags_ = nullptr;
 };
 
 } // namespace geosim::client

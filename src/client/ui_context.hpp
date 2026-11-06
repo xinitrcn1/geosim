@@ -68,6 +68,8 @@ public:
     void set_text_backing(bool on) noexcept { backing_ = on; }
     float text(layer l, float x, float baseline, std::string_view s, float size_px, rgba c, font_weight w = font_weight::regular);
     // Text vertically centred in r, aligned horizontally; returns its width.
+    // A flag (flag_set index) fitted into `r` with its own proportions, centred; returns where.
+    rect flag(layer l, rect r, uint32_t index, float opacity = 1.0f);
     float text_in(layer l, rect r, std::string_view s, float size_px, rgba c, align a = align::left, font_weight w = font_weight::regular);
     float text_width(std::string_view s, float size_px, font_weight w = font_weight::regular) { return text_.measure(s, size_px, w); }
 

@@ -1,5 +1,7 @@
 #include "sim_runner.hpp"
 
+#include "flags.hpp"
+
 #include "core/csv.hpp"
 #include "core/diagnostics.hpp"
 #include "core/keys.hpp"
@@ -28,36 +30,6 @@ namespace {
 
 using clock = std::chrono::steady_clock;
 
-// ISO3 -> ISO2 for the emoji flag (regional indicator pair). Covers the
-// shipped scenarios; unknown codes fall back to a globe.
-struct iso_pair {
-    char const* iso3;
-    char const* iso2;
-};
-constexpr iso_pair iso_table[] = {
-    {"USA", "US"}, {"CHN", "CN"}, {"JPN", "JP"}, {"DEU", "DE"}, {"GBR", "GB"}, {"FRA", "FR"}, {"ITA", "IT"},
-    {"ESP", "ES"}, {"CAN", "CA"}, {"KOR", "KR"}, {"AUS", "AU"}, {"BRA", "BR"}, {"MEX", "MX"}, {"IND", "IN"},
-    {"RUS", "RU"}, {"TUR", "TR"}, {"IDN", "ID"}, {"SAU", "SA"}, {"ZAF", "ZA"}, {"ARG", "AR"}, {"NLD", "NL"},
-    {"CHE", "CH"}, {"SWE", "SE"}, {"POL", "PL"}, {"BEL", "BE"}, {"NOR", "NO"}, {"AUT", "AT"}, {"IRN", "IR"},
-    {"ISR", "IL"}, {"EGY", "EG"}, {"NGA", "NG"}, {"PAK", "PK"}, {"UKR", "UA"}, {"GRC", "GR"}, {"PRT", "PT"},
-};
-
-std::string flag_for(std::string const& iso3) {
-    for(auto const& p : iso_table) {
-        if(iso3 == p.iso3) {
-            std::string out;
-            for(int k = 0; k < 2; ++k) {
-                const uint32_t cp = 0x1F1E6u + static_cast<uint32_t>(p.iso2[k] - 'A');
-                out += static_cast<char>(0xF0 | (cp >> 18));
-                out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-                out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-                out += static_cast<char>(0x80 | (cp & 0x3F));
-            }
-            return out;
-        }
-    }
-    return "\xF0\x9F\x8C\x8D"; // U+1F30D globe
-}
 
 std::string fmt(char const* f, double v) {
     char buf[64];
@@ -224,7 +196,9 @@ sim_runner::controlled& sim_runner::track(uint32_t nation) {
     auto const& w = state_->world;
     const dcon::nation_id n{static_cast<dcon::nation_id::value_base_t>(nation)};
     c.iso3 = core::unpack_key(w.nation_get_iso3(n));
-    c.flag = flag_for(c.iso3);
+    // The nation's flag (flags.csv), else a white flag emoji.
+    c.flag = flags_ ? flags_->token(c.iso3) : std::string{};
+    if(c.flag.empty()) c.flag = "\xF0\x9F\x8F\xB3"; // U+1F3F3 white flag
     c.name = nation < nation_names_.size() && !nation_names_[nation].empty() ? nation_names_[nation] : c.iso3;
     c.unemployment0 = w.nation_get_unemployment(n);
     c.yield0 = w.nation_get_yield10(n);
@@ -540,6 +514,10 @@ void sim_runner::run() {
             const std::string iso = core::unpack_key(n.get_iso3());
             nation_of_iso[iso] = n.id.index();
             nation_names_[n.id.index()] = iso;
+        }
+        nation_flags_.assign(w.nation_size(), std::string{});
+        if(flags_) {
+            for(auto n : w.in_nation) nation_flags_[n.id.index()] = flags_->token(core::unpack_key(n.get_iso3()));
         }
         for(std::size_t r = 0; iso_col && name_col && r < names.rows(); ++r) {
             auto it = nation_of_iso.find(std::string(names.get(r, *iso_col)));

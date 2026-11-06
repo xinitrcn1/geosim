@@ -21,6 +21,8 @@ assets/
     names.csv                    people's names per culture (English spellings) for the in-game internet
     name_cultures.csv            which cultures each identity group / nation uses (weights mix them)
     tlds.csv                     internet domains per nation: ccTLD and co.uk / gov.uk / org.uk / ac.uk-style suffixes
+    flags.csv                    national flags as vector elements (stripes, stars, crescents, emblems; docs/08-ui.md#flags)
+    flag_emblems.csv             the flags' shared pool of low-poly emblems (shields, eagles, crowns, ...)
   scenario/2020/
     nations.csv                  macro state per nation, 2019 data (generated)
     sectors.csv                  value-added / employment shares per nation x sector (generated)

@@ -391,7 +391,7 @@ map_tooltip_info map_layer::describe(int i, map_filter view, sim_runner const& s
     const int owner = owner_of(i);
     const int sr = sim_region(i);
     out.title = names_[ui].empty() ? regions_[ui].code.data() : names_[ui];
-    out.subtitle = owner >= 0 ? sim.nation_name(static_cast<uint32_t>(owner)) : nations_[regions_[ui].nation].iso3.data();
+    out.subtitle = owner >= 0 ? sim.nation_label(static_cast<uint32_t>(owner)) : nations_[regions_[ui].nation].iso3.data();
     region_row const* row = have_snap_ && sr >= 0 && static_cast<std::size_t>(sr) < snap_.regions.size() ? &snap_.regions[static_cast<std::size_t>(sr)] : nullptr;
     nation_row const* nat = have_snap_ && owner >= 0 && static_cast<std::size_t>(owner) < snap_.nations.size() ? &snap_.nations[static_cast<std::size_t>(owner)] : nullptr;
     auto add = [&](std::string l, std::string v) { out.details.emplace_back(std::move(l), std::move(v)); };
@@ -468,7 +468,7 @@ map_tooltip_info map_layer::describe(int i, map_filter view, sim_runner const& s
         if(nat->partner[0] != 0xFFFF) heading("Top export destinations");
         for(int k = 0; k < 5; ++k) {
             if(nat->partner[k] == 0xFFFF) continue;
-            add(sim.nation_name(nat->partner[k]), fmt("%.1f%%", nat->partner_share[k]));
+            add(sim.nation_label(nat->partner[k]), fmt("%.1f%%", nat->partner_share[k]));
         }
         break;
     }
@@ -574,9 +574,9 @@ map_tab_info map_layer::tab(map_filter view, sim_runner const& sim, hazard_feed 
             for(std::size_t n = 0; n < snap_.nations.size(); ++n) {
                 if(iso_of(static_cast<int>(n)) != iso) continue;
                 auto const& r = snap_.nations[n];
-                if(view == map_filter::economy) t.summary.push_back(sim.nation_name(static_cast<uint32_t>(n)) + fmt(": GDP %+.1f%%", r.growth) + fmt(", unemployment %.1f%%", r.unemployment));
-                if(view == map_filter::trade) t.summary.push_back(sim.nation_name(static_cast<uint32_t>(n)) + fmt(": exports %.1f%% of GDP", r.exports_pct));
-                if(view == map_filter::energy && r.oil_demand > 0.0f) t.summary.push_back(sim.nation_name(static_cast<uint32_t>(n)) + fmt(": oil production %.0f%% of demand", r.oil_production / r.oil_demand * 100.0));
+                if(view == map_filter::economy) t.summary.push_back(sim.nation_label(static_cast<uint32_t>(n)) + fmt(": GDP %+.1f%%", r.growth) + fmt(", unemployment %.1f%%", r.unemployment));
+                if(view == map_filter::trade) t.summary.push_back(sim.nation_label(static_cast<uint32_t>(n)) + fmt(": exports %.1f%% of GDP", r.exports_pct));
+                if(view == map_filter::energy && r.oil_demand > 0.0f) t.summary.push_back(sim.nation_label(static_cast<uint32_t>(n)) + fmt(": oil production %.0f%% of demand", r.oil_production / r.oil_demand * 100.0));
             }
         }
     }
@@ -982,7 +982,7 @@ map_tooltip_info map_layer::describe_tile(int region, int mode, sim_runner const
     politics_region const* pr = politics_of(region);
     out.valid = true;
     out.title = names_[static_cast<std::size_t>(region)];
-    out.subtitle = sim.nation_name(politics_.nation);
+    out.subtitle = sim.nation_label(politics_.nation);
     auto const& parties = politics_.parties;
     if(!pr) {
         out.label = "No data";

@@ -14,6 +14,7 @@
 #include "ui_context.hpp"
 #include "ui_layout.hpp"
 #include "ui_renderer.hpp"
+#include "flags.hpp"
 #include "vk_context.hpp"
 
 #include <SDL3/SDL.h>
@@ -45,6 +46,31 @@ window_metrics query_metrics(SDL_Window* w) {
     if(m.pixel_density <= 0) m.pixel_density = 1;
     if(m.display_scale <= 0) m.display_scale = 1;
     return m;
+}
+
+// --flag-sheet: every flag on grey, large (flag cell 3:2) with its key, and inline in
+// text at the small UI size, a page at a time.
+// Pages from 100 on show page N - 100 with cells three times larger (emblem detail).
+void draw_flag_sheet(ui_context& ui, flag_set const& flags, int page) {
+    ui.fill(layer::overlay, {0, 0, ui.width(), ui.height()}, hex(0xF4F4F4));
+    const float big = page >= 100 ? 3.0f : 1.0f;
+    if(page >= 100) page -= 100;
+    const float cw = ui.px(84 * big), ch = ui.px(56 * big), lab = ui.px(34), gap = ui.px(10);
+    const int cols = std::max(1, static_cast<int>((ui.width() - gap) / (cw + gap)));
+    const int rows = std::max(1, static_cast<int>((ui.height() - gap) / (ch + lab + gap)));
+    const std::size_t per = static_cast<std::size_t>(cols * rows);
+    auto const& book = flags.book();
+    for(std::size_t k = 0; k < per; ++k) {
+        const std::size_t i = static_cast<std::size_t>(page) * per + k;
+        if(i >= book.flags.size()) break;
+        const float x = gap + static_cast<float>(k % static_cast<std::size_t>(cols)) * (cw + gap);
+        const float y = gap + static_cast<float>(k / static_cast<std::size_t>(cols)) * (ch + lab + gap);
+        ui.fill(layer::overlay, {x, y, cw, ch}, hex(0xE2E2E2));
+        ui.flag(layer::overlay, {x, y, cw, ch}, static_cast<uint32_t>(i));
+        const std::string inline_text = flag_set::token_of(static_cast<uint32_t>(i)) + " " + book.flags[i].key;
+        ui.text(layer::overlay, x, y + ch + ui.px(14), inline_text, ui.px(style::font_small), hex(0x202020));
+        ui.text(layer::overlay, x, y + ch + ui.px(29), "Hello " + flag_set::token_of(static_cast<uint32_t>(i)) + " world", ui.px(11), hex(0x202020));
+    }
 }
 
 // --inject: synthesises SDL events at given frames (see app_options::inject).
@@ -212,7 +238,16 @@ int run_app(app_options const& opt) {
             SDL_Quit();
             return fail("renderer initialisation", diag.error());
         }
-        SDL_Log("swapchain %ux%u, emoji flag ligatures: %zu", vk.swap_extent.width, vk.swap_extent.height, text.flag_ligatures());
+        SDL_Log("swapchain %ux%u", vk.swap_extent.width, vk.swap_extent.height);
+        // National flags (assets/defs/flags.csv): drawn by the flag material, inline in text.
+        flag_set flags;
+        {
+            core::diagnostics flag_diag;
+            if(flags.load(opt.assets + "/defs", flag_diag)) SDL_Log("flags: %zu", flags.size());
+            else SDL_Log("flags: %s (nations show no flag)", flag_diag.error().c_str());
+        }
+        text.set_flags(&flags);
+        sim.set_flags(&flags);
 
         // The world map: decoded on a worker thread, uploaded when ready (docs/07).
         map_loader map_load;
@@ -669,6 +704,7 @@ int run_app(app_options const& opt) {
                 if(hud.add_agent >= 0 && static_cast<std::size_t>(hud.add_agent) < agent_list.size()) sim.add_control(agent_list[static_cast<std::size_t>(hud.add_agent)]);
                 if(sim.status() == sim_status::loading && sim.started()) draw_notice(ui, "Loading", "Building the world… (a few seconds)");
             }
+            if(opt.flag_sheet >= 0) draw_flag_sheet(ui, flags, opt.flag_sheet);
             key_pan_x = key_pan_y = 0;
             key_zoom = 1.0;
             ui.end();

@@ -34,6 +34,7 @@ struct app_options {
     int politics_mode = 0;    // its initial mode button
     bool vector_map = true;   // polygon regions when the asset and device allow (else the raster)
     bool clouds = true;       // cloud layer (C toggles it at run time)
+    int flag_sheet = -1;      // --flag-sheet N: page N of every flag (big and inline in text), for visual checks; 100+N: larger
     bool hazard_demo = false; // fixed demo storms and an earthquake (visual checks before the sim feeds them)
     // Procedural music (docs/14-audio.md); M toggles it at run time.
     bool music = true;

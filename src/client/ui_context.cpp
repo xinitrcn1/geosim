@@ -1,5 +1,7 @@
 #include "ui_context.hpp"
 
+#include "flags.hpp"
+
 #include "style.hpp"
 
 #include <algorithm>
@@ -100,15 +102,35 @@ float ui_context::text(layer l, float x, float baseline, std::string_view s, flo
         back.a *= c.a;
         const uint32_t bc = pack(back);
         for(auto const& g : glyphs_) {
+            if(g.flag) continue;
             list.push(material::ui, {g.x0 + o, g.y0 + o, g.x1 - g.x0, g.y1 - g.y0, g.u0, g.v0, g.u1, g.v1, bc, 0, 0,
                                      static_cast<uint32_t>(quad_mode::glyph)});
         }
     }
     for(auto const& g : glyphs_) {
+        if(g.flag) {
+            list.push(material::flag, {g.x0, g.y0, g.x1 - g.x0, g.y1 - g.y0, g.u0, g.v0, c.a, 0, 0xFFFFFFFFu, 0, 0, 0});
+            continue;
+        }
         list.push(material::ui, {g.x0, g.y0, g.x1 - g.x0, g.y1 - g.y0, g.u0, g.v0, g.u1, g.v1, colour, 0, 0,
                                  static_cast<uint32_t>(quad_mode::glyph)});
     }
     return adv;
+}
+
+rect ui_context::flag(layer l, rect r, uint32_t index, float opacity) {
+    flag_set const* flags = text_.flags();
+    if(!flags || index >= flags->size()) return {};
+    auto const& f = flags->gpu().flags[index];
+    float w = r.w, h = std::round(r.w / f.aspect);
+    if(h > r.h) {
+        h = r.h;
+        w = std::round(r.h * f.aspect);
+    }
+    const rect q{std::round(r.x + (r.w - w) * 0.5f), std::round(r.y + (r.h - h) * 0.5f), w, h};
+    (l == layer::scene ? scene : overlay)
+        .push(material::flag, {q.x, q.y, q.w, q.h, static_cast<float>(f.first), static_cast<float>(f.count), opacity, 0, 0xFFFFFFFFu, 0, 0, 0});
+    return q;
 }
 
 float ui_context::text_in(layer l, rect r, std::string_view s, float size_px, rgba c, align a, font_weight w) {

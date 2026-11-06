@@ -21,6 +21,8 @@
 
 namespace geosim::client {
 
+class flag_set;
+
 // The world map, drawn first in the scene pass (beneath everything, blurred by the glass).
 struct map_pass {
     map_renderer* renderer = nullptr;
@@ -47,6 +49,8 @@ public:
 private:
     bool create_pipelines(core::diagnostics& diag);
     bool upload_atlas(text_system& text, core::diagnostics& diag);
+    bool upload_flags(flag_set const* flags, core::diagnostics& diag);
+    void write_flag_sets();
     bool ensure_instance_capacity(uint32_t frame, std::size_t count, core::diagnostics& diag);
     // `map` draws material::electoral batches; `set` is rebound after them.
     void draw_batches(VkCommandBuffer cmd, draw_list const& list, uint32_t base, float time, float scale, map_renderer* map = nullptr,
@@ -77,6 +81,8 @@ private:
     gpu_image scene_, half_, quarter_a_, quarter_b_;
     gpu_buffer instances_[frames_in_flight];
     gpu_buffer readback_;
+    gpu_buffer flag_prims_, flag_verts_; // the flag material's storage buffers (flag_set::gpu())
+    uint64_t flag_revision_ = ~uint64_t{0};
     VkExtent2D readback_extent_{};
 };
 

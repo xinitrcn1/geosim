@@ -1,5 +1,7 @@
 #include "text.hpp"
 
+#include "flags.hpp"
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
@@ -248,6 +250,9 @@ text_system::glyph const* text_system::get_glyph(uint8_t slot, uint32_t glyph_in
     return &cache_.emplace(key, g).first->second;
 }
 
+float text_system::flag_cell_h(float px) noexcept { return std::max(4.0f, std::round(px * 0.68f)); }
+float text_system::flag_cell_w(float px) noexcept { return std::round(flag_cell_h(px) * 1.5f); }
+
 float text_system::shape(std::string_view s, float px_f, font_weight w, float x, float y, std::vector<glyph_quad>* out) {
     const auto px = static_cast<uint32_t>(std::max(1.0f, std::round(px_f)));
     const int text_slot = face_for(family_text, static_cast<uint16_t>(w));
@@ -260,6 +265,26 @@ float text_system::shape(std::string_view s, float px_f, font_weight w, float x,
     while(i < s.size()) {
         uint32_t cp = next_codepoint(s, i);
         if(cp == 0xFE0F || cp == 0xFE0E || cp == 0x200D) continue; // variation selectors, ZWJ
+        if(cp >= flag_set::first_codepoint && cp <= flag_set::last_codepoint) {
+            // A flag: fitted into the universal cell with its own proportions, centred on
+            // the middle of the capitals, pixel-aligned.
+            if(!flags_) continue;
+            const uint32_t index = cp - flag_set::first_codepoint;
+            const float cw = flag_cell_w(px_f), ch = flag_cell_h(px_f);
+            if(out && index < flags_->size()) {
+                auto const& r = flags_->gpu().flags[index];
+                float fw = cw, fh = std::round(cw / r.aspect);
+                if(fh > ch) {
+                    fh = ch;
+                    fw = std::max(1.0f, std::round(ch * r.aspect));
+                }
+                const float fx = std::round(x + (cw - fw) * 0.5f);
+                const float fy = std::round(y - ascender(px_f) * 0.36f - fh * 0.5f);
+                out->push_back({fx, fy, fx + fw, fy + fh, static_cast<float>(r.first), static_cast<float>(r.count), 0, 0, true});
+            }
+            x += cw + std::round(px_f * 0.2f);
+            continue;
+        }
         int slot = text_slot;
         uint32_t gi = 0;
         if(emoji && is_regional_indicator(cp)) {
@@ -299,7 +324,7 @@ float text_system::shape(std::string_view s, float px_f, font_weight w, float x,
         if(out && g->w > 0) {
             const float gx = std::round(x + g->left);
             const float gy = std::round(y - g->top);
-            out->push_back({gx, gy, gx + g->w, gy + g->h, g->u0, g->v0, g->u1, g->v1});
+            out->push_back({gx, gy, gx + g->w, gy + g->h, g->u0, g->v0, g->u1, g->v1, false});
         }
         x += g->advance;
     }

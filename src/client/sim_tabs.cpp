@@ -173,7 +173,7 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
         if(home >= w.nation_size() && a && w.agent_get_home(a)) home = static_cast<uint32_t>(w.agent_get_home(a).id.index());
         out.nation = home < w.nation_size() ? home : 0xFFFFFFFFu;
         const dcon::nation_id n = out.nation < w.nation_size() ? nid(out.nation) : dcon::nation_id{};
-        out.nation_name = nation_name(out.nation);
+        out.nation_name = nation_label(out.nation);
         const uint32_t count = static_cast<uint32_t>(w.nation_size());
 
         switch(rq.tab) {
@@ -205,13 +205,13 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
                 const dcon::nation_id m = nid(k);
                 const float x = w.nation_get_bilateral_exports(n, static_cast<uint16_t>(k));
                 const float im = w.nation_get_bilateral_exports(m, static_cast<uint16_t>(out.nation));
-                if(x > 0.0f) t.exports.push_back({nation_name(k), x, k});
-                if(im > 0.0f) t.imports.push_back({nation_name(k), im, k});
+                if(x > 0.0f) t.exports.push_back({nation_label(k), x, k});
+                if(im > 0.0f) t.imports.push_back({nation_label(k), im, k});
                 if(w.nation_get_sanction(n, static_cast<uint16_t>(k)) > 0.05f) {
-                    t.sanctions_by.push_back(nation_name(k) + fmt(" %.2f", w.nation_get_sanction(n, static_cast<uint16_t>(k))));
+                    t.sanctions_by.push_back(nation_label(k) + fmt(" %.2f", w.nation_get_sanction(n, static_cast<uint16_t>(k))));
                 }
                 if(w.nation_get_sanction(m, static_cast<uint16_t>(out.nation)) > 0.05f) {
-                    t.sanctions_on.push_back(nation_name(k) + fmt(" %.2f", w.nation_get_sanction(m, static_cast<uint16_t>(out.nation))));
+                    t.sanctions_on.push_back(nation_label(k) + fmt(" %.2f", w.nation_get_sanction(m, static_cast<uint16_t>(out.nation))));
                 }
             }
             for(uint8_t sec = 0; sec < s.derived.sector_count && sec < w.nation_get_comp_x_size(); ++sec) {
@@ -247,9 +247,9 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
             for(uint32_t k = 0; k < count; ++k) {
                 if(k == out.nation) continue;
                 const auto kk = static_cast<uint16_t>(k);
-                if(w.nation_get_at_war(n, kk) > 0.0f) m.wars.push_back(nation_name(k));
-                else if(w.nation_get_hostility(n, kk) >= 2.0f) m.disputes.push_back(nation_name(k) + fmt(" (hostility %.0f of 5)", w.nation_get_hostility(n, kk)));
-                if(w.nation_get_alliance(n, kk) > 0.0f) m.allies.push_back(nation_name(k));
+                if(w.nation_get_at_war(n, kk) > 0.0f) m.wars.push_back(nation_label(k));
+                else if(w.nation_get_hostility(n, kk) >= 2.0f) m.disputes.push_back(nation_label(k) + fmt(" (hostility %.0f of 5)", w.nation_get_hostility(n, kk)));
+                if(w.nation_get_alliance(n, kk) > 0.0f) m.allies.push_back(nation_label(k));
             }
             break;
         }
@@ -261,7 +261,7 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
             ps.valid = true;
             ps.nation = pn;
             ps.iso3 = core::unpack_key(w.nation_get_iso3(p));
-            ps.name = nation_name(pn);
+            ps.name = nation_label(pn);
             ps.electoral_system = w.nation_get_electoral_system(p);
             ps.electoral = w.nation_get_electoral(p);
             ps.liberal = w.nation_get_liberal(p);
@@ -416,7 +416,7 @@ std::future<tab_snapshot> sim_runner::request_tab(tab_request rq) {
                 if(n && kind != agent_kind::executive) d.counterparts.push_back({out.nation, 0xFFFFFFFFu, 0xFFFFFFFFu, out.nation_name, "your government"});
                 for(uint32_t k = 0; k < count; ++k) {
                     if(k == out.nation) continue;
-                    counterpart_row c{k, 0xFFFFFFFFu, 0xFFFFFFFFu, nation_name(k), {}};
+                    counterpart_row c{k, 0xFFFFFFFFu, 0xFFFFFFFFu, nation_label(k), {}};
                     if(n && kind == agent_kind::executive) {
                         const auto kk = static_cast<uint16_t>(k);
                         if(w.nation_get_at_war(n, kk) > 0.0f) c.detail = "at war";

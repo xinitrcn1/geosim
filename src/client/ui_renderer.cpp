@@ -3,11 +3,14 @@
 #include "style.hpp"
 
 #include "blur.frag.h"
+#include "flag.frag.h"
+#include "flags.hpp"
 #include "fullscreen.vert.h"
 #include "map.frag.h"
 #include "quad.vert.h"
 #include "ui.frag.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -39,6 +42,7 @@ const material_def material_table[] = {
     {spv_ui_frag, sizeof(spv_ui_frag), true},       // material::ui
     {spv_map_frag, sizeof(spv_map_frag), false},    // material::map_placeholder
     {nullptr, 0, true},                             // material::electoral: map_renderer's own pipeline
+    {spv_flag_frag, sizeof(spv_flag_frag), true},   // material::flag
 };
 static_assert(std::size(material_table) == static_cast<std::size_t>(material::count));
 
@@ -69,22 +73,26 @@ bool ui_renderer::init(vk_context& vk, core::diagnostics& diag) {
     sci.maxLod = 0.0f;
     if(!vk_ok(vkCreateSampler(dev, &sci, nullptr, &sampler_), "vkCreateSampler", diag)) return false;
 
-    std::array<VkDescriptorSetLayoutBinding, 3> ui_bindings{};
+    // Bindings 0..2: atlas, blur, scene; 3..4: the flag material's primitives and vertices.
+    std::array<VkDescriptorSetLayoutBinding, 5> ui_bindings{};
     for(uint32_t i = 0; i < 3; ++i) {
         ui_bindings[i] = {i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
     }
+    for(uint32_t i = 3; i < 5; ++i) {
+        ui_bindings[i] = {i, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+    }
     VkDescriptorSetLayoutCreateInfo dl{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-    dl.bindingCount = 3;
+    dl.bindingCount = 5;
     dl.pBindings = ui_bindings.data();
     if(!vk_ok(vkCreateDescriptorSetLayout(dev, &dl, nullptr, &ui_set_layout_), "vkCreateDescriptorSetLayout", diag)) return false;
     dl.bindingCount = 1;
     if(!vk_ok(vkCreateDescriptorSetLayout(dev, &dl, nullptr, &post_set_layout_), "vkCreateDescriptorSetLayout", diag)) return false;
 
-    VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16};
+    const VkDescriptorPoolSize ps[] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 8}};
     VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     pci.maxSets = 8;
-    pci.poolSizeCount = 1;
-    pci.pPoolSizes = &ps;
+    pci.poolSizeCount = 2;
+    pci.pPoolSizes = ps;
     if(!vk_ok(vkCreateDescriptorPool(dev, &pci, nullptr, &pool_), "vkCreateDescriptorPool", diag)) return false;
 
     VkPushConstantRange qpr{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(quad_push)};
@@ -110,6 +118,8 @@ bool ui_renderer::init(vk_context& vk, core::diagnostics& diag) {
     for(uint32_t f = 0; f < frames_in_flight; ++f) {
         if(!ensure_instance_capacity(f, initial_instances, diag)) return false;
     }
+    if(!upload_flags(nullptr, diag)) return false; // placeholders until the first frame brings the flag set
+    flag_revision_ = ~uint64_t{0};
     return resize(diag);
 }
 
@@ -265,6 +275,7 @@ bool ui_renderer::resize(core::diagnostics& diag) {
         writes[i].pImageInfo = &images[i];
     }
     vkUpdateDescriptorSets(vk_->device, 10, writes, 0, nullptr);
+    write_flag_sets();
 
     // Fresh images start UNDEFINED; move them to the layout the frame expects
     // at its start (the atlas is uploaded separately).
@@ -279,6 +290,46 @@ bool ui_renderer::resize(core::diagnostics& diag) {
         atlas_initialised_ = true;
     }
     return vk_->end_immediate(cmd, diag);
+}
+
+void ui_renderer::write_flag_sets() {
+    if(!flag_prims_.buffer || !flag_verts_.buffer || !ui_set_) return;
+    const VkDescriptorBufferInfo bufs[2] = {{flag_prims_.buffer, 0, VK_WHOLE_SIZE}, {flag_verts_.buffer, 0, VK_WHOLE_SIZE}};
+    VkWriteDescriptorSet writes[4]{};
+    const VkDescriptorSet sets[2] = {ui_set_, ui_scene_set_};
+    for(int i = 0; i < 4; ++i) {
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].dstSet = sets[i / 2];
+        writes[i].dstBinding = 3 + static_cast<uint32_t>(i % 2);
+        writes[i].descriptorCount = 1;
+        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[i].pBufferInfo = &bufs[i % 2];
+    }
+    vkUpdateDescriptorSets(vk_->device, 4, writes, 0, nullptr);
+}
+
+bool ui_renderer::upload_flags(flag_set const* flags, core::diagnostics& diag) {
+    const uint64_t revision = flags ? flags->revision() : 0;
+    if(flag_prims_.buffer && revision == flag_revision_) return true;
+    // Rare (load, an edited flag): wait so no frame in flight reads the old buffers.
+    vkQueueWaitIdle(vk_->queue);
+    static const core::flags::compiled empty{};
+    core::flags::compiled const& c = flags ? flags->gpu() : empty;
+    const VkDeviceSize prim_bytes = std::max<VkDeviceSize>(sizeof(core::flags::prim), c.prims.size() * sizeof(core::flags::prim));
+    const VkDeviceSize vert_bytes = std::max<VkDeviceSize>(16, c.verts.size() * sizeof(float));
+    if(flag_prims_.size < prim_bytes) {
+        vk_->destroy_buffer(flag_prims_);
+        if(!vk_->create_buffer(prim_bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, flag_prims_, diag)) return false;
+    }
+    if(flag_verts_.size < vert_bytes) {
+        vk_->destroy_buffer(flag_verts_);
+        if(!vk_->create_buffer(vert_bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, flag_verts_, diag)) return false;
+    }
+    if(!c.prims.empty()) std::memcpy(flag_prims_.mapped, c.prims.data(), c.prims.size() * sizeof(core::flags::prim));
+    if(!c.verts.empty()) std::memcpy(flag_verts_.mapped, c.verts.data(), c.verts.size() * sizeof(float));
+    flag_revision_ = revision;
+    write_flag_sets();
+    return true;
 }
 
 bool ui_renderer::upload_atlas(text_system& text, core::diagnostics& diag) {
@@ -362,7 +413,7 @@ void ui_renderer::post_pass(VkCommandBuffer cmd, gpu_image const& dst, VkDescrip
 
 bool ui_renderer::record(text_system& text, draw_list const& scene, draw_list const& overlay, float time, float scale, bool capture,
                          core::diagnostics& diag, map_pass const& map) {
-    if(!upload_atlas(text, diag)) return false;
+    if(!upload_atlas(text, diag) || !upload_flags(text.flags(), diag)) return false;
     const uint32_t frame = vk_->frame_index();
     const std::size_t total = 1 + scene.quads().size() + overlay.quads().size();
     if(!ensure_instance_capacity(frame, total, diag)) return false;
@@ -512,6 +563,8 @@ void ui_renderer::shutdown() {
     vk_->destroy_image(atlas_);
     vk_->destroy_buffer(atlas_staging_);
     for(auto& b : instances_) vk_->destroy_buffer(b);
+    vk_->destroy_buffer(flag_prims_);
+    vk_->destroy_buffer(flag_verts_);
     for(auto& p : materials_) {
         if(p) vkDestroyPipeline(dev, p, nullptr);
         p = VK_NULL_HANDLE;

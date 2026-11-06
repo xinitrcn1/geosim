@@ -853,6 +853,8 @@ directory build_directory(game_state const& state, names const& nm) {
         return t;
     };
     for(auto n : w.in_nation) {
+        // The calibration slices' "rest of world" is an aggregate, not a place with a press.
+        if(core::unpack_key(n.get_iso3()) == "ROW") continue;
         const auto i = static_cast<std::size_t>(n.id.index());
         auto const& f = facts[i];
         const std::string name = nation_name(state, nm, n.id), adj = adjective(name);

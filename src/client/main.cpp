@@ -104,6 +104,7 @@ int main(int argc, char** argv) {
         else if(key == "politics") opt.politics = v;
         else if(key == "politics-mode") ok = parse(v, opt.politics_mode);
         else if(key == "clouds") opt.clouds = std::strcmp(v, "0") != 0;
+        else if(key == "flag-sheet") ok = parse(v, opt.flag_sheet) && opt.flag_sheet >= 0;
         else if(key == "hazard-demo") opt.hazard_demo = std::strcmp(v, "0") != 0;
         else if(key == "speed") ok = parse(v, opt.speed) && opt.speed >= 0 && opt.speed <= 5;
         else if(key == "width") ok = parse(v, opt.width) && opt.width > 0;

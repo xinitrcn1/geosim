@@ -12,6 +12,7 @@ endfunction()
 
 geosim_add_test(test_scheduler geosim_core)
 geosim_add_test(test_core_parsers geosim_core)
+geosim_add_test(test_flags geosim_core)
 geosim_add_test(test_parliament geosim_core) # client geometry, header-only
 
 geosim_add_test(test_dcon_smoke geosim_sim)

@@ -59,7 +59,8 @@ static_assert(sizeof(quad_instance) == 48);
 // here and in ui_renderer.cpp's material table, and push instances with it
 // (u0..v1 carry its parameters).
 // electoral: the Politics window's inset map, drawn by map_renderer (its own pipeline).
-enum class material : uint8_t { ui = 0, map_placeholder = 1, electoral = 2, count };
+// flag: a national flag (shaders/flag.frag): u0 = first primitive, v0 = count, u1 = opacity.
+enum class material : uint8_t { ui = 0, map_placeholder = 1, electoral = 2, flag = 3, count };
 
 enum class layer : uint8_t { scene = 0, overlay = 1 };
 

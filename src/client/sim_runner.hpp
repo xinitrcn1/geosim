@@ -71,7 +71,7 @@ struct agent_panel {
     uint32_t agent = 0;  // the controlled agent (AI toggle, removal)
     bool ai = true;      // its AI keeps deciding (the player advises / forces)
     bool answer = true;  // requests to it wait for the player (else its AI answers at once)
-    std::string flag;  // the agent's nation (emoji flag): several nations may be controlled
+    std::string flag;  // the agent's nation (flag_set token): several nations may be controlled
     std::string icon;
     std::string title; // "United States Government", "United States Central Bank"
     std::vector<indicator> items;
@@ -115,6 +115,8 @@ struct journal_batch {
 std::vector<agent_info> collect_agents(game_state const& s, std::vector<std::string> const& nation_names,
                                        std::vector<std::string> const& region_names);
 
+class flag_set;
+
 class sim_runner {
 public:
     sim_runner();
@@ -126,6 +128,8 @@ public:
     // or loads `save_path` when given (a sim::save_game file of that scenario).
     // `nations` lists nations as ISO3 codes, comma-separated ("USA,CAN"): their
     // executive and central bank start controlled ("" = none).
+    // The flags shown for nations (read on the UI thread; set before start).
+    void set_flags(flag_set const* flags) noexcept { flags_ = flags; }
     void start(std::string assets_dir, std::string scenario, std::string nations, std::string save_path = {});
     [[nodiscard]] bool started() const noexcept { return thread_.joinable(); }
     [[nodiscard]] std::string const& scenario() const noexcept { return scenario_; }
@@ -267,6 +271,8 @@ private:
     // read-only: nations.csv names (cut at a comma) by nation index, and the
     // scenario's regions.csv names by region index (empty without regions.csv).
     std::vector<std::string> nation_names_;
+    std::vector<std::string> nation_flags_; // flag tokens by nation index ("" without a flag)
+    flag_set const* flags_ = nullptr;
     std::vector<std::string> region_names_;
     std::unique_ptr<sim::web::name_pools> people_;     // name pools for the in-game internet (sim thread)
     std::unique_ptr<sim::web::domain_table> domains_;  // its domains per nation (tlds.csv)
@@ -276,6 +282,12 @@ public:
     [[nodiscard]] std::string place_name(uint32_t nation_index, uint32_t region_index) const;
     [[nodiscard]] std::string nation_name(uint32_t nation_index) const {
         return nation_index < nation_names_.size() ? nation_names_[nation_index] : std::string{};
+    }
+    // The name with the nation's flag in front (a flag_set token), for display.
+    [[nodiscard]] std::string nation_label(uint32_t nation_index) const {
+        if(nation_index >= nation_names_.size()) return {};
+        if(nation_index < nation_flags_.size() && !nation_flags_[nation_index].empty()) return nation_flags_[nation_index] + " " + nation_names_[nation_index];
+        return nation_names_[nation_index];
     }
 
     std::jthread thread_; // joins on destruction

@@ -130,7 +130,8 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
         const float plus_w = ui.px(26);
         const float tw = std::min(ui.px(200), (frame.w - pad * 2 - plus_w) / static_cast<float>(b.tabs.size()));
         float x = frame.x + pad;
-        std::size_t close = b.tabs.size();
+        constexpr std::size_t no_tab = static_cast<std::size_t>(-1); // not the old count: '+' grows the list below
+        std::size_t close = no_tab;
         for(std::size_t i = 0; i < b.tabs.size(); ++i) {
             const rect r{std::round(x), y + ui.px(3), std::floor(tw) - ui.px(2), th - ui.px(3)};
             const bool active = i == b.active;
@@ -157,7 +158,7 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
             b.active = b.tabs.size() - 1;
             b.have = false;
         }
-        if(close < b.tabs.size()) {
+        if(close != no_tab) {
             b.tabs.erase(b.tabs.begin() + static_cast<std::ptrdiff_t>(close));
             if(b.active >= close && b.active > 0) --b.active;
             b.have = false;
@@ -173,7 +174,7 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
         x += bs + ui.px(2);
         if(ui.flat_button("web.fwd", {x, by, bs, bs}, "▶", small, false, "Forward") && t.at + 1 < t.history.size()) ++t.at, b.have = false;
         x += bs + ui.px(2);
-        if(ui.flat_button("web.reload", {x, by, bs, bs}, "⟳", small, false, "Reload")) b.last = {};
+        if(ui.flat_button("web.reload", {x, by, bs, bs}, "🔄", small, false, "Reload")) b.last = {};
         x += bs + ui.px(2);
         if(ui.flat_button("web.home", {x, by, bs, bs}, "⌂", small, false, "Home")) navigate(b, "about:home");
         x += bs + pad;
@@ -201,8 +202,8 @@ void browser_window(ui_context& ui, sim_runner& sim, hud_state& st, rect win) {
     {
         const float bh = ui.px(22);
         float x = frame.x + pad;
-        ui.text_in(layer::overlay, {x, y, ui.px(80), bh}, "★ Most visited", small, style::flat_dim);
-        x += ui.text_width("★ Most visited", small) + pad;
+        ui.text_in(layer::overlay, {x, y, ui.px(80), bh}, "⭐ Most visited", small, style::flat_dim);
+        x += ui.text_width("⭐ Most visited", small) + pad;
         for(std::size_t i = 0; i < b.bookmarks.size(); ++i) {
             const float w = ui.text_width(b.bookmarks[i].name, small) + pad * 1.5f;
             if(x + w > frame.right() - pad) break;
