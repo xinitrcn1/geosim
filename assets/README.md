@@ -50,7 +50,7 @@ assets/
     nations.csv, sectors.csv     218 nations (WDI; Fiscal Space debt/balance; WHO beds; income-group imputation)
     states.csv                   3,240 states: geoBoundaries ADM1 (+ Natural Earth for the French overseas
                                  regions); the legal level (governors, district seats, redrawable)
-    regions.csv, adjacency.csv   3,850 regions: clusters of counties inside each state, sized by population
+    regions.csv, adjacency.csv   4,715 regions: clusters of counties inside each state, sized by population
                                  (GHS-POP 2020; tools/pipeline/adm2.py), and their adjacency; sector mixes
                                  and GDP shares are derived at load (scenario.cpp derive_region_sectors)
     adm2.csv                     49,570 counties (geoBoundaries ADM2; a state without ADM2 data is one) and

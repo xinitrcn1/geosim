@@ -6,7 +6,7 @@ ADM2 units (counties, districts, prefectures) sized by population: a state gets
 round(population / PEOPLE_PER_CLUSTER) clusters, at least one and at most its number of
 ADM2 units, so Texas has about ten, a Saharan wilaya or a Slovene region one, and China
 many. The totals are capped: MAX_CLUSTERS regions, and POP_BUDGET pops (each region holds
-4 pops per identity group of its nation; the simulation's containers hold 32767 objects);
+4 pops per identity group of its nation; the pop container holds 250000 objects);
 the threshold rises until both fit.
 
 Inputs:
@@ -41,8 +41,8 @@ GRID_W, GRID_H = 8640, 4320          # 2.5 arc-minutes
 SUB = 5                              # 30" cells per grid cell, per axis
 PEOPLE_PER_CLUSTER = 3.0e6
 MAX_CLUSTERS = 5000
-POP_BUDGET = 26000                   # simulation pops (4 per identity group per region); the
-                                     # container holds 32767 and long campaigns add some
+POP_BUDGET = 200000                  # simulation pops (4 per identity group per region); the
+                                     # container holds 250000 and long campaigns add some
 URBAN_DENSITY = 1500.0               # people per km2 (DEGURBA urban centre cells)
 CELL30_KM2 = (6371.0088 * math.pi / 180.0 / 120.0) ** 2   # a 30" cell at the equator
 

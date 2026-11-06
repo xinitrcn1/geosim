@@ -592,7 +592,7 @@ object{
 object{
 	name{pop}
 	storage_type{erasable}
-	size{32768}
+	size{250000}
 	tag{scenario}
 
 	property{ name{kind} type{uint8_t} }
@@ -1205,7 +1205,7 @@ relationship{
 relationship{
 	name{pop_location}
 	storage_type{erasable}
-	size{32768}
+	size{250000}
 	tag{scenario}
 
 	link{

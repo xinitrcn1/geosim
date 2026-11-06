@@ -51,7 +51,7 @@ public:
     // its electoral tile map for `mode` and a tile's tooltip.
     [[nodiscard]] int resolve_nation(int nation, int step, sim_runner const& sim) const;
     void update_politics(sim_runner& sim, int nation);
-    [[nodiscard]] electoral_view_info electoral(int nation, int mode, sim_runner const& sim) const;
+    [[nodiscard]] electoral_view_info electoral(int nation, int mode, sim_runner const& sim, int state = -1) const;
     [[nodiscard]] map_tooltip_info describe_tile(int region, int mode, sim_runner const& sim) const;
     // Sim nation controlling a raster region (-1 = not simulated).
     [[nodiscard]] int nation_at(int region) const noexcept { return owner_of(region); }
@@ -114,12 +114,17 @@ private:
     std::vector<std::vector<float>> start_votes_; // nation -> national vote shares at first sight (swing)
     std::vector<float> lonlat_;    // vector-map vertices (lon, lat degrees), for the landmass groups
     std::vector<map_ring> rings_;
-    mutable std::vector<std::shared_ptr<electoral_geometry const>> insets_; // per nation, built on first use
-    [[nodiscard]] std::shared_ptr<electoral_geometry const> build_insets(int nation) const;
+    mutable std::vector<std::shared_ptr<electoral_geometry const>> insets_; // per nation (and state), built on first use
+    [[nodiscard]] std::shared_ptr<electoral_geometry const> build_insets(int nation, int state = -1) const;
 
 public:
     // The Politics window's inset geometry for a nation (cached), for the renderer.
-    [[nodiscard]] std::shared_ptr<electoral_geometry const> electoral_geometry_of(int nation) const { return nation < 0 ? nullptr : build_insets(nation); }
+    [[nodiscard]] std::shared_ptr<electoral_geometry const> electoral_geometry_of(int nation, int state = -1) const {
+        return nation < 0 ? nullptr : build_insets(nation, state);
+    }
+    // The sim state of a map region (from the region snapshot: redrawing changes it), -1 unknown.
+    [[nodiscard]] int state_of(int region) const noexcept;
+    [[nodiscard]] std::string state_name(int state) const;
 
 private:
     [[nodiscard]] politics_region const* politics_of(int raster) const noexcept;

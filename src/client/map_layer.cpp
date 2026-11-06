@@ -724,15 +724,31 @@ bool map_layer::democracy() const noexcept {
 // closer than ~250 km are grouped (union-find), specks dropped; the largest group
 // keeps its place and the others become insets (inset_pack.hpp). The GPU draws the
 // nation's ring fans once per inset (map_renderer::set_electoral).
-std::shared_ptr<electoral_geometry const> map_layer::build_insets(int nation) const {
+int map_layer::state_of(int region) const noexcept {
+    const int sr = sim_region(region);
+    if(!have_snap_ || sr < 0 || static_cast<std::size_t>(sr) >= snap_.regions.size()) return -1;
+    const uint32_t st = snap_.regions[static_cast<std::size_t>(sr)].state;
+    return st == 0xFFFFFFFFu ? -1 : static_cast<int>(st);
+}
+
+std::string map_layer::state_name(int state) const {
+    return state >= 0 && static_cast<std::size_t>(state) < snap_.state_names.size() ? snap_.state_names[static_cast<std::size_t>(state)] : std::string{};
+}
+
+std::shared_ptr<electoral_geometry const> map_layer::build_insets(int nation, int state) const {
     for(auto const& c : insets_) {
-        if(c && c->nation == nation) return c;
+        if(c && c->nation == nation && c->state == state) return c;
     }
+    // A state's view is rebuilt when another is opened (states can be redrawn): keep the
+    // nations' geometry and the last state's.
+    std::erase_if(insets_, [](auto const& c) { return c && c->state >= 0; });
     auto geo = std::make_shared<electoral_geometry>();
     geo->nation = nation;
+    geo->state = state;
     std::vector<int> local(regions_.size(), -1);
     for(std::size_t i = 0; i < regions_.size(); ++i) {
         if(owner_of(static_cast<int>(i)) != nation) continue;
+        if(state >= 0 && state_of(static_cast<int>(i)) != state) continue;
         local[i] = static_cast<int>(geo->regions.size());
         geo->regions.push_back(static_cast<int>(i));
     }
@@ -882,7 +898,7 @@ std::shared_ptr<electoral_geometry const> map_layer::build_insets(int nation) co
     return geo;
 }
 
-electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const& sim) const {
+electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const& sim, int state) const {
     electoral_view_info out;
     if(nation < 0) return out;
     out.nation = sim.nation_name(static_cast<uint32_t>(nation));
@@ -900,7 +916,8 @@ electoral_view_info map_layer::electoral(int nation, int mode, sim_runner const&
         out.modes = {"Regime support", "Unrest", "Insurgency", "Population"};
     }
     out.mode = std::clamp(mode, 0, static_cast<int>(out.modes.size()) - 1);
-    const auto geo = build_insets(nation);
+    const auto geo = build_insets(nation, state);
+    if(state >= 0) out.state = state_name(state);
     out.aspect = geo->aspect;
     for(auto const& in : geo->insets) {
         if(in.frame) out.frames.push_back({in.dst[0], in.dst[1], in.dst[2], in.dst[3]});

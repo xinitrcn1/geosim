@@ -128,6 +128,7 @@ struct legend_item {
 struct electoral_view_info {
     bool valid = false;
     std::string nation;             // name
+    std::string state;              // the state zoomed into ("" = the whole nation)
     bool democracy = true;
     std::vector<std::string> modes; // button labels
     int mode = 0;                   // active button
@@ -171,6 +172,9 @@ struct hud_state {
     int politics_mode = 0;
     int politics_tile = -1;
     int politics_step = 0; // -1 / +1 when the nation arrows are clicked
+    int politics_state = -1;        // the state the electoral map is zoomed into (sim index), -1 = the nation
+    bool politics_click = false;    // a county was clicked in the electoral map this frame (zoom to its state)
+    bool politics_back = false;     // the "whole nation" link was clicked
     bool tooltip_tile = false; // the tooltip describes an electoral tile, not the main map
     // Agent bars and the Control window ('+').
     int64_t toggle_ai = -1;      // agent whose AI switch was clicked this frame

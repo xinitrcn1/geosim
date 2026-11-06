@@ -85,6 +85,7 @@ struct electoral_inset {
 };
 struct electoral_geometry {
     int nation = -1;
+    int state = -1; // sim state index when zoomed into one state, -1 = the whole nation
     float ref_lon_deg = 0;
     float aspect = 1; // layout width / height
     std::vector<uint32_t> indices;

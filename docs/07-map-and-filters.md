@@ -97,11 +97,11 @@ Three levels below the nation, all in `assets/scenario/world2020` (built by
 - **Clusters (the simulation's regions)** — `regions.csv`: counties grouped
   inside their state by population. A state gets round(population /
   threshold) clusters, at least one and at most its county count; the
-  threshold starts at 3 M people and rises until the totals fit the
-  simulation (≤ 5000 regions and ≤ 26,000 pops, 4 pops per identity group per
-  region; the containers hold 32,767): 5.9 M, so 3,850 clusters — Texas 5,
-  California 7, a Saharan wilaya or a Slovene region 1, China and India
-  hundreds. Clustering is a population-balanced recursive bisection of the
+  threshold is 3 M people, raised only if the totals outgrow the simulation
+  (≤ 5000 regions — the region container holds 8192 — and ≤ 200,000 pops, 4
+  per identity group per region, of a 250,000 container): 4,715 clusters —
+  Texas 10, California 13, a Saharan wilaya or a Slovene region 1, China 470,
+  India 443. Clustering is a population-balanced recursive bisection of the
   counties' centroids along the wider axis, then a contiguity repair (a
   detached piece joins the cluster it borders most). Every simulated
   quantity (population, epidemics, unrest, output...) lives on clusters.
@@ -134,9 +134,11 @@ bounding cap (centre, angular radius) culled against the view (focus angle −
 radius < half-diagonal / scale), and neighbouring visible states merge into
 one draw.
 
-**Electoral map.** The Politics inset draws the nation's counties coloured by
-their cluster's result: white lines between clusters, faint ones between the
-counties of a cluster.
+**Electoral map.** The Politics inset is a county-level map: counties coloured
+by their cluster's result, faint lines between counties and white lines between
+states only (clusters are never outlined). Clicking a county zooms the inset
+into its state — the same Mercator projection and inset packing as for a nation
+(islands and exclaves as insets) — and a link above the map goes back.
 
 ## Vector regions
 

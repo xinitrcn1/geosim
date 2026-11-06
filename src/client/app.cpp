@@ -591,14 +591,23 @@ int run_app(app_options const& opt) {
                     }
                     hud.politics_nation = political.resolve_nation(hud.politics_nation, 0, sim);
                     political.update_politics(sim, hud.politics_nation);
-                    politics_info = political.electoral(hud.politics_nation, hud.politics_mode, sim);
+                    // Clicking a county zooms the electoral map into its state; the link goes back.
+                    static int last_politics_nation = -1;
+                    if(hud.politics_nation != last_politics_nation) hud.politics_state = -1;
+                    last_politics_nation = hud.politics_nation;
+                    if(hud.politics_back) hud.politics_state = -1;
+                    if(hud.politics_click && hud.politics_tile >= 0) hud.politics_state = political.state_of(hud.politics_tile);
+                    hud.politics_back = hud.politics_click = false;
+                    politics_info = political.electoral(hud.politics_nation, hud.politics_mode, sim, hud.politics_state);
                     // The inset map is drawn from the polygons on the GPU: its geometry and the
                     // colour per raster region for the current mode; the hovered region comes back.
-                    if(auto geo = political.electoral_geometry_of(hud.politics_nation)) {
+                    if(auto geo = political.electoral_geometry_of(hud.politics_nation, hud.politics_state)) {
                         std::vector<uint32_t> colours(political.table().size() / 3, 0u);
                         for(std::size_t li = 0; li < geo->regions.size() && li < politics_info.colours.size(); ++li) {
                             const auto r = static_cast<std::size_t>(geo->regions[li]) + 1;
-                            if(r < colours.size()) colours[r] = pack(politics_info.colours[li]);
+                            // The top byte carries the state (lines are drawn between states only).
+                            const auto st = static_cast<uint32_t>(political.state_of(geo->regions[li]));
+                            if(r < colours.size()) colours[r] = (pack(politics_info.colours[li]) & 0x00FFFFFFu) | ((st & 0xFFu) << 24);
                         }
                         map.set_electoral(geo, std::move(colours));
                     }

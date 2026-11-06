@@ -1,15 +1,16 @@
 #version 450
 // The Politics window's inset map (material::electoral, drawn by map_renderer):
 // the region in the electoral ID image at this pixel (XOR codes, map_elect.vert)
-// filled with its electoral-mode colour, white lines between regions (clusters),
-// faint ones between the counties inside a region, and dark grey coasts; empty
-// pixels stay transparent (the white window shows). IDs are units (counties).
+// filled with its region's electoral-mode colour - a county-level map: faint lines
+// between counties (never between the clusters the simulation uses), white lines
+// between states, dark grey coasts; empty pixels stay transparent (the white window
+// shows). IDs are units (counties).
 #extension GL_GOOGLE_include_directive : require
 #include "common.glsl"
 
 layout(set = 0, binding = 0) uniform usampler2D u_elect;
 layout(std430, set = 0, binding = 1) readonly buffer colours {
-    uint c[]; // per unit id: RGB8 of its region, the region's low index byte in the top byte
+    uint c[]; // per unit id: RGB8 of its region, its state's low index byte in the top byte
 } col;
 
 // quad.vert's outputs (unused here, declared so the interfaces match).
@@ -52,8 +53,8 @@ void main() {
     uint w = me < n ? col.c[me] : 0u;
     vec4 fill = me < n ? unpackUnorm4x8(w) : vec4(0.84, 0.86, 0.9, 1.0);
     uint wr = r < n ? col.c[r] : 0u, wd = d < n ? col.c[d] : 0u;
-    bool region_border = (r != 0u && wr != w) || (d != 0u && wd != w);
+    bool state_border = (r != 0u && (wr >> 24) != (w >> 24)) || (d != 0u && (wd >> 24) != (w >> 24));
     bool county_border = (r != me && r != 0u) || (d != me && d != 0u);
-    vec3 c = region_border ? vec3(1.0) : county_border ? mix(fill.rgb, vec3(1.0), 0.18) : fill.rgb;
+    vec3 c = state_border ? vec3(1.0) : county_border ? mix(fill.rgb, vec3(1.0), 0.25) : fill.rgb;
     o_color = vec4(c, 1.0);
 }

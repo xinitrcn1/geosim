@@ -655,7 +655,8 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
         if(!cur.empty()) strip.push_back(cur);
     }
     // The map takes the rest of the window.
-    const float map_h = std::max(ui.px(80), win.h - (hh + pad + rows_h + pad + pad + (info.legend.empty() ? 0.0f : line) +
+    const float back_h = info.state.empty() ? 0.0f : ui.px(20) + pad; // zoomed into a state: the way back
+    const float map_h = std::max(ui.px(80), win.h - (hh + pad + rows_h + pad + back_h + pad + (info.legend.empty() ? 0.0f : line) +
                                                      static_cast<float>(strip.size()) * line + pad));
     rect r = win;
     window_frame(ui, st, win, "Politics", info.nation);
@@ -677,6 +678,14 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
         if(ui.flat_button(id, b, info.modes[i], small, static_cast<int>(i) == info.mode)) st.politics_mode = static_cast<int>(i);
     }
     cy += rows_h + pad;
+    // Zoomed into a state: its name and the way back to the nation.
+    if(!info.state.empty()) {
+        const std::string back = "\u25C0 " + info.nation;
+        const float bw = ui.text_width(back, small) + pad * 2;
+        if(ui.flat_button("politics.back", {x + pad, cy, bw, ui.px(20)}, back, small, false, "Back to the whole nation")) st.politics_back = true;
+        ui.text_in(layer::overlay, {x + pad + bw + pad, cy, map_w, ui.px(20)}, info.state, small, style::flat_header, align::left, font_weight::semibold);
+        cy += back_h;
+    }
     // Tiles, fitted into the map area with the layout's aspect.
     float lw = map_w, lh = map_w / std::max(0.05f, info.aspect);
     if(lh > map_h) {
@@ -702,7 +711,10 @@ void politics_tab(ui_context& ui, electoral_view_info const& info, hud_state& st
             ui.fill(layer::overlay, {fr.x, fr.y, o, fr.h}, style::flat_dim);
             ui.fill(layer::overlay, {fr.right() - o, fr.y, o, fr.h}, style::flat_dim);
         }
-        if(ui.hovered(area)) st.politics_tile = info.hovered;
+        if(ui.hovered(area)) {
+            st.politics_tile = info.hovered;
+            if(info.state.empty() && info.hovered >= 0 && ui.input().released) st.politics_click = true;
+        }
     }
     cy += map_h + pad;
     if(!info.legend.empty()) {

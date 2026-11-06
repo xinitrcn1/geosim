@@ -719,7 +719,7 @@ void map_renderer::set_electoral(std::shared_ptr<electoral_geometry const> geo, 
     elect_colours_.assign(unit_region_.size() + 1, 0u);
     for(std::size_t u = 0; u < unit_region_.size(); ++u) {
         const std::size_t r = std::size_t{unit_region_[u]} + 1;
-        if(r < colours.size()) elect_colours_[u + 1] = (colours[r] & 0x00FFFFFFu) | (static_cast<uint32_t>(r & 0xFFu) << 24);
+        if(r < colours.size()) elect_colours_[u + 1] = colours[r];
     }
     if(geo == elect_geo_) return;
     elect_geo_ = std::move(geo);
